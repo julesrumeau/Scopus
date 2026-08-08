@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scopus — LiDAR HD</title>
+<meta name="description" content="Exploration du LiDAR HD de l'IGN et détection de structures hors carte. Tout se passe dans le navigateur.">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="barre">
+  <h1>Scopus</h1>
+  <span class="sous-titre">LiDAR HD · détection de structures hors carte</span>
+  <span id="etat" class="etat">Cliquez une dalle sur la carte</span>
+</header>
+
+<main class="grille">
+
+  <aside class="panneau" id="panneau">
+
+    <!-- ─── 1. Dalle ─────────────────────────────────────────────────────── -->
+    <section class="etape" data-etape="1">
+      <h2><span class="num">1</span> Dalle</h2>
+      <div id="info-dalle" class="vide">Aucune dalle sélectionnée.<br>
+        Zoomez à l'échelle du kilomètre puis cliquez sur la carte.</div>
+      <dl id="detail-dalle" class="detail" hidden></dl>
+      <button id="btn-ouvrir" class="primaire" disabled>Ouvrir la dalle</button>
+    </section>
+
+    <!-- ─── 2. Zone d'intérêt ────────────────────────────────────────────── -->
+    <section class="etape" data-etape="2" id="section-zone" hidden>
+      <h2><span class="num">2</span> Zone d'intérêt</h2>
+      <label class="champ">
+        <span>Côté <b id="val-cote">250 m</b></span>
+        <input type="range" id="cote-aoi" min="50" max="1000" step="25" value="250">
+      </label>
+      <label class="champ">
+        <span>Résolution <b id="val-niveau">—</b></span>
+        <input type="range" id="niveau" min="0" max="5" step="1" value="0">
+      </label>
+      <div id="cout" class="cout">—</div>
+      <div class="rangee">
+        <button id="btn-charger" class="primaire">Charger le nuage</button>
+        <button id="btn-annuler" class="secondaire" hidden>Annuler</button>
+      </div>
+      <div id="progression" class="progression" hidden><div id="barre-progression"></div></div>
+    </section>
+
+    <!-- ─── 3. Affichage ─────────────────────────────────────────────────── -->
+    <section class="etape" data-etape="3" id="section-affichage" hidden>
+      <h2><span class="num">3</span> Affichage</h2>
+      <div class="segments" id="coloration">
+        <button data-mode="classification" class="actif">Classification</button>
+        <button data-mode="hauteur">Hauteur/sol</button>
+        <button data-mode="elevation">Altitude</button>
+        <button data-mode="intensite">Intensité</button>
+      </div>
+      <label class="champ">
+        <span>Taille des points <b id="val-taille">2.0</b></span>
+        <input type="range" id="taille-point" min="0.5" max="8" step="0.5" value="2">
+      </label>
+      <label class="champ">
+        <span>Exagération verticale <b id="val-exag">×1.0</b></span>
+        <input type="range" id="exag" min="0.5" max="4" step="0.1" value="1">
+      </label>
+      <div id="legende" class="legende"></div>
+    </section>
+
+    <!-- ─── 4. Détection ─────────────────────────────────────────────────── -->
+    <section class="etape" data-etape="4" id="section-detection" hidden>
+      <h2><span class="num">4</span> Détection</h2>
+      <label class="case">
+        <input type="checkbox" id="inclure-bati" checked>
+        <span>Inclure la classe « bâtiment » dans le signal</span>
+      </label>
+      <div class="reglages" id="reglages"></div>
+      <div class="rangee">
+        <button id="btn-detecter" class="primaire">Lancer la détection</button>
+        <button id="btn-defauts" class="secondaire" title="Revenir aux seuils par défaut">↺</button>
+      </div>
+      <div id="stats-detection" class="stats" hidden></div>
+    </section>
+
+    <!-- ─── 5. Résultats ─────────────────────────────────────────────────── -->
+    <section class="etape" data-etape="5" id="section-resultats" hidden>
+      <h2><span class="num">5</span> Résultats <span id="compte" class="badge"></span></h2>
+      <label class="case">
+        <input type="checkbox" id="masquer-repertories" checked>
+        <span>Masquer ce qui est déjà dans la BD TOPO</span>
+      </label>
+      <ol id="liste" class="liste"></ol>
+      <div class="rangee exports">
+        <button id="exp-gpx" class="secondaire">GPX</button>
+        <button id="exp-geojson" class="secondaire">GeoJSON</button>
+        <button id="exp-csv" class="secondaire">CSV</button>
+      </div>
+    </section>
+
+    <footer class="pied">
+      Données <a href="https://geoservices.ign.fr/lidarhd" target="_blank" rel="noopener">LiDAR HD © IGN</a>,
+      licence ouverte Etalab. Tout le traitement se fait dans cet onglet :
+      aucune donnée n'est envoyée ailleurs.
+    </footer>
+  </aside>
+
+  <section class="scene">
+    <nav class="onglets">
+      <button id="onglet-carte" class="actif">Carte</button>
+      <button id="onglet-3d">Nuage 3D</button>
+      <span class="aide" id="aide-vue">Molette : zoom · glisser : orbite · Maj+glisser : déplacer</span>
+    </nav>
+    <div id="vue-carte" class="vue"></div>
+    <div id="vue-3d" class="vue" hidden>
+      <canvas id="canvas3d"></canvas>
+      <div id="hud" class="hud"></div>
+    </div>
+  </section>
+
+</main>
+
+<div id="alerte" class="alerte" hidden></div>
+
+<!--
+  Scripts classiques, chargés dans l'ordre, chacun exposant un global.
+
+  Pas de `type="module"` : Scopus doit s'ouvrir par double-clic, et un navigateur
+  refuse les modules ES sur une page `file://` (origine « null »). Même raison
+  pour le laz-perf embarqué — en `file://` rien ne peut être chargé par fetch ou
+  XHR, donc son JavaScript et son binaire WASM sont inclus sous forme de chaînes.
+
+  L'ordre compte : chaque fichier lit les globaux définis par les précédents.
+-->
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/lazperf/lazperf-embarque.js"></script>
+
+<script src="src/config.js"></script>
+<script src="src/proj.js"></script>
+<script src="src/reseau.js"></script>
+<script src="src/ign.js"></script>
+<script src="src/copc.js"></script>
+<script src="src/decodeur.js"></script>
+<script src="src/nuage.js"></script>
+<script src="src/raster.js"></script>
+<script src="src/detection.js"></script>
+<script src="src/sortie.js"></script>
+<script src="src/gl.js"></script>
+<script src="src/shaders.js"></script>
+<script src="src/vue3d.js"></script>
+<script src="src/carte.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>

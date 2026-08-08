@@ -1,0 +1,108 @@
+// File de requêtes HTTP à parallélisme borné, avec réessai.
+//
+// La passerelle IGN annonce `x-ratelimit-limit-second: 1` et `ratelimit-limit: 10`,
+// et le plafond mord pour de bon : une rafale de 24 requêtes lancées 4 par 4 a
+// été refusée en totalité. Charger une zone en demande des centaines, et se
+// faire couper au milieu laisserait un nuage troué sans que rien ne le signale.
+// On borne donc les requêtes en vol, on réessaie les refus temporaires, et on
+// disperse les reprises.
+
+let enVol = 0;
+const attente = [];
+
+function suivant() {
+  if (enVol >= CONFIG.reseau.requetesParallèles) return;
+  const tache = attente.shift();
+  if (!tache) return;
+  enVol++;
+  tache.run().then(tache.ok, tache.ko).finally(() => { enVol--; suivant(); });
+}
+
+function enfiler(run) {
+  return new Promise((ok, ko) => { attente.push({ run, ok, ko }); suivant(); });
+}
+
+const sommeil = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Recul exponentiel avec dispersion aléatoire.
+ *
+ * La dispersion n'est pas un raffinement : toutes les requêtes en vol se font
+ * refuser au même instant, et sans elle elles repartiraient toutes ensemble à
+ * l'instant suivant. Le limiteur de l'IGN les refuserait de nouveau en bloc,
+ * indéfiniment. Le facteur aléatoire brise ce synchronisme.
+ */
+const recul = (essai) =>
+  CONFIG.reseau.reculInitialMs * 2 ** essai * (0.6 + Math.random() * 0.8);
+
+/**
+ * GET avec réessai. `signal` permet d'abandonner tout un chargement.
+ * @param {string} url
+ * @param {{plage?:[number,number], signal?:AbortSignal, type?:'buffer'|'json'|'texte'}} opts
+ */
+function recuperer(url, opts = {}) {
+  const { plage, signal, type = 'buffer' } = opts;
+
+  return enfiler(async () => {
+    let dernierEchec;
+
+    for (let essai = 0; essai < CONFIG.reseau.tentatives; essai++) {
+      if (signal?.aborted) throw new DOMException('Chargement abandonné', 'AbortError');
+
+      try {
+        const entetes = plage ? { Range: `bytes=${plage[0]}-${plage[1]}` } : undefined;
+        const rep = await fetch(url, { headers: entetes, signal });
+
+        // 429 et 5xx sont transitoires : on recule et on repart. Le reste est
+        // définitif — insister ne ferait qu'aggraver la charge.
+        if (rep.status === 429 || rep.status >= 500) {
+          dernierEchec = new Error(`HTTP ${rep.status} sur ${url}`);
+          const entete = rep.headers.get('retry-after');
+          await sommeil(entete ? Number(entete) * 1000 : recul(essai));
+          continue;
+        }
+        if (!rep.ok) throw new Error(`HTTP ${rep.status} sur ${url}`);
+
+        if (type === 'json') return await rep.json();
+        if (type === 'texte') return await rep.text();
+
+        const buf = new Uint8Array(await rep.arrayBuffer());
+        if (!plage) return buf;
+
+        // Le verdict se prend sur la **taille reçue**, jamais sur le statut.
+        //
+        // Un 200 en réponse à un Range ne veut pas dire que le serveur a ignoré
+        // l'en-tête : le cache HTTP du navigateur a le droit de servir la plage
+        // lui-même, et il annonce alors 200 avec exactement les octets demandés.
+        // Observé en conditions réelles sur data.geopf.fr après un réessai qui
+        // avait rempli le cache. Refuser sur le statut faisait échouer un
+        // chargement dont les données étaient pourtant justes.
+        const attendu = plage[1] - plage[0] + 1;
+        if (buf.length === attendu) return buf;
+
+        // Plus long que demandé : là, le Range a bien été ignoré et c'est le
+        // fichier entier qui arrive. On extrait la tranche voulue plutôt que de
+        // jeter des dizaines de mégaoctets déjà payés — mais on le signale, car
+        // répété, ce comportement rend l'outil inutilisable.
+        if (buf.length > attendu) {
+          console.warn(`Plage ignorée par le serveur (${buf.length} octets pour ${attendu} demandés) — découpe locale.`);
+          return buf.subarray(plage[0], plage[1] + 1);
+        }
+
+        // Plus court : normal quand la plage dépasse la fin du fichier, ce que
+        // fait volontairement la lecture d'en-tête. L'appelant s'en accommode.
+        return buf;
+
+      } catch (e) {
+        if (e.name === 'AbortError') throw e;
+        dernierEchec = e;
+        // Une panne réseau franche mérite aussi un réessai : le Wi-Fi qui
+        // hoquette au milieu de 400 requêtes est le cas nominal, pas l'exception.
+        if (essai < CONFIG.reseau.tentatives - 1) await sommeil(recul(essai));
+      }
+    }
+    throw dernierEchec;
+  });
+}
+
+const RESEAU = { recuperer };
