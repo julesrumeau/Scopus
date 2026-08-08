@@ -35,17 +35,44 @@ class Vue3D {
     this.focus = null;
 
     this._brancherControles();
-    this._boucle = this._boucle.bind(this);
     this.actif = false;
+    this._planifie = false;
   }
 
   demarrer() {
     if (this.actif) return;
     this.actif = true;
-    requestAnimationFrame(this._boucle);
+
+    // Le canevas peut changer de taille sans que rien d'autre ne bouge :
+    // bascule d'onglet, fenêtre redimensionnée, panneau replié.
+    this._observateur = new ResizeObserver(() => this.invalider());
+    this._observateur.observe(this.canvas);
+
+    this.invalider();
   }
 
-  arreter() { this.actif = false; }
+  arreter() {
+    this.actif = false;
+    this._observateur?.disconnect();
+  }
+
+  /**
+   * Demande une image. À appeler après tout changement visible.
+   *
+   * Le rendu est **à la demande**, pas continu. Un nuage est statique : le
+   * redessiner soixante fois par seconde alors que rien ne bouge ne change
+   * rien à l'écran et monopolise la machine. Mesuré sur l'aperçu d'une dalle
+   * (4,45 M points) : 1,9 image/s et jusqu'à 1 165 ms sans rendre la main.
+   * Le fil principal étant saturé, le navigateur ne pouvait plus servir le
+   * défilement du panneau latéral — d'où l'impression qu'il était bloqué.
+   *
+   * Plusieurs appels dans la même image n'en produisent qu'une.
+   */
+  invalider() {
+    if (!this.actif || this._planifie) return;
+    this._planifie = true;
+    requestAnimationFrame(() => { this._planifie = false; this._rendre(); });
+  }
 
   /** Charge un nuage dans le GPU. Remplace le précédent. */
   definirNuage(nuage, hauteurs = null) {
@@ -85,7 +112,7 @@ class Vue3D {
     gl.bindVertexArray(null);
     this.vao = vao;
 
-    this.cadrer();
+    this.cadrer();   // cadrer() invalide déjà
   }
 
   /** Met à jour l'attribut de hauteur une fois la rastérisation faite. */
@@ -96,6 +123,7 @@ class Vue3D {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers[3]);
     gl.bufferData(gl.ARRAY_BUFFER, hauteurs, gl.STATIC_DRAW);
     gl.bindVertexArray(null);
+    this.invalider();
   }
 
   _attribut(vao, index, donnees, taille, type, normalise) {
@@ -132,6 +160,7 @@ class Vue3D {
     this.cam.azimut = -Math.PI / 4;
     this.cam.elevation = 0.55;
     this.focus = null;
+    this.invalider();
   }
 
   /** Amène la caméra au-dessus d'une détection et la met en avant. */
@@ -145,9 +174,10 @@ class Vue3D {
     this.cam.elevation = 0.45;
     const d = Math.sqrt(candidat.surface) * 1.6 + marge;
     this.focus = [lx - d, ly - d, lx + d, ly + d];
+    this.invalider();
   }
 
-  effacerFocus() { this.focus = null; }
+  effacerFocus() { this.focus = null; this.invalider(); }
 
   /**
    * Masque des classifications. `masquees` est un itérable de numéros de classe.
@@ -160,6 +190,7 @@ class Vue3D {
   definirClassesMasquees(masquees) {
     GL.paletteClasses(this.gl, CONFIG.rendu.couleursClasse,
       CONFIG.rendu.couleurClasseDefaut, masquees, this.palette);
+    this.invalider();
   }
 
   /**
@@ -171,10 +202,12 @@ class Vue3D {
    */
   definirDetections(candidats, grille) {
     this.nbSommetsLignes = this._remplirBoites(candidats, grille, 'Lignes');
+    this.invalider();
   }
 
   definirSelection(candidat, grille) {
     this.nbSommetsSel = candidat ? this._remplirBoites([candidat], grille, 'Sel') : 0;
+    this.invalider();
   }
 
   _remplirBoites(candidats, grille, suffixe) {
@@ -318,6 +351,7 @@ class Vue3D {
         this._deplacer(glisse, e, dx, dy);
       }
       glisse.x = e.clientX; glisse.y = e.clientY;
+      this.invalider();
     });
 
     const relacher = (e) => {
@@ -343,6 +377,7 @@ class Vue3D {
           this.cam.cible[i] = avant[i] + (this.cam.cible[i] - avant[i]) * k;
         }
       }
+      this.invalider();
     }, { passive: false });
 
     // Double-clic : amener sous les yeux ce qu'on vient de repérer.
@@ -352,6 +387,7 @@ class Vue3D {
       this.cam.cible[0] = p[0];
       this.cam.cible[2] = p[2];
       this.cam.distance = Math.max(8, this.cam.distance * 0.45);
+      this.invalider();
     });
   }
 
@@ -389,15 +425,10 @@ class Vue3D {
   vueDeDessus() {
     this.cam.elevation = 1.553;
     this.cam.azimut = 0;
+    this.invalider();
   }
 
-  // ── Boucle de rendu ───────────────────────────────────────────────────────
-
-  _boucle() {
-    if (!this.actif) return;
-    this._rendre();
-    requestAnimationFrame(this._boucle);
-  }
+  // ── Rendu ─────────────────────────────────────────────────────────────────
 
   _rendre() {
     const gl = this.gl;

@@ -243,6 +243,33 @@ Le plan d'intersection est horizontal, à la hauteur de la cible. C'est une
 approximation du relief, largement suffisante à l'échelle où l'on inspecte une
 structure, et qui évite de relire le tampon de profondeur.
 
+## Rendu à la demande
+
+La boucle 3D **ne tourne pas en continu**. `invalider()` planifie une image, et
+seuls les changements visibles l'appellent : contrôles, chargement, réglages,
+redimensionnement du canevas (`ResizeObserver`).
+
+Ce n'est pas une économie de confort. Un nuage est statique ; le redessiner
+soixante fois par seconde ne change rien à l'écran et sature la machine. Mesuré
+sur l'aperçu d'une dalle, 4,45 M points :
+
+| | Rendu continu | À la demande |
+|---|---|---|
+| Cadence disponible | 1,9 image/s | 56,9 image/s |
+| Pire latence du fil principal | **1 165 ms** | **18 ms** |
+
+Avec plus d'une seconde sans rendre la main, le navigateur ne pouvait plus
+servir le défilement du panneau latéral : le symptôme rapporté était « on ne
+peut pas faire défiler le menu en mode 3D ».
+
+Conséquence à retenir : **toute nouvelle méthode qui change ce qui est affiché
+doit appeler `invalider()`**, sans quoi son effet n'apparaîtra qu'au prochain
+mouvement de souris.
+
+Corollaire côté interface : un seul conteneur défilant. La liste de résultats
+avait le sien (`max-height` + `overflow`), ce qui piégeait la molette dès que le
+curseur la survolait.
+
 ## Filtrage des classes
 
 Par l'**alpha de la palette**, pas par les buffers : `paletteClasses` écrit 0

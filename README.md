@@ -41,6 +41,11 @@ repérer sur le bord : c'est ce qui rendait la navigation pénible.
 
 Raccourcis : `c` carte · `v` nuage 3D · `t` vue de dessus · `f` tout cadrer.
 
+Le rendu se fait **à la demande** : la vue n'est redessinée que lorsque quelque
+chose change. Redessiner en continu un nuage immobile saturait le navigateur —
+1,9 image/s et jusqu'à 1,2 s sans rendre la main, au point que le panneau
+latéral ne défilait plus. C'est désormais 18 ms au pire.
+
 ### Filtrer les classes
 
 La légende **est** le filtre : chaque entrée se clique pour masquer ou rétablir

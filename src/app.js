@@ -312,16 +312,19 @@ $('coloration').addEventListener('click', (e) => {
   for (const autre of $('coloration').children) autre.classList.toggle('actif', autre === b);
   CONFIG.rendu.coloration = b.dataset.mode;
   majLegende();
+  vue3d?.invalider();
 });
 
 $('taille-point').addEventListener('input', (e) => {
   CONFIG.rendu.taillePoint = Number(e.target.value);
   $('val-taille').textContent = CONFIG.rendu.taillePoint.toFixed(1);
+  vue3d?.invalider();
 });
 
 $('exag').addEventListener('input', (e) => {
   CONFIG.rendu.exagerationZ = Number(e.target.value);
   $('val-exag').textContent = `×${CONFIG.rendu.exagerationZ.toFixed(1)}`;
+  vue3d?.invalider();
 });
 
 // Classes masquées à l'affichage. Persiste d'un nuage à l'autre : on ne veut
@@ -559,6 +562,7 @@ function basculerVue(quoi) {
   // Leaflet mesure son conteneur à l'initialisation ; masqué, il l'a mesuré à
   // zéro et n'affiche aucune tuile tant qu'on ne le lui redit pas.
   if (carteActive) requestAnimationFrame(() => carte.invalider());
+  else vue3d?.invalider();
 }
 
 $('onglet-carte').addEventListener('click', () => basculerVue('carte'));
