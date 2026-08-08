@@ -1,7 +1,9 @@
 # Scopus
 
-Exploration du **LiDAR HD de l'IGN** et détection de structures hors carte —
-ruines et cabanes en pierre non répertoriées — en Ariège et dans les Pyrénées.
+Exploration du **LiDAR HD de l'IGN** et détection de structures hors carte :
+ruines, cabanes en pierre sèche et orris non répertoriés. Conçu pour l'Ariège et
+les Pyrénées, utilisable **partout où l'IGN a volé** — soit la quasi-totalité de
+la France.
 
 **Ouvrir `index.html` — c'est tout.** Pas de serveur, pas d'installation, pas de
 commande, pas de base, pas de compte. Les données ne quittent jamais l'onglet.
@@ -55,7 +57,13 @@ texture d'un kilo-octet réécrite, sans toucher aux buffers de sommets.
 
 ## Comment le lancer
 
-Double-cliquer sur `index.html`. Un navigateur récent suffit (WebGL2 requis).
+Deux voies, strictement équivalentes :
+
+- **Double-cliquer sur `index.html`** — rien à installer.
+- **Ouvrir l'adresse en ligne** — <https://julesrumeau.github.io/Scopus/>
+  (une fois Pages activé, voir plus bas)
+
+Un navigateur récent suffit (WebGL2 requis).
 
 Rien n'est chargé depuis le disque au moment de l'exécution — ce qui serait
 impossible en `file://` — et rien n'a besoin d'être installé : Leaflet et
@@ -69,16 +77,39 @@ données LiDAR.
 Node ne sert qu'à deux choses, toutes deux facultatives :
 
 ```sh
-npm test                  # projection, rastérisation, détection
+npm test                  # 23 tests : projection, détection, shaders, sources
 npm run embarquer-lazperf # après une mise à jour de laz-perf uniquement
 ```
 
 Aucune dépendance à installer dans les deux cas.
 
-### Publication en ligne
+### Publier sur GitHub Pages
 
-Le dépôt *est* le site. Activer GitHub Pages sur `main`, racine `/`. Rien à
-construire ; `.nojekyll` évite que Jekyll n'écarte des fichiers.
+Le dépôt **est** le site : aucune construction, aucun workflow, aucun outil.
+
+1. **Settings** → **Pages** (menu de gauche)
+2. *Build and deployment* → **Source** : `Deploy from a branch`
+3. **Branch** : `main`, dossier **`/ (root)`** → **Save**
+4. Attendre 1 à 2 minutes
+
+L'adresse apparaît alors dans la même page :
+`https://<compte>.github.io/Scopus/`
+
+Ensuite, **chaque `git push` sur `main` redéploie tout seul**, en 30 s à 1 min.
+L'avancement se suit dans l'onglet **Actions** du dépôt.
+
+Trois points à connaître :
+
+- **Le dépôt doit être public** — Pages n'est pas disponible sur un dépôt privé
+  avec un compte gratuit.
+- **`.nojekyll` est indispensable** et déjà présent : sans lui, Jekyll écarte
+  silencieusement les fichiers et dossiers commençant par `_`.
+- **Aucun chemin absolu** dans `index.html`, ce qui est nécessaire pour que le
+  site fonctionne depuis un sous-répertoire (`/Scopus/`) aussi bien qu'en
+  `file://`. À préserver si vous ajoutez des ressources.
+
+Si une mise à jour ne se voit pas, c'est le cache de Pages (10 minutes) :
+rechargement forcé par `Ctrl+Maj+R`.
 
 ---
 
@@ -146,10 +177,9 @@ pas laisser croire à des données là où il n'y en a pas. Vérifié : dans tou
 les régions testées, **100 % des dalles tombent dans un bloc**.
 
 **L'orientation compte.** Un carré Lambert-93 n'est pas aligné sur les axes une
-fois projeté en WGS84 : il apparaît légèrement tourné. La zone d'intérêt était
-tracée en `L.rectangle`, donc alignée sur l'écran, et paraissait de travers dans
-sa dalle. Elle est désormais un polygone dont les quatre côtés sont
-échantillonnés et reprojetés.
+fois projeté en WGS84 : il apparaît légèrement tourné. Toute emprise doit donc
+être tracée en polygone de côtés reprojetés, jamais en `L.rectangle` — sans
+quoi elle paraît de travers par rapport à la grille qui l'entoure.
 
 **L'outil n'a jamais été limité à l'Ariège** — seule la vue d'ouverture y est
 centrée. La couverture a été vérifiée en Bretagne, dans les Alpes, les Vosges,
@@ -167,18 +197,23 @@ depuis un navigateur, l'une et l'autre vérifiées sur `data.geopf.fr` :
 - `accept-ranges: bytes` — les requêtes de plage renvoient bien `206`.
 
 D'où la démarche : lire l'en-tête et la hiérarchie (48 Ko), puis ne télécharger
-que les nœuds qui intersectent la zone visée. Une zone de 250 m de côté à pleine
-résolution coûte quelques mégaoctets là où la dalle entière en pèse 190.
+que les nœuds utiles. L'index complet d'un fichier de 185 Mo coûte ainsi moins
+de 50 Ko.
 
-L'octree donne aussi le compromis résolution/volume, un niveau divisant
-l'espacement par deux :
+L'octree donne en prime le compromis résolution/volume, chaque niveau divisant
+l'espacement par deux. Pour une dalle entière (1 km²) :
 
-| Niveau | Espacement | Zone de 500 m |
+| Niveau | Espacement | À télécharger |
 |---|---|---|
-| 0 | 6,8 m | 0,7 Mo |
-| 2 | 1,7 m | 6 Mo |
-| 4 | 43 cm | 27 Mo |
-| 5 | 21 cm | 34 Mo |
+| 1 | 3,4 m | 7 Mo |
+| 2 | 1,7 m | 27 Mo |
+| 3 | 85 cm | 70 Mo |
+| 4 | 43 cm | 137 Mo |
+| 5 | **21 cm** | 185 Mo |
+
+C'est le curseur *Résolution* de l'étape 2. Le niveau 5 donne la pleine finesse
+en une trentaine de secondes ; les niveaux intermédiaires servent à dégrossir un
+secteur sans attendre.
 
 ### Le signal
 
@@ -280,6 +315,23 @@ Le seuil est à 0,55, délibérément sous le plafond du disque : les **orris**
 ariégeois, cabanes d'estive en pierre sèche, sont fréquemment ronds ou ovales.
 Un seuil « pour ne garder que les rectangles » les éliminerait tous.
 
+### Écarter ce qui est déjà cartographié
+
+L'outil cherche des structures **hors carte**. Sans recoupement, il signalerait
+surtout des granges, bergeries et maisons parfaitement connues, bien plus
+nombreuses que les ruines.
+
+Chaque détection est donc comparée au **bâti de la BD TOPO**, la carte de
+référence de l'IGN — interrogée en direct, par le même service web que les
+dalles. Rien n'est stocké ni téléchargé à l'avance : c'est encore un simple
+appel réseau depuis le navigateur.
+
+Une détection à moins de 25 m d'un bâtiment connu est marquée, et masquable d'une
+case. Elle n'est jamais supprimée : la BD TOPO et le cadastre manquent
+régulièrement les cabanes d'estive, et une trouvaille écartée à tort ne se
+rattrape pas. La distance se mesure au **contour** du bâtiment, pas à son
+centre — une grange de 60 m a son centre à 30 m de son propre pignon.
+
 ### Le cas falaise
 
 Une rupture de falaise produit la même signature « non classé sur fond de sol »
@@ -291,27 +343,40 @@ la seconde même quand la première reste modérée.
 
 ## Validation
 
-Tests unitaires (`npm test`) sur nuages synthétiques à vérité connue :
-dimensions retrouvées, filtres de surface, de forme, d'élongation, de hauteur et
-de pente, comblement du MNT, absence de valeur non finie. La projection est
-vérifiée contre les coins de dalle publiés par le WFS de l'IGN — référence
-externe, pas un aller-retour avec soi-même — à 5 mm près, avec aller-retour
-exact au micromètre sur toute la France métropolitaine.
+**23 tests** (`npm test`), sans rien à installer.
+
+Sur nuages synthétiques à vérité connue : dimensions retrouvées, altitude
+absolue, filtres de surface, de forme, d'élongation, de hauteur et de pente,
+comblement du MNT, absence de valeur non finie. La projection est vérifiée
+contre les coins de dalle publiés par le WFS de l'IGN — référence externe, pas
+un aller-retour avec soi-même — à 5 mm près, avec aller-retour exact au
+micromètre sur toute la France métropolitaine.
+
+S'y ajoutent des contrôles mécaniques nés de fautes réellement commises :
+syntaxe de chaque fichier de `src/`, correspondance avec les balises de
+`index.html`, absence d'`import`, et absence de backtick dans les commentaires
+GLSL — lequel casse le littéral de gabarit et se manifeste par un
+« SHADERS is not defined » à l'autre bout de l'application.
 
 L'application complète a par ailleurs été exécutée en conditions réelles dans
-Chrome, **en `file://` comme en HTTP**, avec le même résultat : chaîne entière
-depuis le clic jusqu'à l'export, décompression assurée par les workers blob
-(pas le repli), cabane connue retrouvée à 1,3 m pour 17 m² et un score de 0,82.
+Chrome, **en `file://` comme en HTTP** : chaîne entière du clic jusqu'à
+l'export, décompression par les workers blob (pas le repli), cabane connue
+retrouvée à 1,3 m.
 
 Sur données réelles, plateau de Beille (dalle `LHD_FXX_0592_6184`) :
 
-| Zone | Points | Détections | Faux positifs |
+| Emprise analysée | Points traversés | Détections | Faux positifs |
 |---|---|---|---|
 | 160 m | 0,87 M | 1 | 0 |
 | 500 m (25 ha) | 5,6 M | 1 | 0 |
+| **dalle entière (1 km²)** | **39,1 M** | **1** | **0** |
 
-La détection retombe sur une cabane de la BD TOPO à moins d'un mètre, mesurée
-16 m² pour 19 m² au cadastre, hauteur 2,0 m, score 0,84.
+Dans les trois cas, la détection retombe sur la même cabane de la BD TOPO à
+moins de 1,5 m — 16 m² mesurés pour 19 m² au cadastre, hauteur 2,0 m, score
+0,84, rang 1.
+
+La couverture nationale a été vérifiée séparément en Bretagne, dans les Alpes,
+les Vosges, en Corse et en Île-de-France.
 
 **Ce qui n'est pas validé :** aucune ruine effondrée connue n'a servi de contrôle
 positif. Le contrôle disponible était une cabane debout, donc classée
@@ -344,13 +409,13 @@ src/detection.js               masque, morphologie, composantes, filtres, score
 src/sortie.js                  rapprochement BD TOPO, liens, exports
 src/gl.js · shaders.js         WebGL2 (repris de FlowField)
 src/vue3d.js                   caméra orbitale, rendu par points
-src/carte.js                   Leaflet, couverture, sélection, zone d'intérêt
+src/carte.js                   Leaflet, couverture LiDAR, sélection de dalle
 src/grille.js                  grille kilométrique locale, tracée au canevas
 vendor/lazperf/                laz-perf ; `lazperf-embarque.js` est le fichier
                                réellement chargé (généré, JS + WASM en chaînes)
 tools/embarquer-lazperf.js     régénère cet embarqué après mise à jour
 tools/charger.js               charge les scripts classiques pour les tests
-tools/*.test.js                tests
+tools/*.test.js                tests : projection, détection, shaders, sources
 ```
 
 Données **LiDAR HD © IGN**, licence ouverte Etalab.
