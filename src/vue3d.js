@@ -150,6 +150,19 @@ class Vue3D {
   effacerFocus() { this.focus = null; }
 
   /**
+   * Masque des classifications. `masquees` est un itérable de numéros de classe.
+   *
+   * Le filtrage passe par l'alpha de la palette : une texture de 1 Ko réécrite,
+   * et rien d'autre. Refiltrer en reconstruisant les buffers de sommets
+   * coûterait, sur une dalle, plusieurs centaines de mégaoctets de transfert à
+   * chaque case cochée.
+   */
+  definirClassesMasquees(masquees) {
+    GL.paletteClasses(this.gl, CONFIG.rendu.couleursClasse,
+      CONFIG.rendu.couleurClasseDefaut, masquees, this.palette);
+  }
+
+  /**
    * Boîtes filaires des détections.
    *
    * Le rectangle englobant orienté serait plus fidèle, mais l'emprise en
@@ -208,6 +221,73 @@ class Vue3D {
 
   // ── Contrôles ─────────────────────────────────────────────────────────────
 
+  /**
+   * Repère de la caméra en coordonnées monde.
+   *
+   * Dérivé de la position orbitale, et non extrait de la matrice de vue : c'est
+   * la même source pour le rendu et pour les contrôles, donc pas de dérive
+   * possible entre ce qu'on voit et ce qu'on manipule.
+   */
+  _repere() {
+    const { cible, distance, azimut: a, elevation: e } = this.cam;
+    const ce = Math.cos(e), se = Math.sin(e), ca = Math.cos(a), sa = Math.sin(a);
+
+    const oeil = [cible[0] + distance * ce * sa, cible[1] + distance * se, cible[2] + distance * ce * ca];
+    return {
+      oeil,
+      avant: [-ce * sa, -se, -ce * ca],
+      droite: [ca, 0, -sa],
+      haut: [-sa * se, ce, -ca * se],
+    };
+  }
+
+  /**
+   * Point du plan horizontal passant par la cible, sous un pixel donné.
+   *
+   * Ce plan sert de sol virtuel : il donne un point d'accroche stable pour
+   * saisir le terrain et pour zoomer là où pointe le curseur, sans avoir à
+   * relire le tampon de profondeur. À l'échelle où l'on inspecte une structure,
+   * il colle de près au relief réel.
+   *
+   * Renvoie `null` en visée rasante, quand le rayon devient parallèle au plan
+   * et que l'intersection part à l'infini.
+   */
+  _pointSousCurseur(ev) {
+    const r = this.canvas.getBoundingClientRect();
+    // Canevas masqué ou pas encore dimensionné : sans ce garde, l'aspect vaut
+    // 0/0 et la cible de la caméra part en NaN — définitivement, car plus aucun
+    // calcul ne la ramène.
+    if (!(r.width > 0) || !(r.height > 0)) return null;
+
+    const ndcX = ((ev.clientX - r.left) / r.width) * 2 - 1;
+    const ndcY = 1 - ((ev.clientY - r.top) / r.height) * 2;
+
+    const { oeil, avant, droite, haut } = this._repere();
+    const tan = Math.tan((52 * Math.PI / 180) / 2);
+    const aspect = r.width / r.height;
+
+    const dir = [0, 1, 2].map((i) =>
+      avant[i] + droite[i] * ndcX * tan * aspect + haut[i] * ndcY * tan);
+
+    if (Math.abs(dir[1]) < 1e-3) return null;
+    const t = (this.cam.cible[1] - oeil[1]) / dir[1];
+    if (!(t > 0)) return null;
+
+    const p = [oeil[0] + dir[0] * t, this.cam.cible[1], oeil[2] + dir[2] * t];
+    return p.every(Number.isFinite) ? p : null;
+  }
+
+  /**
+   * Contrôles « à la Google Earth » : glisser déplace le terrain, la molette
+   * zoome sous le curseur.
+   *
+   * L'inverse — glisser pour orbiter, molette vers le centre — est l'usage des
+   * visionneuses 3D, mais il est pénible ici. On balaie un kilomètre carré à la
+   * recherche de structures : le geste dominant est le déplacement, pas la
+   * rotation, et l'onglet Carte se manipule déjà ainsi. Surtout, zoomer vers le
+   * centre d'orbite éloigne de ce qu'on vient de repérer au bord de l'écran, et
+   * oblige à alterner déplacement et zoom sans fin.
+   */
   _brancherControles() {
     const c = this.canvas;
     let glisse = null;
@@ -216,9 +296,10 @@ class Vue3D {
       c.setPointerCapture(e.pointerId);
       glisse = {
         x: e.clientX, y: e.clientY,
-        // Le bouton du milieu, le clic droit et Maj+glissé font tous du
-        // déplacement : selon la souris ou le pavé, l'un des trois manque.
-        pan: e.button === 1 || e.button === 2 || e.shiftKey,
+        // Bouton principal : déplacement. Clic droit, bouton du milieu ou
+        // Maj+glissé : orbite. Trois voies parce que selon la souris ou le pavé
+        // tactile, l'une des trois manque.
+        orbite: e.button === 1 || e.button === 2 || e.shiftKey,
       };
     });
 
@@ -226,23 +307,17 @@ class Vue3D {
       if (!glisse) return;
       const dx = e.clientX - glisse.x;
       const dy = e.clientY - glisse.y;
-      glisse.x = e.clientX; glisse.y = e.clientY;
 
-      if (glisse.pan) {
-        // Déplacement dans le plan de l'écran, à l'échelle de la distance :
-        // le point sous le curseur suit à peu près le curseur quel que soit le
-        // niveau de zoom.
-        const k = this.cam.distance * 0.0016;
-        const ca = Math.cos(this.cam.azimut), sa = Math.sin(this.cam.azimut);
-        this.cam.cible[0] -= (dx * ca - dy * sa * Math.sin(this.cam.elevation)) * k;
-        this.cam.cible[2] -= (dx * sa + dy * ca * Math.sin(this.cam.elevation)) * k;
-        this.cam.cible[1] += dy * k * Math.cos(this.cam.elevation);
-      } else {
+      if (glisse.orbite) {
         this.cam.azimut -= dx * 0.006;
         // Bornes strictes : au zénith exact, le vecteur « haut » devient
         // colinéaire à l'axe de visée et lookAt produit une matrice dégénérée.
-        this.cam.elevation = Math.max(-1.5, Math.min(1.5, this.cam.elevation + dy * 0.006));
+        // 89° laisse une vue quasi verticale sans l'atteindre.
+        this.cam.elevation = Math.max(-1.553, Math.min(1.553, this.cam.elevation + dy * 0.006));
+      } else {
+        this._deplacer(glisse, e, dx, dy);
       }
+      glisse.x = e.clientX; glisse.y = e.clientY;
     });
 
     const relacher = (e) => {
@@ -255,8 +330,65 @@ class Vue3D {
 
     c.addEventListener('wheel', (e) => {
       e.preventDefault();
-      this.cam.distance = Math.max(3, Math.min(4000, this.cam.distance * Math.exp(e.deltaY * 0.0012)));
+      const avant = this._pointSousCurseur(e);
+      const ancienne = this.cam.distance;
+      this.cam.distance = Math.max(2, Math.min(6000, ancienne * Math.exp(e.deltaY * 0.0012)));
+
+      // Zoom sous le curseur : on rapproche la cible du point visé dans le même
+      // rapport que la distance. Ce point reste donc immobile à l'écran, et
+      // l'on plonge vers ce qu'on regarde au lieu de vers le centre.
+      if (avant) {
+        const k = this.cam.distance / ancienne;
+        for (const i of [0, 2]) {
+          this.cam.cible[i] = avant[i] + (this.cam.cible[i] - avant[i]) * k;
+        }
+      }
     }, { passive: false });
+
+    // Double-clic : amener sous les yeux ce qu'on vient de repérer.
+    c.addEventListener('dblclick', (e) => {
+      const p = this._pointSousCurseur(e);
+      if (!p) return;
+      this.cam.cible[0] = p[0];
+      this.cam.cible[2] = p[2];
+      this.cam.distance = Math.max(8, this.cam.distance * 0.45);
+    });
+  }
+
+  /**
+   * Déplacement : le terrain suit le curseur.
+   *
+   * On mesure le point du plan sous le curseur avant et après le mouvement, et
+   * l'on décale la cible de leur différence — la surface reste donc « collée »
+   * au doigt, à n'importe quelle inclinaison. En visée rasante l'intersection
+   * diverge, on retombe alors sur un déplacement à l'échelle de la distance.
+   */
+  _deplacer(glisse, ev, dx, dy) {
+    const avant = this._pointSousCurseur({ clientX: glisse.x, clientY: glisse.y });
+    const apres = this._pointSousCurseur(ev);
+
+    if (avant && apres) {
+      this.cam.cible[0] += avant[0] - apres[0];
+      this.cam.cible[2] += avant[2] - apres[2];
+      return;
+    }
+
+    const r = this.canvas.getBoundingClientRect();
+    const k = 2 * this.cam.distance * Math.tan((52 * Math.PI / 180) / 2) / Math.max(1, r.height);
+    const { droite, avant: dev } = this._repere();
+    // Composante horizontale de l'axe de visée : le déplacement vertical de la
+    // souris avance ou recule au sol, il ne doit pas changer l'altitude visée.
+    const sol = Math.hypot(dev[0], dev[2]) || 1;
+    for (const i of [0, 2]) {
+      this.cam.cible[i] -= droite[i] * dx * k;
+      this.cam.cible[i] += (dev[i] / sol) * dy * k;
+    }
+  }
+
+  /** Vue verticale, la plus lisible pour balayer une dalle. */
+  vueDeDessus() {
+    this.cam.elevation = 1.553;
+    this.cam.azimut = 0;
   }
 
   // ── Boucle de rendu ───────────────────────────────────────────────────────
@@ -284,12 +416,8 @@ class Vue3D {
 
     if (!this.vao || !this.nbPoints) return;
 
-    const { cible, distance, azimut, elevation } = this.cam;
-    const oeil = [
-      cible[0] + distance * Math.cos(elevation) * Math.sin(azimut),
-      cible[1] + distance * Math.sin(elevation),
-      cible[2] + distance * Math.cos(elevation) * Math.cos(azimut),
-    ];
+    const { cible, distance } = this.cam;
+    const { oeil } = this._repere();
     const proj = GL.perspective(52, w / h, Math.max(0.5, distance * 0.002), distance * 12 + 3000);
     const vp = GL.multiply(proj, GL.lookAt(oeil, cible, [0, 1, 0]));
 

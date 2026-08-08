@@ -106,6 +106,22 @@ test('le centre détecté retombe sur le centre réel de la structure', () => {
   assert.ok(Math.hypot(retour.x - c.x, retour.y - c.y) < 0.01);
 });
 
+test('l’altitude publiée est absolue, pas relative au bas de la dalle', () => {
+  // Le nuage synthétique pose son origine à 1000 m et son sol à 0 en relatif :
+  // l'altitude annoncée doit donc valoir 1000, pas 0. Une altitude relative
+  // dessinait les boîtes du nuage 3D un millier de mètres sous les points, et
+  // écrivait des élévations fausses dans les GPX.
+  const c = detecter(rasteriser(nuageSynthetique({ dansStructure: rectangle(6, 4) }))).candidats[0];
+  assert.ok(Math.abs(c.altitude - 1000) < 1,
+    `altitude ${c.altitude.toFixed(1)} m, attendue ≈ 1000`);
+
+  // Sur terrain incliné, elle suit le sol sous la structure.
+  const pente = detecter(rasteriser(nuageSynthetique({ dansStructure: rectangle(6, 4), pente: 10 }))).candidats[0];
+  const attendu = 1000 + (COTE / 2) * Math.tan(10 * Math.PI / 180);
+  assert.ok(Math.abs(pente.altitude - attendu) < 1.5,
+    `altitude ${pente.altitude.toFixed(1)} m, attendue ≈ ${attendu.toFixed(1)}`);
+});
+
 test('rejette une structure trop petite puis trop grande', () => {
   const petite = detecter(rasteriser(nuageSynthetique({ dansStructure: rectangle(1.5, 1.5) })));
   assert.equal(petite.candidats.length, 0);

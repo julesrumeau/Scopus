@@ -114,7 +114,7 @@ const GL = {
    * jusqu'à 67 côté IGN, et un `uniform vec3[68]` consommerait l'essentiel du
    * budget d'uniforms d'un GPU intégré pour une donnée qui ne change jamais.
    */
-  paletteClasses(gl, couleurs, defaut) {
+  paletteClasses(gl, couleurs, defaut, masquees = null, tex = null) {
     const px = new Uint8Array(256 * 4);
     const [dr, dg, db] = GL.hexToRgb(defaut).map((v) => v * 255);
     for (let i = 0; i < 256; i++) {
@@ -123,10 +123,14 @@ const GL = {
     for (const [cls, hex] of Object.entries(couleurs)) {
       const [r, g, b] = GL.hexToRgb(hex).map((v) => v * 255);
       const i = Number(cls);
-      px[i * 4] = r; px[i * 4 + 1] = g; px[i * 4 + 2] = b; px[i * 4 + 3] = 255;
+      px[i * 4] = r; px[i * 4 + 1] = g; px[i * 4 + 2] = b;
     }
+    // L'alpha porte la visibilité, pas une transparence : le vertex shader s'en
+    // sert pour rejeter le point. Une seule texture de 1 Ko suffit donc à
+    // filtrer les classes, sans toucher aux buffers de sommets.
+    for (const cls of masquees || []) if (cls >= 0 && cls < 256) px[cls * 4 + 3] = 0;
 
-    const tex = gl.createTexture();
+    if (!tex) tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, px);
     // NEAREST impératif : une interpolation entre deux classes voisines

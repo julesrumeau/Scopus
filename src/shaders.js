@@ -63,6 +63,23 @@ vec3 rampeHauteur(float h) {
 }
 
 void main() {
+  // Couleur ET visibilité de la classe, en une lecture.
+  //
+  // « textureLod » et non « texture » : l'échantillonnage à LOD implicite est
+  // interdit en vertex shader, où les dérivées d'écran n'existent pas. Certains
+  // pilotes l'acceptent quand même, d'autres refusent de compiler. La palette
+  // n'ayant pas de mipmaps, le niveau 0 est exact.
+  vec4 pal = textureLod(u_palette, vec2((a_classe + 0.5) / 256.0, 0.5), 0.0);
+
+  // Classe masquée : le point est rejeté hors du volume de vue plutôt que rendu
+  // transparent. Un point transparent écrirait quand même dans le tampon de
+  // profondeur et masquerait ce qui se trouve derrière.
+  if (pal.a < 0.5) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    gl_PointSize = 0.0;
+    return;
+  }
+
   vec3 monde = vec3(a_pos.x, (a_pos.z - u_zmin) * u_exagerationZ, -a_pos.y);
   gl_Position = u_vp * vec4(monde, 1.0);
 
@@ -78,7 +95,7 @@ void main() {
   gl_PointSize = clamp(taille, 1.0, 24.0);
 
   if (u_mode == 0)      v_couleur = rampeElevation((a_pos.z - u_zmin) / max(u_zref, 1.0));
-  else if (u_mode == 1) v_couleur = texture(u_palette, vec2((a_classe + 0.5) / 256.0, 0.5)).rgb;
+  else if (u_mode == 1) v_couleur = pal.rgb;
   else if (u_mode == 2) v_couleur = vec3(0.25 + 0.75 * a_intensite);
   else                  v_couleur = rampeHauteur(a_hauteur);
 

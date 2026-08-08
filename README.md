@@ -24,7 +24,29 @@ commande, pas de base, pas de compte. Les données ne quittent jamais l'onglet.
    dans une liste triée par score, avec liens Google Earth / Maps / Géoportail
    et export GPX, GeoJSON ou CSV.
 
-Raccourcis : `c` carte · `v` nuage 3D · `f` recadrer.
+### Se déplacer dans le nuage
+
+Comme sur une carte, pas comme dans un logiciel 3D :
+
+| Geste | Effet |
+|---|---|
+| Glisser | Déplace le terrain — la surface reste collée au curseur |
+| Molette | Zoome **sous le curseur**, pas vers le centre |
+| Maj + glisser, clic droit, bouton du milieu | Pivote autour du point visé |
+| Double-clic | Se rend à cet endroit |
+
+Le geste dominant, quand on balaie un kilomètre carré, est le déplacement — pas
+la rotation. Et zoomer vers le centre de l'écran éloigne de ce qu'on vient de
+repérer sur le bord : c'est ce qui rendait la navigation pénible.
+
+Raccourcis : `c` carte · `v` nuage 3D · `t` vue de dessus · `f` tout cadrer.
+
+### Filtrer les classes
+
+La légende **est** le filtre : chaque entrée se clique pour masquer ou rétablir
+sa classe. Masquer la végétation haute suffit le plus souvent à faire apparaître
+le sol et ce qui s'y trouve. Le filtrage passe par l'alpha de la palette — une
+texture d'un kilo-octet réécrite, sans toucher aux buffers de sommets.
 
 ## Comment le lancer
 

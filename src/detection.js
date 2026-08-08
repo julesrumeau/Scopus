@@ -211,7 +211,16 @@ function mesurer(tache, g, sig, surfaceCellule) {
     partTrouSol: trous / n,
     cx: sx / n,
     cy: sy / n,
-    altitudeSol: sSol / n,
+    // Altitude **absolue**, au-dessus du niveau de la mer (IGN69).
+    //
+    // Les grilles travaillent en relatif par rapport à `origine[2]`, le bas de
+    // la dalle : c'est ce qui garde les coordonnées petites et précises en
+    // Float32. Mais tout ce qui sort d'ici veut une altitude vraie — l'élévation
+    // d'un point GPX, la caméra de Google Earth, la hauteur des boîtes dans le
+    // nuage 3D. On remet donc l'origine ici, une fois pour toutes, plutôt que de
+    // laisser chaque consommateur s'en charger — ce qu'aucun ne faisait
+    // correctement : les boîtes 3D se dessinaient 1 500 m sous les points.
+    altitudeSol: g.origine[2] + sSol / n,
     surface: n * surfaceCellule,
   };
 }

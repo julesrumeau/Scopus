@@ -218,6 +218,44 @@ zone d'intérêt de travers dans sa dalle.
 
 ---
 
+## Navigation dans le nuage
+
+Contrôles « à la Google Earth » : glisser déplace le terrain, la molette zoome
+sous le curseur, Maj+glisser pivote. L'inverse — glisser pour orbiter, molette
+vers le centre — est l'usage des visionneuses 3D et se révèle pénible ici : on
+balaie un kilomètre carré, le geste dominant est le déplacement, et zoomer vers
+le centre éloigne de ce qu'on vient de repérer sur le bord.
+
+Trois pièces à ne pas défaire :
+
+- **`_repere()` est la source unique** du repère caméra, pour le rendu comme
+  pour les contrôles. Extraire les vecteurs de la matrice de vue d'un côté et
+  les recalculer de l'autre finit toujours par diverger.
+- **Le déplacement se mesure par intersection**, pas par un facteur d'échelle :
+  on prend le point du plan sous le curseur avant et après, et on décale la
+  cible de leur différence. Vérifié exact à 0,000 m. La version précédente
+  mélangeait les axes et faisait dériver l'altitude visée.
+- **Le zoom recentre** : `cible ← P + (cible − P)·k` avec `k` le rapport des
+  distances. Le point visé reste alors immobile à l'écran (mesuré : 0,5 m de
+  glissement sur 311 m de portée).
+
+Le plan d'intersection est horizontal, à la hauteur de la cible. C'est une
+approximation du relief, largement suffisante à l'échelle où l'on inspecte une
+structure, et qui évite de relire le tampon de profondeur.
+
+## Filtrage des classes
+
+Par l'**alpha de la palette**, pas par les buffers : `paletteClasses` écrit 0
+dans l'alpha des classes masquées, et le vertex shader rejette le point hors du
+volume de vue. Une texture de 1 Ko réécrite suffit donc à refiltrer, là où
+reconstruire les attributs coûterait des centaines de mégaoctets de transfert à
+chaque case cochée.
+
+Le point est **rejeté**, pas rendu transparent : un point transparent écrirait
+quand même dans le tampon de profondeur et masquerait ce qui est derrière.
+
+---
+
 ## Pièges connus
 
 - **Le tas WASM détache ses vues quand il grandit.** laz-perf alloue ses tampons
@@ -263,6 +301,15 @@ zone d'intérêt de travers dans sa dalle.
   `file://` est inaccessible depuis le parent, et la `SecurityError` survient à
   l'accès à `contentWindow` — donc hors de tout `try` placé plus loin. Les
   vérifications de page s'exécutent dans le même document.
+- **Les grilles travaillent en altitude relative, les sorties en absolue.**
+  `origine[2]` (le bas de la dalle) est retiré des Z au décodage, pour garder la
+  précision en Float32. La détection le remet dans `altitudeSol`, une fois pour
+  toutes : tout ce qui sort — élévation GPX, caméra Google Earth, boîtes du
+  nuage 3D — veut une altitude vraie. L'oubli s'était vu à l'écran, les boîtes
+  se dessinant 1 500 m sous les points.
+- **Un canevas masqué mesure 0 × 0.** Tout calcul de rayon y produit un aspect
+  `0/0`, et la cible de la caméra part en NaN — définitivement, plus rien ne la
+  ramène. `_pointSousCurseur` rend `null` dans ce cas.
 - **`gl.uniform*(null, …)` est un no-op silencieux.** Un uniform non utilisé est
   éliminé à la compilation et `prog.u.u_xxx` vaut `null`. Un paramètre qui « ne
   fait rien » vient souvent de là.
@@ -340,9 +387,15 @@ restant tombe sous la surface minimale.
 ## Validation
 
 `npm test` — nuages synthétiques à vérité connue (dimensions, filtres de
-surface / forme / élongation / hauteur / pente, comblement du MNT, absence de
-valeur non finie) et projection contre les coins de dalle publiés par le WFS de
-l'IGN, référence externe et non aller-retour avec soi-même.
+surface / forme / élongation / hauteur / pente, comblement du MNT, altitude
+absolue, absence de valeur non finie) et projection contre les coins de dalle
+publiés par le WFS de l'IGN, référence externe et non aller-retour avec soi-même.
+
+S'y ajoutent des contrôles mécaniques sur les sources, nés de fautes réellement
+commises : syntaxe de chaque fichier de `src/`, correspondance avec les balises
+de `index.html`, absence d'`import`, et surtout **absence de backtick dans les
+commentaires GLSL** — le piège documenté plus haut s'est reproduit deux fois, et
+se manifeste par un « SHADERS is not defined » à l'autre bout de l'application.
 
 `.tmp/` (non versionné) a servi à trois harnais à reconstruire au besoin :
 

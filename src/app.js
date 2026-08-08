@@ -266,6 +266,7 @@ $('btn-charger').addEventListener('click', async () => {
     if (!etat.nuage.n) { alerter('Dalle vide : aucun point dans cette emprise.'); return; }
 
     vue3d.definirNuage(etat.nuage);
+    vue3d.definirClassesMasquees(classesMasquees);
     vue3d.definirDetections([], null);
     vue3d.definirSelection(null, null);
 
@@ -323,29 +324,58 @@ $('exag').addEventListener('input', (e) => {
   $('val-exag').textContent = `×${CONFIG.rendu.exagerationZ.toFixed(1)}`;
 });
 
+// Classes masquées à l'affichage. Persiste d'un nuage à l'autre : on ne veut
+// pas rétablir la végétation à chaque dalle quand on l'a écartée une fois.
+const classesMasquees = new Set();
+
 const NOMS_CLASSES = {
   1: 'non classé', 2: 'sol', 3: 'végét. basse', 4: 'végét. moyenne',
   5: 'végét. haute', 6: 'bâtiment', 9: 'eau', 17: 'pont',
   64: 'sursol pérenne', 66: 'point virtuel', 67: 'divers',
 };
 
+/**
+ * Légende et filtre des classifications — c'est le même contrôle.
+ *
+ * Chaque entrée est cliquable : elle dit ce que la couleur signifie et ce que
+ * la vue montre. Deux listes séparées obligeraient à faire l'aller-retour entre
+ * elles pour savoir ce qui est masqué.
+ *
+ * Seules les classes réellement présentes sont listées : en afficher onze
+ * laisserait croire à une richesse que la dalle n'a pas.
+ */
 function majLegende() {
   const l = $('legende');
-  if (CONFIG.rendu.coloration !== 'classification' || !etat.nuage) {
-    l.innerHTML = { hauteur: 'Sombre = sol · jaune = 1–3 m · rouge = &gt; 5 m',
-      elevation: 'Bleu = point bas · blanc = point haut de la zone',
-      intensite: 'Réflectance brute du laser, normalisée sur 16 bits' }[CONFIG.rendu.coloration] || '';
-    return;
-  }
-  // Seules les classes réellement présentes : afficher les onze possibles
-  // laisserait croire à une richesse que la dalle n'a pas.
+  if (!etat.nuage) { l.innerHTML = ''; return; }
+
+  const echelle = {
+    hauteur: 'Sombre = sol · jaune = 1–3 m · rouge = &gt; 5 m',
+    elevation: 'Bleu = point bas · blanc = point haut de la dalle',
+    intensite: 'Réflectance brute du laser, normalisée sur 16 bits',
+  }[CONFIG.rendu.coloration];
+
   const presentes = [...etat.nuage.parClasse.entries()].sort((a, b) => b[1] - a[1]);
-  l.innerHTML = presentes.map(([cls, n]) => {
-    const couleur = CONFIG.rendu.couleursClasse[cls] || CONFIG.rendu.couleurClasseDefaut;
-    const part = (100 * n / etat.nuage.n).toFixed(1);
-    return `<span><i style="background:${couleur}"></i>${NOMS_CLASSES[cls] || `classe ${cls}`} ${part} %</span>`;
-  }).join('');
+  l.innerHTML =
+    (echelle ? `<div class="echelle">${echelle}</div>` : '')
+    + '<div class="titre-filtre">Classes affichées</div>'
+    + presentes.map(([cls, n]) => {
+      const couleur = CONFIG.rendu.couleursClasse[cls] || CONFIG.rendu.couleurClasseDefaut;
+      const part = (100 * n / etat.nuage.n).toFixed(1);
+      const off = classesMasquees.has(cls) ? ' off' : '';
+      return `<button class="cls${off}" data-cls="${cls}" title="Afficher ou masquer">`
+        + `<i style="background:${couleur}"></i>${NOMS_CLASSES[cls] || `classe ${cls}`}`
+        + `<b>${part} %</b></button>`;
+    }).join('');
 }
+
+$('legende').addEventListener('click', (e) => {
+  const b = e.target.closest('button.cls');
+  if (!b) return;
+  const cls = Number(b.dataset.cls);
+  if (classesMasquees.has(cls)) classesMasquees.delete(cls); else classesMasquees.add(cls);
+  b.classList.toggle('off', classesMasquees.has(cls));
+  vue3d?.definirClassesMasquees(classesMasquees);
+});
 
 function majHUD() {
   if (!etat.nuage) { $('hud').textContent = ''; return; }
@@ -525,7 +555,7 @@ function basculerVue(quoi) {
   $('onglet-3d').classList.toggle('actif', !carteActive);
   $('aide-vue').textContent = carteActive
     ? 'Cliquez dans une zone bleue · la zone verte est analysée'
-    : 'Molette : zoom · glisser : orbite · Maj+glisser : déplacer';
+    : 'Glisser : déplacer · molette : zoom sous le curseur · Maj+glisser : pivoter · double-clic : y aller';
   // Leaflet mesure son conteneur à l'initialisation ; masqué, il l'a mesuré à
   // zéro et n'affiche aucune tuile tant qu'on ne le lui redit pas.
   if (carteActive) requestAnimationFrame(() => carte.invalider());
@@ -539,6 +569,10 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'c') basculerVue('carte');
   if (e.key === 'v') basculerVue('3d');
   if (e.key === 'f') vue3d?.cadrer();
+  if (e.key === 't') { vue3d?.vueDeDessus(); basculerVue('3d'); }
 });
+
+$('btn-dessus').addEventListener('click', () => { vue3d?.vueDeDessus(); basculerVue('3d'); });
+$('btn-cadrer').addEventListener('click', () => { vue3d?.cadrer(); basculerVue('3d'); });
 
 })();
