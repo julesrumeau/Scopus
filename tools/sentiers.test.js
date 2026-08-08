@@ -90,6 +90,48 @@ test('sépare les deux quand ils coexistent sur le même versant', () => {
   }
 });
 
+test('trouve un sentier qui serpente — un chemin n’est jamais droit', () => {
+  // Un sentier de montagne épouse le relief et lace. Ce test existe parce que
+  // le détecteur ne remontait que des tracés rectilignes : il fallait vérifier
+  // qu'aucun biais ne pénalisait la courbure.
+  const a = 90 * Math.PI / 180;
+  const nx = -Math.sin(a), ny = Math.cos(a);
+  const serpente = (x, y) => {
+    // Axe de niveau, mais ondulant de ±8 m sur une période de 60 m.
+    const d = (x - COTE / 2) * nx + (y - COTE / 2) * ny - 8 * Math.sin(y / 9.5);
+    return 0.35 * Math.exp(-(d * d) / (2 * 1.2 * 1.2));
+  };
+  const r = detecterSentiers(terrain(serpente));
+
+  assert.ok(r.traces.length >= 1,
+    `aucune trace sur un sentier sinueux (${r.stats.chainesBrutes} chaînes, `
+    + `rejets ${JSON.stringify(r.stats.rejets)})`);
+  const s = r.traces[0];
+  // La zone exploitable fait 128 m de haut (200 m moins deux marges de bord de
+  // 36 m). Le recollement en récupère l'essentiel mais pas la totalité : la
+  // reconstitution reste partielle, et ce seuil fige l'acquis sans prétendre
+  // que le problème est réglé.
+  assert.ok(s.longueur > 60,
+    `longueur ${s.longueur.toFixed(0)} m sur ~128 m exploitables`);
+  // Il doit être reconnu *comme* sinueux, pas malgré sa sinuosité.
+  assert.ok(s.tortuosite > 1, `tortuosité ${s.tortuosite.toFixed(1)} — un tracé courbe en a`);
+  assert.ok(s.tortuosite < CONFIG.sentiers.tortuositeMax,
+    `tortuosité ${s.tortuosite.toFixed(1)} au-dessus du plafond`);
+});
+
+test('un creux profond est écarté : c’est une ravine, pas un sentier', () => {
+  // Un sentier creuse 50 cm au grand maximum. Au-delà, c'est un ravin.
+  const r = detecterSentiers(terrain(sillon(90, 1.8, 2.0)));
+  assert.equal(r.traces.length, 0, 'un creux de 1,8 m ne peut pas être un sentier');
+  assert.ok(r.stats.rejets.profondeur > 0, 'doit être écarté sur la profondeur');
+});
+
+test('trouve un sentier peu marqué — 15 cm de creux', () => {
+  const r = detecterSentiers(terrain(sillon(90, 0.15, 1.0)));
+  assert.ok(r.traces.length >= 1,
+    `un creux de 15 cm doit être vu (rejets ${JSON.stringify(r.stats.rejets)})`);
+});
+
 test('terrain sans creux : aucune trace', () => {
   const r = detecterSentiers(terrain(null));
   assert.equal(r.traces.length, 0, `${r.traces.length} trace(s) sur un versant nu`);

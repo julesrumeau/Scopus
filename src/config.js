@@ -187,10 +187,6 @@ const CONFIG = {
     // L'échelle 0,5 m a été retirée : sur données réelles elle ne remonte que
     // le grain du MNT, sans jamais rien ajouter d'exploitable.
     echellesM: [1, 2, 4],
-    // Amplitude de référence de la réponse hessienne, en mètres. Fixée en
-    // absolu et non déduite du maximum de l'image : normaliser par l'image
-    // fait passer le bruit d'un versant nu pour du signal — mesuré, un plan
-    // à 15° sans aucun creux répondait 0,63 pour un seuil à 0,30.
     // Seuil de la réponse hessienne, exprimé **en multiples de la rugosité
     // locale** — donc sans dimension, et de même sens sur une prairie que sur
     // un pierrier. Plus bas = plus sensible.
@@ -200,7 +196,12 @@ const CONFIG = {
     // 2 cm sur terrain synthétique lisse. Aucune constante ne pouvait servir
     // les deux — celle calibrée sur le lisse faisait déborder la moitié de la
     // dalle réelle.
-    sensibilite: 1.0,
+    //
+    // Abaissé à 0,35 : à 1,0 on exigeait un creux aussi marqué que la rugosité
+    // du versant, ce qu'un sentier de 20 cm n'est jamais. On accepte donc
+    // beaucoup de candidats faibles, et c'est la **forme** qui fait le tri —
+    // tortuosité, longueur après recollement, traversée de la pente.
+    sensibilite: 0.35,
     // Rayon sur lequel s'estime cette rugosité, et son plancher — le bruit
     // propre du MNT, en dessous duquel diviser n'aurait plus de sens.
     rayonRugositeM: 15,
@@ -220,11 +221,32 @@ const CONFIG = {
     // sentier s'efface par endroits ; un seuil unique le hacherait.
     seuilHaut: 0.30,
     seuilBas: 0.12,
-    longueurMinM: 25,
-    // Profondeur du creux. En dessous de 10 cm on est dans le bruit du MNT ;
-    // au-delà de 3 m c'est un ravin ou un talweg, pas un chemin.
-    profondeurMinM: 0.10,
-    profondeurMaxM: 3.0,
+    longueurMinM: 30,
+    // Profondeur du creux — **la borne haute compte plus que la basse**.
+    //
+    // Un sentier creuse peu : 50 cm au grand maximum, souvent 20, parfois 10.
+    // Le plafond de 3 m qui figurait ici laissait entrer les ravines, et c'est
+    // exactement ce qu'il remontait — les tracés trouvés sur le plateau de
+    // Beille faisaient 70 à 250 cm de creux.
+    profondeurMinM: 0.06,
+    profondeurMaxM: 0.60,
+    // Sommets conservés par la simplification, pour 100 m de tracé.
+    //
+    // C'est le critère de forme, et il a remplacé l'amplitude comme filtre
+    // principal : un creux de 20 cm est sous la rugosité naturelle d'un
+    // versant, donc indétectable par sa seule force. Un sentier est faible
+    // mais **organisé** — il serpente en courbes amples et se résume à peu de
+    // sommets ; le bruit change de cap à chaque pas et en garde beaucoup.
+    //
+    // On ne pénalise pas la courbure : un sentier de montagne n'est jamais
+    // droit, il épouse le relief et lace. C'est l'irrégularité qu'on écarte.
+    tortuositeMax: 14,
+    // Recollement des tronçons. L'amincissement coupe à chaque croisement et un
+    // sentier s'efface par endroits ; sans cette étape un chemin de 300 m
+    // ressort en douze bouts de 25 m. La tolérance angulaire est large, sans
+    // quoi on ne recollerait que les lignes droites.
+    recollementM: 12,
+    angleRecollementDeg: 70,
     // Pente médiane le long du tracé. Un sentier reste praticable ; au-delà
     // c'est une ligne d'écoulement.
     penteLongueMaxDeg: 28,

@@ -110,17 +110,23 @@ function detecterSentiers(g, reglages = {}) {
   const masque = hysteresis(reponse, t.W, t.H, p.seuilHaut, p.seuilBas);
   const squelette = amincir(masque, t.W, t.H);
 
-  // ── 5. Vectorisation ──────────────────────────────────────────────────────
-  const chaines = vectoriser(squelette, t.W, t.H);
+  // ── 5. Vectorisation, puis recollement ────────────────────────────────────
+  //
+  // L'amincissement coupe net à chaque croisement, et un sentier réel s'efface
+  // par endroits. Sans recollement, un chemin de 300 m ressort en douze
+  // tronçons de 25 m dont aucun ne dit rien. On rabout donc les bouts qui se
+  // font face et pointent dans la même direction.
+  const chaines = relier(vectoriser(squelette, t.W, t.H), t, p);
 
   // ── 6. Qualification ──────────────────────────────────────────────────────
   const traces = [];
-  const motifs = { longueur: 0, ravine: 0, penteLongue: 0, profondeur: 0 };
+  const motifs = { longueur: 0, ravine: 0, penteLongue: 0, profondeur: 0, tortuosite: 0 };
 
   for (const chaine of chaines) {
     const mes = mesurerTrace(chaine, t, relief, reponse, echelle, p);
     if (mes.longueur < p.longueurMinM) { motifs.longueur++; continue; }
     if (mes.penteLongueMed > p.penteLongueMaxDeg) { motifs.penteLongue++; continue; }
+    if (mes.tortuosite > p.tortuositeMax) { motifs.tortuosite++; continue; }
     if (mes.alignementPente > p.alignementMax) { motifs.ravine++; continue; }
     if (mes.profondeurMed < p.profondeurMinM || mes.profondeurMed > p.profondeurMaxM) {
       motifs.profondeur++; continue;
@@ -155,14 +161,18 @@ function detecterSentiers(g, reglages = {}) {
 function noterTrace(s, p) {
   const entre = (v, a, b) => Math.max(0, Math.min(1, (v - a) / (b - a)));
 
-  const longueur = entre(s.longueur, p.longueurMinM, 250);
+  const longueur = entre(s.longueur, p.longueurMinM, 300);
   const traverse = 1 - entre(s.alignementPente, 0.2, p.alignementMax);
+  const forme = 1 - entre(s.tortuosite, 2, p.tortuositeMax);
   const regularite = 1 - entre(s.penteLongueEcartType, 2, 14);
   const nettete = entre(s.reponseMed, p.seuilBas, p.seuilHaut * 1.6);
-  const creux = entre(s.profondeurMed, p.profondeurMinM, 0.8);
 
-  return 0.32 * longueur + 0.26 * traverse + 0.18 * regularite
-       + 0.14 * nettete + 0.10 * creux;
+  // La profondeur ne récompense plus le creux le plus marqué : au-delà d'un
+  // demi-mètre on quitte le sentier pour la ravine, et c'est un signe négatif.
+  const creux = 1 - entre(s.profondeurMed, 0.45, p.profondeurMaxM);
+
+  return 0.30 * longueur + 0.24 * forme + 0.20 * traverse
+       + 0.12 * regularite + 0.08 * creux + 0.06 * nettete;
 }
 
 // ── Grille de travail ───────────────────────────────────────────────────────
@@ -491,6 +501,69 @@ function vectoriser(squelette, W, H) {
   return chaines;
 }
 
+/**
+ * Raboute les tronçons qui se prolongent l'un l'autre.
+ *
+ * Deux extrémités sont réunies si elles sont proches **et** si la direction de
+ * chacune s'accorde avec celle du raccord. La tolérance angulaire est large :
+ * un sentier de montagne serpente, et un critère serré ne recollerait que les
+ * lignes droites — c'est-à-dire tout sauf des sentiers.
+ */
+function relier(chaines, t, p) {
+  const { W, pas } = t;
+  const ecartMax = p.recollementM / pas;
+  const cosMin = Math.cos(p.angleRecollementDeg * Math.PI / 180);
+
+  // Direction locale d'une extrémité, tournée vers l'extérieur de la chaîne.
+  const bout = (ch, debut) => {
+    const n = Math.min(ch.length - 1, 6);
+    const a = debut ? ch[n] : ch[ch.length - 1 - n];
+    const b = debut ? ch[0] : ch[ch.length - 1];
+    const dx = (b % W) - (a % W), dy = ((b / W) | 0) - ((a / W) | 0);
+    const d = Math.hypot(dx, dy) || 1;
+    return { c: b, x: b % W, y: (b / W) | 0, ux: dx / d, uy: dy / d };
+  };
+
+  let liste = chaines.map((ch) => ch.slice());
+  let fusionne = true;
+
+  while (fusionne) {
+    fusionne = false;
+    const bouts = [];
+    liste.forEach((ch, i) => {
+      if (ch.length < 2) return;
+      bouts.push({ i, debut: true, ...bout(ch, true) });
+      bouts.push({ i, debut: false, ...bout(ch, false) });
+    });
+
+    let meilleur = null;
+    for (let a = 0; a < bouts.length && !meilleur; a++) {
+      for (let b = a + 1; b < bouts.length; b++) {
+        const A = bouts[a], B = bouts[b];
+        if (A.i === B.i) continue;
+        const dx = B.x - A.x, dy = B.y - A.y;
+        const d = Math.hypot(dx, dy);
+        if (d > ecartMax || d < 1e-6) continue;
+        // Le raccord doit prolonger A, et B doit venir à sa rencontre.
+        if ((A.ux * dx + A.uy * dy) / d < cosMin) continue;
+        if ((B.ux * -dx + B.uy * -dy) / d < cosMin) continue;
+        meilleur = { A, B, d };
+        break;
+      }
+    }
+    if (!meilleur) break;
+
+    const { A, B } = meilleur;
+    const ca = A.debut ? liste[A.i].slice().reverse() : liste[A.i].slice();
+    const cb = B.debut ? liste[B.i].slice() : liste[B.i].slice().reverse();
+    const fusion = ca.concat(cb);
+    liste = liste.filter((_, k) => k !== A.i && k !== B.i);
+    liste.push(fusion);
+    fusionne = true;
+  }
+  return liste;
+}
+
 // ── Mesures ─────────────────────────────────────────────────────────────────
 
 /**
@@ -562,6 +635,29 @@ function mesurerTrace(chaine, t, relief, reponse, echelle, p) {
     return [g.lat, g.lon];
   });
 
+  // Tortuosité : sommets retenus par la simplification, ramenés à 100 m.
+  //
+  // C'est le critère qui remplace l'amplitude, devenue inutilisable — un
+  // sentier de 20 cm de creux est sous la rugosité naturelle d'un versant
+  // rocheux. Un sentier est faible mais **organisé** : il serpente en courbes
+  // amples, donc peu de sommets survivent à la simplification. Le bruit est
+  // fort mais **désordonné** : il zigzague à chaque pas et en garde beaucoup.
+  //
+  // On ne pénalise donc pas la courbure — un sentier de montagne n'est jamais
+  // droit — mais l'irrégularité.
+  const tortuosite = longueur > 0 ? (simple.length - 1) / (longueur / 100) : Infinity;
+
+  // Écart angulaire médian entre segments consécutifs : un virage de sentier
+  // est franc mais isolé, un tracé de bruit change de cap sans arrêt.
+  const virages = [];
+  for (let i = 2; i < simple.length; i++) {
+    const [ax, ay] = simple[i - 2], [bx, by] = simple[i - 1], [cx2, cy2] = simple[i];
+    const a1 = Math.atan2(by - ay, bx - ax), a2 = Math.atan2(cy2 - by, cx2 - bx);
+    let da = Math.abs(a2 - a1);
+    if (da > Math.PI) da = 2 * Math.PI - da;
+    virages.push(da * 180 / Math.PI);
+  }
+
   const milieu = simple[simple.length >> 1];
   const gpsMilieu = PROJ.versWGS84(milieu[0], milieu[1]);
 
@@ -575,6 +671,8 @@ function mesurerTrace(chaine, t, relief, reponse, echelle, p) {
     altitude: t.origine[2] + t.mnt[pts[pts.length >> 1].c],
     profondeurMed: med(profondeurs),
     largeurMed: med(largeurs),
+    tortuosite,
+    virageMed: med(virages),
     penteLongueMed: med(pentes),
     penteLongueEcartType: ecartType(pentes),
     alignementPente: med(alignements),

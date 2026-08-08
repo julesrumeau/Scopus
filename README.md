@@ -347,6 +347,23 @@ synthétique lisse et **79 cm sur le plateau de Beille**. Aucune constante ne
 pouvait servir les deux — calibrée sur le lisse, elle faisait déborder la moitié
 de la dalle réelle.
 
+**Mais l'amplitude n'est plus le critère principal.** Un sentier creuse peu :
+50 cm au grand maximum, souvent 20, parfois 10. Sur un versant dont la rugosité
+naturelle atteint 79 cm, un tel creux est indétectable par sa seule force. Le
+tri se fait donc sur la **forme** :
+
+| Critère | Sentier | Bruit / ravine |
+|---|---|---|
+| Profondeur | ≤ 50 cm | ravine : bien plus |
+| Continuité | longue, après recollement des tronçons | courte, hachée |
+| Tortuosité | serpente en courbes amples — **peu** de sommets après simplification | change de cap à chaque pas |
+| Rapport à la pente | la traverse en biais | ravine : la suit |
+
+Un sentier est **faible mais organisé** ; le bruit est fort mais désordonné.
+C'est cette différence qu'on exploite, et non l'amplitude. La courbure n'est
+jamais pénalisée : un sentier de montagne n'est jamais droit, il épouse le
+relief et lace.
+
 ### Ce que la rectangularité mesure — et ne mesure pas
 
 La rectangularité (surface / rectangle englobant orienté d'aire minimale) est un
