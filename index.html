@@ -36,13 +36,11 @@
       <button id="btn-ouvrir" class="primaire" disabled>Ouvrir la dalle</button>
     </section>
 
-    <!-- ─── 2. Zone d'intérêt ────────────────────────────────────────────── -->
+    <!-- ─── 2. Résolution ────────────────────────────────────────────────── -->
     <section class="etape" data-etape="2" id="section-zone" hidden>
-      <h2><span class="num">2</span> Zone d'intérêt</h2>
-      <label class="champ">
-        <span>Côté <b id="val-cote">250 m</b></span>
-        <input type="range" id="cote-aoi" min="50" max="1000" step="25" value="250">
-      </label>
+      <h2><span class="num">2</span> Résolution</h2>
+      <p class="note">La dalle est analysée <b>en entier</b> — 1 km². Ce curseur
+        fixe la finesse du nuage téléchargé.</p>
       <label class="champ">
         <span>Résolution <b id="val-niveau">—</b></span>
         <input type="range" id="niveau" min="0" max="5" step="1" value="0">

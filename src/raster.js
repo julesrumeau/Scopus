@@ -22,14 +22,20 @@ const CLASSE = {
 };
 
 /**
- * Construit les grilles à partir du nuage.
+ * Alloue les grilles d'une zone, vides.
  *
- * Le pas demandé est relevé si la zone est trop vaste : à 25 cm, une dalle
- * entière ferait 16 M de cellules et plus de 400 Mo de tableaux, ce qui fait
- * tomber l'onglet. On préfère une grille plus grossière annoncée qu'un plantage.
+ * L'accumulation est séparée de l'allocation parce que les points arrivent bloc
+ * par bloc et **ne sont pas conservés**. Analyser une dalle entière à 21 cm
+ * représente 39 M de points, soit 745 Mo de tableaux et 708 Mo de VRAM : de quoi
+ * faire tomber l'onglet. Or la détection ne lit jamais les points, seulement ces
+ * grilles — dont la taille ne dépend que de l'emprise et du pas. En rastérisant
+ * au fil du téléchargement puis en jetant chaque bloc, la mémoire cesse de
+ * dépendre du nombre de points.
+ *
+ * Le pas demandé est relevé si la zone est trop vaste pour le plafond de
+ * cellules : mieux vaut une grille plus grossière annoncée qu'un plantage.
  */
-function rasteriser(nuage, pasDemande = CONFIG.raster.pasM) {
-  const { emprise } = nuage;
+function creerGrilles(emprise, origine, pasDemande = CONFIG.raster.pasM) {
   const largeurM = emprise.xmax - emprise.xmin;
   const hauteurM = emprise.ymax - emprise.ymin;
 
@@ -44,61 +50,78 @@ function rasteriser(nuage, pasDemande = CONFIG.raster.pasM) {
   const H = Math.max(1, Math.ceil(hauteurM / pas));
   const N = W * H;
 
-  const g = {
-    W, H, pas, emprise,
-    origine: nuage.origine,
+  // Compteurs en octets et non en mots de 16 bits : à 25 cm et ~10 points/m²,
+  // une cellule en reçoit 0,6 en moyenne. Le plafond de 255 ne sera jamais
+  // atteint, et l'économie est de 64 Mo sur une dalle entière.
+  return {
+    W, H, pas, emprise, origine,
     solZ: new Float32Array(N).fill(NaN),   // Z minimal des points « sol »
-    solN: new Uint16Array(N),
+    solN: new Uint8Array(N),
     ncSomme: new Float32Array(N),          // cumul des Z « non classé »
-    ncN: new Uint16Array(N),
+    ncN: new Uint8Array(N),
     batSomme: new Float32Array(N),         // idem pour la classe « bâtiment »
-    batN: new Uint16Array(N),
-    vegN: new Uint16Array(N),
-    totalN: new Uint16Array(N),
+    batN: new Uint8Array(N),
+    totalN: new Uint8Array(N),
   };
+}
 
-  // Coordonnées du nuage relatives à `origine` : on repasse en absolu pour
-  // indexer, puis on garde tout en relatif dans les grilles.
-  const x0 = emprise.xmin - nuage.origine[0];
-  const y0 = emprise.ymin - nuage.origine[1];
-  const inv = 1 / pas;
+/**
+ * Verse un bloc décodé dans les grilles. Le bloc peut être libéré ensuite.
+ *
+ * `bloc` porte des coordonnées relatives à `bloc.origine`, qui n'est pas
+ * forcément celle des grilles : on ramène l'écart une fois pour toutes plutôt
+ * que point par point.
+ */
+function accumuler(g, bloc) {
+  const { W, H } = g;
+  const dx = (bloc.origine ? bloc.origine[0] : g.origine[0]) - g.origine[0];
+  const dy = (bloc.origine ? bloc.origine[1] : g.origine[1]) - g.origine[1];
+  const x0 = g.emprise.xmin - g.origine[0];
+  const y0 = g.emprise.ymin - g.origine[1];
+  const inv = 1 / g.pas;
 
-  for (let i = 0; i < nuage.n; i++) {
-    const cx = ((nuage.x[i] - x0) * inv) | 0;
-    const cy = ((nuage.y[i] - y0) * inv) | 0;
+  for (let i = 0; i < bloc.nbPoints; i++) {
+    const cx = ((bloc.x[i] + dx - x0) * inv) | 0;
+    const cy = ((bloc.y[i] + dy - y0) * inv) | 0;
     if (cx < 0 || cx >= W || cy < 0 || cy >= H) continue;
     const c = cy * W + cx;
-    const z = nuage.z[i];
-    const cl = nuage.cls[i];
+    const z = bloc.z[i];
 
-    if (g.totalN[c] < 65535) g.totalN[c]++;
+    if (g.totalN[c] < 255) g.totalN[c]++;
 
-    switch (cl) {
+    switch (bloc.cls[i]) {
       case CLASSE.SOL:
         // Le minimum, pas la moyenne : un point de sol mal classé sur un muret
         // tirerait la référence vers le haut et masquerait la structure.
         if (!(g.solZ[c] <= z)) g.solZ[c] = z;
-        if (g.solN[c] < 65535) g.solN[c]++;
+        if (g.solN[c] < 255) g.solN[c]++;
         break;
       case CLASSE.NON_CLASSE:
         g.ncSomme[c] += z;
-        if (g.ncN[c] < 65535) g.ncN[c]++;
-        break;
-      case CLASSE.VEG_BASSE: case CLASSE.VEG_MOYENNE: case CLASSE.VEG_HAUTE:
-        if (g.vegN[c] < 65535) g.vegN[c]++;
+        if (g.ncN[c] < 255) g.ncN[c]++;
         break;
       case CLASSE.BATIMENT:
         g.batSomme[c] += z;
-        if (g.batN[c] < 65535) g.batN[c]++;
+        if (g.batN[c] < 255) g.batN[c]++;
         break;
       default:
-        break;
+        break;   // végétation, eau, bruit : sans emploi dans la détection
     }
   }
+}
 
+/** Dérive le modèle de terrain et la pente. À appeler une fois tout accumulé. */
+function finaliser(g) {
   g.mnt = modeleTerrain(g);
-  g.pente = pente(g.mnt, W, H, pas);
+  g.pente = pente(g.mnt, g.W, g.H, g.pas);
   return g;
+}
+
+/** Enveloppe pour un nuage déjà entièrement en mémoire. */
+function rasteriser(nuage, pasDemande = CONFIG.raster.pasM) {
+  const g = creerGrilles(nuage.emprise, nuage.origine, pasDemande);
+  accumuler(g, { ...nuage, nbPoints: nuage.n, origine: nuage.origine });
+  return finaliser(g);
 }
 
 /**
@@ -144,15 +167,19 @@ function signal(g, inclureBati = false) {
 function modeleTerrain(g) {
   const { W, H } = g;
   const N = W * H;
-  let cour = Float32Array.from(g.solZ);
+
+  // Les altitudes sont modifiées **sur place**, seule la validité fait l'objet
+  // d'un double tampon. C'est ce qui préserve la sémantique « une couronne par
+  // passe » : une cellule comblée pendant la passe courante n'est marquée que
+  // dans `valideSuiv`, donc ses voisines ne la lisent pas avant la passe
+  // suivante. Deux tableaux d'octets au lieu de deux tableaux de flottants et
+  // deux d'octets — 32 Mo au lieu de 160 sur une dalle entière.
+  const cour = Float32Array.from(g.solZ);
   let valide = new Uint8Array(N);
   for (let i = 0; i < N; i++) if (g.solN[i] > 0) valide[i] = 1;
-
-  let suiv = new Float32Array(N);
   let valideSuiv = new Uint8Array(N);
 
   for (let passe = 0; passe < CONFIG.raster.rayonComblementSol; passe++) {
-    suiv.set(cour);
     valideSuiv.set(valide);
     let comblees = 0;
 
@@ -171,22 +198,29 @@ function modeleTerrain(g) {
             if (valide[v]) { somme += cour[v]; nb++; }
           }
         }
-        if (nb) { suiv[c] = somme / nb; valideSuiv[c] = 1; comblees++; }
+        if (nb) { cour[c] = somme / nb; valideSuiv[c] = 1; comblees++; }
       }
     }
 
-    [cour, suiv] = [suiv, cour];
     [valide, valideSuiv] = [valideSuiv, valide];
     if (!comblees) break;   // plus rien à propager : trous restants isolés du reste
   }
 
-  // Les cellules jamais atteintes (zone sans aucun point sol) reçoivent la
-  // médiane globale : elles seront de toute façon écartées, mais un NaN se
-  // propagerait dans le calcul de pente.
-  const connues = [];
-  for (let i = 0; i < N; i++) if (valide[i]) connues.push(cour[i]);
-  const repli = connues.length
-    ? connues.sort((a, b) => a - b)[connues.length >> 1]
+  // Les cellules jamais atteintes (zone sans aucun point sol) reçoivent une
+  // altitude de repli : elles seront de toute façon écartées par la détection,
+  // mais un NaN se propagerait dans le calcul de pente et contaminerait leurs
+  // voisines.
+  //
+  // La médiane est estimée sur un échantillon plafonné, jamais sur toutes les
+  // cellules : sur une dalle entière, collecter puis trier 16 M de valeurs dans
+  // un tableau JavaScript coûterait plus de mémoire que toutes les grilles
+  // réunies — pour une valeur qui ne sert qu'à boucher des trous voués au rebut.
+  const CIBLE = 200_000;
+  const saut = Math.max(1, Math.floor(N / CIBLE));
+  const echantillon = [];
+  for (let i = 0; i < N; i += saut) if (valide[i]) echantillon.push(cour[i]);
+  const repli = echantillon.length
+    ? echantillon.sort((a, b) => a - b)[echantillon.length >> 1]
     : 0;
   for (let i = 0; i < N; i++) if (!valide[i] || !Number.isFinite(cour[i])) cour[i] = repli;
 
@@ -228,9 +262,15 @@ function flouBoite(src, W, H, rayon) {
   return out;
 }
 
-/** Pente en degrés, gradient de Sobel sur le MNT. */
+/**
+ * Pente en degrés, gradient de Sobel sur le MNT.
+ *
+ * Stockée en octets : la pente ne sert qu'à être comparée à des seuils
+ * exprimés en degrés entiers, et un Float32 coûterait 48 Mo de plus sur une
+ * dalle entière pour une précision dont personne ne se sert.
+ */
 function pente(mnt, W, H, pas) {
-  const out = new Float32Array(W * H);
+  const out = new Uint8Array(W * H);
   const lire = (x, y) => mnt[Math.min(H - 1, Math.max(0, y)) * W + Math.min(W - 1, Math.max(0, x))];
 
   for (let y = 0; y < H; y++) {
@@ -239,7 +279,9 @@ function pente(mnt, W, H, pas) {
                   - (lire(x - 1, y - 1) + 2 * lire(x - 1, y) + lire(x - 1, y + 1))) / (8 * pas);
       const dzdy = ((lire(x - 1, y + 1) + 2 * lire(x, y + 1) + lire(x + 1, y + 1))
                   - (lire(x - 1, y - 1) + 2 * lire(x, y - 1) + lire(x + 1, y - 1))) / (8 * pas);
-      out[y * W + x] = Math.atan(Math.hypot(dzdx, dzdy)) * 180 / Math.PI;
+      // Arrondi supérieur : une cellule à 22,4° doit être écartée par un seuil
+      // fixé à 22°, pas conservée par troncature.
+      out[y * W + x] = Math.ceil(Math.atan(Math.hypot(dzdx, dzdy)) * 180 / Math.PI);
     }
   }
   return out;
@@ -268,4 +310,4 @@ function centreCellule(g, x, y) {
   };
 }
 
-const RASTER = { CLASSE, rasteriser, signal, hauteurParPoint, centreCellule };
+const RASTER = { CLASSE, creerGrilles, accumuler, finaliser, rasteriser, signal, hauteurParPoint, centreCellule };

@@ -16,9 +16,10 @@ commande, pas de base, pas de compte. Les données ne quittent jamais l'onglet.
    accepte un nom de commune ou des coordonnées (`42.74, 1.68` ou Lambert-93).
 2. **Ouvrir la dalle.** Deux requêtes suffisent à lire l'index de l'octree —
    environ 50 Ko pour un fichier de 190 Mo.
-3. **Cadrer la zone et choisir la résolution.** Le coût exact en points et en
-   mégaoctets est affiché avant tout téléchargement.
-4. **Charger.** Seuls les blocs qui intersectent la zone sont récupérés.
+3. **Choisir la résolution.** La dalle est analysée **en entier**, 1 km². Le
+   coût exact en points et en mégaoctets est affiché avant tout téléchargement.
+4. **Charger.** Comptez une trentaine de secondes pour un kilomètre carré à
+   pleine résolution.
 5. **Détecter.** Les candidats apparaissent sur la carte, dans le nuage 3D et
    dans une liste triée par score, avec liens Google Earth / Maps / Géoportail
    et export GPX, GeoJSON ou CSV.
@@ -168,6 +169,35 @@ classes sont donc prises par défaut, le rapprochement avec la BD TOPO écartant
 ensuite ce qui est déjà cartographié — une structure classée bâtiment mais
 absente de la BD TOPO est précisément ce qu'on cherche. Décochable dans
 l'interface.
+
+### Analyser un kilomètre carré sans le tenir en mémoire
+
+Une dalle entière à 21 cm, c'est 39 M de points : 745 Mo de tableaux et 708 Mo
+de VRAM. Intenable. Mais **la détection ne lit jamais les points** — seulement
+des grilles dont la taille ne dépend que de l'emprise et du pas.
+
+Chaque bloc est donc versé dans les grilles dès qu'il est décodé, puis
+abandonné. La mémoire cesse de dépendre du nombre de points. Le rendu 3D, lui,
+ne conserve que les niveaux grossiers de l'octree — une pyramide de détail déjà
+toute faite, qui couvre la dalle uniformément.
+
+Mesuré sur une dalle complète au niveau le plus fin :
+
+| | |
+|---|---|
+| Grille | 4000 × 4000 à **25 cm** |
+| Points traversés | 39,1 M |
+| Points conservés pour l'aperçu | 4,45 M |
+| Tas JavaScript | 247 → **405 Mo** (limite 4192) |
+| Chargement + rastérisation | 21,7 s |
+| Terrain + pente | 3,6 s |
+| Détection | 2,2 s |
+
+**Le nombre de requêtes comptait plus que le volume.** Interroger les 1554 nœuds
+séparément se soldait par un `HTTP 429` : le limiteur de l'IGN coupait avant la
+fin. Or les nœuds sont rangés bout à bout dans le fichier — 0,00 Mo d'espace
+perdu sur 184,5 Mo — donc les plages se regroupent. **1554 requêtes deviennent
+24**, redécoupées à 8 Mo pour garder une progression lisible.
 
 ### Le pipeline
 

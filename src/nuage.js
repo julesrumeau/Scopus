@@ -112,14 +112,26 @@ const grappe = new Grappe();
 /**
  * Télécharge et décode les nœuds sélectionnés.
  *
+ * Chaque bloc décodé est remis à `surBloc` puis **abandonné**. Seuls les points
+ * des niveaux d'octree inférieurs ou égaux à `niveauAffichage` sont conservés
+ * pour le rendu 3D. C'est ce qui rend une dalle entière analysable : à pleine
+ * résolution elle porte 39 M de points, soit 745 Mo de tableaux et 708 Mo de
+ * VRAM, alors que la détection n'a besoin que des grilles — que `surBloc`
+ * alimente au fil de l'eau.
+ *
+ * Les niveaux COPC forment une pyramide de détail toute faite : les niveaux
+ * grossiers couvrent uniformément la dalle, si bien qu'en tronquer les fins
+ * donne un aperçu régulier et non un nuage à trous.
+ *
  * @param {object} entete en-tête COPC
  * @param {Array} noeuds nœuds retenus par `COPC.selectionner`
- * @param {object} emprise zone d'intérêt en Lambert-93
- * @param {(avancement:{faits:number, total:number, points:number}) => void} surAvancement
- * @param {AbortSignal} signal
- * @returns {Promise<object>} nuage
+ * @param {object} emprise zone à analyser en Lambert-93
+ * @param {object} opts { surBloc, niveauAffichage, surAvancement, signal }
+ * @returns {Promise<object>} nuage d'affichage
  */
-async function charger(entete, noeuds, emprise, surAvancement, signal) {
+async function charger(entete, noeuds, emprise, opts = {}) {
+  const { surBloc, surAvancement, signal } = opts;
+  const niveauAffichage = opts.niveauAffichage ?? Infinity;
   await grappe.demarrer();
 
   // Origine locale au centre de la zone : garde les coordonnées Float32 petites
@@ -134,40 +146,95 @@ async function charger(entete, noeuds, emprise, surAvancement, signal) {
   let faits = 0;
   let pointsRecus = 0;
 
-  // Les nœuds entièrement contenus dans la zone n'ont pas à être filtrés point
-  // par point ; ce test évite une passe sur des millions de points au centre de
-  // la zone, là où la majorité des nœuds se trouve.
-  const taches = noeuds.map(async (noeud) => {
-    const e = COPC.empriseNoeud(entete, noeud.cle);
-    const dedans = e.xmin >= emprise.xmin && e.xmax <= emprise.xmax
-                && e.ymin >= emprise.ymin && e.ymax <= emprise.ymax;
+  const plages = grouperPlages(noeuds);
 
+  const taches = plages.map(async (plage) => {
     const octets = await RESEAU.recuperer(entete.url, {
-      plage: [noeud.offset, noeud.offset + noeud.taille - 1],
+      plage: [plage.debut, plage.fin - 1],
       signal,
     });
 
-    const res = await grappe.decoder({
-      type: 'decoder',
-      octets: octets.buffer,
-      nbPoints: noeud.nbPoints,
-      formatPoint: entete.formatPoint,
-      longueurPoint: entete.longueurPoint,
-      echelle: entete.echelle,
-      decalage: entete.decalage,
-      origine,
-    });
+    for (const noeud of plage.noeuds) {
+      if (signal?.aborted) return;
 
-    lots.push({ res, dedans });
-    faits++;
-    pointsRecus += res.nbPoints;
-    surAvancement?.({ faits, total: noeuds.length, points: pointsRecus });
+      // Les nœuds entièrement contenus dans la zone n'ont pas à être filtrés
+      // point par point ; ce test évite une passe sur des millions de points au
+      // centre de la zone, là où la majorité des nœuds se trouve.
+      const e = COPC.empriseNoeud(entete, noeud.cle);
+      const dedans = e.xmin >= emprise.xmin && e.xmax <= emprise.xmax
+                  && e.ymin >= emprise.ymin && e.ymax <= emprise.ymax;
+
+      // Copie du tronçon : le worker prend possession du tampon qu'on lui
+      // transfère, on ne peut donc pas lui céder une vue sur la plage commune.
+      const d = noeud.offset - plage.debut;
+      const bloc = octets.slice(d, d + noeud.taille);
+
+      const res = await grappe.decoder({
+        type: 'decoder',
+        octets: bloc.buffer,
+        nbPoints: noeud.nbPoints,
+        formatPoint: entete.formatPoint,
+        longueurPoint: entete.longueurPoint,
+        echelle: entete.echelle,
+        decalage: entete.decalage,
+        origine,
+      });
+
+      // La détection est servie ici, immédiatement : le bloc est versé dans les
+      // grilles pendant que les autres plages se téléchargent.
+      res.origine = origine;
+      surBloc?.(res, noeud);
+
+      // Puis on ne retient que ce que le rendu peut porter. Le reste devient
+      // collectable dès la fin de cette itération.
+      if (noeud.cle.n <= niveauAffichage) lots.push({ res, dedans });
+
+      faits++;
+      pointsRecus += res.nbPoints;
+      surAvancement?.({ faits, total: noeuds.length, points: pointsRecus });
+    }
   });
 
   await Promise.all(taches);
   if (signal?.aborted) throw new DOMException('Chargement abandonné', 'AbortError');
 
   return assembler(lots, emprise, origine, entete);
+}
+
+/**
+ * Regroupe les nœuds en un petit nombre de plages HTTP contiguës.
+ *
+ * Sans ce regroupement, une dalle entière demande **1554 requêtes de plage** —
+ * et c'est le nombre de requêtes, pas le volume, qui rendait l'opération
+ * interminable face au limiteur de débit de l'IGN.
+ *
+ * Or les nœuds d'une dalle sont rangés **bout à bout** dans le fichier :
+ * mesuré, 0,00 Mo d'espace inutilisé entre nœuds consécutifs sur 184,5 Mo. Une
+ * sélection complète tient donc en une seule plage, et une sélection partielle
+ * en quelques-unes.
+ *
+ * Les plages sont malgré tout redécoupées à `tailleMax` : une réponse unique de
+ * 185 Mo priverait l'utilisateur de toute progression, retarderait le début du
+ * décodage jusqu'au dernier octet, et demanderait un tampon d'un seul tenant.
+ */
+function grouperPlages(noeuds, tolerance = 1 << 20, tailleMax = 8 << 20) {
+  const tri = noeuds.slice().sort((a, b) => a.offset - b.offset);
+  const plages = [];
+
+  for (const n of tri) {
+    const derniere = plages[plages.length - 1];
+    const contigu = derniere
+      && n.offset - derniere.fin <= tolerance
+      && (n.offset + n.taille) - derniere.debut <= tailleMax;
+
+    if (contigu) {
+      derniere.fin = Math.max(derniere.fin, n.offset + n.taille);
+      derniere.noeuds.push(n);
+    } else {
+      plages.push({ debut: n.offset, fin: n.offset + n.taille, noeuds: [n] });
+    }
+  }
+  return plages;
 }
 
 // Concatène les lots en écartant les points hors zone. Deux passes : la
@@ -229,4 +296,23 @@ function assembler(lots, emprise, origine, entete) {
   return nuage;
 }
 
-const NUAGE = { charger, get surFilPrincipal() { return grappe.surFilPrincipal; } };
+/**
+ * Niveau d'octree le plus fin dont le cumul de points tient dans le budget
+ * d'affichage.
+ *
+ * Le rendu et la détection n'ont pas les mêmes besoins : la détection veut la
+ * pleine résolution, le rendu veut seulement de quoi se repérer à l'œil. Sur une
+ * dalle entière, le niveau 2 (1,7 m d'espacement, 4,5 M de points) suffit
+ * largement à lire le relief, là où le niveau 5 demanderait 708 Mo de VRAM.
+ */
+function niveauPourAffichage(couts, budget = CONFIG.rendu.budgetAffichage) {
+  let choisi = couts.length ? couts[0].niveau : 0;
+  for (const c of couts) if (c.nbPoints <= budget) choisi = c.niveau;
+  return choisi;
+}
+
+const NUAGE = {
+  charger,
+  niveauPourAffichage,
+  get surFilPrincipal() { return grappe.surFilPrincipal; },
+};

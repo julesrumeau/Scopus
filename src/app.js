@@ -12,7 +12,6 @@ const etat = {
   dalle: null,
   entete: null,
   hierarchie: null,
-  aoi: null,
   couts: [],
   niveau: 0,
   nuage: null,
@@ -71,12 +70,6 @@ const carte = new Carte($('vue-carte'), {
       + ligneDetail('Emprise', `X ${d.emprise.xmin}–${d.emprise.xmax}\nY ${d.emprise.ymin}–${d.emprise.ymax}`);
     $('btn-ouvrir').disabled = false;
     statut('Dalle sélectionnée — ouvrez-la pour lire son index');
-  },
-  surAOI: (aoi) => {
-    etat.aoi = aoi;
-    $('val-cote').textContent = `${Math.round(aoi.cote)} m`;
-    $('cote-aoi').value = Math.round(aoi.cote);
-    if (etat.hierarchie) majCouts();
   },
   surCouverture: (nb, zoom) => {
     if (etat.dalle) return;   // ne pas écraser l'état d'une dalle déjà choisie
@@ -173,8 +166,8 @@ $('btn-ouvrir').addEventListener('click', async () => {
  * curseur de résolution.
  */
 function majCouts() {
-  if (!etat.entete || !etat.aoi) return;
-  etat.couts = COPC.coutParNiveau(etat.entete, etat.hierarchie, etat.aoi);
+  if (!etat.entete || !etat.dalle) return;
+  etat.couts = COPC.coutParNiveau(etat.entete, etat.hierarchie, etat.dalle.emprise);
 
   const curseur = $('niveau');
   if (!etat.couts.length) {
@@ -206,19 +199,22 @@ function majAffichageCout() {
 
   $('val-niveau').textContent = `${c.espacement < 1 ? (c.espacement * 100).toFixed(0) + ' cm' : c.espacement.toFixed(1) + ' m'}`;
 
-  const trop = c.nbPoints > CONFIG.nuage.budgetPoints || c.octets > CONFIG.nuage.budgetOctets;
+  // Le pas de grille est annoncé avant le chargement : sur 1 km² il peut être
+  // relevé automatiquement, et l'utilisateur doit le savoir avant d'attendre.
+  const cote = etat.dalle.emprise.xmax - etat.dalle.emprise.xmin;
+  const pasReel = Math.max(CONFIG.raster.pasM,
+    Math.ceil(Math.sqrt((cote * cote) / CONFIG.raster.cellulesMax) * 20) / 20);
+  const niveauVue = NUAGE.niveauPourAffichage(etat.couts.slice(0, etat.niveau + 1));
+
   $('cout').innerHTML =
     `Niveau ${c.niveau} · ${milliers(c.nbNoeuds)} nœuds<br>`
     + `<b>${milliers(c.nbPoints)}</b> points · <b>${octets(c.octets)}</b> à télécharger<br>`
-    + `Espacement moyen ≈ <b>${c.espacement < 1 ? (c.espacement * 100).toFixed(0) + ' cm' : c.espacement.toFixed(2) + ' m'}</b>`
-    + (trop ? '<br><span class="att">Au-delà des budgets — chargement possible mais lourd.</span>' : '');
+    + `Espacement ≈ <b>${c.espacement < 1 ? (c.espacement * 100).toFixed(0) + ' cm' : c.espacement.toFixed(2) + ' m'}</b>`
+    + ` · grille <b>${pasReel.toFixed(2)} m</b><br>`
+    + `<span class="doux">Aperçu 3D au niveau ${niveauVue} ; la détection lit tout.</span>`;
 
   $('btn-charger').disabled = false;
 }
-
-$('cote-aoi').addEventListener('input', (e) => {
-  carte.redimensionnerAOI(Number(e.target.value));
-});
 
 $('niveau').addEventListener('input', (e) => {
   e.target.dataset.touche = '1';
@@ -229,11 +225,13 @@ $('niveau').addEventListener('input', (e) => {
 // ── Étape 2 → 3 : chargement du nuage ───────────────────────────────────────
 
 $('btn-charger').addEventListener('click', async () => {
-  if (!etat.entete || !etat.aoi) return;
+  if (!etat.entete || !etat.dalle) return;
 
-  const budgetP = Math.max(CONFIG.nuage.budgetPoints, etat.couts[etat.niveau].nbPoints);
-  const budgetO = Math.max(CONFIG.nuage.budgetOctets, etat.couts[etat.niveau].octets);
-  const sel = COPC.selectionner(etat.entete, etat.hierarchie, etat.aoi, budgetP, budgetO);
+  const emprise = etat.dalle.emprise;
+  // Budgets neutralisés : la sélection est bornée par le niveau demandé, et la
+  // mémoire ne dépend plus du nombre de points depuis que les blocs sont
+  // rastérisés puis jetés.
+  const sel = COPC.selectionner(etat.entete, etat.hierarchie, emprise, Infinity, Infinity);
 
   // La sélection est cumulative par niveau : on coupe à celui demandé.
   const noeuds = sel.noeuds.filter((n) => n.cle.n <= etat.couts[etat.niveau].niveau);
@@ -245,23 +243,37 @@ $('btn-charger').addEventListener('click', async () => {
   $('progression').hidden = false;
   const debut = performance.now();
 
-  try {
-    etat.nuage = await NUAGE.charger(etat.entete, noeuds, etat.aoi, (a) => {
-      $('barre-progression').style.width = `${(a.faits / a.total) * 100}%`;
-      statut(`Téléchargement ${a.faits}/${a.total} — ${milliers(a.points)} points`, 'travail');
-    }, etat.abandon.signal);
+  const origine = [(emprise.xmin + emprise.xmax) / 2, (emprise.ymin + emprise.ymax) / 2,
+    etat.entete.bbox.zmin];
 
-    if (!etat.nuage.n) { alerter('Zone vide : aucun point dans cette emprise.'); return; }
+  try {
+    // Les grilles sont allouées d'emblée et remplies bloc par bloc : c'est ce
+    // qui permet d'analyser 1 km² à pleine résolution sans jamais détenir les
+    // 39 M de points en mémoire.
+    etat.grille = RASTER.creerGrilles(emprise, origine);
+    const niveauVue = NUAGE.niveauPourAffichage(etat.couts.slice(0, etat.niveau + 1));
+
+    etat.nuage = await NUAGE.charger(etat.entete, noeuds, emprise, {
+      niveauAffichage: niveauVue,
+      surBloc: (bloc) => RASTER.accumuler(etat.grille, bloc),
+      surAvancement: (a) => {
+        $('barre-progression').style.width = `${(a.faits / a.total) * 100}%`;
+        statut(`Téléchargement ${a.faits}/${a.total} — ${milliers(a.points)} points`, 'travail');
+      },
+      signal: etat.abandon.signal,
+    });
+
+    if (!etat.nuage.n) { alerter('Dalle vide : aucun point dans cette emprise.'); return; }
 
     vue3d.definirNuage(etat.nuage);
     vue3d.definirDetections([], null);
     vue3d.definirSelection(null, null);
 
-    statut('Rastérisation…', 'travail');
+    statut('Modèle de terrain…', 'travail');
     // Laisse l'image se rafraîchir avant une passe synchrone qui bloque le fil
     // principal plusieurs centaines de millisecondes.
     await new Promise((r) => requestAnimationFrame(r));
-    etat.grille = RASTER.rasteriser(etat.nuage);
+    RASTER.finaliser(etat.grille);
     vue3d.definirHauteurs(RASTER.hauteurParPoint(etat.nuage, etat.grille));
 
     $('section-affichage').hidden = false;
@@ -271,10 +283,11 @@ $('btn-charger').addEventListener('click', async () => {
     basculerVue('3d');
 
     const secondes = ((performance.now() - debut) / 1000).toFixed(1);
-    statut(`${milliers(etat.nuage.n)} points chargés en ${secondes} s — grille ${etat.grille.pas.toFixed(2)} m`);
+    statut(`Dalle analysée en ${secondes} s — grille ${etat.grille.pas.toFixed(2)} m, `
+      + `aperçu ${milliers(etat.nuage.n)} points`);
 
     if (etat.grille.pas > CONFIG.raster.pasM + 1e-6) {
-      alerter(`Zone trop vaste pour une grille à ${CONFIG.raster.pasM} m : rastérisée à ${etat.grille.pas.toFixed(2)} m.`);
+      alerter(`Grille relevée à ${etat.grille.pas.toFixed(2)} m : ${CONFIG.raster.pasM} m dépasserait le plafond de cellules.`);
     }
   } catch (e) {
     if (e.name !== 'AbortError') alerter(`Chargement : ${e.message}`);
@@ -392,7 +405,7 @@ $('btn-detecter').addEventListener('click', async () => {
     etat.resultat = DETECTION.detecter(etat.grille, reglages);
 
     statut('Rapprochement avec la BD TOPO…', 'travail');
-    const { erreur } = await SORTIE.rapprocher(etat.resultat.candidats, etat.aoi);
+    const { erreur } = await SORTIE.rapprocher(etat.resultat.candidats, etat.dalle.emprise);
     if (erreur) alerter(`BD TOPO indisponible (${erreur}) — aucun rapprochement effectué.`);
 
     afficherResultats();
@@ -490,7 +503,7 @@ $('masquer-repertories').addEventListener('change', afficherResultats);
 const NOM_BASE = () => `scopus_${etat.dalle?.nom || 'zone'}`;
 const META = () => ({
   dalle: etat.dalle?.nom,
-  emprise_lambert93: etat.aoi,
+  emprise_lambert93: etat.dalle?.emprise,
   pas_grille_m: etat.grille?.pas,
   seuils: reglages,
 });

@@ -216,6 +216,7 @@ input[type=range]::-moz-range-thumb {
 }
 .cout b { color: var(--texte); }
 .cout .att { color: var(--or); }
+.cout .doux { color: #6c7686; }
 
 .progression { height: 4px; background: var(--fond-3); border-radius: 2px; margin-top: 9px; overflow: hidden; }
 #barre-progression { height: 100%; width: 0; background: var(--accent-2); transition: width 0.15s; }
@@ -233,6 +234,9 @@ input[type=range]::-moz-range-thumb {
 .stats b { color: var(--texte); }
 
 .reglages { display: grid; gap: 2px; }
+
+.note { margin: 0 0 11px; font-size: 12px; color: var(--texte-2); line-height: 1.55; }
+.note b { color: var(--texte); }
 
 /* ── Recherche de lieu ───────────────────────────────────────────────────── */
 

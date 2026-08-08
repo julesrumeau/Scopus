@@ -1,5 +1,5 @@
-// Carte Leaflet : fonds IGN, couverture LiDAR, grille kilométrique, zone
-// d'intérêt, marqueurs de détection.
+// Carte Leaflet : fonds IGN, couverture LiDAR, grille kilométrique, sélection
+// de dalle, marqueurs de détection.
 //
 // Trois principes, chacun corrigeant un défaut constaté :
 //
@@ -10,7 +10,9 @@
 //     téléchargée : exacte par construction, sans le plafond de 600 entités qui
 //     laissait des bandes vides.
 //   · La **sélection** interroge le WFS en un point, ce qui ne peut désigner
-//     qu'une dalle.
+//     qu'une dalle. Cliquer une dalle, c'est choisir de l'analyser **en entier**
+//     — un sous-carré de 250 m était trop petit pour y chercher quoi que ce
+//     soit, et la rastérisation incrémentale rend le kilomètre carré tenable.
 
 /* global L */
 
@@ -32,9 +34,7 @@ class Carte {
     this.grille = new GRILLE.GrilleDalles().addTo(this.map);
     this.coucheDetections = L.layerGroup().addTo(this.map);
     this.rectDalle = null;
-    this.rectAOI = null;
     this.dalleSelectionnee = null;
-    this.aoi = null;
     this.marqueurs = new Map();
     this.chargementBlocs = null;
 
@@ -85,10 +85,10 @@ class Carte {
       this.cb.surErreur?.('Pas de dalle LiDAR HD à cet endroit — la zone n’a pas encore été volée.');
       return;
     }
-    this.selectionnerDalle(dalle, PROJ.versLambert93(lng, lat));
+    this.selectionnerDalle(dalle);
   }
 
-  selectionnerDalle(dalle, pointClic = null) {
+  selectionnerDalle(dalle) {
     this.dalleSelectionnee = dalle;
 
     if (this.rectDalle) this.map.removeLayer(this.rectDalle);
@@ -99,56 +99,7 @@ class Carte {
       color: '#ffd24a', weight: 2, fillColor: '#ffd24a', fillOpacity: 0.06, interactive: false,
     }).addTo(this.map);
 
-    const centre = pointClic || {
-      x: (dalle.emprise.xmin + dalle.emprise.xmax) / 2,
-      y: (dalle.emprise.ymin + dalle.emprise.ymax) / 2,
-    };
-    this.definirAOI(centre.x, centre.y, this.aoi?.cote ?? CONFIG.nuage.aoiParDefautM);
     this.cb.surDalle?.(dalle);
-  }
-
-  /**
-   * Place la zone d'intérêt, en la contraignant à la dalle sélectionnée.
-   *
-   * Le débordement est refusé plutôt que découpé : une zone à cheval sur deux
-   * dalles produirait un nuage tronqué sur un bord, et la détection y verrait
-   * des structures fantômes le long de la coupure.
-   */
-  definirAOI(cx, cy, cote) {
-    const d = this.dalleSelectionnee;
-    if (!d) return;
-    const em = d.emprise;
-    const demi = Math.min(cote, em.xmax - em.xmin, em.ymax - em.ymin) / 2;
-
-    cx = Math.max(em.xmin + demi, Math.min(em.xmax - demi, cx));
-    cy = Math.max(em.ymin + demi, Math.min(em.ymax - demi, cy));
-
-    this.aoi = {
-      cote: demi * 2,
-      xmin: cx - demi, xmax: cx + demi,
-      ymin: cy - demi, ymax: cy + demi,
-    };
-
-    if (this.rectAOI) this.map.removeLayer(this.rectAOI);
-    // Polygone des quatre côtés reprojetés, et non `L.rectangle` : un rectangle
-    // Leaflet est aligné sur les axes de l'écran, alors qu'un carré Lambert-93
-    // apparaît légèrement tourné en WGS84. La zone semblait donc de travers
-    // dans la dalle qui la contient — c'était bien un défaut, pas une illusion.
-    this.rectAOI = L.polygon(GRILLE.contourEmprise(this.aoi), {
-      color: '#4ade80', weight: 2, dashArray: '5 4', fillColor: '#4ade80', fillOpacity: 0.12,
-      interactive: false,
-    }).addTo(this.map);
-
-    this.cb.surAOI?.(this.aoi);
-  }
-
-  redimensionnerAOI(cote) {
-    if (!this.aoi) return;
-    this.definirAOI((this.aoi.xmin + this.aoi.xmax) / 2, (this.aoi.ymin + this.aoi.ymax) / 2, cote);
-  }
-
-  cadrerAOI() {
-    if (this.rectAOI) this.map.fitBounds(this.rectAOI.getBounds(), { padding: [40, 40] });
   }
 
   /** Recentre la carte sur un résultat de recherche. */

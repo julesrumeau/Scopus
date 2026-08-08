@@ -44,16 +44,12 @@ const CONFIG = {
 
   // ── Chargement du nuage ───────────────────────────────────────────────────
   nuage: {
-    // Budget de points au-delà duquel on refuse de descendre d'un niveau
-    // d'octree. 12 M points ≈ 190 Mo de VRAM en attributs — tenable sur un GPU
-    // récent, et déjà bien au-delà de ce qu'une zone d'intérêt raisonnable
-    // demande.
-    budgetPoints: 12_000_000,
-    // Garde-fou indépendant : au-delà, on refuse de lancer le téléchargement
-    // même si le budget de points est respecté.
-    budgetOctets: 220 * 1024 * 1024,
-    // Côté par défaut de la zone d'intérêt tracée sur la carte, en mètres.
-    aoiParDefautM: 250,
+    // Repères servant à choisir le niveau proposé par défaut. Ce ne sont plus
+    // des limites dures : depuis que les blocs sont rastérisés puis jetés, la
+    // mémoire ne dépend plus du nombre de points, et seul le temps de
+    // téléchargement reste en jeu.
+    budgetPoints: 30_000_000,
+    budgetOctets: 200 * 1024 * 1024,
   },
 
   // ── Carte ─────────────────────────────────────────────────────────────────
@@ -75,6 +71,11 @@ const CONFIG = {
     taillePoint: 2.0,       // taille de base en pixels, à distance de référence
     attenuation: true,      // taille décroissante avec la distance
     pointsRonds: false,     // découpe en disque : plus propre de près, plus coûteux
+    // Plafond de points téléversés au GPU. La détection, elle, travaille à
+    // pleine résolution : ce budget ne concerne que l'aperçu 3D. 6 M points
+    // ≈ 114 Mo de VRAM, ce qui passe partout ; la dalle entière à 21 cm en
+    // demanderait 708.
+    budgetAffichage: 6_000_000,
     fond: '#0b0e13',
     // Colorisation : 'elevation' | 'classification' | 'intensite' | 'hauteur'
     coloration: 'classification',
@@ -108,11 +109,13 @@ const CONFIG = {
     rayonComblementSol: 12,
     // Demi-fenêtre du lissage appliqué au MNT sol avant calcul de pente.
     rayonLissageSol: 2,
-    // Plafond du nombre de cellules. Au-delà, le pas est relevé automatiquement :
-    // une dalle entière à 25 cm ferait 16 M de cellules et plus de 400 Mo de
-    // tableaux. Mieux vaut une grille plus grossière annoncée qu'un onglet qui
-    // tombe.
-    cellulesMax: 6_000_000,
+    // Plafond du nombre de cellules. Au-delà, le pas est relevé automatiquement.
+    //
+    // 17 M laisse passer une dalle entière (1 km²) à 25 cm, soit 16 M de
+    // cellules — l'usage principal depuis que l'analyse porte sur la dalle
+    // complète. À 21 octets par cellule cela fait ~336 Mo de grilles, ce qui
+    // tient sur une machine de bureau ; au-delà le pas est relevé et annoncé.
+    cellulesMax: 17_000_000,
   },
 
   // ── Détection ─────────────────────────────────────────────────────────────

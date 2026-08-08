@@ -139,6 +139,38 @@ reprendre :
   préchauffer » — faux : le démarrage complet coûte **22 ms**. Le préchauffage
   a été écrit puis retiré.
 
+### Rastériser au vol, ne rien garder
+
+L'unité d'analyse est la **dalle entière**, 1 km². Un sous-carré de 250 m était
+trop petit pour y chercher quoi que ce soit.
+
+Ce qui rend le kilomètre carré tenable : les points ne sont jamais conservés.
+Chaque bloc décodé est versé dans les grilles (`RASTER.accumuler`) puis
+abandonné ; seuls les niveaux d'octree grossiers sont retenus pour l'aperçu 3D.
+La détection ne lit que les grilles, dont la taille ne dépend que de l'emprise.
+
+Sans cela, 39 M de points demanderaient 745 Mo de tableaux et 708 Mo de VRAM.
+Avec, le tas monte à 405 Mo sur une dalle complète à 25 cm — mesuré.
+
+Les grilles ont été dégraissées en conséquence : `vegN` supprimée (jamais lue),
+compteurs en octets plutôt qu'en mots de 16 bits, pente en degrés entiers. 21
+octets par cellule au lieu de 30. Le comblement du MNT écrit **sur place** et ne
+double que la validité, en octets.
+
+Ne pas y réintroduire un tableau par cellule sans compter : à 16 M de cellules,
+chaque `Float32Array` supplémentaire coûte 64 Mo.
+
+### Groupement des requêtes
+
+Le facteur limitant du chargement n'est pas le volume mais le **nombre de
+requêtes**. Interroger les 1554 nœuds d'une dalle séparément se solde par un
+`HTTP 429` — vérifié, le limiteur de l'IGN coupe avant la fin.
+
+Les nœuds étant rangés bout à bout dans le fichier (0,00 Mo perdu sur 184,5 Mo),
+`grouperPlages` les fusionne : **1554 requêtes → 24**. Le redécoupage à 8 Mo est
+délibéré — une réponse unique de 185 Mo priverait de toute progression et
+retarderait le décodage jusqu'au dernier octet.
+
 ### Répartition du travail
 
 Le fil principal garde la main sur les requêtes HTTP (file bornée, réessais) et
