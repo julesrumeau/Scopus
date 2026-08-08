@@ -29,6 +29,8 @@ class Vue3D {
     this.vaoSel = null;
     this.bufSel = null;
     this.nbSommetsSel = 0;
+    this.nbSommetsSentiers = 0;
+    this.nbSommetsTraceSel = 0;
 
     // Caméra orbitale. Distance et cible en mètres, angles en radians.
     this.cam = { cible: [0, 0, 0], distance: 300, azimut: -Math.PI / 4, elevation: 0.6 };
@@ -233,7 +235,14 @@ class Vue3D {
       }
     }
 
+    return this._televerserLignes(sommets, suffixe);
+  }
+
+  /** Envoie une liste de sommets au GPU sous un jeu de buffers nommé. */
+  _televerserLignes(sommets, suffixe) {
+    const gl = this.gl;
     const donnees = new Float32Array(sommets);
+
     let vao = this[`vao${suffixe}`];
     let buf = this[`buf${suffixe}`];
     if (!vao) {
@@ -250,6 +259,82 @@ class Vue3D {
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, donnees, gl.DYNAMIC_DRAW);
     return donnees.length / 3;
+  }
+
+  /**
+   * Tracés de sentiers, posés sur le terrain.
+   *
+   * Les polylignes sont **rééchantillonnées** avant d'être tracées : la
+   * simplification de Douglas-Peucker laisse parfois des dizaines de mètres
+   * entre deux sommets, et un segment droit sur cette distance traverserait le
+   * relief au lieu de l'épouser. On redécoupe donc au pas de la grille et l'on
+   * relève l'altitude du terrain en chaque point.
+   *
+   * Le tracé est relevé de quelques centimètres : posé exactement sur le MNT il
+   * disparaîtrait derrière les points du sol, à égalité de profondeur.
+   */
+  definirSentiers(traces, grille) {
+    this.nbSommetsSentiers = this._remplirTraces(traces, grille, 'Sentiers');
+    this.invalider();
+  }
+
+  definirSentierChoisi(trace, grille) {
+    this.nbSommetsTraceSel = trace ? this._remplirTraces([trace], grille, 'TraceSel') : 0;
+    this.invalider();
+  }
+
+  _remplirTraces(traces, grille, suffixe) {
+    if (!this.nuage || !grille) return 0;
+    const o = this.nuage.origine;
+    const sommets = [];
+
+    // Altitude du terrain en un point Lambert-93, relative à l'origine.
+    const solA = (x, y) => {
+      const cx = Math.min(grille.W - 1, Math.max(0, ((x - grille.emprise.xmin) / grille.pas) | 0));
+      const cy = Math.min(grille.H - 1, Math.max(0, ((y - grille.emprise.ymin) / grille.pas) | 0));
+      return grille.mnt[cy * grille.W + cx];
+    };
+
+    const PAS = 2;            // mètres entre deux échantillons
+    const HAUTEUR = 0.35;     // décollement du sol, en mètres
+
+    for (const t of traces) {
+      const pts = t.points || [];
+      let precedent = null;
+
+      for (let i = 1; i < pts.length; i++) {
+        const [x1, y1] = pts[i - 1];
+        const [x2, y2] = pts[i];
+        const n = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / PAS));
+
+        for (let k = 0; k <= n; k++) {
+          const x = x1 + (x2 - x1) * (k / n);
+          const y = y1 + (y2 - y1) * (k / n);
+          const p = [x - o[0], y - o[1], solA(x, y) + HAUTEUR];
+          // Le shader dessine des GL_LINES : chaque segment veut ses deux bouts.
+          if (precedent) sommets.push(...precedent, ...p);
+          precedent = p;
+        }
+      }
+    }
+    return this._televerserLignes(sommets, suffixe);
+  }
+
+  /** Amène la caméra sur un tracé, cadré sur toute sa longueur. */
+  viserTrace(trace, grille) {
+    if (!this.nuage || !trace?.points?.length) return;
+    const o = this.nuage.origine;
+    const xs = trace.points.map((q) => q[0]);
+    const ys = trace.points.map((q) => q[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const etendue = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+
+    this.cam.cible = [cx - o[0], (trace.altitude - o[2] - this.zmin) * CONFIG.rendu.exagerationZ, -(cy - o[1])];
+    this.cam.distance = Math.max(40, etendue * 1.6);
+    this.cam.elevation = 0.7;
+    this.focus = null;
+    this.invalider();
   }
 
   // ── Contrôles ─────────────────────────────────────────────────────────────
@@ -479,7 +564,7 @@ class Vue3D {
     // détection derrière une crête reste masquée, ce qui donne la bonne lecture
     // spatiale.
     const l = this.progLignes;
-    if (this.nbSommetsLignes || this.nbSommetsSel) {
+    if (this.nbSommetsLignes || this.nbSommetsSel || this.nbSommetsSentiers || this.nbSommetsTraceSel) {
       gl.useProgram(l);
       gl.uniformMatrix4fv(l.u.u_vp, false, vp);
       gl.uniform1f(l.u.u_exagerationZ, CONFIG.rendu.exagerationZ);
@@ -494,6 +579,18 @@ class Vue3D {
       gl.uniform4f(l.u.u_couleur, 1.0, 0.85, 0.25, 1.0);
       gl.bindVertexArray(this.vaoSel);
       gl.drawArrays(gl.LINES, 0, this.nbSommetsSel);
+    }
+    // Sentiers en orangé, comme sur la carte : le même objet garde la même
+    // couleur d'une vue à l'autre.
+    if (this.nbSommetsSentiers) {
+      gl.uniform4f(l.u.u_couleur, 1.0, 0.54, 0.24, 1.0);
+      gl.bindVertexArray(this.vaoSentiers);
+      gl.drawArrays(gl.LINES, 0, this.nbSommetsSentiers);
+    }
+    if (this.nbSommetsTraceSel) {
+      gl.uniform4f(l.u.u_couleur, 1.0, 1.0, 1.0, 1.0);
+      gl.bindVertexArray(this.vaoTraceSel);
+      gl.drawArrays(gl.LINES, 0, this.nbSommetsTraceSel);
     }
     gl.bindVertexArray(null);
   }

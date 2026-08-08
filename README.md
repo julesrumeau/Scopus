@@ -334,6 +334,13 @@ d'éclairage et rate les structures qui lui sont parallèles. La littérature
 archéologique lui préfère des visualisations non directionnelles ; la hessienne
 l'est tout autant, et détecte au lieu de simplement montrer.
 
+Les tracés s'affichent **sur la carte et dans le nuage 3D**, où ils sont posés
+sur le terrain. Les polylignes y sont rééchantillonnées tous les 2 m avant
+d'être dessinées : la simplification laisse parfois des dizaines de mètres entre
+deux sommets, et un segment droit sur cette distance traverserait le relief au
+lieu de l'épouser. Cliquer un tracé le surligne dans les deux vues et y amène la
+caméra 3D — `v` suffit ensuite à basculer.
+
 **Le seuil est exprimé en multiples de la rugosité locale**, pas en mètres. Ce
 n'est pas un raffinement : mesuré, le relief local médian vaut 2 cm sur terrain
 synthétique lisse et **79 cm sur le plateau de Beille**. Aucune constante ne

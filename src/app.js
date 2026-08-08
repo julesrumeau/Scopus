@@ -280,8 +280,17 @@ $('btn-charger').addEventListener('click', async () => {
 
     if (!etat.nuage.n) { alerter('Dalle vide : aucun point dans cette emprise.'); return; }
 
+    etat.sentiers = null;
+    carte.effacerSentiers();
+    $('liste-sentiers').innerHTML = '';
+    $('compte-sentiers').textContent = '';
+    $('stats-sentiers').hidden = true;
+    $('exports-sentiers').hidden = true;
+
     vue3d.definirNuage(etat.nuage);
     vue3d.definirClassesMasquees(classesMasquees);
+    vue3d.definirSentiers([], null);
+    vue3d.definirSentierChoisi(null, null);
     vue3d.definirDetections([], null);
     vue3d.definirSelection(null, null);
 
@@ -568,17 +577,35 @@ function afficherSentiers() {
       </div>`;
     li.addEventListener('click', (e) => {
       if (e.target.tagName === 'A') return;
-      for (const autre of liste.children) autre.classList?.toggle('actif', autre === li);
-      carte.surlignerSentier(s, traces);
-      basculerVue('carte');
+      choisirSentier(s, true);
     });
     liste.appendChild(li);
   }
 
-  carte.afficherSentiers(traces, (s) => {
-    for (const li of liste.children) li.classList?.toggle('actif', li.dataset.id === String(s.id));
-    document.querySelector(`#liste-sentiers li[data-id="${s.id}"]`)?.scrollIntoView({ block: 'nearest' });
-  });
+  carte.afficherSentiers(traces, (s) => choisirSentier(s, false));
+  vue3d?.definirSentiers(traces, etat.grille);
+  vue3d?.definirSentierChoisi(null, etat.grille);
+}
+
+/**
+ * Sélectionne un tracé dans les deux vues à la fois.
+ *
+ * On ne bascule pas d'office : depuis la carte on veut rester sur la carte,
+ * depuis la liste on veut voir le relief. Mais les deux vues restent
+ * synchronisées, si bien qu'un `v` suffit ensuite à passer de l'une à l'autre
+ * sans rien reperdre.
+ */
+function choisirSentier(s, versLa3D) {
+  const traces = etat.sentiers?.traces || [];
+  for (const li of $('liste-sentiers').children) {
+    li.classList?.toggle('actif', li.dataset.id === String(s.id));
+  }
+  document.querySelector(`#liste-sentiers li[data-id="${s.id}"]`)?.scrollIntoView({ block: 'nearest' });
+
+  carte.surlignerSentier(s, traces);
+  vue3d?.definirSentierChoisi(s, etat.grille);
+  vue3d?.viserTrace(s, etat.grille);
+  if (versLa3D) basculerVue('3d');
 }
 
 $('exp-sent-gpx').addEventListener('click', () => SORTIE.telecharger(
