@@ -12,6 +12,10 @@ const CONFIG = {
     // affichée par cartes.gouv.fr : chaque entité porte l'URL de son .copc.laz.
     wfs: 'https://data.geopf.fr/wfs/ows',
     coucheDalles: 'IGNF_NUAGES-DE-POINTS-LIDAR-HD:dalle',
+    // Emprises des chantiers d'acquisition : la couche « de loin », celle qui
+    // montre la couverture LiDAR sur toute la France.
+    coucheBlocs: 'IGNF_NUAGES-DE-POINTS-LIDAR-HD:bloc',
+    geocodage: 'https://data.geopf.fr/geocodage/search',
     // Bâti de la BD TOPO, utilisé pour écarter les détections déjà cartographiées.
     coucheBati: 'BDTOPO_V3:batiment',
     // Fonds WMTS. Le format n'est pas interchangeable : le plan est en png,
@@ -50,6 +54,20 @@ const CONFIG = {
     budgetOctets: 220 * 1024 * 1024,
     // Côté par défaut de la zone d'intérêt tracée sur la carte, en mètres.
     aoiParDefautM: 250,
+  },
+
+  // ── Carte ─────────────────────────────────────────────────────────────────
+  carte: {
+    // Vue d'ouverture : Ariège, parce que c'est le terrain de départ. Rien
+    // d'autre n'est régional — l'outil fonctionne partout où l'IGN a volé.
+    vueInitiale: { lat: 42.87, lon: 1.42, zoom: 12 },
+    // Zoom à partir duquel la grille kilométrique est tracée. En dessous, les
+    // carrés seraient plus petits que le trait qui les dessine ; on n'affiche
+    // alors que les emprises de chantier.
+    zoomGrille: 11,
+    // Plafond de lignes tracées. Garde-fou : à un zoom trop large la grille
+    // deviendrait un aplat illisible et coûteux.
+    maxLignesGrille: 420,
   },
 
   // ── Rendu ─────────────────────────────────────────────────────────────────

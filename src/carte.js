@@ -1,5 +1,16 @@
-// Carte Leaflet : fonds IGN, grille des dalles LiDAR, zone d'intérêt
-// déplaçable, marqueurs de détection.
+// Carte Leaflet : fonds IGN, couverture LiDAR, grille kilométrique, zone
+// d'intérêt, marqueurs de détection.
+//
+// Trois principes, chacun corrigeant un défaut constaté :
+//
+//   · La **couverture** vient de la couche « bloc » du WFS, valable partout en
+//     France et jamais tronquée. Elle s'affiche à tous les zooms : plus besoin
+//     de zoomer à l'aveugle pour découvrir s'il y a du LiDAR.
+//   · La **grille** kilométrique est générée localement (`grille.js`), pas
+//     téléchargée : exacte par construction, sans le plafond de 600 entités qui
+//     laissait des bandes vides.
+//   · La **sélection** interroge le WFS en un point, ce qui ne peut désigner
+//     qu'une dalle.
 
 /* global L */
 
@@ -9,91 +20,82 @@ class Carte {
   constructor(element, callbacks) {
     this.cb = callbacks;
 
+    const v = CONFIG.carte.vueInitiale;
     this.map = L.map(element, { zoomControl: true, preferCanvas: true })
-      .setView([42.87, 1.42], 12);   // Ariège, vallée de Vicdessos
+      .setView([v.lat, v.lon], v.zoom);
 
     const plan = L.tileLayer(IGN.gabaritWMTS('plan'), { attribution: ATTRIBUTION, maxZoom: 19 });
     const ortho = L.tileLayer(IGN.gabaritWMTS('ortho'), { attribution: ATTRIBUTION, maxZoom: 21 });
     ortho.addTo(this.map);
     L.control.layers({ 'Photo aérienne': ortho, 'Plan IGN': plan }, null, { collapsed: true }).addTo(this.map);
 
-    this.coucheDalles = L.layerGroup().addTo(this.map);
+    this.grille = new GRILLE.GrilleDalles().addTo(this.map);
     this.coucheDetections = L.layerGroup().addTo(this.map);
     this.rectDalle = null;
     this.rectAOI = null;
     this.dalleSelectionnee = null;
     this.aoi = null;
-    this.dallesConnues = new Map();
     this.marqueurs = new Map();
+    this.chargementBlocs = null;
 
-    // Le rafraîchissement de la grille est différé : un déplacement continu
-    // déclencherait une requête WFS par image.
+    // Le rafraîchissement est différé : un déplacement continu déclencherait
+    // une requête WFS par image.
     let minuteur = null;
-    const planifier = () => {
+    this.map.on('moveend zoomend', () => {
       clearTimeout(minuteur);
-      minuteur = setTimeout(() => this.rafraichirDalles(), 350);
-    };
-    this.map.on('moveend zoomend', planifier);
+      minuteur = setTimeout(() => this.rafraichirBlocs(), 300);
+    });
     this.map.on('click', (e) => this._surClic(e));
 
-    this.rafraichirDalles();
+    this.rafraichirBlocs();
   }
 
-  /**
-   * Charge la grille des dalles couvrant la fenêtre courante.
-   *
-   * En dessous du zoom 11 la grille kilométrique devient illisible et la requête
-   * ramènerait des milliers d'entités : on s'abstient plutôt que de saturer le
-   * service.
-   */
-  async rafraichirDalles() {
-    const z = this.map.getZoom();
-    this.cb.surZoom?.(z);
-    if (z < 11) { this.coucheDalles.clearLayers(); this.dallesConnues.clear(); return; }
-
+  /** Charge les emprises de chantier couvrant la fenêtre courante. */
+  async rafraichirBlocs() {
     const b = this.map.getBounds();
-    let liste;
+    // Une seule requête à la fois : pendant un déplacement rapide, les réponses
+    // arriveraient dans le désordre et la dernière affichée ne serait pas celle
+    // de la vue courante.
+    this.chargementBlocs?.abort();
+    const ctrl = new AbortController();
+    this.chargementBlocs = ctrl;
+
     try {
-      liste = await IGN.dalles(b.getSouth(), b.getWest(), b.getNorth(), b.getEast());
+      const liste = await IGN.blocs(b.getSouth(), b.getWest(), b.getNorth(), b.getEast(), ctrl.signal);
+      if (ctrl.signal.aborted) return;
+      this.grille.definirBlocs(liste);
+      this.cb.surCouverture?.(liste.length, this.map.getZoom());
     } catch (e) {
-      this.cb.surErreur?.(`Grille des dalles : ${e.message}`);
+      if (e.name !== 'AbortError') this.cb.surErreur?.(`Couverture LiDAR : ${e.message}`);
+    }
+  }
+
+  async _surClic(e) {
+    const { lat, lng } = e.latlng;
+    this.cb.surRecherche?.('Recherche de la dalle…');
+
+    let dalle;
+    try {
+      dalle = await IGN.dalleAuPoint(lng, lat);
+    } catch (err) {
+      this.cb.surErreur?.(`Dalle : ${err.message}`);
       return;
     }
-
-    this.coucheDalles.clearLayers();
-    for (const d of liste) {
-      this.dallesConnues.set(d.nom, d);
-      const poly = L.polygon(d.anneau, {
-        color: '#5ec8f0', weight: 1, opacity: 0.55,
-        fillColor: '#5ec8f0', fillOpacity: 0.05, interactive: false,
-      });
-      this.coucheDalles.addLayer(poly);
+    if (!dalle) {
+      this.cb.surErreur?.('Pas de dalle LiDAR HD à cet endroit — la zone n’a pas encore été volée.');
+      return;
     }
-    this.cb.surDalles?.(liste.length);
-  }
-
-  _surClic(e) {
-    const { lat, lng } = e.latlng;
-    const p = PROJ.versLambert93(lng, lat);
-
-    // Recherche par emprise plutôt que par test point-dans-polygone : les
-    // emprises sont des carrés kilométriques exacts déduits du nom de dalle, et
-    // le polygone WFS n'est que leur reprojection approchée en WGS84.
-    let trouvee = null;
-    for (const d of this.dallesConnues.values()) {
-      const em = d.emprise;
-      if (p.x >= em.xmin && p.x < em.xmax && p.y >= em.ymin && p.y < em.ymax) { trouvee = d; break; }
-    }
-    if (!trouvee) { this.cb.surErreur?.('Aucune dalle LiDAR HD à cet endroit (zoom ≥ 11 requis).'); return; }
-
-    this.selectionnerDalle(trouvee, p);
+    this.selectionnerDalle(dalle, PROJ.versLambert93(lng, lat));
   }
 
   selectionnerDalle(dalle, pointClic = null) {
     this.dalleSelectionnee = dalle;
 
     if (this.rectDalle) this.map.removeLayer(this.rectDalle);
-    this.rectDalle = L.polygon(dalle.anneau, {
+    // Contour reconstruit depuis l'emprise kilométrique exacte, et non depuis la
+    // géométrie du WFS : c'est ce qui garantit qu'il se superpose au pixel près
+    // à la grille tracée localement.
+    this.rectDalle = L.polygon(GRILLE.contourEmprise(dalle.emprise), {
       color: '#ffd24a', weight: 2, fillColor: '#ffd24a', fillOpacity: 0.06, interactive: false,
     }).addTo(this.map);
 
@@ -127,12 +129,14 @@ class Carte {
       ymin: cy - demi, ymax: cy + demi,
     };
 
-    const so = PROJ.versWGS84(this.aoi.xmin, this.aoi.ymin);
-    const ne = PROJ.versWGS84(this.aoi.xmax, this.aoi.ymax);
-
     if (this.rectAOI) this.map.removeLayer(this.rectAOI);
-    this.rectAOI = L.rectangle([[so.lat, so.lon], [ne.lat, ne.lon]], {
+    // Polygone des quatre côtés reprojetés, et non `L.rectangle` : un rectangle
+    // Leaflet est aligné sur les axes de l'écran, alors qu'un carré Lambert-93
+    // apparaît légèrement tourné en WGS84. La zone semblait donc de travers
+    // dans la dalle qui la contient — c'était bien un défaut, pas une illusion.
+    this.rectAOI = L.polygon(GRILLE.contourEmprise(this.aoi), {
       color: '#4ade80', weight: 2, dashArray: '5 4', fillColor: '#4ade80', fillOpacity: 0.12,
+      interactive: false,
     }).addTo(this.map);
 
     this.cb.surAOI?.(this.aoi);
@@ -145,6 +149,11 @@ class Carte {
 
   cadrerAOI() {
     if (this.rectAOI) this.map.fitBounds(this.rectAOI.getBounds(), { padding: [40, 40] });
+  }
+
+  /** Recentre la carte sur un résultat de recherche. */
+  allerA(lon, lat, zoom = 15) {
+    this.map.setView([lat, lon], Math.max(this.map.getZoom(), zoom));
   }
 
   /** Marqueurs des détections, colorés par score. */

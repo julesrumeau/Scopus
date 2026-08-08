@@ -78,7 +78,66 @@ const carte = new Carte($('vue-carte'), {
     $('cote-aoi').value = Math.round(aoi.cote);
     if (etat.hierarchie) majCouts();
   },
+  surCouverture: (nb, zoom) => {
+    if (etat.dalle) return;   // ne pas écraser l'état d'une dalle déjà choisie
+    statut(nb === 0
+      ? 'Aucune couverture LiDAR dans cette vue — déplacez-vous ou dézoomez'
+      : zoom < CONFIG.carte.zoomGrille
+        ? `${nb} chantier(s) LiDAR en vue — zoomez pour voir les dalles`
+        : `${nb} chantier(s) LiDAR — cliquez une dalle`);
+  },
+  surRecherche: (m) => statut(m, 'travail'),
   surErreur: alerter,
+});
+
+// ── Recherche de lieu ───────────────────────────────────────────────────────
+
+let abandonRecherche = null;
+
+async function rechercher() {
+  const q = $('recherche').value.trim();
+  const liste = $('resultats-recherche');
+  if (!q) { liste.hidden = true; return; }
+
+  abandonRecherche?.abort();
+  abandonRecherche = new AbortController();
+  statut('Recherche…', 'travail');
+
+  try {
+    const lieux = await IGN.geocoder(q, abandonRecherche.signal);
+    liste.innerHTML = '';
+    if (!lieux.length) {
+      statut('Aucun lieu trouvé');
+      liste.hidden = true;
+      return;
+    }
+
+    // Un seul résultat : on y va directement, sans faire cliquer pour rien.
+    if (lieux.length === 1) { allerAu(lieux[0]); return; }
+
+    for (const l of lieux) {
+      const li = document.createElement('li');
+      li.textContent = l.label;
+      li.addEventListener('click', () => allerAu(l));
+      liste.appendChild(li);
+    }
+    liste.hidden = false;
+    statut(`${lieux.length} lieux — choisissez`);
+  } catch (e) {
+    if (e.name !== 'AbortError') alerter(`Recherche : ${e.message}`);
+  }
+}
+
+function allerAu(lieu) {
+  $('resultats-recherche').hidden = true;
+  carte.allerA(lieu.lon, lieu.lat);
+  statut(`${lieu.label} — cliquez une dalle`);
+}
+
+$('btn-recherche').addEventListener('click', rechercher);
+$('recherche').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); rechercher(); }
+  if (e.key === 'Escape') $('resultats-recherche').hidden = true;
 });
 
 function ligneDetail(cle, valeur) {
@@ -452,7 +511,7 @@ function basculerVue(quoi) {
   $('onglet-carte').classList.toggle('actif', carteActive);
   $('onglet-3d').classList.toggle('actif', !carteActive);
   $('aide-vue').textContent = carteActive
-    ? 'Cliquez une dalle · la zone verte est analysée'
+    ? 'Cliquez dans une zone bleue · la zone verte est analysée'
     : 'Molette : zoom · glisser : orbite · Maj+glisser : déplacer';
   // Leaflet mesure son conteneur à l'initialisation ; masqué, il l'a mesuré à
   // zéro et n'affiche aucune tuile tant qu'on ne le lui redit pas.
@@ -463,7 +522,7 @@ $('onglet-carte').addEventListener('click', () => basculerVue('carte'));
 $('onglet-3d').addEventListener('click', () => basculerVue('3d'));
 
 window.addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'INPUT') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (e.key === 'c') basculerVue('carte');
   if (e.key === 'v') basculerVue('3d');
   if (e.key === 'f') vue3d?.cadrer();

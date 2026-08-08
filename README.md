@@ -10,8 +10,10 @@ commande, pas de base, pas de compte. Les données ne quittent jamais l'onglet.
 
 ## Utilisation
 
-1. **Choisir une dalle.** Zoomer à l'échelle du kilomètre : la grille des dalles
-   LiDAR HD apparaît, la même que sur cartes.gouv.fr. Cliquer dedans.
+1. **Choisir une dalle.** Les zones bleues sont les chantiers LiDAR HD, visibles
+   à toutes les échelles sur la France entière ; en zoomant, le quadrillage
+   kilométrique des dalles apparaît. Cliquer dedans. Un champ de recherche
+   accepte un nom de commune ou des coordonnées (`42.74, 1.68` ou Lambert-93).
 2. **Ouvrir la dalle.** Deux requêtes suffisent à lire l'index de l'octree —
    environ 50 Ko pour un fichier de 190 Mo.
 3. **Cadrer la zone et choisir la résolution.** Le coût exact en points et en
@@ -90,6 +92,41 @@ gel le plus long de l'interface passe de 188 ms à 60 ms. Sur les durées totale
 il n'apporte rien de mesurable — le facteur limitant est le débit bridé de
 l'IGN, dont la variance (4,6 s à 14,2 s pour une configuration identique)
 dépasse l'effet recherché.
+
+### La carte : grille locale plutôt que grille téléchargée
+
+Trois défauts constatés à l'usage, une seule cause commune.
+
+**Le service WFS plafonne à 600 entités.** Sur une vue de 30 × 60 km, 1 717
+dalles correspondent et 600 reviennent — triées par colonne, ce qui produit des
+bandes verticales trouées, sans qu'aucune erreur ne le signale. Il y a par
+ailleurs 505 294 dalles en France : les précharger est exclu.
+
+Or la grille se **déduit** : une dalle est exactement le carré
+`[X·1000, (X+1)·1000] × [(Y−1)·1000, Y·1000]` en Lambert-93. Elle est donc
+générée localement — exacte par construction, instantanée, jamais tronquée — et
+tracée sur un canevas unique plutôt qu'en milliers d'objets Leaflet. Vérifié :
+les coins reconstruits coïncident avec les polygones publiés par l'IGN à
+**0,000 m** près. Le WFS n'est plus interrogé que sur clic, pour **un point**,
+ce qui ne peut désigner qu'une dalle et échappe au plafond.
+
+**Deux échelles, comme sur cartes.gouv.fr.** La couche « bloc » (emprises de
+chantier, 210 polygones pour toute la France, jamais tronquée) s'affiche à tous
+les zooms et montre d'un coup d'œil où il y a du LiDAR ; le quadrillage
+kilométrique n'apparaît qu'à partir du zoom 11, découpé sur ces emprises pour ne
+pas laisser croire à des données là où il n'y en a pas. Vérifié : dans toutes
+les régions testées, **100 % des dalles tombent dans un bloc**.
+
+**L'orientation compte.** Un carré Lambert-93 n'est pas aligné sur les axes une
+fois projeté en WGS84 : il apparaît légèrement tourné. La zone d'intérêt était
+tracée en `L.rectangle`, donc alignée sur l'écran, et paraissait de travers dans
+sa dalle. Elle est désormais un polygone dont les quatre côtés sont
+échantillonnés et reprojetés.
+
+**L'outil n'a jamais été limité à l'Ariège** — seule la vue d'ouverture y est
+centrée. La couverture a été vérifiée en Bretagne, dans les Alpes, les Vosges,
+en Corse et en Île-de-France, et une recherche de lieu permet d'aller n'importe
+où (nom de commune, ou coordonnées saisies en WGS84 comme en Lambert-93).
 
 ### Récupérer les données sans backend
 
@@ -250,7 +287,8 @@ src/detection.js               masque, morphologie, composantes, filtres, score
 src/sortie.js                  rapprochement BD TOPO, liens, exports
 src/gl.js · shaders.js         WebGL2 (repris de FlowField)
 src/vue3d.js                   caméra orbitale, rendu par points
-src/carte.js                   Leaflet, grille des dalles, zone d'intérêt
+src/carte.js                   Leaflet, couverture, sélection, zone d'intérêt
+src/grille.js                  grille kilométrique locale, tracée au canevas
 vendor/lazperf/                laz-perf ; `lazperf-embarque.js` est le fichier
                                réellement chargé (généré, JS + WASM en chaînes)
 tools/embarquer-lazperf.js     régénère cet embarqué après mise à jour

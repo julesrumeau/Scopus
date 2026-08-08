@@ -152,6 +152,40 @@ résout qu'à ~0,5 m.
 
 ---
 
+## La carte
+
+La grille des dalles n'est pas téléchargée, elle est **calculée**. Une dalle est
+exactement le carré `[X·1000, (X+1)·1000] × [(Y−1)·1000, Y·1000]` en
+Lambert-93 ; la déduire est exact, gratuit et instantané.
+
+Ce n'est pas une optimisation mais une correction. Afficher les polygones du WFS
+donnait une grille trouée : le service plafonne à **600 entités** et les renvoie
+triées par colonne, si bien qu'une vue de 30 × 60 km en recevait 600 sur 1 717
+et affichait des bandes verticales vides — sans qu'aucune erreur ne le signale.
+Et il y a 505 294 dalles en France : aucun préchargement n'est envisageable.
+
+Le WFS reste interrogé, mais **au point** lors du clic : une requête, une
+entité, jamais de troncature possible.
+
+Deux échelles, calquées sur cartes.gouv.fr et sur ce que la couche annonce
+elle-même (`zoom_start` / `zoom_stop`) :
+
+| Zoom | Affiché |
+|---|---|
+| tous | emprises de chantier — 210 polygones pour la France, jamais tronquées |
+| ≥ 11 | quadrillage kilométrique local, découpé sur ces emprises |
+
+Le découpage est légitime : mesuré sur cinq régions, **100 % des dalles tombent
+dans un bloc**. Sans lui, un quadrillage s'afficherait là où il n'y a pas de
+LiDAR.
+
+Enfin, **un carré Lambert-93 n'est pas aligné sur les axes en WGS84** : il
+apparaît légèrement tourné. Toute emprise doit donc être tracée en polygone de
+côtés reprojetés, jamais en `L.rectangle` — c'est ce qui faisait paraître la
+zone d'intérêt de travers dans sa dalle.
+
+---
+
 ## Pièges connus
 
 - **Le tas WASM détache ses vues quand il grandit.** laz-perf alloue ses tampons
@@ -171,6 +205,15 @@ résout qu'à ~0,5 m.
 - **Le format WMTS n'est pas interchangeable.** `PLANIGNV2` est en `image/png`,
   `ORTHOPHOTOS` en `image/jpeg` ; l'autre combinaison renvoie une erreur XML,
   pas une tuile. `FORMAT` reste percent-encodé dans l'URL, le service l'accepte.
+- **Un carré Lambert-93 est tourné en WGS84.** `L.rectangle` produit un
+  rectangle aligné sur l'écran ; superposé à une dalle, il paraît de travers.
+  Toujours passer par un polygone de côtés reprojetés (`GRILLE.contourEmprise`).
+- **Le WFS des dalles plafonne à 600 entités, en silence.** Une vue large reçoit
+  un sous-ensemble trié par colonne, jamais une erreur. Ne jamais l'interroger
+  par fenêtre pour de l'affichage.
+- **Leaflet ne publie rien pendant l'animation de zoom.** Un canevas superposé
+  resterait dessiné à l'échelle précédente, visiblement décalé : la couche
+  `GrilleDalles` se masque sur `zoomstart` et se redessine sur `zoomend`.
 - **Leaflet mesure son conteneur à l'initialisation.** Monté masqué, il l'a
   mesuré à zéro et n'affichera aucune tuile tant qu'on ne lui redit pas
   (`invalidateSize`). D'où l'appel au retour sur l'onglet carte.

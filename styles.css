@@ -234,6 +234,37 @@ input[type=range]::-moz-range-thumb {
 
 .reglages { display: grid; gap: 2px; }
 
+/* ── Recherche de lieu ───────────────────────────────────────────────────── */
+
+.recherche { display: flex; gap: 6px; margin-bottom: 10px; }
+.recherche input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--bord);
+  background: var(--fond-3);
+  color: var(--texte);
+}
+.recherche input:focus { outline: none; border-color: var(--accent); }
+.recherche input::placeholder { color: var(--texte-2); }
+.recherche button { padding: 7px 11px; }
+
+.suggestions { list-style: none; margin: 0 0 10px; padding: 0; }
+.suggestions li {
+  padding: 6px 10px;
+  font-size: 12.5px;
+  border: 1px solid var(--bord);
+  border-radius: 6px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  background: var(--fond-3);
+  color: var(--texte-2);
+}
+.suggestions li:hover { border-color: var(--accent); color: var(--texte); }
+
 /* ── Légende ─────────────────────────────────────────────────────────────── */
 
 .legende { display: flex; flex-wrap: wrap; gap: 4px 11px; font-size: 11px; color: var(--texte-2); }

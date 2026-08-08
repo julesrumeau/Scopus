@@ -23,8 +23,15 @@
     <!-- ─── 1. Dalle ─────────────────────────────────────────────────────── -->
     <section class="etape" data-etape="1">
       <h2><span class="num">1</span> Dalle</h2>
-      <div id="info-dalle" class="vide">Aucune dalle sélectionnée.<br>
-        Zoomez à l'échelle du kilomètre puis cliquez sur la carte.</div>
+      <div class="recherche">
+        <input type="search" id="recherche" placeholder="Commune, lieu-dit, ou 42.74, 1.68"
+               autocomplete="off" spellcheck="false">
+        <button id="btn-recherche" class="secondaire" title="Rechercher">→</button>
+      </div>
+      <ul id="resultats-recherche" class="suggestions" hidden></ul>
+      <div id="info-dalle" class="vide">Les zones bleues portent du LiDAR HD —
+        toute la France couverte, pas seulement l'Ariège.<br>
+        Cliquez dedans pour choisir une dalle.</div>
       <dl id="detail-dalle" class="detail" hidden></dl>
       <button id="btn-ouvrir" class="primaire" disabled>Ouvrir la dalle</button>
     </section>
@@ -109,7 +116,7 @@
     <nav class="onglets">
       <button id="onglet-carte" class="actif">Carte</button>
       <button id="onglet-3d">Nuage 3D</button>
-      <span class="aide" id="aide-vue">Molette : zoom · glisser : orbite · Maj+glisser : déplacer</span>
+      <span class="aide" id="aide-vue">Cliquez dans une zone bleue pour choisir une dalle</span>
     </nav>
     <div id="vue-carte" class="vue"></div>
     <div id="vue-3d" class="vue" hidden>
@@ -139,6 +146,7 @@
 <script src="src/proj.js"></script>
 <script src="src/reseau.js"></script>
 <script src="src/ign.js"></script>
+<script src="src/grille.js"></script>
 <script src="src/copc.js"></script>
 <script src="src/decodeur.js"></script>
 <script src="src/nuage.js"></script>

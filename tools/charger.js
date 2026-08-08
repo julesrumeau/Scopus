@@ -18,9 +18,17 @@ const SRC = new URL('../src/', import.meta.url);
  * @returns {object} le contexte, où chaque global déclaré est accessible
  */
 export function chargerScripts(fichiers) {
-  // `globalThis` fournit ce dont les sources ont besoin sous Node (console,
-  // performance, TextDecoder…) sans avoir à le recréer à la main.
-  const contexte = vm.createContext({ ...globalThis, console, globalThis: undefined });
+  // Les globaux de Node (`URLSearchParams`, `fetch`, `TextDecoder`…) sont des
+  // propriétés **non énumérables** de `globalThis` : un simple `{ ...globalThis }`
+  // les laisse tous derrière, et le script échoue sur un `ReferenceError` qui
+  // n'a rien à voir avec le code testé. On recopie donc les descripteurs.
+  const base = {};
+  for (const nom of Object.getOwnPropertyNames(globalThis)) {
+    if (nom === 'globalThis') continue;
+    const desc = Object.getOwnPropertyDescriptor(globalThis, nom);
+    if (desc) Object.defineProperty(base, nom, desc);
+  }
+  const contexte = vm.createContext(base);
   contexte.globalThis = contexte;
 
   for (const nom of fichiers) {

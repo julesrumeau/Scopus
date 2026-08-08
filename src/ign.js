@@ -12,11 +12,54 @@ function urlWFS(params) {
 }
 
 /**
+ * Emprises des chantiers d'acquisition LiDAR HD.
+ *
+ * C'est la couche que cartes.gouv.fr affiche de loin — elle annonce elle-même
+ * `zoom_start: 0, zoom_stop: 10`. 210 polygones couvrent la France entière et
+ * une fenêtre donnée n'en intersecte qu'une poignée : contrairement aux dalles,
+ * elle n'est jamais tronquée, et elle montre d'un coup d'œil où il y a du
+ * LiDAR — partout en France, pas seulement en Ariège.
+ */
+async function blocs(sud, ouest, nord, est, signal) {
+  const rep = await RESEAU.recuperer(urlWFS({
+    TYPENAMES: CONFIG.ign.coucheBlocs,
+    COUNT: '300',
+    BBOX: `${sud},${ouest},${nord},${est},urn:ogc:def:crs:EPSG::4326`,
+  }), { type: 'json', signal });
+
+  return (rep.features || []).map((f) => ({
+    nom: f.properties?.name || '',
+    anneaux: tousAnneaux(f.geometry),
+  })).filter((b) => b.anneaux.length);
+}
+
+/**
+ * La dalle qui contient un point donné. Une requête, une entité.
+ *
+ * C'est ce qui rend la sélection fiable. Interroger par **fenêtre** est piégeux :
+ * le service plafonne à 600 entités et les renvoie triées par colonne, si bien
+ * qu'une vue large en reçoit 600 sur 1717 — mesuré — et affiche des bandes
+ * verticales trouées sans que rien ne signale la troncature. Un point, lui, ne
+ * peut désigner qu'une dalle.
+ */
+async function dalleAuPoint(lon, lat, signal) {
+  const d = 0.0002;   // ~20 m : évite de tomber pile sur une arête de dalle
+  const liste = await dalles(lat - d, lon - d, lat + d, lon + d, signal);
+  if (!liste.length) return null;
+  const p = PROJ.versLambert93(lon, lat);
+  return liste.find((z) => p.x >= z.emprise.xmin && p.x < z.emprise.xmax
+                        && p.y >= z.emprise.ymin && p.y < z.emprise.ymax) || liste[0];
+}
+
+/**
  * Dalles LiDAR HD intersectant une fenêtre géographique.
  *
  * Le BBOX WFS 2.0 en CRS urn attend l'ordre (lat, lon) : l'ordre des axes suit
  * la définition officielle d'EPSG:4326, pas l'habitude « lon, lat » du GeoJSON.
  * Inverser les deux ne produit aucune erreur, juste zéro résultat.
+ *
+ * ⚠ Plafonné à 600 entités par le service. À n'appeler que sur une fenêtre
+ * étroite ; pour localiser une dalle, passer par `dalleAuPoint`.
  */
 async function dalles(sud, ouest, nord, est, signal) {
   const rep = await RESEAU.recuperer(urlWFS({
@@ -57,6 +100,46 @@ function anneauExterieur(geom) {
   if (!geom) return [];
   const coords = geom.type === 'MultiPolygon' ? geom.coordinates[0][0] : geom.coordinates[0];
   return coords.map(([lon, lat]) => [lat, lon]);
+}
+
+// Tous les contours externes d'une (Multi)Polygon. Un chantier LiDAR est
+// rarement d'un seul tenant : n'en garder qu'un amputerait la couverture
+// affichée.
+function tousAnneaux(geom) {
+  if (!geom) return [];
+  const polys = geom.type === 'MultiPolygon' ? geom.coordinates : [geom.coordinates];
+  return polys.map((poly) => poly[0].map(([lon, lat]) => [lat, lon])).filter((a) => a.length > 2);
+}
+
+/**
+ * Géocodage IGN : « Vicdessos », « 09220 », « Mont Valier »…
+ *
+ * Accepte aussi une paire de coordonnées saisie directement, dans les deux
+ * conventions courantes — « 42.74, 1.68 » (lat, lon, comme un GPS) ou une paire
+ * de valeurs Lambert-93 à six/sept chiffres.
+ */
+async function geocoder(texte, signal) {
+  const brut = texte.trim();
+
+  const paire = /^\s*(-?\d+(?:[.,]\d+)?)\s*[,; ]\s*(-?\d+(?:[.,]\d+)?)\s*$/.exec(brut);
+  if (paire) {
+    const a = parseFloat(paire[1].replace(',', '.'));
+    const b = parseFloat(paire[2].replace(',', '.'));
+    // Au-delà de 180, ce ne peut plus être un angle : c'est du Lambert-93.
+    if (Math.abs(a) > 180 || Math.abs(b) > 180) {
+      const g = PROJ.versWGS84(a, b);
+      return [{ label: `Lambert-93 ${a} ${b}`, lon: g.lon, lat: g.lat }];
+    }
+    return [{ label: `${a}, ${b}`, lon: b, lat: a }];
+  }
+
+  const p = new URLSearchParams({ q: brut, limit: '6', index: 'address' });
+  const rep = await RESEAU.recuperer(`${CONFIG.ign.geocodage}?${p}`, { type: 'json', signal });
+  return (rep.features || []).map((f) => ({
+    label: f.properties?.label || brut,
+    lon: f.geometry.coordinates[0],
+    lat: f.geometry.coordinates[1],
+  }));
 }
 
 /**
@@ -107,4 +190,4 @@ function gabaritWMTS(cle) {
   return `${CONFIG.ign.wmts}?${p}`.replace(/%7B/g, '{').replace(/%7D/g, '}');
 }
 
-const IGN = { dalles, batiments, gabaritWMTS };
+const IGN = { blocs, dalles, dalleAuPoint, batiments, geocoder, gabaritWMTS };
