@@ -461,22 +461,28 @@ niveau est trouvé avec la bonne profondeur, une ravine de même profondeur mais
 orientée dans la pente est écartée, et les deux sont correctement séparés
 lorsqu'ils coexistent sur le même versant.
 
-**Mesuré sur la dalle du plateau de Beille**, 1 km² à pleine résolution :
+**Mesuré sur la dalle du plateau de Beille**, 1 km² à pleine résolution, en
+**3,5 s** :
 
-| Sensibilité | Cellules au-dessus du seuil | Tracés retenus |
+| Sensibilité | Tracés retenus | Plus longs tracés |
 |---|---|---|
-| 0,5 | 14,6 % | 11 |
-| **1,0** *(défaut)* | **2,4 %** | **3** |
-| 1,5 | 0,6 % | 0 |
+| **0,35** *(défaut)* | 147 | 203 m / 40 cm · 259 m / 37 cm · 296 m / 56 cm |
+| 0,60 | 63 | 112 m / 25 cm · 182 m / 39 cm · 137 m / 16 cm |
 
-Détection en **3,6 s** sur la dalle entière.
+Les profondeurs tombent désormais dans la fourchette attendue d'un sentier —
+10 à 56 cm — et les longueurs se comptent en centaines de mètres. La version
+précédente, qui triait sur l'amplitude, ne remontait que des tronçons de 25 à
+30 m creusés de 70 à 250 cm : des ravines.
 
-**Non validé** — aucun chemin connu n'a encore servi de contrôle positif. Les
-tracés remontés font 25 à 30 m pour 70 à 250 cm de creux ; leur nature réelle
-reste à vérifier sur le terrain. Deux limites déjà identifiées :
+Le détail des rejets montre que les deux nouveaux critères portent l'essentiel
+du tri : 506 tracés écartés sur la tortuosité, 411 sur la profondeur.
 
-- les tracés sont **fragmentés** — rien au-delà de 30 m, alors qu'un vrai chemin
-  se poursuit ; le squelette se coupe aux croisements et il faudra recoller ;
+**Non validé** — aucun chemin connu n'a encore servi de contrôle positif. Rien
+ne dit que ces 147 tracés sont des sentiers ; seule leur signature est
+cohérente. Deux limites subsistent :
+
+- la reconstitution reste **partielle** — 73 m retrouvés sur 128 m exploitables
+  pour un tracé sinueux synthétique ;
 - les **sentes de brebis** (terracettes) ne sont pas traitées : c'est une texture
   périodique et non une ligne, qui relève d'une analyse de Fourier.
 

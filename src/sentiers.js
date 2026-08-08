@@ -508,58 +508,94 @@ function vectoriser(squelette, W, H) {
  * chacune s'accorde avec celle du raccord. La tolérance angulaire est large :
  * un sentier de montagne serpente, et un critère serré ne recollerait que les
  * lignes droites — c'est-à-dire tout sauf des sentiers.
+ *
+ * Les extrémités sont indexées dans une grille de hachage au pas de l'écart
+ * maximal, et le recollement se fait en quelques passes gloutonnes.
+ *
+ * Ce détail d'implémentation n'en est pas un : une dalle réelle produit des
+ * dizaines de milliers de fragments. La version naïve — rebalayer toutes les
+ * paires d'extrémités après chaque fusion — y demandait de l'ordre de 10¹⁰
+ * comparaisons et figeait l'onglet sans jamais rendre la main.
  */
 function relier(chaines, t, p) {
   const { W, pas } = t;
   const ecartMax = p.recollementM / pas;
   const cosMin = Math.cos(p.angleRecollementDeg * Math.PI / 180);
 
-  // Direction locale d'une extrémité, tournée vers l'extérieur de la chaîne.
+  // Les fragments d'une ou deux cellules n'ont pas de direction exploitable et
+  // ne sont que du grain : les recoller reviendrait à relier du bruit au hasard.
+  let liste = chaines.filter((ch) => ch.length >= 3).map((ch) => ch.slice());
+
   const bout = (ch, debut) => {
     const n = Math.min(ch.length - 1, 6);
     const a = debut ? ch[n] : ch[ch.length - 1 - n];
     const b = debut ? ch[0] : ch[ch.length - 1];
     const dx = (b % W) - (a % W), dy = ((b / W) | 0) - ((a / W) | 0);
     const d = Math.hypot(dx, dy) || 1;
-    return { c: b, x: b % W, y: (b / W) | 0, ux: dx / d, uy: dy / d };
+    return { x: b % W, y: (b / W) | 0, ux: dx / d, uy: dy / d };
   };
 
-  let liste = chaines.map((ch) => ch.slice());
-  let fusionne = true;
-
-  while (fusionne) {
-    fusionne = false;
+  for (let passe = 0; passe < p.passesRecollement; passe++) {
     const bouts = [];
     liste.forEach((ch, i) => {
-      if (ch.length < 2) return;
       bouts.push({ i, debut: true, ...bout(ch, true) });
       bouts.push({ i, debut: false, ...bout(ch, false) });
     });
 
-    let meilleur = null;
-    for (let a = 0; a < bouts.length && !meilleur; a++) {
-      for (let b = a + 1; b < bouts.length; b++) {
-        const A = bouts[a], B = bouts[b];
-        if (A.i === B.i) continue;
-        const dx = B.x - A.x, dy = B.y - A.y;
-        const d = Math.hypot(dx, dy);
-        if (d > ecartMax || d < 1e-6) continue;
-        // Le raccord doit prolonger A, et B doit venir à sa rencontre.
-        if ((A.ux * dx + A.uy * dy) / d < cosMin) continue;
-        if ((B.ux * -dx + B.uy * -dy) / d < cosMin) continue;
-        meilleur = { A, B, d };
-        break;
+    // Grille de hachage : une case par écart maximal, si bien qu'un partenaire
+    // possible se trouve forcément dans les neuf cases voisines.
+    const casier = new Map();
+    const cle = (cx, cy) => `${cx},${cy}`;
+    bouts.forEach((b, k) => {
+      const c = cle(Math.floor(b.x / ecartMax), Math.floor(b.y / ecartMax));
+      if (!casier.has(c)) casier.set(c, []);
+      casier.get(c).push(k);
+    });
+
+    const pris = new Uint8Array(bouts.length);
+    const fusions = [];
+
+    for (let k = 0; k < bouts.length; k++) {
+      if (pris[k]) continue;
+      const A = bouts[k];
+      let meilleur = -1, meilleureD = Infinity;
+
+      const cx = Math.floor(A.x / ecartMax), cy = Math.floor(A.y / ecartMax);
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          for (const j of casier.get(cle(cx + dx, cy + dy)) || []) {
+            if (j === k || pris[j]) continue;
+            const B = bouts[j];
+            if (B.i === A.i) continue;
+            const vx = B.x - A.x, vy = B.y - A.y;
+            const d = Math.hypot(vx, vy);
+            if (d > ecartMax || d < 1e-6 || d >= meilleureD) continue;
+            if ((A.ux * vx + A.uy * vy) / d < cosMin) continue;
+            if ((B.ux * -vx + B.uy * -vy) / d < cosMin) continue;
+            meilleur = j; meilleureD = d;
+          }
+        }
+      }
+      if (meilleur >= 0) {
+        pris[k] = pris[meilleur] = 1;
+        fusions.push([A, bouts[meilleur]]);
       }
     }
-    if (!meilleur) break;
+    if (!fusions.length) break;
 
-    const { A, B } = meilleur;
-    const ca = A.debut ? liste[A.i].slice().reverse() : liste[A.i].slice();
-    const cb = B.debut ? liste[B.i].slice() : liste[B.i].slice().reverse();
-    const fusion = ca.concat(cb);
-    liste = liste.filter((_, k) => k !== A.i && k !== B.i);
-    liste.push(fusion);
-    fusionne = true;
+    // Application des fusions : une chaîne ne peut être consommée qu'une fois
+    // par passe, ce qui garantit la cohérence sans reconstruire l'index.
+    const consomme = new Uint8Array(liste.length);
+    const suivante = [];
+    for (const [A, B] of fusions) {
+      if (consomme[A.i] || consomme[B.i]) continue;
+      consomme[A.i] = consomme[B.i] = 1;
+      const ca = A.debut ? liste[A.i].slice().reverse() : liste[A.i].slice();
+      const cb = B.debut ? liste[B.i].slice() : liste[B.i].slice().reverse();
+      suivante.push(ca.concat(cb));
+    }
+    liste.forEach((ch, i) => { if (!consomme[i]) suivante.push(ch); });
+    liste = suivante;
   }
   return liste;
 }

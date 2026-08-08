@@ -247,6 +247,10 @@ const CONFIG = {
     // quoi on ne recollerait que les lignes droites.
     recollementM: 12,
     angleRecollementDeg: 70,
+    // Passes de recollement. Chacune ne raboute qu'un tronçon à chaque bout,
+    // d'où plusieurs tours pour reconstituer un long chemin ; les fusions se
+    // faisant en parallèle, la convergence est rapide.
+    passesRecollement: 6,
     // Pente médiane le long du tracé. Un sentier reste praticable ; au-delà
     // c'est une ligne d'écoulement.
     penteLongueMaxDeg: 28,
