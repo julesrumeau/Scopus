@@ -487,4 +487,19 @@ tools/charger.js               charge les scripts classiques pour les tests
 tools/*.test.js                tests : projection, détection, shaders, sources
 ```
 
-Données **LiDAR HD © IGN**, licence ouverte Etalab.
+---
+
+## Licences
+
+Données **LiDAR HD © IGN**, licence ouverte Etalab — réutilisation libre, y
+compris commerciale, sous réserve de mentionner la source.
+
+Deux bibliothèques sont redistribuées dans `vendor/` plutôt que chargées depuis
+un CDN, ce qui est la condition de l'ouverture par double-clic :
+
+| Composant | Licence |
+|---|---|
+| [Leaflet 1.9.4](https://leafletjs.com) | BSD 2-Clause |
+| [laz-perf 0.0.7](https://github.com/hobuinc/laz-perf) | Apache-2.0 |
+
+Textes complets dans [`vendor/LICENCES.md`](vendor/LICENCES.md).

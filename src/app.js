@@ -134,8 +134,22 @@ $('recherche').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') $('resultats-recherche').hidden = true;
 });
 
+/**
+ * Neutralise le HTML d'une chaîne avant insertion.
+ *
+ * Les noms de dalle, dates et natures de bâtiment viennent des services de
+ * l'IGN, pas de l'utilisateur. Le risque est donc théorique — mais ces valeurs
+ * traversent le réseau avant d'atterrir dans un `innerHTML`, et rien ne garantit
+ * qu'un champ de la BD TOPO ne contiendra jamais de chevron. Échapper coûte une
+ * ligne ; s'en remettre à la bonne tenue d'une source tierce, non.
+ */
+function echapper(v) {
+  return String(v).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function ligneDetail(cle, valeur) {
-  return `<dt>${cle}</dt><dd>${String(valeur).replace(/\n/g, '<br>')}</dd>`;
+  return `<dt>${echapper(cle)}</dt><dd>${echapper(valeur).replace(/\n/g, '<br>')}</dd>`;
 }
 
 // ── Étape 1 → 2 : lecture de l'index COPC ───────────────────────────────────
@@ -605,7 +619,7 @@ function afficherResultats() {
       <div class="ligne-titre">
         <span class="rang">#${c.rang}</span>
         <span class="score">${c.score.toFixed(2)}</span>
-        ${c.dejaRepertorie ? `<span class="marque">BD TOPO · ${c.batimentProche}</span>` : ''}
+        ${c.dejaRepertorie ? `<span class="marque">BD TOPO · ${echapper(c.batimentProche)}</span>` : ''}
         <span class="puce" style="background:${couleur}"></span>
       </div>
       <div class="mesures">${c.surface.toFixed(0)} m² · ${c.longueur.toFixed(1)} × ${c.largeur.toFixed(1)} m

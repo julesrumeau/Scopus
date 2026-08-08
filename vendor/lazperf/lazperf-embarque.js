@@ -8,7 +8,8 @@
 //   LAZPERF_WASM_B64 le binaire WASM, à passer en `wasmBinary` pour que
 //                    l'initialisation ne déclenche aucune requête réseau.
 //
-// laz-perf — https://github.com/hobuinc/laz-perf — licence LGPL 2.1.
+// laz-perf — https://github.com/hobuinc/laz-perf — licence Apache-2.0.
+// Voir vendor/LICENCES.md pour les textes complets.
 
 const LAZPERF_JS = `
 var createLazPerf = (() => {
