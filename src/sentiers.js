@@ -26,6 +26,13 @@
 function detecterSentiers(g, reglages = {}) {
   const p = { ...CONFIG.sentiers, ...reglages };
 
+  // Chronométrage par étape, remonté dans `stats`. Utile à l'affichage, et
+  // indispensable au diagnostic : quand la détection devient trop lourde, seule
+  // la répartition dit laquelle des cinq étapes en est la cause.
+  const temps = {};
+  let jalon = performance.now();
+  const marquer = (nom) => { temps[nom] = performance.now() - jalon; jalon = performance.now(); };
+
   // ── 1. Grille de travail, plus grossière ──────────────────────────────────
   //
   // La détection de ruines réclame 25 cm pour lire un mur. Un sentier fait 60 cm
@@ -33,6 +40,8 @@ function detecterSentiers(g, reglages = {}) {
   // plus. L'openness et la hessienne multi-échelle sont les étapes coûteuses,
   // autant les mener sur une grille adaptée à l'objet.
   const t = sousEchantillonner(g, p.pasM);
+
+  marquer('sousEchantillonnage');
 
   // ── 2. Modèle de relief local ─────────────────────────────────────────────
   //
@@ -83,6 +92,8 @@ function detecterSentiers(g, reglages = {}) {
     }
   }
 
+  marquer('reliefLocal');
+
   // ── 3. Rugosité locale ────────────────────────────────────────────────────
   //
   // Un creux de 40 cm ne veut pas dire la même chose partout. Sur une prairie
@@ -97,9 +108,13 @@ function detecterSentiers(g, reglages = {}) {
   // l'entoure », ce qui a le même sens partout.
   const rugosite = rugositeLocale(relief, t, p);
 
+  marquer('rugosite');
+
   // ── 4. Réponse linéaire multi-échelle ─────────────────────────────────────
   const { reponse, echelle, orientation } = vesselness(relief, rugosite, t, p);
   for (let i = 0; i < t.N; i++) if (!valide[i]) reponse[i] = 0;
+
+  marquer('vesselness');
 
   // ── 4. Seuillage par hystérésis, puis amincissement ───────────────────────
   //
@@ -108,7 +123,33 @@ function detecterSentiers(g, reglages = {}) {
   // endroits — labour, éboulis, végétation dense — et un seuil unique le
   // hacherait en tronçons sans lien.
   const masque = hysteresis(reponse, t.W, t.H, p.seuilHaut, p.seuilBas);
+
+  // Garde-fou : au-delà d'une certaine densité, on refuse de continuer.
+  //
+  // L'amincissement de Zhang-Suen ronge le masque couronne par couronne : son
+  // coût croît avec la surface **et** avec l'épaisseur des taches. Sur un
+  // masque clairsemé il converge en quelques tours ; sur un masque quasi plein
+  // il en faut des dizaines sur des millions de cellules, et la page se fige
+  // plusieurs minutes — ce que l'utilisateur lit comme un plantage.
+  //
+  // Ce cas n'est de toute façon pas exploitable : squelettiser un terrain
+  // couvert à moitié ne produit pas des sentiers mais le graphe du bruit. Mieux
+  // vaut s'arrêter et dire quoi régler.
+  let part = 0;
+  for (let i = 0; i < t.N; i++) part += masque[i];
+  part /= t.N;
+  if (part > p.masqueMaxPart) {
+    const e = new Error(
+      `Trop de relief retenu (${(100 * part).toFixed(0)} % de la dalle) pour que `
+      + `la squelettisation ait un sens. Augmentez la sensibilité — ce terrain est `
+      + `plus accidenté que le réglage ne le suppose.`);
+    e.nom = 'MasqueTropDense';
+    throw e;
+  }
+
   const squelette = amincir(masque, t.W, t.H);
+
+  marquer('seuillage');
 
   // ── 5. Vectorisation, puis recollement ────────────────────────────────────
   //
@@ -117,6 +158,8 @@ function detecterSentiers(g, reglages = {}) {
   // tronçons de 25 m dont aucun ne dit rien. On rabout donc les bouts qui se
   // font face et pointent dans la même direction.
   const chaines = relier(vectoriser(squelette, t.W, t.H), t, p);
+
+  marquer('vectorisation');
 
   // ── 6. Qualification ──────────────────────────────────────────────────────
   const traces = [];
@@ -134,6 +177,8 @@ function detecterSentiers(g, reglages = {}) {
     traces.push({ id: traces.length + 1, ...mes });
   }
 
+  marquer('qualification');
+
   for (const s of traces) s.score = noterTrace(s, p);
   traces.sort((a, b) => b.score - a.score);
   traces.forEach((s, i) => { s.rang = i + 1; });
@@ -145,8 +190,11 @@ function detecterSentiers(g, reglages = {}) {
       pas: t.pas,
       cellules: t.N,
       chainesBrutes: chaines.length,
+      plusLongueChaine: chaines.reduce((m, c) => Math.max(m, c.length), 0),
+      cellulesMasque: masque.reduce((n, v) => n + v, 0),
       retenues: traces.length,
       rejets: motifs,
+      temps,
     },
   };
 }
@@ -322,17 +370,29 @@ function vesselness(relief, rugosite, t, p) {
   return { reponse, echelle, orientation };
 }
 
-/** Approximation gaussienne par trois flous de boîte successifs. */
+/**
+ * Approximation gaussienne par trois flous de boîte successifs.
+ *
+ * Deux tampons sont alloués une fois et permutés, au lieu de deux par flou.
+ * Sur une grille de 4 M de cellules, la version naïve produisait 96 Mo de
+ * déchets par appel et cette fonction est appelée six fois par détection : la
+ * pression sur le ramasse-miettes devenait le premier poste de mémoire.
+ */
 function flouGaussien(src, W, H, rayon) {
-  let a = src;
-  for (let i = 0; i < 3; i++) a = flouBoiteLocal(a, W, H, rayon);
+  if (rayon <= 0) return Float32Array.from(src);
+  const N = W * H;
+  let a = Float32Array.from(src);
+  let b = new Float32Array(N);
+  const tmp = new Float32Array(N);
+
+  for (let i = 0; i < 3; i++) {
+    flouBoiteLocal(a, b, tmp, W, H, rayon);
+    [a, b] = [b, a];
+  }
   return a;
 }
 
-function flouBoiteLocal(src, W, H, rayon) {
-  if (rayon <= 0) return Float32Array.from(src);
-  const tmp = new Float32Array(W * H);
-  const out = new Float32Array(W * H);
+function flouBoiteLocal(src, out, tmp, W, H, rayon) {
   const n = 2 * rayon + 1;
   const bx = (v, m) => Math.min(m - 1, Math.max(0, v));
 
@@ -355,7 +415,6 @@ function flouBoiteLocal(src, W, H, rayon) {
       somme += tmp[bx(y + rayon + 1, H) * W + x];
     }
   }
-  return out;
 }
 
 // ── Seuillage et squelette ──────────────────────────────────────────────────

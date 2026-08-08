@@ -307,6 +307,25 @@ Quatre décisions à ne pas défaire, chacune née d'une mesure :
   creux ont la même forme ; seul leur rapport à la pente les distingue. Le
   retirer fait remonter tous les ravins et fossés de drainage.
 
+**Le point fragile est la densité du masque.** L'amincissement de Zhang-Suen
+ronge le masque couronne par couronne : son coût croît avec la surface *et*
+avec l'épaisseur des taches. Sur la dalle de Beille il couvre déjà **35 % de la
+surface** pour 3,8 s de détection ; sur un terrain plus accidenté il saturerait,
+et la squelettisation prendrait des minutes pour ne produire que le graphe du
+bruit. Un garde-fou arrête donc la détection au-delà de 45 % avec un message
+indiquant quoi régler, plutôt que de figer la page.
+
+Répartition mesurée (dalle entière, nuage d'affichage chargé, tas à 522 Mo) :
+
+| Étape | Durée |
+|---|---|
+| vesselness multi-échelle | 1,5 s |
+| relief local | 0,8 s |
+| seuillage + amincissement | 0,7 s |
+| rugosité | 0,2 s |
+| vectorisation + recollement | 0,2 s |
+| qualification | 0,2 s |
+
 État : validé sur relief synthétique (sentier trouvé, ravine écartée, les deux
 séparés lorsqu'ils coexistent), **non validé sur chemin réel connu**. Les tracés
 remontés sont fragmentés — rien au-delà de 30 m — le squelette se coupant aux

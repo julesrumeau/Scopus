@@ -166,6 +166,32 @@ test('les points publiés sont géoréférencés et simplifiés', () => {
     `altitude ${s.altitude.toFixed(0)} m — doit être absolue, autour de 1000`);
 });
 
+test('un masque trop dense s’arrête net au lieu de figer', () => {
+  // Sur un terrain assez accidenté, le masque peut couvrir la moitié de la
+  // dalle. L'amincissement le ronge alors couronne par couronne pendant des
+  // minutes — ce que l'utilisateur lit comme un plantage — pour ne produire au
+  // bout du compte que le graphe du bruit. Le détecteur doit renoncer.
+  //
+  // Le seuil est abaissé plutôt que le terrain durci : c'est le mécanisme
+  // d'arrêt qu'on vérifie, pas la valeur de config, et le déclenchement reste
+  // ainsi déterministe.
+  let erreur = null;
+  const t0 = Date.now();
+  try {
+    detecterSentiers(terrain(sillon(90, 0.4)), { masqueMaxPart: 0.0005 });
+  } catch (e) { erreur = e; }
+
+  assert.ok(erreur, 'aucune erreur levée sur un masque jugé trop dense');
+  assert.equal(erreur.nom, 'MasqueTropDense');
+  assert.match(erreur.message, /sensibilité/i, 'le message doit dire quoi régler');
+  assert.ok(Date.now() - t0 < 20000, `arrêt en ${Date.now() - t0} ms — trop long pour un refus`);
+});
+
+test('le garde-fou ne se déclenche pas dans un cas normal', () => {
+  // Un garde-fou qui coupe l'usage courant serait pire que le mal.
+  assert.doesNotThrow(() => detecterSentiers(terrain(sillon(90, 0.4))));
+});
+
 test('aucune valeur non finie ne sort du détecteur', () => {
   for (const s of detecterSentiers(terrain(sillon(70, 0.5))).traces) {
     for (const [cle, v] of Object.entries(s)) {

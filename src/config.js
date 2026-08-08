@@ -251,6 +251,10 @@ const CONFIG = {
     // d'où plusieurs tours pour reconstituer un long chemin ; les fusions se
     // faisant en parallèle, la convergence est rapide.
     passesRecollement: 6,
+    // Part maximale de la dalle que le masque peut couvrir avant qu'on renonce.
+    // Au-delà, la squelettisation coûte des minutes et ne produit que le graphe
+    // du bruit : autant s'arrêter et demander de remonter la sensibilité.
+    masqueMaxPart: 0.45,
     // Pente médiane le long du tracé. Un sentier reste praticable ; au-delà
     // c'est une ligne d'écoulement.
     penteLongueMaxDeg: 28,
