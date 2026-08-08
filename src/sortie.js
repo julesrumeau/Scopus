@@ -152,6 +152,56 @@ ${pts}
 </gpx>`;
 }
 
+/**
+ * GPX de tracés linéaires : des `<trk>`, pas des `<wpt>`.
+ *
+ * Un sentier n'est pas un point d'intérêt : sur le terrain on veut le suivre,
+ * et un GPS affiche une trace comme une ligne à longer. Des points isolés
+ * obligeraient à deviner l'ordre.
+ */
+function tracesVersGPX(traces) {
+  const echapper = (v) => String(v).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+
+  const trk = traces.map((s) => `  <trk>
+    <name>${echapper(`SEN-${String(s.rang).padStart(3, '0')}`)}</name>
+    <desc>${echapper(`score ${s.score.toFixed(2)} · ${s.longueur.toFixed(0)} m · creux ${(s.profondeurMed * 100).toFixed(0)} cm `
+      + `· largeur ${s.largeurMed.toFixed(1)} m · pente ${s.penteLongueMed.toFixed(0)}°`)}</desc>
+    <trkseg>
+${s.gps.map(([lat, lon]) => `      <trkpt lat="${lat.toFixed(7)}" lon="${lon.toFixed(7)}"></trkpt>`).join('\n')}
+    </trkseg>
+  </trk>`).join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Scopus" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>Sentiers détectés — Scopus</name><time>${new Date().toISOString()}</time></metadata>
+${trk}
+</gpx>`;
+}
+
+/** GeoJSON de tracés : des LineString. */
+function tracesVersGeoJSON(traces, meta = {}) {
+  return JSON.stringify({
+    type: 'FeatureCollection',
+    scopus: { genere: new Date().toISOString(), type: 'sentiers', ...meta },
+    features: traces.map((s) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: s.gps.map(([lat, lon]) => [+lon.toFixed(7), +lat.toFixed(7)]),
+      },
+      properties: {
+        rang: s.rang, score: +s.score.toFixed(3),
+        longueur_m: +s.longueur.toFixed(1),
+        profondeur_med_m: +s.profondeurMed.toFixed(2),
+        largeur_med_m: +s.largeurMed.toFixed(2),
+        pente_longue_med_deg: +s.penteLongueMed.toFixed(1),
+        alignement_pente: +s.alignementPente.toFixed(3),
+        altitude_m: +s.altitude.toFixed(1),
+      },
+    })),
+  }, null, 2);
+}
+
 function telecharger(nom, contenu, type) {
   const url = URL.createObjectURL(new Blob([contenu], { type }));
   const a = document.createElement('a');
@@ -163,4 +213,5 @@ function telecharger(nom, contenu, type) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-const SORTIE = { rapprocher, liens, versGeoJSON, versCSV, versGPX, telecharger };
+const SORTIE = { rapprocher, liens, versGeoJSON, versCSV, versGPX,
+  tracesVersGPX, tracesVersGeoJSON, telecharger };

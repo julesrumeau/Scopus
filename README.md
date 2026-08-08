@@ -298,6 +298,48 @@ d'abord l'efface entièrement — vérifié sur cas synthétique, structure de 6
 totalement perdue. La fermeture rebouche d'abord les trous d'échantillonnage,
 l'ouverture retire ensuite le bruit resté isolé.
 
+### Détecter des sentiers — chaîne distincte
+
+Une ruine est une **tache** qu'on isole par morphologie ; un sentier est une
+**ligne** longue de dizaines de mètres et large de moins d'un. Aucun filtre de
+forme ne trouvera la seconde. Le signal est en outre purement topographique — le
+passage a creusé le sol — donc on travaille sur le modèle de terrain, jamais sur
+les classifications.
+
+```
+MNT → relief local (MNT − MNT lissé, convolution normalisée)
+        │
+        ├─ rugosité locale ─── échelle de référence
+        │
+   réponse de Frangi multi-échelle (1, 2, 4 m)
+   valeurs propres de la hessienne : forte courbure en travers,
+   nulle le long ⇒ c'est une ligne, et non une tache ni une pente
+        │
+   hystérésis (deux seuils) → amincissement Zhang-Suen → vectorisation
+        │
+   filtres : longueur · profondeur · pente du tracé · **alignement à la pente**
+        │
+   score → polylignes → GPX (traces) / GeoJSON (LineString)
+```
+
+**Le critère décisif sépare un sentier d'une ravine.** Les deux sont des creux
+linéaires, indiscernables sur la seule forme. Ce qui les distingue est physique :
+une ravine suit la **ligne de plus grande pente**, un sentier la traverse en
+biais pour rester praticable. On compare donc en chaque point la direction du
+tracé au gradient du terrain. Sans ce filtre, tout ravin, toute rigole et tout
+fossé de drainage ressortent.
+
+**Pourquoi pas un ombrage**, le réflexe habituel : il dépend d'une direction
+d'éclairage et rate les structures qui lui sont parallèles. La littérature
+archéologique lui préfère des visualisations non directionnelles ; la hessienne
+l'est tout autant, et détecte au lieu de simplement montrer.
+
+**Le seuil est exprimé en multiples de la rugosité locale**, pas en mètres. Ce
+n'est pas un raffinement : mesuré, le relief local médian vaut 2 cm sur terrain
+synthétique lisse et **79 cm sur le plateau de Beille**. Aucune constante ne
+pouvait servir les deux — calibrée sur le lisse, elle faisait déborder la moitié
+de la dalle réelle.
+
 ### Ce que la rectangularité mesure — et ne mesure pas
 
 La rectangularité (surface / rectangle englobant orienté d'aire minimale) est un
@@ -386,11 +428,37 @@ fonctionne mécaniquement (tests synthétiques) mais n'a pas encore été confro
 
 ---
 
+## État de la détection de sentiers
+
+Première version, à confronter au terrain.
+
+**Validé** — sept tests sur relief synthétique à vérité connue : un sentier de
+niveau est trouvé avec la bonne profondeur, une ravine de même profondeur mais
+orientée dans la pente est écartée, et les deux sont correctement séparés
+lorsqu'ils coexistent sur le même versant.
+
+**Mesuré sur la dalle du plateau de Beille**, 1 km² à pleine résolution :
+
+| Sensibilité | Cellules au-dessus du seuil | Tracés retenus |
+|---|---|---|
+| 0,5 | 14,6 % | 11 |
+| **1,0** *(défaut)* | **2,4 %** | **3** |
+| 1,5 | 0,6 % | 0 |
+
+Détection en **3,6 s** sur la dalle entière.
+
+**Non validé** — aucun chemin connu n'a encore servi de contrôle positif. Les
+tracés remontés font 25 à 30 m pour 70 à 250 cm de creux ; leur nature réelle
+reste à vérifier sur le terrain. Deux limites déjà identifiées :
+
+- les tracés sont **fragmentés** — rien au-delà de 30 m, alors qu'un vrai chemin
+  se poursuit ; le squelette se coupe aux croisements et il faudra recoller ;
+- les **sentes de brebis** (terracettes) ne sont pas traitées : c'est une texture
+  périodique et non une ligne, qui relève d'une analyse de Fourier.
+
 ## Hors périmètre
 
-La détection de sentiers (structure linéaire fine) demande un algorithme
-distinct — détection de crêtes ou squelettisation sur raster de pente — et n'est
-pas traitée ici.
+Les terracettes, donc — et toute détection reposant sur un apprentissage.
 
 ---
 
@@ -406,6 +474,7 @@ src/decodeur.js                décompression LAZ ; source du worker blob
 src/nuage.js                   orchestration du chargement, grappe de workers
 src/raster.js                  grilles, MNT, pente
 src/detection.js               masque, morphologie, composantes, filtres, score
+src/sentiers.js                relief local, Frangi, squelette, vectorisation
 src/sortie.js                  rapprochement BD TOPO, liens, exports
 src/gl.js · shaders.js         WebGL2 (repris de FlowField)
 src/vue3d.js                   caméra orbitale, rendu par points

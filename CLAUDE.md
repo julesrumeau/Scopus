@@ -283,6 +283,37 @@ quand même dans le tampon de profondeur et masquerait ce qui est derrière.
 
 ---
 
+## Détection de sentiers
+
+Chaîne séparée (`sentiers.js`), sur le **relief seul** — jamais les classes.
+Relief local → rugosité locale → Frangi multi-échelle → hystérésis →
+amincissement Zhang-Suen → vectorisation → filtres.
+
+Quatre décisions à ne pas défaire, chacune née d'une mesure :
+
+- **Le seuil est en multiples de la rugosité locale**, jamais en mètres. Le
+  relief local médian vaut 2 cm sur synthétique lisse et **79 cm sur le plateau
+  de Beille** : une constante calibrée sur l'un fait déborder l'autre — la
+  moitié de la dalle réelle passait le seuil.
+- **Le lissage est une convolution normalisée**, poids et valeurs lissés
+  séparément puis divisés. Les cellules sans sol connu portent une altitude de
+  repli (la médiane de la dalle) : les inclure fabriquait des falaises de
+  plusieurs dizaines de mètres, et le relief local atteignait **92 m** au 99ᵉ
+  centile au lieu de quelques centimètres.
+- **La marge de bord vaut trois rayons de lissage**, pas un. Trois flous de
+  boîte enchaînés ont une portée cumulée de trois rayons ; une marge d'un seul
+  laissait l'artefact de bord saturer la réponse sur un versant pourtant nu.
+- **L'alignement à la pente est le critère décisif.** Une ravine et un chemin
+  creux ont la même forme ; seul leur rapport à la pente les distingue. Le
+  retirer fait remonter tous les ravins et fossés de drainage.
+
+État : validé sur relief synthétique (sentier trouvé, ravine écartée, les deux
+séparés lorsqu'ils coexistent), **non validé sur chemin réel connu**. Les tracés
+remontés sont fragmentés — rien au-delà de 30 m — le squelette se coupant aux
+croisements. Le recollement reste à faire.
+
+---
+
 ## Pièges connus
 
 - **Le tas WASM détache ses vues quand il grandit.** laz-perf alloue ses tampons

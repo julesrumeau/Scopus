@@ -14,6 +14,22 @@ import { chargerScripts } from './charger.js';
 const { rasteriser, detecter, versLambert93 } =
   chargerScripts(['config.js', 'proj.js', 'raster.js', 'detection.js']);
 
+/**
+ * Générateur pseudo-aléatoire à graine — et non `Math.random`.
+ *
+ * Le désordre d'échantillonnage est indispensable au réalisme, mais s'il change
+ * à chaque exécution les cas limites basculent d'un côté ou de l'autre et un
+ * test échoue une fois sur quelques dizaines. Observé. Une graine fixe garde le
+ * réalisme et rend l'échec reproductible.
+ */
+function hasard(graine = 12345) {
+  let e = graine >>> 0;
+  return () => {
+    e = (e * 1664525 + 1013904223) >>> 0;
+    return e / 4294967296;
+  };
+}
+
 const X0 = 592000, Y0 = 6183000;   // coin sud-ouest, Lambert-93
 const COTE = 40;                   // zone de 40 × 40 m
 const EMPRISE = { xmin: X0, xmax: X0 + COTE, ymin: Y0, ymax: Y0 + COTE };
@@ -36,6 +52,7 @@ function nuageSynthetique(opts = {}) {
 
   const origine = [X0 + COTE / 2, Y0 + COTE / 2, 1000];
   const pas = 1 / Math.sqrt(densite);
+  const alea = hasard();
   const xs = [], ys = [], zs = [], cls = [];
   const tanP = Math.tan(pente * Math.PI / 180);
 
@@ -43,8 +60,8 @@ function nuageSynthetique(opts = {}) {
     for (let gx = 0; gx < COTE; gx += pas) {
       // Léger désordre : un échantillonnage parfaitement régulier laisserait
       // des cellules systématiquement vides selon l'alignement de la grille.
-      const x = gx + (Math.random() - 0.5) * pas;
-      const y = gy + (Math.random() - 0.5) * pas;
+      const x = gx + (alea() - 0.5) * pas;
+      const y = gy + (alea() - 0.5) * pas;
       const zSol = gx * tanP;
       const dedans = dansStructure?.(x, y) ?? false;
 

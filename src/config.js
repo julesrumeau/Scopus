@@ -169,6 +169,74 @@ const CONFIG = {
     inclureBati: true,
   },
 
+  // ── Détection de sentiers ─────────────────────────────────────────────────
+  //
+  // Chaîne distincte de celle des ruines : on cherche des lignes, pas des
+  // taches, et sur le relief seul — jamais sur les classifications.
+  sentiers: {
+    // Pas de la grille de travail. Un sentier fait 0,6 à 4 m de large : à 25 cm
+    // on paierait seize fois le calcul pour du bruit en plus.
+    pasM: 0.5,
+    // Rayon du lissage qui définit le « relief général » à soustraire. Doit
+    // dépasser nettement la largeur d'un sentier, sans quoi le creux cherché
+    // serait absorbé dans sa propre référence.
+    rayonReliefM: 12,
+    // Largeurs de structures recherchées, en mètres. Le balayage multi-échelle
+    // attrape aussi bien une sente étroite qu'un chemin creux de charroi.
+    //
+    // L'échelle 0,5 m a été retirée : sur données réelles elle ne remonte que
+    // le grain du MNT, sans jamais rien ajouter d'exploitable.
+    echellesM: [1, 2, 4],
+    // Amplitude de référence de la réponse hessienne, en mètres. Fixée en
+    // absolu et non déduite du maximum de l'image : normaliser par l'image
+    // fait passer le bruit d'un versant nu pour du signal — mesuré, un plan
+    // à 15° sans aucun creux répondait 0,63 pour un seuil à 0,30.
+    // Seuil de la réponse hessienne, exprimé **en multiples de la rugosité
+    // locale** — donc sans dimension, et de même sens sur une prairie que sur
+    // un pierrier. Plus bas = plus sensible.
+    //
+    // Le besoin d'une échelle locale vient d'une mesure : sur le plateau de
+    // Beille, le relief local médian atteint 79 cm sur 12 m de rayon, contre
+    // 2 cm sur terrain synthétique lisse. Aucune constante ne pouvait servir
+    // les deux — celle calibrée sur le lisse faisait déborder la moitié de la
+    // dalle réelle.
+    sensibilite: 1.0,
+    // Rayon sur lequel s'estime cette rugosité, et son plancher — le bruit
+    // propre du MNT, en dessous duquel diviser n'aurait plus de sens.
+    rayonRugositeM: 15,
+    rugositePlancherM: 0.03,
+    // Part minimale de cellules fines ayant réellement vu le sol. Sous couvert
+    // dense, le MNT est interpolé sur de longues distances et ne décrit plus
+    // rien d'exploitable.
+    partSolMin: 0.25,
+    // Part du voisinage de lissage dont le sol doit être connu. En dessous, la
+    // référence locale repose sur trop peu de cellules pour valoir quoi que ce
+    // soit.
+    voisinageSolMin: 0.35,
+    // Sensibilité au caractère allongé (β de Frangi). Plus bas = plus exigeant
+    // sur la linéarité.
+    beta: 0.5,
+    // Hystérésis : germer sur `seuilHaut`, prolonger jusqu'à `seuilBas`. Un
+    // sentier s'efface par endroits ; un seuil unique le hacherait.
+    seuilHaut: 0.30,
+    seuilBas: 0.12,
+    longueurMinM: 25,
+    // Profondeur du creux. En dessous de 10 cm on est dans le bruit du MNT ;
+    // au-delà de 3 m c'est un ravin ou un talweg, pas un chemin.
+    profondeurMinM: 0.10,
+    profondeurMaxM: 3.0,
+    // Pente médiane le long du tracé. Un sentier reste praticable ; au-delà
+    // c'est une ligne d'écoulement.
+    penteLongueMaxDeg: 28,
+    // **Le critère décisif.** Cosinus entre la direction du tracé et le gradient
+    // du terrain. Une ravine suit la ligne de plus grande pente (≈ 1) ; un
+    // sentier la traverse pour rester praticable (≈ 0). Sans lui, tout ravin et
+    // tout fossé de drainage ressortent — même signature creuse et linéaire.
+    alignementMax: 0.80,
+    // Tolérance de simplification des polylignes, en mètres.
+    toleranceM: 1.0,
+  },
+
   // ── Sortie ────────────────────────────────────────────────────────────────
   sortie: {
     // Rayon de rapprochement avec le bâti BD TOPO, en mètres. Une détection

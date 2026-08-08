@@ -17,6 +17,7 @@ const etat = {
   nuage: null,
   grille: null,
   resultat: null,
+  sentiers: null,
   selection: null,
   abandon: null,
 };
@@ -279,6 +280,7 @@ $('btn-charger').addEventListener('click', async () => {
 
     $('section-affichage').hidden = false;
     $('section-detection').hidden = false;
+    $('section-sentiers').hidden = false;
     majLegende();
     majHUD();
     basculerVue('3d');
@@ -458,6 +460,118 @@ $('btn-detecter').addEventListener('click', async () => {
     $('btn-detecter').disabled = false;
   }
 });
+
+// ── Étape 4 bis : sentiers ──────────────────────────────────────────────────
+
+const REGLAGES_SENTIERS = [
+  { cle: 'longueurMinM', libelle: 'Longueur min.', min: 10, max: 200, pas: 5, unite: ' m' },
+  { cle: 'profondeurMinM', libelle: 'Creux min.', min: 0.05, max: 1, pas: 0.05, unite: ' m' },
+  { cle: 'profondeurMaxM', libelle: 'Creux max.', min: 0.5, max: 6, pas: 0.5, unite: ' m' },
+  { cle: 'penteLongueMaxDeg', libelle: 'Pente du tracé max.', min: 5, max: 45, pas: 1, unite: '°' },
+  { cle: 'alignementMax', libelle: 'Tolérance « ravine »', min: 0.3, max: 1, pas: 0.05, unite: '' },
+  { cle: 'seuilHaut', libelle: 'Seuil de déclenchement', min: 0.05, max: 0.8, pas: 0.05, unite: '' },
+];
+
+const reglagesSentiers = { ...CONFIG.sentiers };
+
+function construireReglagesSentiers() {
+  $('reglages-sentiers').innerHTML = REGLAGES_SENTIERS.map((r) => `
+    <label class="champ">
+      <span>${r.libelle} <b id="vs-${r.cle}">${reglagesSentiers[r.cle]}${r.unite}</b></span>
+      <input type="range" id="rs-${r.cle}" min="${r.min}" max="${r.max}" step="${r.pas}"
+             value="${reglagesSentiers[r.cle]}">
+    </label>`).join('');
+
+  for (const r of REGLAGES_SENTIERS) {
+    $(`rs-${r.cle}`).addEventListener('input', (e) => {
+      reglagesSentiers[r.cle] = Number(e.target.value);
+      $(`vs-${r.cle}`).textContent = `${reglagesSentiers[r.cle]}${r.unite}`;
+    });
+  }
+}
+construireReglagesSentiers();
+
+$('btn-defauts-sentiers').addEventListener('click', () => {
+  Object.assign(reglagesSentiers, CONFIG.sentiers);
+  construireReglagesSentiers();
+});
+
+$('btn-sentiers').addEventListener('click', async () => {
+  if (!etat.grille) return;
+  $('btn-sentiers').disabled = true;
+  statut('Recherche de sentiers…', 'travail');
+  await new Promise((r) => requestAnimationFrame(r));
+
+  try {
+    const t0 = performance.now();
+    etat.sentiers = SENTIERS.detecterSentiers(etat.grille, reglagesSentiers);
+    const secondes = ((performance.now() - t0) / 1000).toFixed(1);
+
+    const st = etat.sentiers.stats;
+    $('stats-sentiers').hidden = false;
+    $('stats-sentiers').innerHTML =
+      `Grille <b>${st.pas.toFixed(2)} m</b> · <b>${st.chainesBrutes}</b> tracés bruts, `
+      + `<b>${st.retenues}</b> retenus — ${secondes} s<br>`
+      + `écartés — longueur ${st.rejets.longueur} · ravine ${st.rejets.ravine}`
+      + ` · pente ${st.rejets.penteLongue} · profondeur ${st.rejets.profondeur}`;
+
+    afficherSentiers();
+    statut(`${etat.sentiers.traces.length} sentier(s) candidat(s)`);
+  } catch (e) {
+    alerter(`Sentiers : ${e.message}`);
+  } finally {
+    $('btn-sentiers').disabled = false;
+  }
+});
+
+function afficherSentiers() {
+  const traces = etat.sentiers?.traces || [];
+  $('compte-sentiers').textContent = traces.length;
+  $('exports-sentiers').hidden = !traces.length;
+
+  const liste = $('liste-sentiers');
+  liste.innerHTML = traces.length ? '' :
+    '<li class="vide" style="cursor:default;border-style:dashed">Aucun tracé avec ces seuils. '
+    + 'Baissez le seuil de déclenchement ou la longueur minimale.</li>';
+
+  for (const s of traces) {
+    const l = SORTIE.liens(s);
+    const li = document.createElement('li');
+    li.dataset.id = s.id;
+    li.innerHTML = `
+      <div class="ligne-titre">
+        <span class="rang">#${s.rang}</span>
+        <span class="score">${s.score.toFixed(2)}</span>
+        <span class="puce" style="background:${s.score > 0.6 ? '#ff8a3c' : s.score > 0.4 ? '#ffc247' : '#ffe9a3'}"></span>
+      </div>
+      <div class="mesures">${s.longueur.toFixed(0)} m · creux ${(s.profondeurMed * 100).toFixed(0)} cm
+        · large ${s.largeurMed.toFixed(1)} m · pente ${s.penteLongueMed.toFixed(0)}°
+        · ravine ${s.alignementPente.toFixed(2)}</div>
+      <div class="coords">${l.dms} · ${s.altitude.toFixed(0)} m</div>
+      <div class="actions">
+        <a href="${l.earth}" target="_blank" rel="noopener">Google&nbsp;Earth</a>
+        <a href="${l.geoportail}" target="_blank" rel="noopener">Géoportail</a>
+      </div>`;
+    li.addEventListener('click', (e) => {
+      if (e.target.tagName === 'A') return;
+      for (const autre of liste.children) autre.classList?.toggle('actif', autre === li);
+      carte.surlignerSentier(s, traces);
+      basculerVue('carte');
+    });
+    liste.appendChild(li);
+  }
+
+  carte.afficherSentiers(traces, (s) => {
+    for (const li of liste.children) li.classList?.toggle('actif', li.dataset.id === String(s.id));
+    document.querySelector(`#liste-sentiers li[data-id="${s.id}"]`)?.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+$('exp-sent-gpx').addEventListener('click', () => SORTIE.telecharger(
+  `${NOM_BASE()}_sentiers.gpx`, SORTIE.tracesVersGPX(etat.sentiers?.traces || []), 'application/gpx+xml'));
+$('exp-sent-geojson').addEventListener('click', () => SORTIE.telecharger(
+  `${NOM_BASE()}_sentiers.geojson`, SORTIE.tracesVersGeoJSON(etat.sentiers?.traces || [], META()),
+  'application/geo+json'));
 
 // ── Étape 5 : résultats ─────────────────────────────────────────────────────
 

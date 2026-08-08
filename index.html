@@ -92,6 +92,24 @@
       <div id="stats-detection" class="stats" hidden></div>
     </section>
 
+    <!-- ─── 4 bis. Sentiers ──────────────────────────────────────────────── -->
+    <section class="etape" data-etape="4b" id="section-sentiers" hidden>
+      <h2><span class="num">4</span>ᵇ Sentiers <span id="compte-sentiers" class="badge"></span></h2>
+      <p class="note">Chemins creux et tracés abandonnés. Chaîne distincte de
+        celle des ruines : on cherche des <b>lignes</b>, sur le relief seul.</p>
+      <div class="reglages" id="reglages-sentiers"></div>
+      <div class="rangee">
+        <button id="btn-sentiers" class="primaire">Chercher des sentiers</button>
+        <button id="btn-defauts-sentiers" class="secondaire" title="Seuils par défaut">↺</button>
+      </div>
+      <div id="stats-sentiers" class="stats" hidden></div>
+      <ol id="liste-sentiers" class="liste"></ol>
+      <div class="rangee exports" id="exports-sentiers" hidden>
+        <button id="exp-sent-gpx" class="secondaire">GPX (traces)</button>
+        <button id="exp-sent-geojson" class="secondaire">GeoJSON</button>
+      </div>
+    </section>
+
     <!-- ─── 5. Résultats ─────────────────────────────────────────────────── -->
     <section class="etape" data-etape="5" id="section-resultats" hidden>
       <h2><span class="num">5</span> Résultats <span id="compte" class="badge"></span></h2>
@@ -157,6 +175,7 @@
 <script src="src/nuage.js"></script>
 <script src="src/raster.js"></script>
 <script src="src/detection.js"></script>
+<script src="src/sentiers.js"></script>
 <script src="src/sortie.js"></script>
 <script src="src/gl.js"></script>
 <script src="src/shaders.js"></script>

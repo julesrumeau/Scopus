@@ -33,6 +33,7 @@ class Carte {
 
     this.grille = new GRILLE.GrilleDalles().addTo(this.map);
     this.coucheDetections = L.layerGroup().addTo(this.map);
+    this.coucheSentiers = L.layerGroup().addTo(this.map);
     this.rectDalle = null;
     this.dalleSelectionnee = null;
     this.marqueurs = new Map();
@@ -146,6 +147,41 @@ class Carte {
       this.map.setView([candidat.lat, candidat.lon], Math.max(this.map.getZoom(), 18));
     }
   }
+
+  /** Tracés de sentiers, en polylignes. */
+  afficherSentiers(traces, surSelection) {
+    this.coucheSentiers.clearLayers();
+    this.lignes = new Map();
+
+    for (const s of traces) {
+      const l = L.polyline(s.gps, this._styleTrace(s, false))
+        .bindTooltip(`#${s.rang} · ${s.longueur.toFixed(0)} m · creux ${(s.profondeurMed * 100).toFixed(0)} cm`,
+          { sticky: true })
+        .on('click', (e) => { L.DomEvent.stopPropagation(e); surSelection(s); });
+      this.coucheSentiers.addLayer(l);
+      this.lignes.set(s.id, l);
+    }
+  }
+
+  _styleTrace(s, choisi) {
+    const couleur = s.score > 0.6 ? '#ff8a3c' : s.score > 0.4 ? '#ffc247' : '#ffe9a3';
+    return {
+      color: choisi ? '#ffffff' : couleur,
+      weight: choisi ? 5 : 3,
+      opacity: choisi ? 1 : 0.85,
+    };
+  }
+
+  surlignerSentier(trace, traces) {
+    for (const s of traces) this.lignes?.get(s.id)?.setStyle(this._styleTrace(s, trace && s.id === trace.id));
+    if (trace) {
+      const l = this.lignes?.get(trace.id);
+      l?.bringToFront();
+      if (l) this.map.fitBounds(l.getBounds(), { padding: [60, 60] });
+    }
+  }
+
+  effacerSentiers() { this.coucheSentiers.clearLayers(); this.lignes?.clear(); }
 
   effacerDetections() {
     this.coucheDetections.clearLayers();
