@@ -118,6 +118,35 @@ const CONFIG = {
     cellulesMax: 17_000_000,
   },
 
+  // ── Visualisations de relief ──────────────────────────────────────────────
+  relief: {
+    // Pas de la grille d'affichage. À 25 cm une cellule ne reçoit que 0,6 point
+    // et le MNT y est surtout du bruit d'échantillonnage ; à 50 cm elle en
+    // reçoit deux ou trois, et un mur de 50 cm occupe toujours une cellule
+    // pleine. Le calcul est en prime seize fois plus léger, ce qui décide de la
+    // faisabilité du Sky-View Factor.
+    pasM: 0.5,
+    // Rayon du lissage qui définit le « relief général » à soustraire. Doit
+    // dépasser nettement la taille des objets cherchés, sans quoi une cabane
+    // serait absorbée dans sa propre référence.
+    rayonMicroReliefM: 12,
+    // Sky-View Factor : nombre de directions balayées et portée de l'horizon.
+    // Le coût est le produit des deux — 8 directions sur 10 m suffisent à lire
+    // un chemin creux, 16 affinent les formes rondes pour le double du temps.
+    svfDirections: 8,
+    svfRayonM: 10,
+    // Plafond de la palette de hauteur. Au-delà de 3 m on ne cherche plus une
+    // ruine mais un arbre isolé, et l'étaler écraserait tout le reste.
+    hauteurMaxM: 3,
+    // Inclure la classe « bâtiment » dans la hauteur affichée, comme dans le
+    // signal de détection.
+    inclureBati: true,
+    // Resserrement de l'intervalle affiché. Au-dessus de 1 le contraste monte,
+    // en dessous il s'adoucit. Rejoué à l'affichage seul : changer ce réglage
+    // ne recalcule jamais la couche.
+    contraste: 1,
+  },
+
   // ── Détection ─────────────────────────────────────────────────────────────
   detection: {
     hauteurMin: 0.35,       // m au-dessus du sol — sous ça, c'est du bruit de classification

@@ -16,13 +16,13 @@ commande, pas de base, pas de compte. Les données ne quittent jamais l'onglet.
    à toutes les échelles sur la France entière ; en zoomant, le quadrillage
    kilométrique des dalles apparaît. Cliquer dedans. Un champ de recherche
    accepte un nom de commune ou des coordonnées (`42.74, 1.68` ou Lambert-93).
-2. **Ouvrir la dalle.** Deux requêtes suffisent à lire l'index de l'octree —
-   environ 50 Ko pour un fichier de 190 Mo.
-3. **Choisir la résolution.** La dalle est analysée **en entier**, 1 km². Le
-   coût exact en points et en mégaoctets est affiché avant tout téléchargement.
-4. **Charger.** Comptez une trentaine de secondes pour un kilomètre carré à
+   Le clic lit aussitôt l'index de l'octree — deux requêtes, environ 50 Ko pour
+   un fichier de 190 Mo — et déplie le curseur de résolution.
+2. **Choisir la résolution, puis charger.** La dalle est analysée **en entier**,
+   1 km² ; le coût exact en points et en mégaoctets est affiché avant tout
+   téléchargement. Comptez une trentaine de secondes pour un kilomètre carré à
    pleine résolution.
-5. **Détecter.** Les candidats apparaissent sur la carte, dans le nuage 3D et
+3. **Détecter.** Les candidats apparaissent sur la carte, dans le nuage 3D et
    dans une liste triée par score, avec liens Google Earth / Maps / Géoportail
    et export GPX, GeoJSON ou CSV.
 
@@ -36,10 +36,15 @@ Comme sur une carte, pas comme dans un logiciel 3D :
 | Molette | Zoome **sous le curseur**, pas vers le centre |
 | Maj + glisser, clic droit, bouton du milieu | Pivote autour du point visé |
 | Double-clic | Se rend à cet endroit |
+| Boussole, en haut à droite | Remet le nord (ou l'est, le sud, l'ouest) en haut de l'écran ; les flèches passent au-dessus ou au-dessous |
 
 Le geste dominant, quand on balaie un kilomètre carré, est le déplacement — pas
 la rotation. Et zoomer vers le centre de l'écran éloigne de ce qu'on vient de
 repérer sur le bord : c'est ce qui rendait la navigation pénible.
+
+La boussole est projetée comme le reste de la scène : elle s'aplatit quand on
+rase le sol, s'arrondit quand on passe à la verticale, et dit donc d'un coup
+d'œil où l'on regarde. Un nuage de points n'offre aucun autre repère.
 
 Raccourcis : `c` carte · `v` nuage 3D · `t` vue de dessus · `f` tout cadrer.
 
@@ -211,7 +216,7 @@ l'espacement par deux. Pour une dalle entière (1 km²) :
 | 4 | 43 cm | 137 Mo |
 | 5 | **21 cm** | 185 Mo |
 
-C'est le curseur *Résolution* de l'étape 2. Le niveau 5 donne la pleine finesse
+C'est le curseur *Résolution*, sous la dalle choisie. Le niveau 5 donne la pleine finesse
 en une trentaine de secondes ; les niveaux intermédiaires servent à dégrossir un
 secteur sans attendre.
 

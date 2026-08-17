@@ -1,0 +1,442 @@
+// Vue 2D du relief : une carte de la dalle, nord en haut, en Lambert-93.
+//
+// Pourquoi un canevas 2D et pas la carte Leaflet : la grille *est* en
+// Lambert-93. La dessiner telle quelle, une cellule pour un pixel, évite toute
+// reprojection et tout rééchantillonnage — on regarde la donnée, pas une
+// interprétation de la donnée. Superposer les détections et les tracés est
+// gratuit pour la même raison : eux aussi sont en Lambert-93.
+//
+// Les gestes sont ceux de la vue 3D — glisser déplace, la molette zoome sous le
+// curseur — et le rendu est à la demande, pour la même raison qu'ailleurs : une
+// image fixe redessinée soixante fois par seconde ne change rien à l'écran.
+
+class VueRelief {
+  constructor(canvas, callbacks = {}) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.cb = callbacks;
+
+    this.grille = null;      // sortie de RELIEF.preparer
+    this.couche = null;      // sortie de RELIEF.calculer
+    this.contraste = CONFIG.relief.contraste;
+    this.lut = null;         // table de 256 couleurs
+    this.detections = [];
+    this.traces = [];
+    this.selection = null;
+    this.traceChoisie = null;
+    this.montrerDetections = true;
+    this.montrerSentiers = true;
+
+    // Caméra : centre visé en Lambert-93, et mètres par pixel écran.
+    this.centre = [0, 0];
+    this.echelle = 1;
+
+    this._planifie = false;
+    this.actif = false;
+    this._brancherControles();
+  }
+
+  demarrer() {
+    if (this.actif) return;
+    this.actif = true;
+    this._observateur = new ResizeObserver(() => this.invalider());
+    this._observateur.observe(this.canvas);
+    this.invalider();
+  }
+
+  invalider() {
+    if (!this.actif || this._planifie) return;
+    this._planifie = true;
+    requestAnimationFrame(() => { this._planifie = false; this._rendre(); });
+  }
+
+  definirGrille(t) {
+    this.grille = t;
+    this.couche = null;
+    if (t) this.cadrer();
+    else this.invalider();
+  }
+
+  /**
+   * Installe une couche calculée et sa table de couleurs.
+   *
+   * La palette est précalculée en 256 entrées : une conversion par pixel et par
+   * image, sur un canevas plein écran, ferait plusieurs millions d'appels.
+   */
+  definirCouche(couche) {
+    this.couche = couche;
+    this.lut = couche ? construireLUT(couche.palette) : null;
+    this.invalider();
+  }
+
+  /**
+   * Change le contraste sans rien recalculer.
+   *
+   * Seul l'intervalle étalé sur la palette bouge : les valeurs, elles, sont
+   * déjà là. Une image de plus coûte quelques millisecondes, là où refaire un
+   * Sky-View Factor à chaque cran du curseur en coûterait des milliers.
+   */
+  definirContraste(c) {
+    this.contraste = c;
+    this.invalider();
+  }
+
+  /** Intervalle réellement étalé sur la palette, contraste compris. */
+  etendue() {
+    if (!this.couche) return [0, 1];
+    return RELIEF.etirer(this.couche.base, this.couche.ancrage, this.contraste);
+  }
+
+  definirDetections(candidats, grilleDetection) {
+    this.detections = (candidats || []).map((c) => ({
+      id: c.id,
+      rang: c.rang,
+      boite: boiteLambert(c, grilleDetection),
+      score: c.score,
+      repertorie: c.dejaRepertorie,
+    })).filter((d) => d.boite);
+    this.invalider();
+  }
+
+  definirSelection(candidat) { this.selection = candidat ? candidat.id : null; this.invalider(); }
+
+  definirTraces(traces) {
+    this.traces = (traces || []).map((s) => ({ id: s.id, points: s.points || [] }));
+    this.invalider();
+  }
+
+  definirTraceChoisie(trace) { this.traceChoisie = trace ? trace.id : null; this.invalider(); }
+
+  definirCalques({ detections, sentiers }) {
+    if (detections !== undefined) this.montrerDetections = detections;
+    if (sentiers !== undefined) this.montrerSentiers = sentiers;
+    this.invalider();
+  }
+
+  /** Cadre la dalle entière. */
+  cadrer() {
+    if (!this.grille) return;
+    const e = this.grille.emprise;
+    this.centre = [(e.xmin + e.xmax) / 2, (e.ymin + e.ymax) / 2];
+    const r = this.canvas.getBoundingClientRect();
+    const w = Math.max(1, r.width), h = Math.max(1, r.height);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    // Marge de 4 % pour que le bord de dalle ne colle pas au cadre.
+    this.echelle = Math.max((e.xmax - e.xmin) / (w * dpr), (e.ymax - e.ymin) / (h * dpr)) * 1.04;
+    this.invalider();
+  }
+
+  /** Amène un point Lambert-93 au centre, à une échelle donnée. */
+  viser(x, y, metresParEcran = 120) {
+    const r = this.canvas.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.max(1, r.width * dpr);
+    this.centre = [x, y];
+    this.echelle = metresParEcran / w;
+    this.invalider();
+  }
+
+  // ── Contrôles ─────────────────────────────────────────────────────────────
+
+  _lambertSousCurseur(ev) {
+    const r = this.canvas.getBoundingClientRect();
+    if (!(r.width > 0) || !(r.height > 0)) return null;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const px = (ev.clientX - r.left) * dpr;
+    const py = (ev.clientY - r.top) * dpr;
+    const w = r.width * dpr, h = r.height * dpr;
+    return [
+      this.centre[0] + (px - w / 2) * this.echelle,
+      // L'écran descend, le nord monte.
+      this.centre[1] - (py - h / 2) * this.echelle,
+    ];
+  }
+
+  _brancherControles() {
+    const c = this.canvas;
+    let glisse = null;
+
+    // Point de départ en pixels, gardé pour distinguer un clic d'un glissé :
+    // relâcher après un déplacement produit aussi un `click`, et sans ce test
+    // chaque déplacement finissant sur une boîte sélectionnerait la détection.
+    let depart = null;
+
+    c.addEventListener('pointerdown', (e) => {
+      c.setPointerCapture(e.pointerId);
+      glisse = this._lambertSousCurseur(e);
+      depart = [e.clientX, e.clientY];
+    });
+
+    c.addEventListener('pointermove', (e) => {
+      const p = this._lambertSousCurseur(e);
+      if (glisse && p) {
+        // Déplacement mesuré par différence de points visés, comme en 3D : la
+        // surface reste collée au curseur quelle que soit l'échelle.
+        this.centre[0] += glisse[0] - p[0];
+        this.centre[1] += glisse[1] - p[1];
+        this.invalider();
+      } else if (p) {
+        this.cb.surCurseur?.(this.lire(p[0], p[1]));
+      }
+    });
+
+    const relacher = (e) => {
+      if (glisse) c.releasePointerCapture?.(e.pointerId);
+      glisse = null;
+    };
+    c.addEventListener('pointerup', relacher);
+    c.addEventListener('pointercancel', relacher);
+    c.addEventListener('pointerleave', () => this.cb.surCurseur?.(null));
+
+    c.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const avant = this._lambertSousCurseur(e);
+      const ancienne = this.echelle;
+      this.echelle = Math.max(0.02, Math.min(8, ancienne * Math.exp(e.deltaY * 0.0012)));
+      // Le point sous le curseur reste immobile : on rapproche le centre dans
+      // le même rapport que l'échelle.
+      if (avant) {
+        const k = this.echelle / ancienne;
+        this.centre[0] = avant[0] + (this.centre[0] - avant[0]) * k;
+        this.centre[1] = avant[1] + (this.centre[1] - avant[1]) * k;
+      }
+      this.invalider();
+    }, { passive: false });
+
+    c.addEventListener('click', (e) => {
+      const bouge = depart && Math.hypot(e.clientX - depart[0], e.clientY - depart[1]) > 4;
+      depart = null;
+      const p = this._lambertSousCurseur(e);
+      if (bouge || !p || !this.cb.surClic) return;
+      this.cb.surClic(this._detectionA(p[0], p[1]));
+    });
+  }
+
+  /** Détection dont la boîte contient ce point, la plus petite d'abord. */
+  _detectionA(x, y) {
+    let trouvee = null;
+    let aire = Infinity;
+    for (const d of this.detections) {
+      const b = d.boite;
+      if (x < b[0] || x > b[2] || y < b[1] || y > b[3]) continue;
+      const a = (b[2] - b[0]) * (b[3] - b[1]);
+      if (a < aire) { aire = a; trouvee = d; }
+    }
+    return trouvee ? trouvee.id : null;
+  }
+
+  /** Valeurs sous un point Lambert-93, pour la ligne de lecture. */
+  lire(x, y) {
+    const t = this.grille;
+    if (!t) return null;
+    const cx = Math.floor((x - t.emprise.xmin) / t.pas);
+    const cy = Math.floor((y - t.emprise.ymin) / t.pas);
+    if (cx < 0 || cx >= t.W || cy < 0 || cy >= t.H) return { x, y };
+    const i = cy * t.W + cx;
+    return {
+      x, y,
+      // Les grilles travaillent en altitude relative, la lecture veut de
+      // l'absolu : on remet l'origine, une fois, ici.
+      altitude: t.valide[i] ? t.mnt[i] + t.origine[2] : null,
+      hauteur: t.hauteur[i],
+      valeur: this.couche ? this.couche.valeurs[i] : null,
+    };
+  }
+
+  // ── Rendu ─────────────────────────────────────────────────────────────────
+
+  _rendre() {
+    const c = this.canvas;
+    const ctx = this.ctx;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.max(1, Math.round(c.clientWidth * dpr));
+    const h = Math.max(1, Math.round(c.clientHeight * dpr));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+
+    ctx.fillStyle = CONFIG.rendu.fond;
+    ctx.fillRect(0, 0, w, h);
+    if (!this.grille || !this.couche) return;
+
+    const t = this.grille;
+    const valeurs = this.couche.valeurs;
+    const [min, max] = this.etendue();
+    const span = max - min || 1;
+
+    // Le tampon d'image est conservé d'une image à l'autre : à 2400 × 1800, en
+    // réallouer un à chaque déplacement de souris ferait passer 17 Mo par le
+    // ramasse-miettes soixante fois par seconde.
+    if (!this._image || this._image.width !== w || this._image.height !== h) {
+      this._image = ctx.createImageData(w, h);
+    }
+    const image = this._image;
+    const px = image.data;
+    const [fr, fg, fb] = hexVersRVB(CONFIG.rendu.fond);
+
+    // Correspondance écran → cellule, en incrémental : une multiplication par
+    // pixel suffit, sans repasser par la transformation complète.
+    const gauche = this.centre[0] - (w / 2) * this.echelle;
+    const haut = this.centre[1] + (h / 2) * this.echelle;
+    const parCellule = this.echelle / t.pas;
+    const cx0 = (gauche - t.emprise.xmin) / t.pas;
+    const cy0 = (haut - t.emprise.ymin) / t.pas;
+
+    for (let y = 0; y < h; y++) {
+      // Troncature seulement après le test : `-0.5 | 0` vaut 0, ce qui ferait
+      // passer pour la première ligne un pixel situé hors de la dalle.
+      const fy = cy0 - y * parCellule;
+      let o = y * w * 4;
+      const dehorsY = fy < 0 || fy >= t.H;
+      const ligne = dehorsY ? 0 : (fy | 0) * t.W;
+
+      for (let x = 0; x < w; x++, o += 4) {
+        const fx = cx0 + x * parCellule;
+        if (dehorsY || fx < 0 || fx >= t.W) {
+          px[o] = fr; px[o + 1] = fg; px[o + 2] = fb; px[o + 3] = 255;
+          continue;
+        }
+        const v = valeurs[ligne + (fx | 0)];
+        if (!Number.isFinite(v)) {
+          // Hors marge ou sol inconnu : un gris neutre, qui se distingue de
+          // toute valeur de la palette. Mieux vaut un vide visible qu'une
+          // couleur qui laisserait croire à une mesure.
+          px[o] = 42; px[o + 1] = 46; px[o + 2] = 54; px[o + 3] = 255;
+          continue;
+        }
+        let u = ((v - min) / span) * 255;
+        u = u < 0 ? 0 : u > 255 ? 255 : u;
+        const k = (u | 0) * 3;
+        px[o] = this.lut[k]; px[o + 1] = this.lut[k + 1]; px[o + 2] = this.lut[k + 2];
+        px[o + 3] = 255;
+      }
+    }
+    ctx.putImageData(image, 0, 0);
+
+    ctx.save();
+    ctx.lineWidth = Math.max(1, dpr);
+    if (this.montrerSentiers) this._tracerSentiers(ctx, w, h);
+    if (this.montrerDetections) this._tracerDetections(ctx, w, h);
+    this._tracerEchelle(ctx, w, h, dpr);
+    ctx.restore();
+  }
+
+  _versEcran(x, y, w, h) {
+    return [
+      (x - this.centre[0]) / this.echelle + w / 2,
+      (this.centre[1] - y) / this.echelle + h / 2,
+    ];
+  }
+
+  _tracerDetections(ctx, w, h) {
+    for (const d of this.detections) {
+      const [x0, y0] = this._versEcran(d.boite[0], d.boite[3], w, h);
+      const [x1, y1] = this._versEcran(d.boite[2], d.boite[1], w, h);
+      const choisi = d.id === this.selection;
+      ctx.strokeStyle = choisi ? '#ffd24a'
+        : d.repertorie ? '#7d8794'
+        : d.score > 0.65 ? '#ff5a3c' : d.score > 0.45 ? '#ffa62b' : '#ffe066';
+      ctx.lineWidth = choisi ? 3 : 1.5;
+      // Une boîte de 6 m tombe sous le pixel quand la dalle entière est à
+      // l'écran : on lui impose une taille minimale, sans quoi les détections
+      // seraient invisibles à la seule échelle où on les cherche.
+      const lx = Math.max(7, x1 - x0), ly = Math.max(7, y0 - y1);
+      ctx.strokeRect(x0 - (lx - (x1 - x0)) / 2, y1 - (ly - (y0 - y1)) / 2, lx, ly);
+    }
+  }
+
+  _tracerSentiers(ctx, w, h) {
+    for (const s of this.traces) {
+      if (s.points.length < 2) continue;
+      ctx.strokeStyle = s.id === this.traceChoisie ? '#ffffff' : '#ff8a3c';
+      ctx.lineWidth = s.id === this.traceChoisie ? 3 : 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < s.points.length; i++) {
+        const [sx, sy] = this._versEcran(s.points[i][0], s.points[i][1], w, h);
+        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+    }
+  }
+
+  /** Barre d'échelle : sans elle, rien ne dit si l'on regarde 20 m ou 400. */
+  _tracerEchelle(ctx, w, h, dpr) {
+    const cibleEcran = 120 * dpr;
+    const brut = cibleEcran * this.echelle;
+    const puissance = 10 ** Math.floor(Math.log10(brut));
+    const metres = [1, 2, 5, 10].map((k) => k * puissance).find((v) => v >= brut) || puissance * 10;
+    const largeur = metres / this.echelle;
+
+    const x = 14 * dpr, y = h - 16 * dpr;
+    ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+    ctx.lineWidth = 4 * dpr;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + largeur, y); ctx.stroke();
+    ctx.strokeStyle = '#dbe1ea';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + largeur, y);
+    ctx.moveTo(x, y - 4 * dpr); ctx.lineTo(x, y + 4 * dpr);
+    ctx.moveTo(x + largeur, y - 4 * dpr); ctx.lineTo(x + largeur, y + 4 * dpr);
+    ctx.stroke();
+
+    ctx.font = `${11 * dpr}px system-ui, sans-serif`;
+    ctx.fillStyle = '#dbe1ea';
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+    ctx.lineWidth = 3 * dpr;
+    const texte = metres >= 1000 ? `${metres / 1000} km` : `${metres} m`;
+    ctx.strokeText(texte, x, y - 8 * dpr);
+    ctx.fillText(texte, x, y - 8 * dpr);
+  }
+}
+
+/**
+ * Emprise Lambert-93 d'une détection, depuis son emprise en cellules.
+ *
+ * Même calcul que les boîtes de la vue 3D, et pour la même raison : l'emprise
+ * en cellules suffit à guider l'œil, la lecture se fait ensuite sur l'image.
+ */
+function boiteLambert(c, g) {
+  if (!g || !c.empriseCellules) return null;
+  const b = c.empriseCellules;
+  return [
+    g.emprise.xmin + b.xmin * g.pas,
+    g.emprise.ymin + b.ymin * g.pas,
+    g.emprise.xmin + (b.xmax + 1) * g.pas,
+    g.emprise.ymin + (b.ymax + 1) * g.pas,
+  ];
+}
+
+/**
+ * Tables de couleurs, 256 entrées, en triplets.
+ *
+ * Quatre familles, chacune choisie pour ce que la couche veut faire voir :
+ * `gris` pour les couches d'éclairement, où l'œil lit le modelé et non la
+ * valeur ; `divergent` pour les couches signées, où le zéro doit se distinguer
+ * du reste ; `chaud` et `froid` pour les couches positives qu'on veut voir
+ * ressortir du fond.
+ */
+/** `#0b0e13` → `[11, 14, 19]`. Évite de dépendre de `gl.js` pour trois octets. */
+function hexVersRVB(hex) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function construireLUT(nom) {
+  const lut = new Uint8Array(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    const u = i / 255;
+    let r, v, b;
+    if (nom === 'divergent') {
+      // Creux en bleu froid, bosses en ocre, zéro en gris moyen.
+      if (u < 0.5) { const k = u * 2; r = 60 + k * 130; v = 90 + k * 100; b = 130 + k * 60; }
+      else { const k = (u - 0.5) * 2; r = 190 + k * 60; v = 190 - k * 20; b = 190 - k * 110; }
+    } else if (nom === 'chaud') {
+      r = 30 + u * 225; v = 30 + u * 150 * (u < 0.7 ? 1 : 0.7); b = 40 * (1 - u);
+    } else if (nom === 'froid') {
+      r = 20 + u * 60; v = 30 + u * 170; b = 45 + u * 210;
+    } else {
+      r = v = b = 12 + u * 236;
+    }
+    lut[i * 3] = Math.max(0, Math.min(255, r));
+    lut[i * 3 + 1] = Math.max(0, Math.min(255, v));
+    lut[i * 3 + 2] = Math.max(0, Math.min(255, b));
+  }
+  return lut;
+}

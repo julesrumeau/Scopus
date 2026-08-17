@@ -45,6 +45,62 @@ test('index.html charge tous les scripts de src/, dans un ordre plausible', () =
   assert.equal(charges[charges.length - 1], 'app.js', 'app.js doit être chargé en dernier');
 });
 
+test('tous les identifiants câblés par app.js existent dans index.html', () => {
+  // `app.js` ne parle au panneau que par `$('id')`. Un identifiant renommé ou
+  // supprimé d'`index.html` ne casse rien à la lecture : `document.getElementById`
+  // rend `null`, et la panne n'apparaît qu'au clic, sous la forme d'un
+  // « Cannot read properties of null » sans rapport visible avec le HTML.
+  const source = readFileSync(fileURLToPath(new URL('app.js', SRC)), 'utf8');
+  const html = readFileSync(fileURLToPath(new URL('index.html', RACINE)), 'utf8');
+  const declares = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+
+  for (const m of source.matchAll(/\$\('([^']+)'\)/g)) {
+    assert.ok(declares.has(m[1]), `app.js lit #${m[1]}, absent d'index.html`);
+  }
+});
+
+test('les scripts cohabitent dans un seul environnement lexical', () => {
+  // Sans modules ES, tous les fichiers de `src/` partagent la portée globale.
+  // Deux `const` ou deux `class` du même nom dans deux fichiers différents, et
+  // le second jette « Identifier already declared » — au chargement de la page,
+  // donc avant que rien ne s'affiche. Les compiler un par un ne le voit pas :
+  // il faut les évaluer ensemble, dans l'ordre où `index.html` les charge.
+  const html = readFileSync(fileURLToPath(new URL('index.html', RACINE)), 'utf8');
+  const charges = [...html.matchAll(/<script src="src\/([^"]+)"><\/script>/g)].map((m) => m[1]);
+
+  const contexte = vm.createContext({
+    performance,
+    self: {},
+    navigator: { hardwareConcurrency: 4 },
+    window: { devicePixelRatio: 1 },
+    document: { getElementById: () => null, createElement: () => ({ style: {} }) },
+    L: { Layer: { extend: (o) => o } },
+    URL, Blob: class {}, Worker: class {},
+    requestAnimationFrame: () => 0, cancelAnimationFrame: () => {},
+  });
+
+  for (const nom of charges) {
+    // `app.js` câble le DOM et s'exécute vraiment : il ne se prête pas à une
+    // évaluation à froid, et il est de toute façon chargé en dernier.
+    if (nom === 'app.js') continue;
+    const source = readFileSync(fileURLToPath(new URL(nom, SRC)), 'utf8');
+    assert.doesNotThrow(() => vm.runInContext(source, contexte, { filename: nom }),
+      `${nom} : évaluation impossible à la suite des précédents`);
+  }
+});
+
+test('l’attribut hidden ne peut pas être annulé par une règle de style', () => {
+  // La feuille du navigateur pose `[hidden] { display: none }`, mais toute règle
+  // d'auteur donnant un `display` au même élément l'emporte — même spécificité,
+  // et l'auteur passe après. L'attribut devient alors sans effet, en silence :
+  // le voile d'attente s'affichait au démarrage, le détail de dalle et les
+  // exports de sentiers ne se cachaient jamais. La parade est globale, et ce
+  // contrôle existe pour qu'on ne la retire pas par mégarde.
+  const css = readFileSync(fileURLToPath(new URL('styles.css', RACINE)), 'utf8');
+  assert.match(css, /\[hidden\]\s*\{[^}]*display:\s*none\s*!important/,
+    'styles.css doit garder `[hidden] { display: none !important; }`');
+});
+
 test('aucun module ES ne s’est glissé dans les sources', () => {
   // Un `import` ou un `type="module"` casserait l'ouverture en file://, qui est
   // la raison d'être de toute l'architecture.

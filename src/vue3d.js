@@ -2,7 +2,7 @@
 // détections.
 
 class Vue3D {
-  constructor(canvas) {
+  constructor(canvas, elementBoussole = null) {
     this.canvas = canvas;
     const gl = canvas.getContext('webgl2', {
       antialias: false,          // inutile sur des points, et coûteux à ces volumes
@@ -35,6 +35,11 @@ class Vue3D {
     // Caméra orbitale. Distance et cible en mètres, angles en radians.
     this.cam = { cible: [0, 0, 0], distance: 300, azimut: -Math.PI / 4, elevation: 0.6 };
     this.focus = null;
+    this._animation = 0;
+
+    this.boussole = elementBoussole
+      ? new Boussole(elementBoussole, (v) => this.orienterVers(v))
+      : null;
 
     this._brancherControles();
     this.actif = false;
@@ -147,9 +152,29 @@ class Vue3D {
     this.nbPoints = 0;
   }
 
+  /**
+   * Décharge le nuage et tout ce qui s'y rapporte.
+   *
+   * Rendre la mémoire n'est pas un détail ici : un nuage d'affichage et ses
+   * grilles pèsent 400 à 520 Mo, retenus tant que l'onglet vit. Sans cette
+   * méthode, la seule façon de les libérer était de recharger la page.
+   */
+  vider() {
+    this._libererNuage();
+    this.nuage = null;
+    this.nbSommetsLignes = 0;
+    this.nbSommetsSel = 0;
+    this.nbSommetsSentiers = 0;
+    this.nbSommetsTraceSel = 0;
+    this.focus = null;
+    this._arreterAnimation();
+    this.invalider();
+  }
+
   /** Recentre la caméra sur l'ensemble du nuage. */
   cadrer() {
     if (!this.nuage) return;
+    this._arreterAnimation();
     const e = this.nuage.emprise;
     const o = this.nuage.origine;
     const cote = Math.max(e.xmax - e.xmin, e.ymax - e.ymin);
@@ -168,6 +193,7 @@ class Vue3D {
   /** Amène la caméra au-dessus d'une détection et la met en avant. */
   viser(candidat, marge = 18) {
     if (!this.nuage) return;
+    this._arreterAnimation();
     const o = this.nuage.origine;
     const lx = candidat.x - o[0];
     const ly = candidat.y - o[1];
@@ -323,6 +349,7 @@ class Vue3D {
   /** Amène la caméra sur un tracé, cadré sur toute sa longueur. */
   viserTrace(trace, grille) {
     if (!this.nuage || !trace?.points?.length) return;
+    this._arreterAnimation();
     const o = this.nuage.origine;
     const xs = trace.points.map((q) => q[0]);
     const ys = trace.points.map((q) => q[1]);
@@ -345,9 +372,14 @@ class Vue3D {
    * Dérivé de la position orbitale, et non extrait de la matrice de vue : c'est
    * la même source pour le rendu et pour les contrôles, donc pas de dérive
    * possible entre ce qu'on voit et ce qu'on manipule.
+   *
+   * `elevation` ne se passe que pour la boussole, qui a besoin du même repère à
+   * une inclinaison bornée (voir `_repereBoussole`). Le repère renvoyé reste
+   * cohérent avec lui-même : c'est celui d'une caméra qui serait là.
    */
-  _repere() {
-    const { cible, distance, azimut: a, elevation: e } = this.cam;
+  _repere(elevation = this.cam.elevation) {
+    const { cible, distance, azimut: a } = this.cam;
+    const e = elevation;
     const ce = Math.cos(e), se = Math.sin(e), ca = Math.cos(a), sa = Math.sin(a);
 
     const oeil = [cible[0] + distance * ce * sa, cible[1] + distance * se, cible[2] + distance * ce * ca];
@@ -411,6 +443,7 @@ class Vue3D {
     let glisse = null;
 
     c.addEventListener('pointerdown', (e) => {
+      this._arreterAnimation();
       c.setPointerCapture(e.pointerId);
       glisse = {
         x: e.clientX, y: e.clientY,
@@ -508,9 +541,86 @@ class Vue3D {
 
   /** Vue verticale, la plus lisible pour balayer une dalle. */
   vueDeDessus() {
-    this.cam.elevation = 1.553;
-    this.cam.azimut = 0;
-    this.invalider();
+    this._animerVers(0, 1.553);
+  }
+
+  // ── Orientation ───────────────────────────────────────────────────────────
+
+  /**
+   * Amène la vue sur une direction du monde — ce que fait un clic sur la
+   * boussole.
+   *
+   * Deux lectures possibles pour un point cardinal, opposées : « se placer au
+   * nord » (le nord finit alors en bas de l'écran) ou « regarder vers le nord »
+   * (il finit en haut). C'est la seconde qui est retenue, parce que le besoin
+   * est de retrouver l'orientation d'une carte — le nord en haut. L'élévation ne
+   * bouge pas : on veut pivoter, pas changer de point de vue.
+   *
+   * L'axe vertical, lui, ne peut se lire que comme un déplacement : on se met
+   * au-dessus ou en dessous, l'azimut restant celui qu'on avait.
+   */
+  orienterVers(v) {
+    if (Math.abs(v[1]) > 0.5) {
+      this._animerVers(this.cam.azimut, v[1] > 0 ? 1.553 : -1.553);
+    } else {
+      // Inversion de `_repere` : l'axe de visée horizontal vaut (−sin a, −cos a).
+      this._animerVers(Math.atan2(-v[0], -v[2]), this.cam.elevation);
+    }
+  }
+
+  /**
+   * Pivote la caméra jusqu'aux angles demandés, en un quart de seconde.
+   *
+   * Le rendu est à la demande — c'est ici la seule chose qui l'anime, et elle
+   * s'arrête d'elle-même. Un saut instantané d'un quart de tour est
+   * désorientant : sans le mouvement, rien ne dit si l'on a tourné à gauche ou à
+   * droite, et il faut relire la scène entière pour s'y retrouver. C'est
+   * précisément ce que la boussole cherche à éviter.
+   */
+  _animerVers(azimut, elevation, duree = 260) {
+    this._arreterAnimation();
+    const a0 = this.cam.azimut;
+    const e0 = this.cam.elevation;
+    // Chemin le plus court : sans ce repli dans [−π, π], passer de 3,0 à −3,0
+    // rad ferait un tour complet pour 16° d'écart réel.
+    const da = Math.atan2(Math.sin(azimut - a0), Math.cos(azimut - a0));
+    const de = elevation - e0;
+    // Déjà orienté ainsi : une quinzaine d'images d'un nuage de plusieurs
+    // millions de points pour ne rien déplacer.
+    if (Math.abs(da) < 1e-4 && Math.abs(de) < 1e-4) return;
+    const t0 = performance.now();
+
+    const pas = () => {
+      const u = Math.min(1, (performance.now() - t0) / duree);
+      const k = u * u * (3 - 2 * u);   // départ et arrivée amortis
+      this.cam.azimut = a0 + da * k;
+      this.cam.elevation = e0 + de * k;
+      this.invalider();
+      this._animation = u < 1 ? requestAnimationFrame(pas) : 0;
+    };
+    pas();
+  }
+
+  /** Rend la main à l'utilisateur : tout geste prime sur l'animation en cours. */
+  _arreterAnimation() {
+    if (this._animation) cancelAnimationFrame(this._animation);
+    this._animation = 0;
+  }
+
+  /**
+   * Repère servant à dessiner la boussole.
+   *
+   * L'inclinaison y est bornée à [17°, 74°] : au ras de l'horizon la rose se
+   * réduit à un trait, où nord et sud se superposent au centre ; à la verticale
+   * c'est l'axe haut/bas qui s'écrase de la même façon. Dans les deux cas les
+   * poignées deviennent illisibles et intouchables, alors que ce sont justement
+   * les vues d'où l'on veut se réorienter. La rose garde donc toujours un peu de
+   * perspective — l'azimut, lui, reste exact, et c'est ce qu'on y lit.
+   */
+  _repereBoussole() {
+    const e = this.cam.elevation;
+    const borne = Math.min(1.30, Math.max(0.30, Math.abs(e)));
+    return this._repere(e < 0 ? -borne : borne);
   }
 
   // ── Rendu ─────────────────────────────────────────────────────────────────
@@ -529,6 +639,11 @@ class Vue3D {
     gl.clearColor(fr, fg, fb, 1);
     gl.enable(gl.DEPTH_TEST);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // Avant le rendu du nuage, et avant tout renoncement : la boussole reste
+    // juste même sur une vue vide, et c'est le seul endroit par où passent tous
+    // les changements d'orientation.
+    this.boussole?.orienter(this._repereBoussole());
 
     if (!this.vao || !this.nbPoints) return;
 

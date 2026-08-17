@@ -36,6 +36,8 @@ class Carte {
     this.coucheSentiers = L.layerGroup().addTo(this.map);
     this.rectDalle = null;
     this.dalleSelectionnee = null;
+    this.rectChargee = null;
+    this.dalleChargee = null;
     this.marqueurs = new Map();
     this.chargementBlocs = null;
 
@@ -101,6 +103,27 @@ class Carte {
     }).addTo(this.map);
 
     this.cb.surDalle?.(dalle);
+  }
+
+  /**
+   * Marque la dalle dont le nuage est en mémoire. `null` efface la marque.
+   *
+   * Deux carrés distincts, et c'est le but : le vert dit ce qui est chargé et
+   * analysé, le jaune ce qu'on vient de désigner. Tant qu'il n'y en avait qu'un,
+   * choisir une autre dalle laissait l'écran montrer la précédente sans que rien
+   * ne dise laquelle des deux on regardait.
+   */
+  marquerChargee(dalle) {
+    if (this.rectChargee) { this.map.removeLayer(this.rectChargee); this.rectChargee = null; }
+    this.dalleChargee = dalle || null;
+    if (!dalle) return;
+
+    this.rectChargee = L.polygon(GRILLE.contourEmprise(dalle.emprise), {
+      color: '#4ade80', weight: 2, fillColor: '#4ade80', fillOpacity: 0.10, interactive: false,
+    }).addTo(this.map);
+    // Sous le carré de sélection : quand les deux coïncident — le cas juste
+    // après un chargement — c'est le liseré jaune qui doit rester lisible.
+    this.rectChargee.bringToBack();
   }
 
   /** Recentre la carte sur un résultat de recherche. */

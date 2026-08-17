@@ -17,6 +17,16 @@
 
 * { box-sizing: border-box; }
 
+/* `hidden` doit l'emporter, toujours.
+   La feuille du navigateur pose `[hidden] { display: none }`, mais une règle
+   d'auteur qui donne un `display` au même élément la surclasse — les deux ont la
+   même spécificité et l'auteur passe après. Un `display: grid` ou `flex` posé
+   sur une classe rend donc l'attribut `hidden` totalement inopérant, sans le
+   moindre avertissement.
+   C'est ce qui affichait le voile d'attente au démarrage, et c'est ce qui
+   laissait voir en permanence le détail de dalle et les exports de sentiers. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   height: 100%;
@@ -79,8 +89,8 @@ html, body {
 .scene { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .vue { flex: 1; min-height: 0; position: relative; }
 #vue-carte { background: #0e1116; }
-#canvas3d { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
-#canvas3d:active { cursor: grabbing; }
+#canvas3d, #canvas-relief { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#canvas3d:active, #canvas-relief:active { cursor: grabbing; }
 
 .onglets {
   display: flex;
@@ -115,24 +125,89 @@ html, body {
   align-items: center;
   gap: 8px;
 }
-.num {
-  display: inline-grid;
-  place-items: center;
-  width: 19px; height: 19px;
+
+/* Le panneau suit la vue : `data-vue` déclare l'onglet où une section a un sens,
+   et le panneau porte l'onglet courant. Une section sans `data-vue` vaut pour
+   les deux. Rien à câbler en JavaScript au-delà de l'attribut. */
+.panneau[data-vue="carte"] [data-vue="3d"],
+.panneau[data-vue="3d"] [data-vue="carte"] { display: none; }
+
+/* Bandeau du nuage chargé. Collant en haut du panneau, qui est le seul
+   conteneur défilant : il reste sous les yeux quelle que soit la position dans
+   la liste des résultats. */
+.bandeau-nuage {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px 9px 14px;
+  background: var(--fond-3);
+  border-bottom: 1px solid var(--bord);
+  font-size: 12px;
+}
+.bandeau-nuage .pastille-etat {
+  width: 8px; height: 8px;
   border-radius: 50%;
-  background: var(--fond-3);
-  border: 1px solid var(--bord);
-  color: var(--accent);
-  font-size: 11px;
+  background: var(--accent-2);
+  flex: none;
 }
-.badge {
-  margin-left: auto;
-  background: var(--fond-3);
-  border-radius: 10px;
-  padding: 1px 9px;
+.bandeau-nuage .nom {
   color: var(--texte);
-  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.bandeau-nuage .info { color: var(--texte-2); margin-left: auto; white-space: nowrap; }
+.bandeau-nuage .fermer {
+  flex: none;
+  background: transparent;
+  border-color: transparent;
+  color: var(--texte-2);
+  padding: 2px 7px;
+  font-size: 13px;
+}
+.bandeau-nuage .fermer:hover { background: var(--fond-2); color: var(--alerte); border-color: var(--bord); }
+
+/* Compteur porté par un onglet de volet — se tait tant qu'il est vide. */
+.pastille {
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 9px;
+  padding: 0 6px;
+  margin-left: 5px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.pastille:empty { display: none; }
+
+/* Seuils repliés. Quinze curseurs dépliés en permanence noyaient les deux
+   boutons qui comptent ; on les ouvre quand on vient les régler. */
+.repli {
+  border: 1px solid var(--bord);
+  border-radius: 6px;
+  background: var(--fond-3);
+  margin-bottom: 10px;
+}
+.repli > summary {
+  cursor: pointer;
+  padding: 7px 11px;
+  font-size: 12px;
+  color: var(--texte-2);
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.repli > summary::-webkit-details-marker { display: none; }
+.repli > summary::after { content: "▾"; font-size: 10px; }
+.repli[open] > summary::after { content: "▴"; }
+.repli > summary:hover { color: var(--texte); }
+.repli[open] > summary { border-bottom: 1px solid var(--bord); }
+.repli > *:not(summary) { padding: 10px 11px 0; }
+.repli > .rangee { padding-bottom: 11px; }
+.repli .secondaire { width: 100%; font-size: 12px; }
 
 .vide { color: var(--texte-2); font-size: 12.5px; line-height: 1.6; }
 
@@ -180,6 +255,9 @@ input[type=range] {
   border-radius: 2px;
   outline: none;
 }
+/* Le curseur reste en place pendant la lecture de l'index, mais inerte : il
+   doit le dire, comme le fait le bouton juste dessous. */
+input[type=range]:disabled { opacity: 0.42; cursor: not-allowed; }
 input[type=range]::-webkit-slider-thumb {
   appearance: none;
   width: 14px; height: 14px;
@@ -207,6 +285,9 @@ input[type=range]::-moz-range-thumb {
   color: var(--texte-2);
 }
 .segments button.actif { background: var(--accent); border-color: var(--accent); color: #06202b; font-weight: 600; }
+/* Cinq couches de relief : la dernière occuperait une demi-ligne, autant lui
+   donner toute la largeur plutôt qu'un trou à côté d'elle. */
+#couches-relief button:last-child:nth-child(odd) { grid-column: 1 / -1; }
 
 .cout {
   background: var(--fond-3);
@@ -315,7 +396,8 @@ input[type=range]::-moz-range-thumb {
 /* Pas de `max-height` ni d'`overflow` ici : un conteneur défilant imbriqué dans
    le panneau piège la molette dès que le curseur le survole, et donne
    l'impression que le panneau ne défile plus. Le panneau est le seul à défiler. */
-.liste { list-style: none; margin: 0; padding: 0; }
+.liste { list-style: none; margin: 11px 0 0; padding: 0; }
+.liste:empty { margin: 0; }
 .liste li {
   border: 1px solid var(--bord);
   border-radius: 7px;
@@ -359,6 +441,77 @@ input[type=range]::-moz-range-thumb {
   pointer-events: none;
   line-height: 1.6;
 }
+
+/* Boussole 3D. Le SVG laisse passer les gestes : seules les poignées répondent,
+   sans quoi son carré volerait au canevas les glissés de son coin. */
+.boussole {
+  position: absolute;
+  right: 12px; top: 12px;
+  width: 92px; height: 92px;
+  pointer-events: none;
+  user-select: none;
+}
+.boussole .fond { fill: rgba(11, 14, 19, 0.72); stroke: var(--bord); stroke-width: 1; }
+.boussole .horizon { fill: none; stroke: var(--bord); stroke-width: 1.3; }
+.boussole .axe-vertical { stroke: var(--bord); stroke-width: 1.3; }
+
+.boussole .poignee { pointer-events: auto; cursor: pointer; }
+.boussole .poignee circle { fill: var(--fond-3); stroke: var(--bord); stroke-width: 1; }
+.boussole .poignee text {
+  fill: var(--texte-2);
+  font-size: 12px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+/* Le nord se repère sans être lu — c'est l'aiguille. */
+.boussole .poignee.nord circle { fill: var(--or); stroke: var(--or); }
+.boussole .poignee.nord text { fill: #06202b; }
+/* De l'autre côté de la sphère : présent, lisible, mais en retrait. */
+.boussole .poignee.loin { opacity: 0.45; }
+.boussole .poignee:hover circle,
+.boussole .poignee:focus-visible circle { stroke: var(--accent); stroke-width: 1.6; }
+.boussole .poignee:not(.nord):hover text { fill: var(--texte); }
+.boussole .poignee:focus { outline: none; }
+
+/* Voile d'attente.
+   La roue n'anime QUE `transform` : c'est ce qui permet au compositeur de la
+   faire tourner sur son propre fil pendant qu'un calcul synchrone bloque le fil
+   principal. Y ajouter une propriété qui demande un recalcul de style ou une
+   mise en page la figerait — une roue arrêtée étant pire que pas de roue. */
+.attente {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  display: grid;
+  place-items: center;
+  background: rgba(11, 14, 19, 0.66);
+  cursor: progress;
+}
+.attente-boite {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 22px 30px;
+  background: var(--fond-2);
+  border: 1px solid var(--bord);
+  border-radius: 10px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+  min-width: 230px;
+}
+.rotor {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 3px solid var(--fond-3);
+  border-top-color: var(--accent);
+  animation: rotor 0.85s linear infinite;
+  will-change: transform;
+}
+@keyframes rotor { to { transform: rotate(360deg); } }
+
+.attente .titre { font-size: 13.5px; color: var(--texte); }
+.attente .detail-attente { font-size: 11.5px; color: var(--texte-2); min-height: 1em; }
+.attente .detail-attente:empty { min-height: 0; }
 
 .alerte {
   position: fixed;

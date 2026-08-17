@@ -243,6 +243,34 @@ Le plan d'intersection est horizontal, à la hauteur de la cible. C'est une
 approximation du relief, largement suffisante à l'échelle où l'on inspecte une
 structure, et qui évite de relire le tampon de profondeur.
 
+### La boussole
+
+Le nuage n'offre aucun repère : ni horizon, ni bâtiment reconnaissable, et une
+dalle est un carré. Après deux rotations, plus rien ne dit où est le nord —
+alors que les détections se lisent ensuite sur une carte, qui elle est au nord.
+
+`boussole.js` dessine donc une rose **projetée** — les cardinaux posés sur le
+cercle d'horizon vu par la caméra du moment — et chaque poignée y ramène la vue.
+Quatre décisions :
+
+- **Le repère vient de `Vue3D._repere()`**, passé en argument. En recalculer un
+  dans la boussole ferait exactement ce que la règle ci-dessus interdit.
+- **En SVG, pas en WebGL** : il y a du texte. Six étiquettes nettes à toute
+  densité de pixels coûteraient un atlas de glyphes et un programme de plus.
+- **Cliquer « N » regarde vers le nord** — le nord finit donc en *haut* de
+  l'écran. L'autre lecture (« se placer au nord », nord en bas) est celle des
+  gizmos de modeleur ; ici le besoin est de retrouver l'orientation d'une carte.
+  Les poignées haut/bas, elles, ne peuvent se lire que comme un déplacement.
+- **L'inclinaison de dessin est bornée à [17°, 74°]**, l'azimut jamais. Au ras de
+  l'horizon la rose s'aplatit en un trait où nord et sud se superposent au
+  centre ; à la verticale c'est l'axe haut/bas qui s'écrase pareillement. Dans
+  les deux cas les poignées deviennent illisibles et intouchables — précisément
+  dans les vues d'où l'on veut se réorienter.
+
+Les conventions de signe sont vérifiées à froid (`tools/boussole.test.js`) :
+elles ne cassent rien quand elles sont fausses, elles mettent juste le nord au
+mauvais endroit, et ça ne se verrait qu'à l'export.
+
 ## Rendu à la demande
 
 La boucle 3D **ne tourne pas en continu**. `invalider()` planifie une image, et
@@ -266,9 +294,63 @@ Conséquence à retenir : **toute nouvelle méthode qui change ce qui est affich
 doit appeler `invalider()`**, sans quoi son effet n'apparaîtra qu'au prochain
 mouvement de souris.
 
+Une seule exception, bornée : `_animerVers()` enchaîne des images pendant 260 ms
+pour pivoter vers une orientation demandée (boussole, vue de dessus), puis
+s'arrête. Un saut instantané d'un quart de tour désoriente — sans le mouvement,
+rien ne dit de quel côté on a tourné, et il faut relire la scène entière. Tout
+geste de l'utilisateur interrompt l'animation (`_arreterAnimation`).
+
 Corollaire côté interface : un seul conteneur défilant. La liste de résultats
 avait le sien (`max-height` + `overflow`), ce qui piégeait la molette dès que le
 curseur la survolait.
+
+## Le panneau suit la vue
+
+Une section porte `data-vue="carte"` ou `data-vue="3d"` pour déclarer l'onglet où
+elle a un sens ; le panneau porte l'onglet courant, et la feuille de style masque
+le reste. **Rien à câbler en JavaScript au-delà de l'attribut** — `basculerVue()`
+écrit `panneau.dataset.vue`, c'est tout. Une section sans `data-vue` vaut pour
+les deux, ce qui est le cas de l'analyse : on lance une détection depuis la carte
+comme depuis la 3D, et la liste sert aux deux.
+
+Ce qui a été corrigé : cinq sections numérotées empilées en permanence, dont deux
+sans objet dans la vue affichée — choisir une dalle pendant qu'on inspecte un
+nuage, régler la taille des points devant une carte. Et surtout, les deux chaînes
+de détection étaient éclatées sur quatre sections, réglages en haut, résultats en
+bas ; elles vivent maintenant dans une section unique à deux volets, où chacune
+garde ses seuils, son bouton, ses statistiques et sa liste au même endroit.
+
+### Sélectionnée n'est pas chargée
+
+Deux dalles coexistent, et les confondre était une source de bugs silencieux :
+`etat.dalle` est celle qu'on vient de désigner sur la carte, `etat.dalleChargee`
+celle dont le nuage et les grilles sont en mémoire. Après un clic sur une dalle
+voisine, elles diffèrent — et le rapprochement BD TOPO comme les noms de fichiers
+exportés désignaient alors une emprise qu'on n'avait jamais analysée.
+
+Le choix de comportement : **charger une dalle ne détruit rien tant qu'on ne l'a
+pas demandé**. Un clic de curiosité sur la carte ne doit pas faire perdre une
+détection qui a coûté trente secondes de téléchargement. En échange, chaque état
+est nommé — carré vert pour la chargée, jaune pour la sélection, bandeau collant
+en haut du panneau, et le bouton qui dit « Remplacer le nuage » au lieu de
+« Charger le nuage ».
+
+`fermerNuage()` rend l'état vide, qui n'existait pas autrement qu'en rechargeant
+la page. Ce n'est pas qu'un confort : nuage d'affichage et grilles pèsent 400 à
+520 Mo, retenus pendant tout le temps passé à explorer la carte ensuite.
+
+Corollaire : **les grilles d'une dalle en cours de chargement restent locales
+jusqu'au succès**. Publiées dans `etat` dès leur allocation, une annulation à
+mi-parcours laissait une grille à moitié remplie de la nouvelle dalle pendant que
+la 3D montrait toujours l'ancienne, et la détection lisait ce mélange sans que
+rien ne le signale.
+
+### Réglages repliés
+
+Les quinze curseurs de seuils sont repliés dans un `<details>`. Dépliés en
+permanence, ils noyaient les deux boutons qui font le travail. La numérotation
+des étapes a disparu avec tout ça : elle ne pouvait plus être juste dès lors que
+les sections apparaissent et disparaissent.
 
 ## Filtrage des classes
 
@@ -333,6 +415,87 @@ croisements. Le recollement reste à faire.
 
 ---
 
+## Lecture du relief
+
+Un nuage de points est le mauvais instrument pour repérer un objet de six mètres
+dans un kilomètre carré : on y voit l'ensemble et jamais le détail. C'est pour
+cette raison que la prospection lit des rasters ombrés depuis toujours.
+`relief.js` calcule ces images, `vue-relief.js` les affiche dans un onglet
+dédié — canevas 2D, nord en haut, **une cellule pour un pixel en Lambert-93**,
+donc aucune reprojection et aucun rééchantillonnage. Les détections et les
+tracés s'y superposent gratuitement, eux aussi étant en Lambert-93.
+
+**Rien n'est repris de `sentiers.js`**, pas même son flou. Cette chaîne ne
+remonte aujourd'hui aucun tracé ; tant qu'on ignore pourquoi, aucune de ses
+pièces ne peut servir de fondation — un lissage faux produirait un micro-relief
+faux, d'apparence parfaitement plausible. Les algorithmes sont ceux de la
+littérature : gradient de Horn (1981) pour l'ombrage, LRM de Hesse (2010),
+Sky-View Factor de Zakšek, Oštir & Kokalj (2011).
+
+Et ils sont **vérifiés contre des surfaces à réponse connue**, parce qu'une
+erreur y est invisible à l'œil — un ombrage faux reste une jolie image de
+terrain :
+
+| Surface | Réponse attendue |
+|---|---|
+| plan à 20°, soleil à l'est à 45° | ombrage = sin(20° + 45°), à 10⁻⁵ près |
+| plan quelconque | micro-relief **nul partout** — le test qui attrape un flou faux |
+| plan horizontal | SVF = 1 exactement |
+| plan à 20°, 4 directions | SVF = 1 − sin(20°)/4, à 10⁻⁵ près |
+
+**Deux familles de couches, parce que le classificateur IGN décide du sort d'un
+tas de pierres.** Classé 1 ou 6, il est retiré du MNT et le comblement met une
+surface lisse à sa place : invisible au micro-relief, visible en « hauteur des
+structures ». Classé 2, il *est* le terrain : invisible en hauteur, visible au
+micro-relief. Prises ensemble, les deux couvrent les deux cas — et c'est
+probablement là que se trouvent les ruines que la détection manque.
+
+La grille d'affichage est à **50 cm**, sous-échantillonnée depuis celle de
+détection. À 25 cm une cellule ne reçoit que 0,6 point et le MNT y est surtout du
+bruit ; à 50 cm elle en reçoit deux ou trois, un mur de 50 cm occupe toujours une
+cellule pleine, et le calcul est seize fois plus léger — ce qui décide de la
+faisabilité du Sky-View Factor, seul calcul coûteux du lot et donc calculé à la
+demande, avec sa durée affichée.
+
+## Voile d'attente : pourquoi la roue tourne
+
+Les traitements lourds sont **synchrones**. Tant qu'ils tournent, le navigateur
+ne répond plus — ni au défilement, ni aux clics. Sans rien à l'écran, l'onglet
+paraît planté.
+
+Le piège est qu'un indicateur d'attente ordinaire ne marcherait pas : rien n'est
+peint tant que la pile JavaScript n'est pas vide, donc une roue lancée juste
+avant le calcul resterait figée, ce qui est **pire que pas de roue du tout**.
+
+Ce qui sauve la mise : une animation CSS qui ne touche que `transform` est
+portée par le **compositeur**, un fil distinct de celui du JavaScript. Elle
+continue de tourner pendant le blocage — à condition d'avoir démarré avant.
+D'où `ATTENTE.respirer()`, deux images laissées passer pour que le voile soit
+peint et l'animation lancée, et seulement ensuite le calcul.
+
+**Ne jamais animer autre chose que `transform` ou `opacity` dans ce voile.**
+Toute propriété qui demande un recalcul de style ou une mise en page repasserait
+par le fil principal et figerait la roue.
+
+Le libellé se met à jour entre deux tranches par `await etape('…')`, qui rend la
+main au navigateur le temps de l'afficher. Changer le texte sans attendre ne
+produirait rien.
+
+Ce qui est enveloppé, relevé dans le code :
+
+| Traitement | Pourquoi c'est long |
+|---|---|
+| `RASTER.finaliser` | 12 passes de comblement sur 16 M de cellules, puis la pente |
+| `DETECTION.detecter` | morphologie et étiquetage sur 16 M de cellules |
+| `SENTIERS.detecterSentiers` | 3,8 s mesurés sur une dalle |
+| `RELIEF.svf` | 8 directions × 20 pas sur 4 M de cellules |
+| `RELIEF.preparer` | une passe sur 16 M de cellules |
+| `Vue3D.definirNuage` | 4,4 M points entrelacés puis téléversés |
+
+Les couches de relief rapides — ombrage, micro-relief — n'y passent **pas** : sur
+un calcul de cent millisecondes, voir le voile apparaître et disparaître est plus
+désagréable que l'attente.
+
 ## Pièges connus
 
 - **Le tas WASM détache ses vues quand il grandit.** laz-perf alloue ses tampons
@@ -387,6 +550,15 @@ croisements. Le recollement reste à faire.
 - **Un canevas masqué mesure 0 × 0.** Tout calcul de rayon y produit un aspect
   `0/0`, et la cible de la caméra part en NaN — définitivement, plus rien ne la
   ramène. `_pointSousCurseur` rend `null` dans ce cas.
+- **Une règle `display` d'auteur annule l'attribut `hidden`.** La feuille du
+  navigateur pose `[hidden] { display: none }` ; une règle d'auteur de même
+  spécificité — `.attente { display: grid }`, `.rangee { display: flex }` — passe
+  après et l'emporte. L'attribut devient alors sans effet, **sans aucun
+  avertissement** : l'élément reste visible et le JavaScript qui bascule
+  `.hidden` ne fait plus rien. Le voile d'attente s'affichait au démarrage, le
+  détail de dalle et les exports de sentiers ne se cachaient jamais. D'où
+  `[hidden] { display: none !important; }` en tête de `styles.css` — à ne pas
+  retirer, et à préférer au réflexe d'ajouter `.xxx[hidden]` au cas par cas.
 - **`gl.uniform*(null, …)` est un no-op silencieux.** Un uniform non utilisé est
   éliminé à la compilation et `prog.u.u_xxx` vaut `null`. Un paramètre qui « ne
   fait rien » vient souvent de là.
@@ -470,7 +642,9 @@ publiés par le WFS de l'IGN, référence externe et non aller-retour avec soi-m
 
 S'y ajoutent des contrôles mécaniques sur les sources, nés de fautes réellement
 commises : syntaxe de chaque fichier de `src/`, correspondance avec les balises
-de `index.html`, absence d'`import`, et surtout **absence de backtick dans les
+de `index.html` — scripts chargés, et **identifiants lus par `app.js`**, dont
+l'absence ne se voit qu'au clic sous la forme d'un « null » sans rapport —,
+absence d'`import`, et surtout **absence de backtick dans les
 commentaires GLSL** — le piège documenté plus haut s'est reproduit deux fois, et
 se manifeste par un « SHADERS is not defined » à l'autre bout de l'application.
 
@@ -500,5 +674,29 @@ est disponible.
 | 2. Parsing LAZ, rendu par points, colorisation | ✅ |
 | 3. Pipeline de détection, cas falaise | ✅ — seuils à affiner sur cas réels |
 | 4. Lambert-93 → WGS84, liens, dédup BD TOPO, exports | ✅ |
-| Détection de sentiers | ❌ hors périmètre v1 |
+| Détection de sentiers | 🚧 chaîne complète, non validée sur chemin réel |
 | Contrôle positif sur ruine effondrée | ❌ en attente de coordonnées |
+
+## Jalon de publication
+
+Publier **n'est pas la récompense d'un outil fini** : c'est la prochaine étape de
+validation. Le seul manque sérieux du projet — aucune ruine effondrée connue n'a
+servi de contrôle positif — ne se comble pas en développant. Il se comble quand
+quelqu'un répond « j'ai un orri à telle coordonnée, essaie ». Tant que
+l'application n'est pas en ligne, ce message ne peut pas arriver, et les seuils
+restent réglés sur du synthétique.
+
+Trois choses, et rien d'autre, avant de poster :
+
+| Condition | Pourquoi elle est bloquante |
+|---|---|
+| **Ouvrir sur un exemple, et un lien partageable** | Sans elle, un visiteur voit une carte de France et ne sait pas où cliquer. Tout le reste de l'outil devient inatteignable. |
+| **Dire ce que l'outil ne sait pas faire** | Détermine la *qualité* des retours. Qui comprend que ce sont des règles réglables, et que le cas « ruine » n'est pas validé, propose des coordonnées. Qui croit à une IA répond « ça marche pas ». |
+| **Passage de robustesse + captures dans le README** | Un inconnu emprunte les chemins qu'on n'emprunte jamais : réseau qui lâche, 429 en rafale, zone sans LiDAR, téléphone. |
+
+Tout le reste — relief affiché, SVF, vignettes, export PNG, rideau ortho, carnet
+de prospection — vient **après**, et dans l'ordre que les retours dicteront. La
+liste des envies est infinie ; celle des conditions de publication ne doit pas
+l'être. Si une idée paraît indispensable avant la mise en ligne, la question à se
+poser est : *est-ce qu'elle empêche quelqu'un de comprendre ce que fait l'outil ?*
+Si non, elle attend.

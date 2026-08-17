@@ -18,11 +18,34 @@
 
 <main class="grille">
 
-  <aside class="panneau" id="panneau">
+  <!--
+    Le panneau change avec la vue.
 
-    <!-- ─── 1. Dalle ─────────────────────────────────────────────────────── -->
-    <section class="etape" data-etape="1">
-      <h2><span class="num">1</span> Dalle</h2>
+    `data-vue` sur une section dit dans quel onglet elle a un sens ; le panneau
+    porte l'onglet courant et la feuille de style masque le reste. Choisir une
+    dalle n'a rien à faire pendant qu'on inspecte un nuage, et régler la taille
+    des points n'a aucun sens devant une carte : tout afficher en permanence
+    obligeait à lire cinq sections pour en trouver une.
+
+    L'analyse, elle, vaut dans les deux vues — on lance une détection depuis la
+    carte comme depuis la 3D, et la liste sert aux deux.
+  -->
+  <aside class="panneau" id="panneau" data-vue="carte">
+
+    <!-- Nuage en mémoire. Épinglé au-dessus des sections, donc visible dans les
+         deux onglets : c'est le seul endroit qui dise ce qui est chargé, par
+         opposition à ce qui est simplement sélectionné sur la carte. -->
+    <div id="bandeau-nuage" class="bandeau-nuage" hidden>
+      <span class="pastille-etat"></span>
+      <span id="bandeau-nom" class="nom"></span>
+      <span id="bandeau-info" class="info"></span>
+      <button id="btn-fermer-nuage" class="fermer"
+              title="Fermer le nuage et libérer la mémoire">✕</button>
+    </div>
+
+    <!-- ─── Carte : choisir et charger une dalle ─────────────────────────── -->
+    <section class="etape" data-vue="carte">
+      <h2>Dalle</h2>
       <div class="recherche">
         <input type="search" id="recherche" placeholder="Commune, lieu-dit, ou 42.74, 1.68"
                autocomplete="off" spellcheck="false">
@@ -33,29 +56,35 @@
         toute la France couverte, pas seulement l'Ariège.<br>
         Cliquez dedans pour choisir une dalle.</div>
       <dl id="detail-dalle" class="detail" hidden></dl>
-      <button id="btn-ouvrir" class="primaire" disabled>Ouvrir la dalle</button>
-    </section>
 
-    <!-- ─── 2. Résolution ────────────────────────────────────────────────── -->
-    <section class="etape" data-etape="2" id="section-zone" hidden>
-      <h2><span class="num">2</span> Résolution</h2>
-      <p class="note">La dalle est analysée <b>en entier</b> — 1 km². Ce curseur
-        fixe la finesse du nuage téléchargé.</p>
-      <label class="champ">
-        <span>Résolution <b id="val-niveau">—</b></span>
-        <input type="range" id="niveau" min="0" max="5" step="1" value="0">
-      </label>
-      <div id="cout" class="cout">—</div>
-      <div class="rangee">
-        <button id="btn-charger" class="primaire">Charger le nuage</button>
-        <button id="btn-annuler" class="secondaire" hidden>Annuler</button>
+      <!-- Résolution et chargement : révélés d'un bloc dès qu'une dalle est
+           choisie, l'index COPC étant lu sans qu'on ait à le demander. -->
+      <div id="bloc-resolution" hidden>
+        <p class="note">La dalle est analysée <b>en entier</b> — 1 km². Ce curseur
+          fixe la finesse du nuage téléchargé.</p>
+        <label class="champ">
+          <span>Résolution <b id="val-niveau">—</b></span>
+          <input type="range" id="niveau" min="0" max="5" step="1" value="0" disabled>
+        </label>
+        <div id="cout" class="cout">—</div>
+        <div class="rangee">
+          <button id="btn-charger" class="primaire" disabled>Charger le nuage</button>
+          <button id="btn-annuler" class="secondaire" hidden>Annuler</button>
+        </div>
+        <div id="progression" class="progression" hidden><div id="barre-progression"></div></div>
       </div>
-      <div id="progression" class="progression" hidden><div id="barre-progression"></div></div>
     </section>
 
-    <!-- ─── 3. Affichage ─────────────────────────────────────────────────── -->
-    <section class="etape" data-etape="3" id="section-affichage" hidden>
-      <h2><span class="num">3</span> Affichage</h2>
+    <!-- ─── 3D : tant que rien n'est chargé ──────────────────────────────── -->
+    <section class="etape" data-vue="3d" id="section-vide-3d">
+      <h2>Nuage</h2>
+      <p class="vide">Aucun nuage chargé. Passez à l'onglet <b>Carte</b> pour choisir
+        une dalle, puis revenez ici.</p>
+    </section>
+
+    <!-- ─── 3D : rendu du nuage ──────────────────────────────────────────── -->
+    <section class="etape" data-vue="3d" id="section-affichage" hidden>
+      <h2>Affichage</h2>
       <div class="segments" id="coloration">
         <button data-mode="classification" class="actif">Classification</button>
         <button data-mode="hauteur">Hauteur/sol</button>
@@ -77,54 +106,99 @@
       <div id="legende" class="legende"></div>
     </section>
 
-    <!-- ─── 4. Détection ─────────────────────────────────────────────────── -->
-    <section class="etape" data-etape="4" id="section-detection" hidden>
-      <h2><span class="num">4</span> Détection</h2>
-      <label class="case">
-        <input type="checkbox" id="inclure-bati" checked>
-        <span>Inclure la classe « bâtiment » dans le signal</span>
-      </label>
-      <div class="reglages" id="reglages"></div>
-      <div class="rangee">
+    <!-- ─── Les deux vues : analyse et résultats ─────────────────────────
+         Une seule section, un seul commutateur : chaque chaîne garde ses seuils,
+         son bouton, ses statistiques et sa liste au même endroit. Les avoir
+         réparties sur quatre sections obligeait à faire l'aller-retour entre les
+         réglages d'en haut et les résultats d'en bas. -->
+    <section class="etape" id="section-analyse" hidden>
+      <h2>Analyse</h2>
+      <div class="segments" id="volets">
+        <button data-volet="structures" class="actif">Structures <span id="compte" class="pastille"></span></button>
+        <button data-volet="sentiers">Sentiers <span id="compte-sentiers" class="pastille"></span></button>
+      </div>
+
+      <!-- Structures -->
+      <div class="volet" data-volet="structures">
+        <p class="note">Ruines et cabanes en pierre sèche : des masses posées sur un
+          sol par ailleurs régulier, opaques au laser.</p>
+        <label class="case">
+          <input type="checkbox" id="inclure-bati" checked>
+          <span>Inclure la classe « bâtiment » dans le signal</span>
+        </label>
+        <details class="repli">
+          <summary>Seuils de détection</summary>
+          <div class="reglages" id="reglages"></div>
+          <div class="rangee">
+            <button id="btn-defauts" class="secondaire" title="Revenir aux seuils par défaut">↺ Seuils par défaut</button>
+          </div>
+        </details>
         <button id="btn-detecter" class="primaire">Lancer la détection</button>
-        <button id="btn-defauts" class="secondaire" title="Revenir aux seuils par défaut">↺</button>
-      </div>
-      <div id="stats-detection" class="stats" hidden></div>
-    </section>
+        <div id="stats-detection" class="stats" hidden></div>
 
-    <!-- ─── 4 bis. Sentiers ──────────────────────────────────────────────── -->
-    <section class="etape" data-etape="4b" id="section-sentiers" hidden>
-      <h2><span class="num">4</span>ᵇ Sentiers <span id="compte-sentiers" class="badge"></span></h2>
-      <p class="note">Chemins creux et tracés abandonnés. Chaîne distincte de
-        celle des ruines : on cherche des <b>lignes</b>, sur le relief seul.</p>
-      <div class="reglages" id="reglages-sentiers"></div>
-      <div class="rangee">
+        <div id="bloc-resultats" hidden>
+          <label class="case">
+            <input type="checkbox" id="masquer-repertories" checked>
+            <span>Masquer les bâtiments déjà cartographiés</span>
+          </label>
+          <p class="note">Comparé au <b>bâti de la BD TOPO</b>, interrogé en direct comme
+            les dalles. Rien n'est stocké ici : décocher réaffiche les détections
+            écartées.</p>
+          <ol id="liste" class="liste"></ol>
+          <div class="rangee exports">
+            <button id="exp-gpx" class="secondaire">GPX</button>
+            <button id="exp-geojson" class="secondaire">GeoJSON</button>
+            <button id="exp-csv" class="secondaire">CSV</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sentiers -->
+      <div class="volet" data-volet="sentiers" hidden>
+        <p class="note">Chemins creux et tracés abandonnés. Chaîne distincte de celle
+          des ruines : on cherche des <b>lignes</b>, sur le relief seul.</p>
+        <details class="repli">
+          <summary>Seuils des sentiers</summary>
+          <div class="reglages" id="reglages-sentiers"></div>
+          <div class="rangee">
+            <button id="btn-defauts-sentiers" class="secondaire" title="Revenir aux seuils par défaut">↺ Seuils par défaut</button>
+          </div>
+        </details>
         <button id="btn-sentiers" class="primaire">Chercher des sentiers</button>
-        <button id="btn-defauts-sentiers" class="secondaire" title="Seuils par défaut">↺</button>
-      </div>
-      <div id="stats-sentiers" class="stats" hidden></div>
-      <ol id="liste-sentiers" class="liste"></ol>
-      <div class="rangee exports" id="exports-sentiers" hidden>
-        <button id="exp-sent-gpx" class="secondaire">GPX (traces)</button>
-        <button id="exp-sent-geojson" class="secondaire">GeoJSON</button>
+        <div id="stats-sentiers" class="stats" hidden></div>
+        <ol id="liste-sentiers" class="liste"></ol>
+        <div class="rangee exports" id="exports-sentiers" hidden>
+          <button id="exp-sent-gpx" class="secondaire">GPX (traces)</button>
+          <button id="exp-sent-geojson" class="secondaire">GeoJSON</button>
+        </div>
       </div>
     </section>
 
-    <!-- ─── 5. Résultats ─────────────────────────────────────────────────── -->
-    <section class="etape" data-etape="5" id="section-resultats" hidden>
-      <h2><span class="num">5</span> Résultats <span id="compte" class="badge"></span></h2>
-      <label class="case">
-        <input type="checkbox" id="masquer-repertories" checked>
-        <span>Masquer les bâtiments déjà cartographiés</span>
-      </label>
-      <p class="note">Comparé au <b>bâti de la BD TOPO</b>, la carte de référence
-        de l'IGN, interrogée en direct comme les dalles. Rien n'est stocké ici :
-        décocher réaffiche les détections écartées.</p>
-      <ol id="liste" class="liste"></ol>
-      <div class="rangee exports">
-        <button id="exp-gpx" class="secondaire">GPX</button>
-        <button id="exp-geojson" class="secondaire">GeoJSON</button>
-        <button id="exp-csv" class="secondaire">CSV</button>
+    <!-- ─── Relief : lecture 2D de la dalle ──────────────────────────────── -->
+    <section class="etape" data-vue="relief" id="section-relief">
+      <h2>Relief</h2>
+      <p class="vide" id="relief-vide">Aucun nuage chargé. Passez à l'onglet
+        <b>Carte</b> pour choisir une dalle, puis revenez ici.</p>
+
+      <div id="relief-controles" hidden>
+        <div class="segments" id="couches-relief"></div>
+        <p class="note" id="relief-aide"></p>
+        <label class="champ">
+          <span>Contraste <b id="val-contraste">×1.0</b></span>
+          <input type="range" id="contraste-relief" min="0.4" max="5" step="0.1" value="1">
+        </label>
+        <div id="relief-stats" class="stats" hidden></div>
+        <label class="case">
+          <input type="checkbox" id="relief-detections" checked>
+          <span>Superposer les détections</span>
+        </label>
+        <label class="case">
+          <input type="checkbox" id="relief-sentiers" checked>
+          <span>Superposer les sentiers</span>
+        </label>
+        <div class="rangee">
+          <button id="btn-relief-cadrer" class="secondaire">Tout cadrer</button>
+        </div>
       </div>
     </section>
 
@@ -139,18 +213,38 @@
     <nav class="onglets">
       <button id="onglet-carte" class="actif">Carte</button>
       <button id="onglet-3d">Nuage 3D</button>
+      <button id="onglet-relief">Relief</button>
       <span class="aide" id="aide-vue">Cliquez dans une zone bleue pour choisir une dalle</span>
     </nav>
     <div id="vue-carte" class="vue"></div>
     <div id="vue-3d" class="vue" hidden>
       <canvas id="canvas3d"></canvas>
+      <!-- Rose des vents projetée : son contenu est dessiné par boussole.js,
+           qui la reconstruit à chaque image depuis le repère de la caméra. -->
+      <svg id="boussole" class="boussole" viewBox="-50 -50 100 100"
+           aria-label="Orientation de la vue"></svg>
       <div id="hud" class="hud"></div>
+    </div>
+    <div id="vue-relief" class="vue" hidden>
+      <canvas id="canvas-relief"></canvas>
+      <div id="hud-relief" class="hud"></div>
     </div>
   </section>
 
 </main>
 
 <div id="alerte" class="alerte" hidden></div>
+
+<!-- Voile d'attente. La roue n'anime que `transform`, donc le compositeur la
+     fait tourner même pendant qu'un calcul bloque le fil principal — voir
+     l'en-tête de src/attente.js. -->
+<div id="attente" class="attente" hidden>
+  <div class="attente-boite">
+    <div class="rotor"></div>
+    <div id="attente-titre" class="titre">Calcul en cours…</div>
+    <div id="attente-detail" class="detail-attente"></div>
+  </div>
+</div>
 
 <!--
   Scripts classiques, chargés dans l'ordre, chacun exposant un global.
@@ -166,6 +260,7 @@
 <script src="vendor/lazperf/lazperf-embarque.js"></script>
 
 <script src="src/config.js"></script>
+<script src="src/attente.js"></script>
 <script src="src/proj.js"></script>
 <script src="src/reseau.js"></script>
 <script src="src/ign.js"></script>
@@ -175,11 +270,14 @@
 <script src="src/nuage.js"></script>
 <script src="src/raster.js"></script>
 <script src="src/detection.js"></script>
+<script src="src/relief.js"></script>
 <script src="src/sentiers.js"></script>
 <script src="src/sortie.js"></script>
 <script src="src/gl.js"></script>
 <script src="src/shaders.js"></script>
+<script src="src/boussole.js"></script>
 <script src="src/vue3d.js"></script>
+<script src="src/vue-relief.js"></script>
 <script src="src/carte.js"></script>
 <script src="src/app.js"></script>
 </body>
