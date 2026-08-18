@@ -1,12 +1,21 @@
 # Scopus
 
-Exploration du **LiDAR HD de l'IGN** et détection de structures hors carte :
+Exploration du **LiDAR HD de l'IGN** pour chercher des structures hors carte :
 ruines, cabanes en pierre sèche et orris non répertoriés. Conçu pour l'Ariège et
 les Pyrénées, utilisable **partout où l'IGN a volé** — soit la quasi-totalité de
 la France.
 
 **Ouvrir `index.html` — c'est tout.** Pas de serveur, pas d'installation, pas de
 commande, pas de base, pas de compte. Les données ne quittent jamais l'onglet.
+
+> **La détection automatique est masquée dans l'interface.** L'outil sert
+> aujourd'hui à *lire* le relief — ombrage, micro-relief, Sky-View Factor,
+> ouverture — où un mur ruiné ou un chemin creux se voient à l'œil en une
+> seconde, comme le fait la prospection LiDAR depuis toujours. Les deux chaînes
+> de détection décrites plus bas existent et sont testées, mais aucune n'a jamais
+> été confrontée à une structure réelle connue : plutôt que de livrer une
+> fonction qui promet et rend zéro, elle attend un contrôle positif. Voir
+> `CLAUDE.md`, « La détection automatique est masquée ».
 
 ---
 

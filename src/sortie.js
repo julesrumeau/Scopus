@@ -108,6 +108,16 @@ function versGeoJSON(candidats, meta = {}) {
         pente_moy_deg: +c.penteMoy.toFixed(1), pente_max_deg: +c.penteMax.toFixed(1),
         part_non_classe: +c.partNonClasse.toFixed(3),
         part_trou_sol: +c.partTrouSol.toFixed(3),
+        // Quelle voie a trouvé ce candidat, et ses mesures propres si c'est
+        // celle par la forme. Sans cette trace, deux détections de nature très
+        // différente — un signal de classement, une ligne fermée du relief —
+        // seraient impossibles à distinguer dans un fichier exporté.
+        voie: c.voie || 'classement',
+        ...(c.fermeture === undefined ? {} : {
+          mur_ferme: +c.fermeture.toFixed(2),
+          interieur_ferme_deg: +(90 - c.interieur).toFixed(1),
+          hauteur_mur_m: +c.hauteurMur.toFixed(2),
+        }),
         deja_repertorie: c.dejaRepertorie,
         batiment_proche: c.batimentProche,
         distance_bati_m: c.distanceBati == null ? null : +c.distanceBati.toFixed(1),

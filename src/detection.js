@@ -89,35 +89,12 @@ function detecter(g, reglages = {}) {
     if (rectangularite < p.rectangulariteMin) { motifs.forme++; continue; }
     if (elongation > p.elongationMax) { motifs.elongation++; continue; }
 
-    const centre = RASTER.centreCellule(g, mes.cx, mes.cy);
-    const gps = PROJ.versWGS84(centre.x, centre.y);
-
-    candidats.push({
-      id: candidats.length + 1,
-      x: centre.x, y: centre.y,
-      lon: gps.lon, lat: gps.lat,
-      altitude: mes.altitudeSol,
-      surface,
-      longueur: rect.longueur,
-      largeur: rect.largeur,
-      azimut: rect.azimut,
-      rectangularite,
-      elongation,
-      hauteurMoy: mes.hauteurMoy,
-      hauteurMax: mes.hauteurMax,
-      ecartTypeHauteur: mes.ecartTypeHauteur,
-      penteMoy: mes.penteMoy,
-      penteMax: mes.penteMax,
-      partNonClasse: mes.partNonClasse,
-      partTrouSol: mes.partTrouSol,
-      cellules: tache.cellules,
-      empriseCellules: tache.bbox,
-      score: 0,
-      dejaRepertorie: false,
-      batimentProche: null,
-    });
+    candidats.push(construire(tache, g, mes, rect, surface, rectangularite, elongation));
   }
 
+  // L'identifiant suit l'ordre de découverte, le rang l'ordre de score : le
+  // premier sert à retrouver un candidat après un tri, le second à l'annoncer.
+  candidats.forEach((c, i) => { c.id = i + 1; });
   for (const c of candidats) c.score = noter(c, p);
   candidats.sort((a, b) => b.score - a.score);
   candidats.forEach((c, i) => { c.rang = i + 1; });
@@ -135,6 +112,68 @@ function detecter(g, reglages = {}) {
       pas,
     },
   };
+}
+
+/** Assemble le candidat, seul objet que le reste de l'application connaisse. */
+function construire(tache, g, mes, rect, surface, rectangularite, elongation) {
+  const centre = RASTER.centreCellule(g, mes.cx, mes.cy);
+  const gps = PROJ.versWGS84(centre.x, centre.y);
+  return {
+    id: 0,
+    x: centre.x, y: centre.y,
+    lon: gps.lon, lat: gps.lat,
+    altitude: mes.altitudeSol,
+    surface,
+    longueur: rect.longueur,
+    largeur: rect.largeur,
+    azimut: rect.azimut,
+    rectangularite,
+    elongation,
+    hauteurMoy: mes.hauteurMoy,
+    hauteurMax: mes.hauteurMax,
+    ecartTypeHauteur: mes.ecartTypeHauteur,
+    penteMoy: mes.penteMoy,
+    penteMax: mes.penteMax,
+    partNonClasse: mes.partNonClasse,
+    partTrouSol: mes.partTrouSol,
+    cellules: tache.cellules,
+    empriseCellules: tache.bbox,
+    voie: 'classement',
+    score: 0,
+    dejaRepertorie: false,
+    batimentProche: null,
+  };
+}
+
+/**
+ * Mesure un ensemble de cellules **sans le filtrer**, et rend un candidat.
+ *
+ * C'est le point d'entrée de la voie par la forme : `lignes.js` désigne une
+ * emprise que la voie par classement n'aurait jamais vue — une ruine que l'IGN
+ * a rangée en « sol » ne produit aucun signal — mais tout ce qui vient après,
+ * de la fiche de résultat aux exports en passant par le rapprochement BD TOPO,
+ * attend le même objet. On mesure donc les deux voies avec le même instrument,
+ * quitte à ce que certaines mesures soient nulles : une structure classée sol a
+ * bien une hauteur de signal de zéro, et c'est une information, pas un défaut.
+ *
+ * Aucun filtre n'est appliqué : celui qui appelle a déjà décidé de retenir ces
+ * cellules, avec ses propres critères.
+ */
+function qualifier(cellules, g, sig) {
+  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+  for (const c of cellules) {
+    const x = c % g.W, y = (c / g.W) | 0;
+    if (x < xmin) xmin = x; if (x > xmax) xmax = x;
+    if (y < ymin) ymin = y; if (y > ymax) ymax = y;
+  }
+  const tache = { cellules, bbox: { xmin, xmax, ymin, ymax } };
+  const surfaceCellule = g.pas * g.pas;
+  const mes = mesurer(tache, g, sig, surfaceCellule);
+  const rect = rectangleMinimal(contour(tache, g));
+  const surface = cellules.length * surfaceCellule;
+  const rectangularite = rect.surface > 0 ? Math.min(1, surface / rect.surface) : 0;
+  const elongation = rect.largeur > 0 ? rect.longueur / rect.largeur : Infinity;
+  return construire(tache, g, mes, rect, surface, rectangularite, elongation);
 }
 
 /**
@@ -417,4 +456,4 @@ function rectangleMinimal(enveloppe) {
   return meilleur;
 }
 
-const DETECTION = { detecter };
+const DETECTION = { detecter, qualifier };

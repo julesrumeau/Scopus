@@ -422,6 +422,9 @@ input[type=range]::-moz-range-thumb {
 .actions a { color: var(--accent); text-decoration: none; }
 .actions a:hover { text-decoration: underline; }
 .marque { font-size: 10.5px; color: var(--texte-2); border: 1px solid var(--bord); border-radius: 4px; padding: 0 5px; }
+/* La voie qui a trouvé le candidat : lisible d'un coup d'œil, parce que les
+   deux voies ne se règlent pas avec les mêmes seuils. */
+.marque.voie { color: var(--accent); border-color: var(--accent); }
 
 /* ── Divers ──────────────────────────────────────────────────────────────── */
 

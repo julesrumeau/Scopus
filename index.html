@@ -126,6 +126,10 @@
           <input type="checkbox" id="inclure-bati" checked>
           <span>Inclure la classe « bâtiment » dans le signal</span>
         </label>
+        <label class="case">
+          <input type="checkbox" id="voie-forme" checked>
+          <span>Chercher aussi par la forme du relief <small>(murs fermés ; +5 s)</small></span>
+        </label>
         <details class="repli">
           <summary>Seuils de détection</summary>
           <div class="reglages" id="reglages"></div>
@@ -271,6 +275,7 @@
 <script src="src/raster.js"></script>
 <script src="src/detection.js"></script>
 <script src="src/relief.js"></script>
+<script src="src/lignes.js"></script>
 <script src="src/sentiers.js"></script>
 <script src="src/sortie.js"></script>
 <script src="src/gl.js"></script>

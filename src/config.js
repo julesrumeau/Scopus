@@ -27,6 +27,63 @@ const CONFIG = {
     },
   },
 
+  // ── Extraction de lignes (crêtes de murs) ─────────────────────────────────
+  //
+  // Valeurs de départ, à régler sur `npm run banc` — aucune n'a encore vu de
+  // structure réelle.
+  lignes: {
+    // Échelles de la réponse de crête, en mètres. Un mur de pierre sèche fait
+    // 50 cm à 1,5 m de large ; au-delà de 2 m on lit du talus, pas du mur.
+    echellesM: [0.5, 1, 1.5],
+    // Sensibilité au contraste : `c` de Frangi, en part de la courbure maximale
+    // observée. Une constante en dur ne transférerait pas d'un terrain lisse à
+    // un plateau rocheux.
+    sensibilite: 0.25,
+    // `beta` de Frangi : tolérance à ce qui n'est pas une ligne. Plus il est
+    // petit, plus une tache ronde est rejetée.
+    beta: 0.5,
+    // Voie retenue : `seuil` lit directement l'ouverture, `frangi` passe par la
+    // réponse de crête. Comparées au banc.
+    mode: 'seuil',
+    // Profondeur minimale du creux d'ouverture, en degrés sous 90°. L'ouverture
+    // valant exactement 90° sur tout plan, ce seuil est **absolu** : il ne se
+    // recale pas d'une dalle à l'autre. Mesuré au banc — la couronne d'un orri
+    // de 60 cm plonge à 63°, un versant nu ne bouge pas d'un degré.
+    creuxMinDeg: 16,
+    // Hystérésis. `partHaute` se lit en part des cellules **qui répondent**, et
+    // jamais en valeur absolue : la réponse de Frangi n'a pas d'unité. Le seuil
+    // bas s'en déduit par un rapport, comme chez Canny — deux quantiles
+    // indépendants peuvent dégénérer chacun de leur côté.
+    partHaute: 0.15,
+    ratioBas: 0.4,
+    // Une cabane fait 6 à 30 m² au sol ; sa couronne en occupe une fraction.
+    surfaceMinM2: 4,
+    rayonMinM: 1.2,
+    rayonMaxM: 12,
+    // Part du tour occupée pour qu'une ligne compte comme fermée. À 0,6, un
+    // anneau amputé d'un tiers reste un candidat — un mur ruiné a une entrée.
+    couvertureMin: 0.6,
+    // Enfermement minimal de l'intérieur, en degrés sous 90° d'ouverture
+    // positive. C'est ce qui sépare une cabane d'une plateforme, dont le rebord
+    // forme pourtant un anneau parfait : mesuré 16° pour un orri, 0,01° pour une
+    // plateforme. Seuil absolu, là encore, l'ouverture valant 90° sur tout plan.
+    //
+    // Réglé à 12 sur les valeurs mesurées : les huit structures du banc
+    // s'enferment de 18 à 26°, le rebord de plateforme de 9,9°. La marge du
+    // côté du faux positif ne fait que 2° — c'est le point le plus fragile de
+    // la chaîne, et le premier à surveiller sur une dalle réelle.
+    interieurMinDeg: 12,
+    // Hauteur minimale du mur au-dessus de son propre intérieur. Un mur ruiné
+    // de moins de 25 cm ne se distingue plus du bruit d'échantillonnage ; et ce
+    // seuil est ce qui écarte le dôme fabriqué par le comblement du MNT, qui
+    // descend au lieu de monter.
+    hauteurMurMinM: 0.25,
+    // L'amincissement de Zhang-Suen dégrade la couverture et la position du
+    // centre sans rien apporter au tri — mesuré. Il reste là pour la branche des
+    // lignes ouvertes, où la vectorisation exige un squelette.
+    amincir: false,
+  },
+
   // ── Réseau ────────────────────────────────────────────────────────────────
   reseau: {
     // La passerelle IGN annonce `x-ratelimit-limit-second: 1`. Le plafond mord

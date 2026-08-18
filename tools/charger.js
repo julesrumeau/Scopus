@@ -39,7 +39,13 @@ export function chargerScripts(fichiers) {
     // l'extérieur du contexte. On réexporte donc explicitement les noms voulus.
     const noms = [...source.matchAll(/^(?:const|class|function|async function)\s+([A-Za-z_$][\w$]*)/gm)]
       .map((m) => m[1]);
-    const reexport = noms.map((n) => `globalThis.${n} = ${n};`).join('\n');
+    // Chaque réexport est isolé : le balayage ci-dessus attrape aussi les noms
+    // déclarés **à l'intérieur** d'une IIFE — `relief.js` et `lignes.js` en sont
+    // — qui sont bien en début de ligne mais hors de portée au niveau du script.
+    // Sans cette isolation, le premier d'entre eux lève une `ReferenceError` qui
+    // fait échouer le chargement entier, avec un message pointant une ligne
+    // parfaitement saine.
+    const reexport = noms.map((n) => `try { globalThis.${n} = ${n}; } catch (e) {}`).join('\n');
     vm.runInContext(`${source}\n${reexport}`, contexte, { filename: chemin });
   }
   return contexte;

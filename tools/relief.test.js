@@ -156,6 +156,101 @@ test('le Sky-View Factor s’assombrit dans un creux et sature sur une crête', 
   assert.ok(Math.abs(loin - 1) < 1e-6, `loin de la cuvette, SVF devrait valoir 1 : ${loin}`);
 });
 
+test('l’ouverture vaut 90° sur un plan, quelle que soit sa pente', () => {
+  const { RELIEF } = charger();
+
+  // C'est LA propriété qui justifie de préférer l'ouverture au micro-relief
+  // pour chercher une structure sur un versant : ce qui est vu vers l'amont
+  // annule exactement ce qui est vu vers l'aval, donc la pente d'ensemble
+  // disparaît sans qu'on ait rien soustrait. Un seuil calé en plaine vaut
+  // encore à 30°.
+  //
+  // Ce test a effectivement attrapé une faute : avec des décalages entiers, le
+  // rayon zigzague et la compensation cesse d'être exacte — 88,6° au lieu de 90
+  // sur un plan à 20°, avec 16 directions. D'où l'échantillonnage bilinéaire.
+  for (const pente of [0, 10, 30]) {
+    for (const dirs of [8, 16]) {
+      const t = terrain(80, 80, 0.5, (x) => 500 + Math.tan(deg(pente)) * x);
+      const pos = RELIEF.ouverture(t, { svfDirections: dirs, svfRayonM: 6 }, 'positive');
+      const neg = RELIEF.ouverture(t, { svfDirections: dirs, svfRayonM: 6 }, 'negative');
+
+      // Au centre seulement : sur la couronne de bord l'horizon est tronqué.
+      // La tolérance est celle du Float32 sur des altitudes de 500 m.
+      assert.ok(Math.abs(au(t, pos, 40, 40) - 90) < 5e-3,
+        `pente ${pente}°, ${dirs} directions : ouverture positive ${au(t, pos, 40, 40).toFixed(4)}°`);
+      assert.ok(Math.abs(au(t, neg, 40, 40) - 90) < 5e-3,
+        `pente ${pente}°, ${dirs} directions : ouverture négative ${au(t, neg, 40, 40).toFixed(4)}°`);
+    }
+  }
+});
+
+test('l’ouverture lit un mur en anneau, et le lit pareil à plat et sur un versant', () => {
+  const { RELIEF } = charger();
+
+  // Un orri ruiné tel qu'on l'espère dans la donnée : anneau de pierre de 4 m
+  // de diamètre, 1 m d'épaisseur, 60 cm de haut. C'est le cas d'école de toute
+  // la chaîne à venir.
+  //
+  // Les rôles des deux ouvertures ne sont PAS ceux que l'intuition suggère, et
+  // c'est la mesure qui l'a dit :
+  //  - la **couronne** ne ressort pas en ouverture positive (le mur est de
+  //    niveau le long de lui-même, donc l'horizon y reste à 90°) mais en
+  //    ouverture **négative**, qui plonge à ~58° : c'est de là qu'on voit loin
+  //    vers le bas. C'est donc la couche du mur.
+  //  - l'**intérieur** ressort en ouverture **positive**, à ~72° : le ciel s'y
+  //    referme. C'est la couche de l'enclos.
+  // Chercher le mur dans la mauvaise couche ne rendrait rien du tout.
+  const cx = 15, cy = 15, rayon = 2;
+  const anneau = (pente) => terrain(120, 120, 0.25, (x, y) => {
+    const sol = 800 + Math.tan(deg(pente)) * x;
+    const d = Math.hypot(x - cx, y - cy);
+    return sol + (Math.abs(d - rayon) < 0.5 ? 0.6 : 0);
+  });
+
+  const lire = (t, v, x, y) => v[Math.round(y / t.pas) * t.W + Math.round(x / t.pas)];
+  const mesures = [0, 20].map((pente) => {
+    const t = anneau(pente);
+    const pos = RELIEF.ouverture(t, { svfDirections: 16, svfRayonM: 5 }, 'positive');
+    const neg = RELIEF.ouverture(t, { svfDirections: 16, svfRayonM: 5 }, 'negative');
+    return {
+      pente,
+      mur: lire(t, neg, cx + rayon, cy),        // sur la couronne
+      interieur: lire(t, pos, cx, cy),          // au milieu de l'enclos
+      murEnPos: lire(t, pos, cx + rayon, cy),
+      solNeg: lire(t, neg, cx + 5, cy),         // hors de l'anneau
+    };
+  });
+
+  for (const m of mesures) {
+    assert.ok(m.mur < 70,
+      `pente ${m.pente}° : le mur devrait plonger en ouverture négative, il vaut ${m.mur.toFixed(2)}°`);
+    assert.ok(m.interieur < 80,
+      `pente ${m.pente}° : l’enclos devrait se refermer en ouverture positive, il vaut ${m.interieur.toFixed(2)}°`);
+    assert.ok(Math.abs(m.murEnPos - 90) < 1,
+      `pente ${m.pente}° : la couronne ne se voit pas en ouverture positive (${m.murEnPos.toFixed(2)}°) — c’est attendu`);
+    assert.ok(Math.abs(m.solNeg - 90) < 1,
+      `pente ${m.pente}° : le sol nu devrait rester à 90°, il vaut ${m.solNeg.toFixed(2)}°`);
+  }
+
+  // Et le résultat qui décide de tout : la signature ne bouge quasiment pas
+  // entre le plat et un versant à 20°, alors que le relief y varie de 1,8 m sur
+  // la seule portée du balayage — six fois la hauteur du mur cherché.
+  const [plat, versant] = mesures;
+  assert.ok(Math.abs(plat.mur - versant.mur) < 3,
+    `le mur doit se lire pareil à plat (${plat.mur.toFixed(1)}°) et à 20° (${versant.mur.toFixed(1)}°)`);
+  assert.ok(Math.abs(plat.interieur - versant.interieur) < 3,
+    `l’enclos doit se lire pareil à plat (${plat.interieur.toFixed(1)}°) et à 20° (${versant.interieur.toFixed(1)}°)`);
+});
+
+test('un même balayage sert le SVF et les deux ouvertures', () => {
+  const { RELIEF } = charger();
+  const t = terrain(40, 40, 0.5, (x, y) => 300 + 0.1 * x + 0.05 * y);
+  const r = RELIEF.balayerHorizons(t, { svfDirections: 8, svfRayonM: 4 });
+  assert.equal(r.svf, RELIEF.svf(t, { svfDirections: 8, svfRayonM: 4 }),
+    'le SVF doit sortir du mémo, pas d’un second balayage');
+  assert.ok(r.ouverturePositive !== r.ouvertureNegative);
+});
+
 test('la grille d’affichage agrège le sol et la hauteur des structures', () => {
   const { RELIEF, CONFIG } = charger();
 
@@ -167,6 +262,11 @@ test('la grille d’affichage agrège le sol et la hauteur des structures', () =
     emprise: { xmin: 0, ymin: 0, xmax: 10, ymax: 10 },
     origine: [0, 0, 1500],
     mnt: new Float32Array(N).fill(10),
+    // `solZ` est l'altitude **brute** des cellules qui ont vu des points sol ;
+    // `mnt` est sa version comblée. La grille d'affichage lit la première pour
+    // sa surface d'analyse et la seconde pour l'altitude annoncée : une grille
+    // de test qui n'aurait que `mnt` ne dirait rien de ce comportement.
+    solZ: new Float32Array(N).fill(10),
     solConnu: new Uint8Array(N).fill(1),
     solN: new Uint8Array(N).fill(3),
     ncSomme: new Float32Array(N),
@@ -178,6 +278,7 @@ test('la grille d’affichage agrège le sol et la hauteur des structures', () =
     g.ncSomme[c] = 11.2 * 2;   // deux points à 11,20 m
     g.ncN[c] = 2;
     g.solN[c] = 0;             // la pierre ne laisse aucun retour au sol
+    g.solZ[c] = NaN;
   }
 
   const t = RELIEF.preparer(g, { pasM: 0.5, inclureBati: false });

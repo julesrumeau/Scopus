@@ -450,12 +450,238 @@ structures ». Classé 2, il *est* le terrain : invisible en hauteur, visible au
 micro-relief. Prises ensemble, les deux couvrent les deux cas — et c'est
 probablement là que se trouvent les ruines que la détection manque.
 
+**L'ouverture de Yokoyama (1998), positive et négative**, sort du même balayage
+d'horizons que le SVF : une passe, trois couches, et un mémo pour que passer de
+l'une à l'autre ne repaie rien. Le coût mesuré sur une dalle à 50 cm, 8
+directions sur 10 m, passe de 3,16 s à 4,83 s — le supplément vient des deux
+`atan` et du suivi du minimum, pas de l'échantillonnage.
+
+Pourquoi l'ajouter alors que le SVF est déjà là : l'ouverture **efface la pente
+d'ensemble exactement**, et non approximativement. Sur n'importe quel plan
+incliné elle vaut 90°, parce que ce qui est vu vers l'amont annule ce qui est vu
+vers l'aval. Un seuil calé en plaine vaut encore à 30° — ce qu'aucune valeur en
+mètres ne sait faire, et c'est la raison d'être des « seuils en multiples de la
+rugosité locale » de `sentiers.js`.
+
+Et **les rôles des deux signes ne sont pas ceux que l'intuition suggère** —
+mesuré sur un anneau de pierre synthétique de 4 m de diamètre et 60 cm de haut :
+
+| | Ouverture positive | Ouverture négative |
+|---|---|---|
+| couronne du mur | 90,0° — **invisible** | 58,6° — le signal |
+| intérieur de l'enclos | 72,1° — le signal | 90,0° — invisible |
+| sol nu, à plat comme à 20° | 90° | 90° |
+
+La couronne ne ressort pas en ouverture positive parce qu'un mur est **de niveau
+le long de lui-même** : l'horizon y reste à 90°. C'est en regardant vers le bas
+qu'on le voit dominer. Chercher le mur dans la mauvaise couche ne rendrait donc
+rien du tout — et la signature complète d'une cabane ruinée est bien une paire,
+couronne en ouverture négative autour d'un enclos en ouverture positive.
+
+Deux pièges, l'un attrapé par les tests, l'autre à ne pas reproduire :
+
+- **Le rayon doit tomber exactement sur sa direction.** Avec des décalages
+  entiers (`Math.round`) le rayon zigzague ; le maximum retient alors le pas le
+  plus tourné vers l'amont et le minimum le moins tourné, si bien que les deux
+  ne se compensent plus entre une direction et son opposée. Sur un plan à 20°,
+  l'ouverture tombait à **88,6° au lieu de 90** avec 16 directions — un biais de
+  1,4° dépendant de la pente locale, sur une couche dont le signal utile vaut
+  quelques degrés. Avec 8 directions il ne se voyait pas : elles tombent sur les
+  axes et les diagonales. D'où le parcours sur l'axe dominant avec interpolation
+  sur l'autre — exact, et 18 % plus rapide que l'arrondi à travail égal.
+- **Ne jamais chronométrer dans le harnais de test.** Les sources sont chargées
+  dans un contexte `vm.createContext`, où ces boucles tournent **sept fois plus
+  lentement** qu'en contexte natif : 36 s contre 4,8 s pour le même balayage.
+  Un chronométrage pris là conduirait à jeter du code parfaitement sain.
+
+### Le banc synthétique tranche trois choix
+
+`npm run banc` (`tools/banc-lignes.js`) mesure, sur huit scènes à vérité connue,
+ce qu'aucun raisonnement ne pouvait décider. L'échantillonnage y est réaliste —
+points de Poisson à 10 /m², bruit vertical de 5 cm, cellules vides comblées comme
+le fait `raster.js` — parce que c'est justement le bruit d'échantillonnage qui
+est en jeu.
+
+Le seuil est calibré sur l'orri de référence — celui qui retient 90 % des
+cellules de sa couronne — puis appliqué tel quel aux autres scènes. Résultats à
+50 cm, cible = la couronne du mur :
+
+| Couche | d′ (classé sol) | d′ (classé bâti) | fond franchi sur une croupe | sur un chaos rocheux |
+|---|---|---|---|---|
+| **ouverture négative** | **11,4** | **12,1** | **0,1 %** | 4,3 % |
+| micro-relief | 13,7 | 13,7 | **96 à 99,5 %** | 3,3 % |
+| ouverture positive | 1,7 | 0,5 | — | — |
+| Sky-View Factor | 1,1 | 0,4 | — | — |
+
+**1. La couche, c'est l'ouverture négative — mais le micro-relief avait l'air de
+faire jeu égal.** Sur un plan, les deux séparent aussi bien : le micro-relief
+soustrait un plan exactement, l'ouverture l'annule par symétrie. La différence
+n'apparaît que sur un terrain **courbe**, où la moyenne locale du micro-relief
+laisse un résidu du relief général. Sur une croupe convexe de 40 m de rayon,
+c'est **tout le versant** qui franchit le seuil réglé sur du plat — 96 à 99,5 %
+des cellules — contre 0,1 % pour l'ouverture. Et le rayon de lissage employé
+(6 m) est le cas **favorable** au micro-relief : le résidu croît avec le carré du
+rayon, donc les 12 m du réglage courant feraient pire. Un banc composé
+uniquement de plans aurait conclu que les deux couches se valent : c'est la
+raison d'être des scènes « croupe » et « combe ».
+
+**2. La surface d'entrée est le MNT relevé de la hauteur, jamais le MNT seul.**
+Une structure classée bâtiment est retirée du MNT et comblée : sa crête n'y
+existe plus du tout, et la mesure le confirme — d′ tombe à 0,4, c'est-à-dire
+rien. Sur la surface enveloppe, elle se lit aussi bien que si elle avait été
+classée sol : 12,1 contre 11,4.
+
+**3. Le pas est 50 cm, et non 25.** À 25 cm, 54 % des cellules ne reçoivent aucun
+point ; à 50 cm, 8 %. La dispersion du fond passe de 3,43° à 2,06° et le d′ de
+7,3 à 11,4 — la finesse perdue sur le mur est plus que rendue par le bruit
+évité, et le calcul est seize fois plus léger.
+
+**Ce qu'il reste à battre : 4,3 % sur le chaos rocheux.** Le seuil seul ne
+distingue pas un bloc d'un mur, et c'est exactement ce qu'annonçait la
+littérature. Sur une dalle entière, ces 4,3 % font 170 000 cellules — mais
+dispersées, alors qu'un mur forme une ligne fermée. Le tri ne peut donc pas
+venir du seuil : il vient de la **forme** et de la **topologie**, qui sont l'objet
+de l'étape suivante.
+
 La grille d'affichage est à **50 cm**, sous-échantillonnée depuis celle de
 détection. À 25 cm une cellule ne reçoit que 0,6 point et le MNT y est surtout du
 bruit ; à 50 cm elle en reçoit deux ou trois, un mur de 50 cm occupe toujours une
 cellule pleine, et le calcul est seize fois plus léger — ce qui décide de la
 faisabilité du Sky-View Factor, seul calcul coûteux du lot et donc calculé à la
 demande, avec sa durée affichée.
+
+## Extraction de lignes : la chaîne par la forme
+
+`lignes.js` cherche des structures **sans lire le classement** : un tas de
+pierres rangé en « sol » par l'IGN ne produit aucun signal pour `detection.js`,
+puisqu'il *est* le terrain. Ici, seule la forme compte — un mur ruiné est une
+crête, un chemin creux la même figure de signe opposé, d'où un module destiné aux
+deux et non deux chaînes parallèles.
+
+Ce qui sépare une cabane d'un sentier n'est pas le filtre mais la **topologie** :
+une structure est une ligne qui se referme. La fermeture se mesure en
+**couverture angulaire** autour d'un centre ajusté par cercle (Kåsa), et non par
+un test de boucle : un mur ruiné a une entrée, l'anneau troué est le cas normal.
+
+Résultat sur les vingt scènes du banc : **8 structures sur 8 retrouvées**, centre
+à 0,33–0,39 m, **0 faux positif sur 12 scènes négatives** — dont un chaos de 240
+blocs qui allume pourtant 3,2 % des cellules. Coût sur une dalle entière :
+**4,8 s**, dont la totalité dans le balayage d'horizons, mémoïsé et partagé avec
+l'onglet Relief.
+
+### Ce que le banc a démenti
+
+Quatre décisions du plan initial ont été retournées par la mesure. Elles sont
+listées parce que chacune paraissait évidente, et qu'aucune ne l'était :
+
+- **Frangi ne sert pas ici.** Le plan prévoyait une réponse de crête
+  multi-échelle. Mesurée, elle trouve l'orri sur une fenêtre de réglage
+  minuscule (`partHaute` = 0,003 ; à 0,01 elle ne trouve plus rien, à 0,05 elle
+  invente 16 structures sur un versant nu) et **manque la cabane
+  rectangulaire**. Le seuil direct sur l'ouverture trouve les huit, sans réglage
+  délicat. La raison est compréhensible après coup : l'ouverture *est déjà* une
+  réponse normalisée et sélective en forme ; y enchaîner un second filtre de
+  forme amplifie surtout le bruit. Frangi garde son sens sur une altitude brute,
+  pas sur une mesure de domination angulaire. `reponseCrete` reste dans le
+  module, comparable au banc par `mode: 'frangi'`.
+- **L'amincissement dégrade.** Zhang-Suen était au plan. Mesuré : la couverture
+  d'un orri tombe de 0,94 à 0,72 et le centre se déplace de 0,34 à 0,45 m, parce
+  qu'il ronge la couronne de façon dissymétrique. Il ne servait qu'à rendre
+  lisible un critère de remplissage qui, lui, n'attrape rien. Désactivé par
+  défaut, gardé pour la branche des lignes ouvertes.
+- **Le seuil ne peut pas être un quantile de la réponse.** Premier essai : seuils
+  hauts et bas en quantiles. Cas limite fatal — quand la réponse est creuse, moins
+  de cellules sont non nulles que le quantile n'en demande, le seuil tombe à zéro
+  et l'hystérésis **inonde la grille entière**. Le seuil est donc en **degrés sous
+  90°**, ce que seule l'ouverture permet puisqu'elle vaut exactement 90° sur tout
+  plan : une valeur absolue qui transfère d'une dalle à l'autre.
+- **La géométrie seule ne distingue pas une cabane d'une plateforme.** Le rebord
+  d'une plateforme à bords francs est un anneau parfait — couverture 0,92, taille
+  plausible. Ce qui les sépare est **l'intérieur**, lu dans l'ouverture *positive*
+  qui sort du même balayage : une cabane s'enferme de 18 à 26°, un rebord de
+  plateforme de 9,9°. S'y ajoute un critère physique — le mur doit dépasser de son
+  propre intérieur d'au moins 25 cm — qui écarte le **dôme fabriqué par le
+  comblement du MNT** sous une structure classée bâtiment, lequel descend au lieu
+  de monter.
+
+**Le point fragile, à surveiller sur données réelles :** la marge entre une
+structure (18° d'enfermement au pire) et un rebord de plateforme (9,9°) ne fait
+que 2° de part et d'autre du seuil. C'est le seul critère de la chaîne dont la
+marge soit étroite.
+
+### Branchée, et ce que le branchement a révélé
+
+Les deux voies versent dans **la même liste** : même fiche, même sélection, même
+export, même rapprochement BD TOPO. Seul le champ `voie` dit d'où vient chaque
+candidat — `classement`, `forme`, ou `les deux`. Sans cette trace on ne saurait
+plus quel seuil régler. Une case du panneau active la voie par la forme, qui
+coûte environ 5 s de plus.
+
+Le score ne peut pas être celui de `DETECTION.noter` : celui-là pèse la part de
+points non classés et la hauteur du signal, qui valent **zéro** pour une ruine
+classée « sol ». La meilleure trouvaille de cette voie y marquerait donc le plus
+mauvais score. `noterForme` note sur les trois preuves propres à la voie : la
+ligne se referme, l'intérieur est fermé, le mur dépasse.
+
+Le branchement a mis au jour trois choses que le banc, lui, ne pouvait pas voir :
+
+- **Le banc était optimiste, parce qu'il ne passait pas par `raster.js`.** Il
+  rastérisait directement à 50 cm en moyennant les points. Le vrai MNT retient le
+  **Z minimum** des points sol — juste pour un modèle de terrain, mais cela érode
+  un mur d'une cellule de chaque côté. Le banc rastérise maintenant un nuage
+  complet et passe par `RASTER.rasteriser` puis `RELIEF.preparer`, comme
+  l'application. **Un banc qui n'emprunte pas la chaîne de production calibre des
+  seuils qui ne valent que pour lui.**
+- **Et une fois fidèle, il a montré que la voie par la forme était aveugle au cas
+  pour lequel elle existe.** Une cabane classée « sol » : masque à 0,0 %, rien.
+  Cause : à 25 cm une cellule ne reçoit que 0,6 point, plus de la moitié du mur
+  est comblée depuis le sol voisin, et l'agrégation à 50 cm **moyennait** ensuite
+  murs et sol — la crête finissait divisée par deux, sous le seuil. D'où
+  l'agrégation par le **maximum des cellules réellement mesurées**, sur `solZ`
+  brut et non sur le MNT comblé. Le maximum ne fabrique rien : il choisit, parmi
+  des altitudes de sol toutes réelles, la plus haute du bloc.
+
+  **Mais il amplifie le bruit d'échantillonnage**, et l'avoir appliqué au MNT
+  d'affichage s'est vu immédiatement à l'écran : le Sky-View Factor est devenu
+  franchement plus granuleux. `RELIEF.preparer` rend donc **deux surfaces** —
+  `mnt`, la moyenne, que lisent toutes les couches affichées, et `analyse`, le
+  maximum, que `lignes.js` seul consomme. Conséquence à accepter : les deux
+  surfaces étant différentes, le balayage d'horizons de la détection ne peut pas
+  être partagé avec celui de l'affichage, et la voie par la forme coûte ses 5 s
+  quoi qu'il arrive.
+- **La voie par classement rejette structurellement les anneaux.** Mesuré sur une
+  cabane classée « bâtiment » dont les murs tiennent : rectangularité **0,51**
+  pour un seuil à 0,55, donc rejetée. Ce n'est pas un réglage malheureux — cette
+  mesure est un taux de remplissage `surface / enveloppe convexe`, et un anneau
+  est creux par définition. La voie par classement écarte donc une cabane
+  **parce qu'**il lui manque son toit. Baisser le seuil n'est pas la réponse : il
+  est déjà sous le plafond d'un disque (0,785) pour laisser passer les orris
+  ronds.
+
+### Le mode de panne à ne pas reproduire
+
+La voie par la forme n'a **rien remonté du tout** lors du premier essai réel, en
+silence. Cause : `extraire` ne fusionnait que `CONFIG.lignes` dans ses réglages,
+alors que la portée du balayage — `svfRayonM` — vit dans `CONFIG.relief`. Elle
+valait donc `undefined`, la marge de bord devenait `NaN`, toute comparaison avec
+`NaN` rend faux, et le masque sortait vide sur la dalle entière. Aucune erreur,
+aucune trace : juste « aucune structure trouvée », qui est un résultat plausible.
+
+**Les tests ne l'ont pas vu parce qu'ils passaient tous la portée
+explicitement.** C'est la leçon générale : un test qui surcharge un réglage
+n'éprouve pas le chemin qu'emprunte l'application. Le banc et les tests s'en
+remettent désormais aux réglages de production, et `extraire` lève si la marge
+n'est pas finie — un réglage manquant ne doit jamais se traduire par un résultat
+vide, le mode de panne le plus coûteux du projet étant celui qui ressemble à
+« il n'y a rien à cet endroit ».
+
+Les deux voies sont **complémentaires et non redondantes**, ce que vérifie
+`tools/voies.test.js` sur le même nuage : un bâti plein est vu par le classement
+et pas par la forme — il n'a pas d'intérieur fermé au ciel — tandis qu'un anneau
+est vu par la forme et pas par le classement. Un mur épais est vu par les deux, à
+moins de deux mètres près, ce qui rend la fusion possible.
+
+`sentiers.js` n'a pas été touché.
 
 ## Voile d'attente : pourquoi la roue tourne
 
@@ -488,7 +714,8 @@ Ce qui est enveloppé, relevé dans le code :
 | `RASTER.finaliser` | 12 passes de comblement sur 16 M de cellules, puis la pente |
 | `DETECTION.detecter` | morphologie et étiquetage sur 16 M de cellules |
 | `SENTIERS.detecterSentiers` | 3,8 s mesurés sur une dalle |
-| `RELIEF.svf` | 8 directions × 20 pas sur 4 M de cellules |
+| `RELIEF.svf`, `RELIEF.ouverture` | 8 directions × 20 pas sur 4 M de cellules, un seul balayage pour les trois |
+| `LIGNES.extraire` | le même balayage, 4,8 s sur une dalle — le reste de la chaîne est négligeable |
 | `RELIEF.preparer` | une passe sur 16 M de cellules |
 | `Vue3D.definirNuage` | 4,4 M points entrelacés puis téléversés |
 
@@ -564,6 +791,34 @@ désagréable que l'attente.
   fait rien » vient souvent de là.
 
 ---
+
+## La détection automatique est masquée
+
+`ANALYSE_MASQUEE = true` dans `app.js` retire de l'interface le volet Analyse
+entier — structures **et** sentiers — ainsi que les deux cases de superposition
+de l'onglet Relief. Tout le reste de ce document décrit du code qui existe,
+passe ses 71 tests, et ne s'exécute plus.
+
+**Pourquoi**, et l'argument n'est pas technique : sur une couche d'ouverture ou
+de Sky-View Factor, un mur ruiné, une terrasse ou un chemin creux **se voient à
+l'œil en une seconde**. C'est ainsi que la prospection LiDAR travaille depuis
+toujours — on lit des images ombrées. Les deux chaînes automatiques demandent
+des seuils justes pour rendre le même service en moins bien, et **aucune n'a
+jamais été confrontée à une structure réelle connue**.
+
+Ce qui a emporté la décision : une fonction livrée qui promet et rend zéro fait
+conclure que l'*outil* est cassé, pas cette fonction-là. La voie par la forme
+venait précisément de rendre zéro en silence sur une dalle réelle, faute d'un
+réglage lu au mauvais endroit ; et le premier essai de sa surface d'analyse avait
+dégradé le Sky-View Factor à l'écran. Deux régressions visibles en un essai, sur
+une chaîne qu'aucune vérité terrain ne permet de régler.
+
+**Ce qui manque pour la rallumer n'est pas du code** : c'est un contrôle positif,
+une ruine dont on connaisse les coordonnées. Le drapeau se remet à `false` en une
+ligne.
+
+Conséquence sur le reste du document : les sections qui suivent restent la
+référence du code, pas de l'interface.
 
 ## Détection : ce que chaque étape fait vraiment
 
@@ -676,6 +931,7 @@ est disponible.
 | 4. Lambert-93 → WGS84, liens, dédup BD TOPO, exports | ✅ |
 | Détection de sentiers | 🚧 chaîne complète, non validée sur chemin réel |
 | Contrôle positif sur ruine effondrée | ❌ en attente de coordonnées |
+| **Détection automatique dans l'interface** | 🙈 **masquée** — `ANALYSE_MASQUEE` dans `app.js` |
 
 ## Jalon de publication
 
@@ -695,8 +951,216 @@ Trois choses, et rien d'autre, avant de poster :
 | **Passage de robustesse + captures dans le README** | Un inconnu emprunte les chemins qu'on n'emprunte jamais : réseau qui lâche, 429 en rafale, zone sans LiDAR, téléphone. |
 
 Tout le reste — relief affiché, SVF, vignettes, export PNG, rideau ortho, carnet
-de prospection — vient **après**, et dans l'ordre que les retours dicteront. La
-liste des envies est infinie ; celle des conditions de publication ne doit pas
-l'être. Si une idée paraît indispensable avant la mise en ligne, la question à se
-poser est : *est-ce qu'elle empêche quelqu'un de comprendre ce que fait l'outil ?*
-Si non, elle attend.
+de prospection, noms de villes et lieux-dits sur la photo aérienne (à réfléchir :
+l'ortho n'affiche aucun toponyme) — vient **après**, et dans l'ordre que les
+retours dicteront. La liste des envies est infinie ; celle des conditions de
+publication ne doit pas l'être. Si une idée paraît indispensable avant la mise en
+ligne, la question à se poser est : *est-ce qu'elle empêche quelqu'un de
+comprendre ce que fait l'outil ?* Si non, elle attend.
+
+---
+
+## Ce qui reste à faire
+
+Liste tenue hors du dépôt jusqu'ici, rapatriée telle quelle. Les numéros sont
+ceux d'origine, parce que les tâches se renvoient les unes aux autres. Deux sont
+faites et documentées plus haut : **#1** l'onglet Relief, **#7** le voile
+d'attente.
+
+### #11 — Rallumer la détection, ou renoncer *(prioritaire)*
+
+Masquée le 18 août 2026 (`ANALYSE_MASQUEE`), les deux chaînes avec. La question
+à trancher n'est pas « comment la réparer » mais **à quoi elle sert**, puisque
+l'ouverture et le SVF montrent les mêmes formes à l'œil et sans seuil.
+
+Trois issues possibles, à départager par l'usage réel de l'outil, pas par le
+raisonnement :
+
+1. **Rallumer telle quelle** dès qu'un contrôle positif existe — une ruine
+   géolocalisée règle les seuils en une après-midi, et les deux voies ont chacune
+   leur cas propre (`tools/voies.test.js`).
+2. **La réduire à une aide à la lecture** : ne plus prétendre décider, seulement
+   pointer les endroits où regarder, en assumant les faux positifs.
+3. **Y renoncer** et faire de Scopus un lecteur de relief, ce qu'il est déjà et
+   fait bien.
+
+Ne rien décider tant que la lecture visuelle n'a pas été pratiquée sur plusieurs
+dalles : c'est elle qui dira si un détecteur manque vraiment.
+
+### #10 — Débloquer la détection de sentiers *(prioritaire)*
+
+Rédigé quand la chaîne rendait **zéro tracé**. Depuis, elle en remonte 147 sur
+Beille ; ce qui reste entier, c'est qu'**aucun chemin connu n'a servi de contrôle
+positif** — rien ne dit que ces 147 sont des sentiers.
+
+Ce qui rend le diagnostic possible : des sentiers connus sont **nets** dans le
+relief, micro-relief comme SVF. La donnée porte donc le signal, et toute panne
+restante est en aval — c'est un bug localisable, plus une impasse.
+
+Méthode, en descendant la chaîne avec le relief pour référence : prendre un
+chemin visible à l'œil dans l'onglet Relief et noter ses coordonnées, puis, à cet
+endroit, comparer le `relief` de `sentiers.js` à la couche Micro-relief de
+`relief.js` — celle-ci est vérifiée contre des surfaces à réponse connue, une
+divergence désigne le lissage ou la marge de bord. Ensuite `rugosite` (surestimée,
+elle rend le seuil inatteignable partout), `vesselness` (réponse non nulle sur le
+tracé ? échelles 1/2/4 m contre la largeur réelle ?), `hysteresis`, le squelette
+avant vectorisation, enfin les filtres — `stats.rejets` dit déjà lequel coupe.
+Les durées et les compteurs par étape sont affichés : s'en servir plutôt que
+deviner. Une couche de diagnostic dans l'onglet Relief — vesselness brute, masque
+après hystérésis — serait le moyen le plus rapide de voir où ça casse.
+
+**Repli acceptable avant publication :** marquer le volet Sentiers
+« expérimental », ou le retirer. Livrer une fonction qui promet et rend zéro est
+le pire des trois choix — l'utilisateur conclura que c'est *l'outil* qui est
+cassé.
+
+### #9 — Nourrir la détection au Sky-View Factor
+
+**Fait au 18 août 2026 :** l'ouverture positive et négative sort du même
+balayage que le SVF, elle est affichable et testée (voir « Lecture du relief »).
+Reste la voie de signal elle-même. Suite décidée avec l'utilisateur : chaîne
+**commune** aux structures et aux sentiers — crête et creux se lisent dans la
+même hessienne, aux signes près — extraction de lignes puis tri par la
+**topologie**, boucle fermée pour une structure, ligne ouverte pour un sentier.
+La fermeture se mesure par ajustement de cercle, tolérant aux brèches, plutôt
+que par un test binaire : un mur ruiné a une entrée. Le banc synthétique est écrit et a tranché le pas
+(50 cm), la couche (ouverture négative) et la surface d'entrée (MNT + hauteur) —
+voir « Le banc synthétique tranche trois choix ». Reste à écrire l'extraction de
+lignes elle-même, et à trancher le filtre de crête sur le même banc.
+
+La piste la plus prometteuse du projet, et elle se mène avec #10 : la même passe
+de SVF sert les deux chaînes. Ordre à respecter quand même — localiser d'abord le
+point de rupture des sentiers, changer l'entrée ensuite. On ne change pas
+l'alimentation d'un tuyau bouché avant de savoir où il est bouché.
+
+Pourquoi c'est fort : des décombres classés « sol » par l'IGN ne produisent
+**aucun** signal aujourd'hui — ils *sont* le terrain — alors que le SVF, calculé
+sur le MNT, voit exactement ce cas. Il est de plus sans dimension et vit dans
+[0, 1] avec le même sens partout, là où les seuils en multiples de la rugosité
+locale existent précisément parce qu'une valeur en mètres ne transfère pas d'une
+prairie à un plateau rocheux. Pour un chemin creux c'est l'usage canonique ; pour
+une structure la signature est lisible — couronne de murs claire enserrant un
+intérieur sombre.
+
+Concrètement : ajouter le SVF (et peut-être l'openness) aux grilles offertes aux
+chaînes ; pour les structures, ouvrir une **seconde voie de signal** — cellules
+dont le SVF s'écarte de sa moyenne locale de plus de k dispersions — puis lui
+appliquer la morphologie et les filtres de forme **déjà validés**, en **union**
+avec la voie par classification et non en remplacement, en gardant trace de la
+voie qui a trouvé quoi ; pour les sentiers, passer Frangi sur le SVF.
+
+Trois difficultés à anticiper : le SVF montre **tout** (haies, rigoles, traces de
+pulvérisage), donc les filtres de forme deviennent le vrai tri et non un
+raffinement ; c'est le seul calcul lourd du lot, à calculer une fois par dalle et
+garder plutôt qu'à payer à chaque lancement ; et les pas diffèrent — détection à
+25 cm, relief à 50 cm — à trancher entre suréchantillonner et mener cette voie
+sur la grille grossière.
+
+### #8 — Voir le relief dans la vue 3D
+
+Le relief n'existe que dans l'onglet 2D, et le SVF se lit mieux que le nuage.
+Deux voies de coût très différent :
+
+1. **Colorer les points par la couche de relief** — quelques dizaines de lignes,
+   toute la plomberie existe (`definirHauteurs()` téléverse déjà une valeur par
+   point, le vertex shader a son `u_mode`, `RASTER.hauteurParPoint` sait lire la
+   cellule sous un point).
+2. **Draper le relief sur un maillage de terrain** — un vrai chantier : 4 M de
+   sommets, niveau de détail, zones sans sol connu. Plusieurs sessions.
+
+Faire la 1, s'en servir, et ne lancer la 2 que si elle manque encore.
+
+### #2 — Vignettes par détection et export du relief
+
+*Dépend de #1, faite.* La **vignette** est le plus utile : un carré de relief
+d'environ 60 × 60 m centré sur le candidat, dans la liste des résultats à côté du
+score et joint à l'export. Elle répond à la seule question qui compte devant
+douze candidats — lequel vaut deux heures de marche — là où il faut aujourd'hui
+basculer en 3D et viser, un par un. Question à trancher en regardant : sur une
+cabane, la vignette tirée du MNT comblé sera lisse ; c'est peut-être
+l'information (« l'algorithme voit un trou dans le sol ici »), sinon la calculer
+sur un MNS ou afficher les deux.
+
+Puis l'**image de dalle** : PNG + world file `.pgw` + `.prj` en EPSG:2154,
+~20 lignes, aucune dépendance — la grille *est* en Lambert-93, donc ça s'ouvre
+calé au pixel dans QGIS.
+
+Deux choses **écartées après discussion**, à ne pas rouvrir sans raison neuve :
+
+- **pas de polygone d'emprise** — à ~4 points sol/m², la couronne de murs d'une
+  cabane de 6 × 4 m ne donne qu'une quarantaine de points : ça établit une
+  présence, pas un contour. Le GeoJSON porte déjà surface, longueur, largeur et
+  azimut avec leur imprécision assumée ; un polygone n'ajouterait qu'une autorité
+  que la donnée n'a pas. L'outil sort des **pistes**, le format doit le dire.
+- **pas de MBTiles** — il faudrait embarquer sql.js (~1 Mo de WASM, le traitement
+  réservé à laz-perf) pour un fichier que peu d'applications lisent.
+
+En réserve, seulement si l'image se révèle utile sur le terrain : KMZ. Piège à ne
+pas manquer alors — `<gx:LatLonQuad>` et non `<LatLonBox>` : un carré Lambert-93
+est tourné d'environ 1° en WGS84 dans les Pyrénées, soit une vingtaine de mètres
+de décalage en travers d'une dalle. Même piège que `L.rectangle`.
+
+### #3, #4, #6 — Le bloc publication
+
+Le détail du *pourquoi* est dans la section précédente ; voici ce que chacune
+demande.
+
+**#3 — Ouvrir sur un exemple, et l'état dans l'URL.** Un bouton « Voir un
+exemple » dans l'étape 1, l'état dans le **hash** (dalle, résolution, détection
+sélectionnée, onglet actif — le hash marche aussi bien sur Pages qu'en `file://`,
+donc aucune régression sur le double-clic), et un bouton « Copier le lien ». Ne
+**pas** mettre les seuils dans l'URL : trop nombreux, changeants, et une URL de
+400 caractères n'est pas partageable.
+
+Critères de la dalle d'exemple, arrêtés — à ne pas confondre avec le contrôle
+positif, qui relève de la vérité terrain et peut rester privé :
+
+- **aucune habitation.** Règle, pas préférence : un outil qui cherche du bâti hors
+  carte ne pointe pas par défaut sur le domicile de quelqu'un ;
+- de préférence **sous couvert forestier** — l'orthophoto ne montre que des
+  arbres et le SVF montre terrasses, chemins creux, charbonnières : la
+  démonstration s'administre toute seule ;
+- **vérifiable** vaut mieux qu'inédit : les liens Google Earth, Maps et
+  Géoportail sont déjà générés ;
+- micro-relief anthropique **dense** plutôt qu'une belle pièce isolée ; les
+  charbonnières sont particulièrement rentables ;
+- la détection doit y rendre une poignée de candidats, pas deux cents ;
+- **ne rien revendiquer comme validé** : `CLAUDE.md` dit qu'aucun contrôle
+  positif n'existe et doit continuer à le dire.
+
+**#4 — États vides et messages utiles.** Faisable dès maintenant : dalle sans
+couverture LiDAR et clic hors de France ; réseau coupé ou 429 en rafale, avec un
+message qui dit **quoi faire** et pas seulement « HTTP 429 » ; « aucune détection
+avec ces seuils », à généraliser aux sentiers et au relief ; WebGL2 absent, en
+vérifiant qu'on ne reste pas avec une interface à moitié morte ; **cas mobile** —
+une dalle fait ~190 Mo, le dire plutôt que laisser un téléphone ramer puis
+planter, un visiteur de forum sur trois arrivera de là.
+
+Repoussé avec le bloc présentation : l'écran d'accueil qui dit ce que l'outil
+cherche et ce qu'il ne sait pas faire. Il forme un tout avec le bouton « Voir un
+exemple » (#3) et les captures (#6) — **les trois se font ensemble et en
+dernier**, quand l'interface ne bouge plus. On ne photographie pas une interface
+avant qu'elle soit finie.
+
+**#6 — Passage de publication.** Robustesse sur les chemins qu'un inconnu
+emprunte : connexion coupée en plein chargement (vérifier qu'Annuler retombe sur
+ses pieds), rafale de 429, zone sans LiDAR, double chargement et changement de
+dalle en cours de téléchargement. Deux ou trois captures dans le README — la
+carte, le nuage colorisé, une détection avec sa fiche. Vérifier que Pages sert
+bien la version publiée **et** que le double-clic sur `index.html` marche
+toujours. `npm test` au vert.
+
+Où poster ensuite : Géorezo, forum OSM France, SIG francophone sur Mastodon,
+forums d'archéologie et de patrimoine (pierre sèche), r/geomatique. Wikipedra et
+le PNR des Pyrénées ariégeoises sont les interlocuteurs naturels — eux peuvent
+fournir des coordonnées de ruines connues, c'est-à-dire le contrôle positif qui
+manque.
+
+### #5 — Rideau ortho ↔ relief *(après publication)*
+
+Un curseur vertical qui balaie entre l'orthophoto et le relief. C'est la
+démonstration la plus parlante qui soit — une structure invisible sur la photo
+apparaît dans le relief — et c'est ce que vendent explorelidar.fr et
+daevorn-maps.org par abonnement. Le WMTS est déjà branché dans `carte.js` ;
+attention au piège du format, déjà documenté. Pas avant la mise en ligne : ça ne
+doit pas la retarder.

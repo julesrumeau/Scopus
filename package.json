@@ -6,6 +6,7 @@
   "description": "Exploration LiDAR HD (IGN) et détection de structures hors carte. Entièrement statique : ouvrir index.html suffit.",
   "scripts": {
     "test": "node --test tools/",
-    "embarquer-lazperf": "node tools/embarquer-lazperf.js"
+    "embarquer-lazperf": "node tools/embarquer-lazperf.js",
+    "banc": "node tools/banc-lignes.js"
   }
 }

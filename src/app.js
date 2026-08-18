@@ -24,11 +24,38 @@ const etat = {
   nuage: null,
   grille: null,
   resultat: null,
+  // Statistiques de la voie par la forme. Les candidats qu'elle trouve, eux,
+  // rejoignent `resultat.candidats` : une seule liste, une seule sélection, un
+  // seul export — seul le champ `voie` dit d'où vient chacun.
+  resultatFormes: null,
   sentiers: null,
   reliefGrille: null,
   selection: null,
   abandon: null,
 };
+
+/**
+ * Détection automatique masquée, structures **et** sentiers.
+ *
+ * Décision du 18 août 2026, prise en regardant l'outil s'en servir : sur une
+ * couche d'ouverture ou de Sky-View Factor, un mur ruiné, une terrasse ou un
+ * chemin creux **se voient à l'œil en une seconde**. C'est d'ailleurs ainsi que
+ * la prospection LiDAR travaille depuis toujours — on lit des images ombrées, on
+ * ne s'en remet pas à un détecteur. Les deux chaînes automatiques, elles,
+ * demandent des seuils justes pour rendre le même service en moins bien, et
+ * aucune des deux n'a jamais été confrontée à une structure réelle connue.
+ *
+ * Ce qui a emporté la décision : une chaîne livrée qui promet et rend zéro fait
+ * conclure que l'**outil** est cassé, pas cette fonction-là. Mieux vaut ne rien
+ * promettre. La détection par la forme venait précisément de rendre zéro en
+ * silence sur une dalle réelle, faute d'un réglage lu au mauvais endroit.
+ *
+ * **Rien n'est supprimé** : `detection.js`, `lignes.js` et `sentiers.js`
+ * restent, avec leurs 71 tests. Remettre `false` ici rend l'interface entière.
+ * Ce qui manque pour ça n'est pas du code, c'est un contrôle positif — une ruine
+ * dont on connaisse les coordonnées.
+ */
+const ANALYSE_MASQUEE = true;
 
 // ── Retours à l'utilisateur ─────────────────────────────────────────────────
 
@@ -346,6 +373,7 @@ $('btn-charger').addEventListener('click', async () => {
     etat.nuage = nuage;
     etat.sentiers = null;
     etat.resultat = null;
+    etat.resultatFormes = null;
     etat.reliefGrille = null;
     vueRelief.definirGrille(null);
     carte.effacerSentiers();
@@ -365,7 +393,7 @@ $('btn-charger').addEventListener('click', async () => {
     // qui va recevoir le résultat.
     $('section-vide-3d').hidden = true;
     $('section-affichage').hidden = false;
-    $('section-analyse').hidden = false;
+    $('section-analyse').hidden = ANALYSE_MASQUEE;
     basculerVue('3d');
 
     // Le téléchargement est fini ; ce qui suit est synchrone et bloque le fil
@@ -457,6 +485,7 @@ function fermerNuage() {
   etat.nuage = null;
   etat.grille = null;
   etat.resultat = null;
+  etat.resultatFormes = null;
   etat.sentiers = null;
   etat.selection = null;
   etat.dalleChargee = null;
@@ -587,6 +616,12 @@ $('contraste-relief').addEventListener('input', (e) => {
   majStatsRelief();
 });
 
+// Les deux superpositions n'ont plus rien à superposer tant que l'analyse est
+// masquée : leurs cases sont retirées avec elle, plutôt que de laisser deux
+// réglages qui ne font visiblement rien.
+for (const id of ['relief-detections', 'relief-sentiers']) {
+  $(id).closest('label').hidden = ANALYSE_MASQUEE;
+}
 $('relief-detections').addEventListener('change', (e) =>
   vueRelief.definirCalques({ detections: e.target.checked }));
 $('relief-sentiers').addEventListener('change', (e) =>
@@ -754,6 +789,14 @@ $('btn-detecter').addEventListener('click', async () => {
   try {
     const { erreur } = await ATTENTE.pendant('Détection de structures', async (etape) => {
       etat.resultat = DETECTION.detecter(etat.grille, reglages);
+
+      if ($('voie-forme').checked) {
+        await etape('Recherche par la forme du relief…', 'ouverture, fermeture des lignes');
+        etat.resultatFormes = detecterParLaForme();
+      } else {
+        etat.resultatFormes = null;
+      }
+
       await etape('Rapprochement avec la BD TOPO…', 'bâti connu, interrogé en direct');
       return SORTIE.rapprocher(etat.resultat.candidats, etat.dalleChargee.emprise);
     }, 'morphologie et filtres de forme');
@@ -762,12 +805,16 @@ $('btn-detecter').addEventListener('click', async () => {
     afficherResultats();
 
     const s = etat.resultat.stats;
+    const f = etat.resultatFormes;
     $('stats-detection').hidden = false;
     $('stats-detection').innerHTML =
       `Grille <b>${s.pas.toFixed(2)} m</b> · <b>${milliers(s.cellulesRetenues)}</b> cellules candidates sur ${milliers(s.cellules)}<br>`
       + `<b>${s.tachesBrutes}</b> taches, <b>${s.retenus}</b> retenues<br>`
       + `écartées — surface ${s.rejets.surface} · forme ${s.rejets.forme} · élongation ${s.rejets.elongation}`
-      + ` · pente ${s.rejets.pente} · composition ${s.rejets.composition} · hauteur ${s.rejets.hauteur}`;
+      + ` · pente ${s.rejets.pente} · composition ${s.rejets.composition} · hauteur ${s.rejets.hauteur}`
+      + (f ? `<br>Par la forme — <b>${f.retenues}</b> ligne(s) fermée(s), dont <b>${f.nouvelles}</b> que le classement n’avait pas vue(s)<br>`
+        + `écartées — ouvertes ${f.rejets.ouvert} · taille ${f.rejets.taille} · intérieur ouvert ${f.rejets.interieurOuvert}`
+        + ` · trop plates ${f.rejets.tropPlat}` : '');
 
     statut(`${etat.resultat.candidats.length} structure(s) candidate(s)`);
   } catch (e) {
@@ -776,6 +823,93 @@ $('btn-detecter').addEventListener('click', async () => {
     $('btn-detecter').disabled = false;
   }
 });
+
+/**
+ * Voie par la forme : lignes fermées du relief, versées dans la même liste.
+ *
+ * Les deux voies ne voient pas les mêmes objets, et c'est tout l'intérêt. Celle
+ * par classement lit un signal — des points « non classés » ou « bâtiment »
+ * au-dessus du sol — et rate tout ce que le classificateur de l'IGN a rangé en
+ * « sol », ce qui est le sort ordinaire d'un mur écroulé. Celle par la forme ne
+ * lit que le relief et ne voit pas la différence entre une ruine et un rocher,
+ * mais elle voit la ruine. On les réunit donc, en gardant la trace de qui a
+ * trouvé quoi — sans quoi on ne saurait plus quel seuil régler.
+ *
+ * La grille de relief est à 50 cm et la détection à 25 cm : chaque cellule de
+ * l'une en recouvre exactement quatre de l'autre, et c'est sur la grille fine
+ * que le candidat est mesuré, pour que les deux voies rendent des fiches
+ * comparables.
+ */
+function detecterParLaForme() {
+  if (!etat.reliefGrille) {
+    etat.reliefGrille = RELIEF.preparer(etat.grille, { inclureBati: reglages.inclureBati });
+  }
+  const rel = etat.reliefGrille;
+  const r = LIGNES.extraire(rel);
+  const f = Math.max(1, Math.round(rel.pas / etat.grille.pas));
+  const sig = etat.resultat.signal;
+  const candidats = etat.resultat.candidats;
+  let nouvelles = 0;
+
+  for (const s of r.structures) {
+    // Une cellule de relief en recouvre f × f de la grille fine.
+    const fines = [];
+    for (const i of s.pleines) {
+      const x = (i % rel.W) * f, y = ((i / rel.W) | 0) * f;
+      for (let dy = 0; dy < f; dy++) {
+        for (let dx = 0; dx < f; dx++) {
+          const xx = x + dx, yy = y + dy;
+          if (xx < etat.grille.W && yy < etat.grille.H) fines.push(yy * etat.grille.W + xx);
+        }
+      }
+    }
+    if (!fines.length) continue;
+
+    const c = DETECTION.qualifier(fines, etat.grille, sig);
+    c.voie = 'forme';
+    c.fermeture = s.couverture;
+    c.interieur = s.interieur;
+    c.hauteurMur = s.hauteurMur;
+    c.score = noterForme(s);
+
+    // Déjà trouvée par l'autre voie ? On ne la compte pas deux fois — on note
+    // qu'elle a deux témoins, ce qui est le meilleur indice dont on dispose.
+    const jumelle = candidats.find((x) => Math.hypot(x.x - c.x, x.y - c.y) < CONFIG.lignes.rayonMaxM);
+    if (jumelle) {
+      jumelle.voie = 'les deux';
+      jumelle.fermeture = c.fermeture;
+      jumelle.interieur = c.interieur;
+      jumelle.hauteurMur = c.hauteurMur;
+      jumelle.score = Math.max(jumelle.score, c.score);
+      continue;
+    }
+    c.id = candidats.length + 1;
+    candidats.push(c);
+    nouvelles++;
+  }
+
+  candidats.sort((a, b) => b.score - a.score);
+  candidats.forEach((c, i) => { c.rang = i + 1; });
+  return { retenues: r.structures.length, nouvelles, rejets: r.rejets, chrono: r.chrono };
+}
+
+/**
+ * Score d'une structure trouvée par la forme.
+ *
+ * Il ne peut pas être celui de `DETECTION.noter` : celui-là pèse la part de
+ * points non classés et la hauteur du signal, qui valent zéro pour une ruine
+ * que l'IGN a classée « sol » — la meilleure trouvaille de cette voie y
+ * marquerait donc le plus mauvais score. On note ici sur les trois preuves
+ * propres à la voie : la ligne se referme, l'intérieur est fermé au ciel, le mur
+ * dépasse. Pondération assumée, comme l'autre, faute de jeu étiqueté.
+ */
+function noterForme(s) {
+  const fermeture = Math.min(1, (s.couverture - CONFIG.lignes.couvertureMin)
+    / (1 - CONFIG.lignes.couvertureMin));
+  const enfermement = Math.min(1, (90 - s.interieur) / 25);
+  const mur = Math.min(1, s.hauteurMur / 0.8);
+  return Math.max(0, 0.4 * enfermement + 0.35 * fermeture + 0.25 * mur);
+}
 
 // ── Étape 3 bis : sentiers ──────────────────────────────────────────────────
 
@@ -943,11 +1077,14 @@ function afficherResultats() {
       <div class="ligne-titre">
         <span class="rang">#${c.rang}</span>
         <span class="score">${c.score.toFixed(2)}</span>
+        ${c.voie && c.voie !== 'classement' ? `<span class="marque voie">${c.voie === 'les deux' ? 'les deux voies' : 'forme du relief'}</span>` : ''}
         ${c.dejaRepertorie ? `<span class="marque">BD TOPO · ${echapper(c.batimentProche)}</span>` : ''}
         <span class="puce" style="background:${couleur}"></span>
       </div>
       <div class="mesures">${c.surface.toFixed(0)} m² · ${c.longueur.toFixed(1)} × ${c.largeur.toFixed(1)} m
         · h ${c.hauteurMoy.toFixed(1)} m · rect. ${c.rectangularite.toFixed(2)} · pente ${c.penteMoy.toFixed(0)}°</div>
+      ${c.fermeture !== undefined ? `<div class="mesures">mur fermé à ${(c.fermeture * 100).toFixed(0)} %
+        · intérieur ${(90 - c.interieur).toFixed(0)}° sous le ciel ouvert · mur ${(c.hauteurMur * 100).toFixed(0)} cm</div>` : ''}
       <div class="coords">${l.dms} · ${c.altitude.toFixed(0)} m</div>
       <div class="actions">
         <a href="${l.earth}" target="_blank" rel="noopener">Google&nbsp;Earth</a>
