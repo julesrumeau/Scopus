@@ -1205,6 +1205,61 @@ le PNR des Pyrénées ariégeoises sont les interlocuteurs naturels — eux peuv
 fournir des coordonnées de ruines connues, c'est-à-dire le contrôle positif qui
 manque.
 
+### #14 — Page d'accueil (notes de conception, rien de codé)
+
+La porte d'entrée de #3. Aujourd'hui, qui ouvre Scopus tombe sur une carte de
+France et doit deviner où cliquer.
+
+**Deux chemins, mais pas deux boutons égaux.** C'est le point le mieux établi de
+ce que dit la littérature du domaine : offrir plusieurs actions concurrentes de
+même poids crée une charge de décision et fait chuter le passage à l'acte — une
+page à une seule action convertit autour de 13,5 %, une page à cinq liens ou plus
+autour de 10,5 %. Donc **hiérarchie, pas symétrie** :
+
+- **action principale** — « Voir un exemple », bouton plein, gros, le seul
+  élément coloré de l'écran. Mène pour l'instant à un **placeholder assumé** :
+  une page qui dit ce que l'exemple montrera et qu'il est en préparation. Un
+  bouton qui ne fait rien se lit comme une panne ; un bouton qui annonce se lit
+  comme un chantier ;
+- **action secondaire** — « J'ai déjà des coordonnées », en lien ou bouton
+  contour, qui entre directement dans la carte.
+
+**Un seul écran, sans défilement, sans visite guidée.** La page d'accueil est
+elle-même un obstacle entre l'utilisateur et l'outil : elle doit énoncer la
+proposition en cinq secondes et rendre l'action visible sans défiler. La
+littérature d'onboarding est nette là-dessus — une visite guidée ne se justifie
+que lorsqu'on a épuisé tous les moyens de rendre l'interface explicite par
+elle-même.
+
+**Ce qu'elle contient, et rien d'autre :**
+
+1. le nom, et une phrase qui dit ce que ça fait — pas ce que ça utilise ;
+2. **une image**, qui fait tout le travail : la même zone en photo aérienne et en
+   Sky-View Factor, où l'on voit des formes que la photo cache. C'est la
+   démonstration qui s'administre toute seule, et elle recoupe #13 ;
+3. les deux actions, hiérarchisées ;
+4. **une ligne sur ce que l'outil ne sait pas faire.** Ce n'est pas de la
+   modestie : c'est ce qui détermine la qualité des retours (voir #4). Qui
+   comprend qu'il s'agit de règles géométriques réglables propose des
+   coordonnées ; qui croit à une IA répond « ça marche pas » ;
+5. la mention **LiDAR HD © IGN, licence ouverte Etalab**.
+
+**Contraintes propres au projet, à ne pas oublier :**
+
+- **dans `index.html`, pas dans un second fichier.** Le double-clic sur
+  `index.html` et la publication sur Pages doivent rester vrais tous les deux :
+  la page d'accueil est donc une section plein écran du document, masquée dès
+  qu'une dalle est choisie, et l'état de l'URL (#3) décide de l'afficher ou non ;
+- **même thème sombre** que l'application, avec les mêmes variables de
+  `styles.css`. Une accueil claire suivie d'un outil sombre fait un à-coup
+  visuel, et le sombre est là pour une raison — on regarde un nuage de points sur
+  fond noir ;
+- **aucune dépendance, aucune police distante.**
+
+**À ne pas faire :** carrousel, visite guidée, fenêtre modale à congédier avant de
+voir la carte, superlatifs. Et surtout pas de capture d'interface prise avant que
+l'interface soit finie — c'est déjà la règle de #4.
+
 ### #13 — Refonte des onglets : Carte, 2D, 3D
 
 Décidée avec l'utilisateur après la mise en veille de la détection : la valeur de
