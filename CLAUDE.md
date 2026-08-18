@@ -1205,6 +1205,55 @@ le PNR des Pyrénées ariégeoises sont les interlocuteurs naturels — eux peuv
 fournir des coordonnées de ruines connues, c'est-à-dire le contrôle positif qui
 manque.
 
+### #13 — Refonte des onglets : Carte, 2D, 3D
+
+Décidée avec l'utilisateur après la mise en veille de la détection : la valeur de
+l'outil est désormais de **montrer**, et c'est la vue 2D qui montre le mieux.
+
+**Trois onglets, dans cet ordre. Le nom dit le mode d'affichage, pas le contenu**
+— la question « où je vois quoi » doit avoir une réponse évidente :
+
+- **Carte** — explorer, choisir une dalle.
+- **2D** — la vue d'arrivée après sélection, et le cœur de l'outil. Deux couches
+  au choix, **une à gauche, une à droite, un rideau au milieu** : photo aérienne,
+  ombrage, micro-relief, Sky-View Factor, ouverture. C'est la démonstration la
+  plus parlante qui soit — une structure invisible sur la photo apparaît dans le
+  relief — et c'est ce que vendent explorelidar.fr et daevorn-maps.org par
+  abonnement.
+- **3D** — le nuage de points, inchangé.
+
+Cette tâche absorbe l'ancienne #5 (rideau ortho ↔ relief).
+
+**Le point technique qui décide de tout : l'ortho n'est pas dans le même système
+que le relief.** Les tuiles arrivent en Web Mercator, les grilles sont en
+Lambert-93 — et c'est pour ça qu'une cellule vaut exactement un pixel, sans
+rééchantillonnage. Un carré Lambert-93 est tourné d'environ 1° en Mercator, soit
+une vingtaine de mètres en travers d'une dalle : superposées naïvement, les deux
+couches glisseraient l'une sur l'autre.
+
+Deux issues, la seconde est celle retenue :
+
+1. faire de la 2D une carte Leaflet avec le relief en surcouche — l'ortho est
+   native, mais le relief doit être reprojeté et **perd sa netteté**, qui est
+   précisément ce qui le rend lisible ;
+2. **garder le canevas Lambert-93 et y déformer l'ortho.** Les tuiles sont
+   récupérées puis rééchantillonnées dans la grille. Le relief garde sa lecture au
+   pixel, et l'artefact tombe sur la photo, qui n'est que du contexte : c'est le
+   bon endroit pour perdre de la précision.
+
+**Deux choses à régler en passant :**
+
+- **Un cache de couches.** Une seule est calculée à la fois aujourd'hui
+  (`coucheCalculee`). Deux côtés en demandent deux, et le Sky-View Factor coûte
+  5 s : sans cache, chaque mouvement du sélecteur les recalculerait.
+- **Le comportement du rideau** : poignée qu'on glisse, et à décider — se
+  pose-t-elle aussi au clic, pour comparer un point précis sans viser la poignée ?
+
+**Conséquence en cascade, plutôt bonne :** si la 2D devient la vue d'arrivée,
+c'est elle que doit ouvrir la dalle d'exemple (#3) et elle qu'il faut
+photographier pour le README (#6). Le bloc publication s'en trouve simplifié, pas
+alourdi.
+
 ### #12 — Borner le zoom de la carte
 
 Au-delà du zoom 19, l'orthophoto n'a plus de donnée dans les Pyrénées : les
@@ -1221,7 +1270,7 @@ pour dire pourquoi. Deux choses, à faire ensemble :
 À vérifier avant de fixer la borne : le plan IGN monte peut-être plus haut que
 l'ortho, auquel cas la limite dépend de la couche affichée.
 
-### #5 — Rideau ortho ↔ relief *(après publication)*
+### #5 — Rideau ortho ↔ relief — **absorbée par #13**
 
 Un curseur vertical qui balaie entre l'orthophoto et le relief. C'est la
 démonstration la plus parlante qui soit — une structure invisible sur la photo
