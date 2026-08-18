@@ -1205,6 +1205,22 @@ le PNR des Pyrénées ariégeoises sont les interlocuteurs naturels — eux peuv
 fournir des coordonnées de ruines connues, c'est-à-dire le contrôle positif qui
 manque.
 
+### #12 — Borner le zoom de la carte
+
+Au-delà du zoom 19, l'orthophoto n'a plus de donnée dans les Pyrénées : les
+tuiles reviennent en **404** et la carte devient entièrement grise, sans rien
+pour dire pourquoi. Deux choses, à faire ensemble :
+
+- `maxNativeZoom: 19` sur les couches de tuiles — Leaflet agrandit alors la
+  dernière tuile disponible au lieu d'en demander d'inexistantes. Une ligne dans
+  `carte.js` ;
+- borner le zoom de la carte et **dire** qu'on est au maximum, plutôt que de
+  laisser zoomer dans le vide. Même principe que les autres états vides (#4) : un
+  écran gris sans message se lit comme une panne.
+
+À vérifier avant de fixer la borne : le plan IGN monte peut-être plus haut que
+l'ortho, auquel cas la limite dépend de la couche affichée.
+
 ### #5 — Rideau ortho ↔ relief *(après publication)*
 
 Un curseur vertical qui balaie entre l'orthophoto et le relief. C'est la
