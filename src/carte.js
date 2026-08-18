@@ -45,6 +45,28 @@ class Carte {
     const tuiles = { attribution: ATTRIBUTION, updateWhenIdle: true, updateWhenZooming: false, keepBuffer: 1 };
     const plan = L.tileLayer(IGN.gabaritWMTS('plan'), { ...tuiles, maxZoom: 19 });
     const ortho = L.tileLayer(IGN.gabaritWMTS('ortho'), { ...tuiles, maxZoom: 21 });
+    // Une tuile refusée est redemandée, jusqu'à trois fois.
+    //
+    // Même cause que le réessai des 400 dans `reseau.js` : la passerelle répond
+    // par intermittence « Layer ORTHOIMAGERY.ORTHOPHOTOS unknown » à une URL
+    // valide, qui marche à l'essai suivant. Leaflet, lui, ne réessaie jamais —
+    // il laisse un trou gris dans la carte, définitivement. Sur vingt tuiles
+    // demandées d'affilée, quatre à huit manquaient.
+    //
+    // Le `src` est vidé avant d'être réécrit : réaffecter la même chaîne ne
+    // relance pas forcément le chargement.
+    for (const couche of [plan, ortho]) {
+      couche.on('tileerror', (e) => {
+        const img = e.tile;
+        const url = img.src;
+        if (!url) return;
+        const n = (img._reprises = (img._reprises || 0) + 1);
+        if (n > 3) return;
+        img.src = '';
+        setTimeout(() => { img.src = url; }, 350 * n * (0.7 + Math.random() * 0.6));
+      });
+    }
+
     ortho.addTo(this.map);
     L.control.layers({ 'Photo aérienne': ortho, 'Plan IGN': plan }, null, { collapsed: true }).addTo(this.map);
 

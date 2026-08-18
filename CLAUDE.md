@@ -745,6 +745,15 @@ désagréable que l'attente.
 
 ## Pièges connus
 
+- **`data.geopf.fr` renvoie des `400` fantômes.** Mesuré, pas supposé : la même
+  URL de tuile, valide, alterne 200 et `400 InvalidParameterValue — Layer
+  ORTHOIMAGERY.ORTHOPHOTOS unknown`. Sur vingt requêtes identiques, quatre
+  refusées en parallèle, huit en série, et un 200 immédiat au réessai. La
+  passerelle est répartie et certains nœuds ignorent la couche. Conséquence :
+  **le 400 est traité comme transitoire** dans `reseau.js`, et les tuiles Leaflet
+  — qui ne réessaient jamais et laissent un trou gris définitif — sont
+  redemandées jusqu'à trois fois sur `tileerror`. Ne pas « corriger » l'URL en
+  réponse à ce 400 : elle est juste.
 - **Tout passe par le même hôte, donc par une seule connexion HTTP/2.** Tuiles
   WMTS, WFS des blocs, dalle au point, BD TOPO et les centaines de requêtes de
   plage du COPC vont toutes à `data.geopf.fr`. Leaflet **ne passe pas** par la

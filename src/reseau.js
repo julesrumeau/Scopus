@@ -69,9 +69,19 @@ function recuperer(url, opts = {}) {
           signal: signal ? AbortSignal.any([signal, limite]) : limite,
         });
 
-        // 429 et 5xx sont transitoires : on recule et on repart. Le reste est
-        // définitif — insister ne ferait qu'aggraver la charge.
-        if (rep.status === 429 || rep.status >= 500) {
+        // 429, 5xx **et 400** sont transitoires : on recule et on repart.
+        //
+        // Le 400 surprend, et c'est mesuré, pas supposé : `data.geopf.fr` répond
+        // par intermittence `400 InvalidParameterValue — Layer
+        // ORTHOIMAGERY.ORTHOPHOTOS unknown` à une URL parfaitement valide, qui
+        // renvoie 200 à l'essai suivant. Relevé sur vingt requêtes identiques :
+        // quatre refusées en parallèle, huit en série. La passerelle est
+        // répartie sur plusieurs nœuds et certains ignorent la couche.
+        //
+        // Le prix à payer est qu'une requête réellement malformée sera réessayée
+        // six fois avant d'échouer. C'est peu cher : elle échoue quand même, et
+        // le message final la désigne.
+        if (rep.status === 400 || rep.status === 429 || rep.status >= 500) {
           dernierEchec = new Error(`HTTP ${rep.status} sur ${url}`);
           const entete = rep.headers.get('retry-after');
           await sommeil(entete ? Number(entete) * 1000 : recul(essai));
