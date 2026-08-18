@@ -635,6 +635,39 @@ function etirer(base, ancrage, contraste) {
 }
 
 /**
+ * Valeur d'une couche sous chaque point du nuage, ramenée dans [0, 1].
+ *
+ * C'est ce qui permet de colorer le nuage 3D par une couche de relief : le
+ * point prend la valeur de la cellule qu'il survole, et non la sienne. Une
+ * couche d'ombrage ou de Sky-View Factor n'a en effet de sens que **par
+ * cellule** — elle décrit le voisinage, pas le point.
+ *
+ * L'intervalle d'étalement est celui déjà calculé pour l'affichage 2D, contraste
+ * compris : les deux vues montrent alors exactement la même image, ce qui est
+ * tout l'intérêt — on repère une forme sur le canevas, on bascule en 3D, on la
+ * retrouve au même endroit avec la même intensité.
+ */
+function valeurParPoint(nuage, t, couche) {
+  const out = new Float32Array(nuage.n);
+  const x0 = t.emprise.xmin - nuage.origine[0];
+  const y0 = t.emprise.ymin - nuage.origine[1];
+  const inv = 1 / t.pas;
+  const { valeurs, min, max } = couche;
+  const etendue = max - min || 1;
+
+  for (let i = 0; i < nuage.n; i++) {
+    const cx = Math.min(t.W - 1, Math.max(0, ((nuage.x[i] - x0) * inv) | 0));
+    const cy = Math.min(t.H - 1, Math.max(0, ((nuage.y[i] - y0) * inv) | 0));
+    const v = valeurs[cy * t.W + cx];
+    // Les couches laissent des NaN là où elles ne savent pas — la marge de bord
+    // du micro-relief, par exemple. Un NaN téléversé tel quel donne un point
+    // noir aléatoire ; on le ramène au bas de l'échelle, qui est le fond.
+    out[i] = Number.isFinite(v) ? Math.min(1, Math.max(0, (v - min) / etendue)) : 0;
+  }
+  return out;
+}
+
+/**
  * Calcule une couche et son étalement, en chronométrant.
  *
  * Le temps est remonté à l'interface : c'est la seule façon de savoir ce que
@@ -657,5 +690,5 @@ function calculer(t, cle, options = {}) {
   };
 }
 
-return { preparer, calculer, etirer, COUCHES, ombrage, ombrageMulti, microRelief, svf, ouverture, balayerHorizons, flouBoite, gradients };
+return { preparer, calculer, etirer, valeurParPoint, COUCHES, ombrage, ombrageMulti, microRelief, svf, ouverture, balayerHorizons, flouBoite, gradients };
 })();

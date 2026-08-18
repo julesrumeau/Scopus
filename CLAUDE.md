@@ -683,6 +683,26 @@ moins de deux mètres près, ce qui rend la fusion possible.
 
 `sentiers.js` n'a pas été touché.
 
+### Le relief dans le nuage
+
+Un cinquième mode de coloration plaque la couche de relief courante sur les
+points du nuage. Le point prend la valeur de la **cellule qu'il survole**, et non
+la sienne : une couche d'ombrage ou d'ouverture décrit un voisinage, pas un
+point.
+
+Trois choix, tous pour la même raison — que les deux vues soient *la même image* :
+
+- l'intervalle d'étalement est celui déjà calculé pour le canevas 2D, contraste
+  compris, et il suit le curseur de contraste ;
+- changer de couche dans l'onglet Relief met le nuage à jour, et charger une
+  nouvelle dalle conserve le mode ;
+- la rampe est le même gris neutre. Y mettre des couleurs ferait croire à une
+  échelle qui n'existe pas — une couche d'ombrage se lit par le modelé.
+
+L'attribut de sommet est **partagé avec le mode « hauteur »** et réécrit au
+changement de mode : un attribut de plus coûterait 18 Mo de mémoire graphique sur
+une dalle, pour une donnée dont on n'a jamais besoin des deux à la fois.
+
 ## Voile d'attente : pourquoi la roue tourne
 
 Les traitements lourds sont **synchrones**. Tant qu'ils tournent, le navigateur
@@ -1056,7 +1076,11 @@ garder plutôt qu'à payer à chaque lancement ; et les pas diffèrent — déte
 25 cm, relief à 50 cm — à trancher entre suréchantillonner et mener cette voie
 sur la grille grossière.
 
-### #8 — Voir le relief dans la vue 3D
+### #8 — Voir le relief dans la vue 3D *(voie 1 faite)*
+
+**Fait au 18 août 2026 :** la coloration des points par la couche de relief. Voir
+« Le relief dans le nuage ». Reste la voie 2, le drapage sur un maillage, qui
+n'est à lancer que si la première se révèle insuffisante à l'usage.
 
 Le relief n'existe que dans l'onglet 2D, et le SVF se lit mieux que le nuage.
 Deux voies de coût très différent :

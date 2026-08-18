@@ -711,4 +711,4 @@ class Vue3D {
   }
 }
 
-const MODES = { elevation: 0, classification: 1, intensite: 2, hauteur: 3 };
+const MODES = { elevation: 0, classification: 1, intensite: 2, hauteur: 3, relief: 4 };

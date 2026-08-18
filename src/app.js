@@ -414,6 +414,11 @@ $('btn-charger').addEventListener('click', async () => {
       vue3d.definirHauteurs(RASTER.hauteurParPoint(etat.nuage, etat.grille));
     });
 
+    // Si l'utilisateur regardait le nuage en mode relief, la nouvelle dalle doit
+    // s'afficher pareil : sans ça elle reviendrait en hauteurs, sous un bouton
+    // qui dit toujours « Relief ».
+    if (CONFIG.rendu.coloration === 'relief') await majAttributNuage();
+
     etat.dalleChargee = dalle;
     carte.marquerChargee(dalle);
     majBandeau();
@@ -587,6 +592,12 @@ async function calculerCouche(cle) {
     vueRelief.definirCouche(coucheCalculee);
     vueRelief.definirContraste(contrasteRelief);
     majStatsRelief();
+    // Le nuage 3D affiche peut-être cette même couche : changer de couche ici
+    // doit se voir là-bas aussi, sans quoi les deux vues montreraient deux
+    // choses différentes sous le même nom.
+    if (CONFIG.rendu.coloration === 'relief' && etat.nuage) {
+      vue3d?.definirHauteurs(RELIEF.valeurParPoint(etat.nuage, etat.reliefGrille, coucheCalculee));
+    }
     statut(`Relief : ${def.libelle.toLowerCase()}`);
   } catch (e) {
     alerter(`Relief : ${e.message}`);
@@ -614,6 +625,14 @@ $('contraste-relief').addEventListener('input', (e) => {
   $('val-contraste').textContent = `×${contrasteRelief.toFixed(1)}`;
   vueRelief.definirContraste(contrasteRelief);
   majStatsRelief();
+  // Le contraste ne recalcule pas la couche, il ne fait que resserrer
+  // l'intervalle affiché — mais le nuage 3D lit le même intervalle, et doit donc
+  // le suivre pour que les deux vues restent la même image.
+  if (CONFIG.rendu.coloration === 'relief' && coucheCalculee && etat.nuage) {
+    const [min, max] = vueRelief.etendue();
+    vue3d?.definirHauteurs(RELIEF.valeurParPoint(etat.nuage, etat.reliefGrille,
+      { ...coucheCalculee, min, max }));
+  }
 });
 
 // Les deux superpositions n'ont plus rien à superposer tant que l'analyse est
@@ -653,14 +672,40 @@ $('volets').addEventListener('click', (e) => {
 
 // ── Affichage du nuage ──────────────────────────────────────────────────────
 
-$('coloration').addEventListener('click', (e) => {
+$('coloration').addEventListener('click', async (e) => {
   const b = e.target.closest('button');
   if (!b) return;
   for (const autre of $('coloration').children) autre.classList.toggle('actif', autre === b);
   CONFIG.rendu.coloration = b.dataset.mode;
   majLegende();
+  await majAttributNuage();
   vue3d?.invalider();
 });
+
+/**
+ * Recharge l'attribut par point que le mode courant consomme.
+ *
+ * Les modes « hauteur » et « relief » partagent le même attribut de sommet :
+ * l'un y met la hauteur au-dessus du sol, l'autre la valeur de la couche de
+ * relief. Un second attribut coûterait 18 Mo de mémoire graphique sur une dalle
+ * pour une donnée dont on n'a jamais besoin des deux à la fois — on réécrit donc
+ * le même tampon au changement de mode.
+ *
+ * Passer en relief prépare la grille et calcule la couche si besoin : on ne va
+ * pas demander à l'utilisateur d'aller d'abord dans l'onglet Relief pour que le
+ * bouton d'à côté fonctionne.
+ */
+async function majAttributNuage() {
+  if (!vue3d || !etat.nuage || !etat.grille) return;
+
+  if (CONFIG.rendu.coloration === 'relief') {
+    await preparerRelief();
+    if (!coucheCalculee) return;
+    vue3d.definirHauteurs(RELIEF.valeurParPoint(etat.nuage, etat.reliefGrille, coucheCalculee));
+  } else if (CONFIG.rendu.coloration === 'hauteur') {
+    vue3d.definirHauteurs(RASTER.hauteurParPoint(etat.nuage, etat.grille));
+  }
+}
 
 $('taille-point').addEventListener('input', (e) => {
   CONFIG.rendu.taillePoint = Number(e.target.value);
@@ -700,6 +745,7 @@ function majLegende() {
 
   const echelle = {
     hauteur: 'Sombre = sol · jaune = 1–3 m · rouge = &gt; 5 m',
+    relief: 'La couche de l’onglet Relief, plaquée sur les points',
     elevation: 'Bleu = point bas · blanc = point haut de la dalle',
     intensite: 'Réflectance brute du laser, normalisée sur 16 bits',
   }[CONFIG.rendu.coloration];

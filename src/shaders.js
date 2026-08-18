@@ -25,7 +25,7 @@ uniform float u_hauteurViewport;
 uniform float u_exagerationZ;
 uniform float u_zmin;
 uniform float u_zref;          // amplitude d'altitude, pour la colorisation
-uniform int u_mode;            // 0 élévation · 1 classification · 2 intensité · 3 hauteur
+uniform int u_mode;            // 0 élévation · 1 classification · 2 intensité · 3 hauteur · 4 relief
 uniform sampler2D u_palette;
 
 // Zone mise en avant (une détection sélectionnée) : au-delà, les points sont
@@ -60,6 +60,17 @@ vec3 rampeHauteur(float h) {
   vec3 mid = vec3(0.90, 0.72, 0.28);
   vec3 haut = vec3(0.95, 0.35, 0.25);
   return t < 0.35 ? mix(bas, mid, t / 0.35) : mix(mid, haut, (t - 0.35) / 0.65);
+}
+
+// Rampe de relief : gris franc, du sombre au clair.
+//
+// Volontairement neutre, et volontairement la même que celle de l'onglet Relief.
+// Une couche d'ombrage ou d'ouverture se lit par le **modelé**, pas par la
+// valeur : y mettre des couleurs ferait croire à une échelle qui n'existe pas,
+// et empêcherait de comparer l'image 2D et le nuage d'un coup d'œil.
+vec3 rampeRelief(float v) {
+  float t = clamp(v, 0.0, 1.0);
+  return vec3(0.05 + 0.93 * t);
 }
 
 void main() {
@@ -97,7 +108,12 @@ void main() {
   if (u_mode == 0)      v_couleur = rampeElevation((a_pos.z - u_zmin) / max(u_zref, 1.0));
   else if (u_mode == 1) v_couleur = pal.rgb;
   else if (u_mode == 2) v_couleur = vec3(0.25 + 0.75 * a_intensite);
-  else                  v_couleur = rampeHauteur(a_hauteur);
+  else if (u_mode == 3) v_couleur = rampeHauteur(a_hauteur);
+  // Le mode relief réutilise l'attribut de hauteur, qui porte alors la valeur de
+  // la couche déjà ramenée dans [0, 1]. Un attribut de plus coûterait 18 Mo de
+  // VRAM sur une dalle, pour une donnée dont on n'a jamais besoin des deux à la
+  // fois.
+  else                  v_couleur = rampeRelief(a_hauteur);
 
   float dedans = 1.0;
   if (u_focusActif > 0.5) {
