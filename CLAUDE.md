@@ -304,6 +304,57 @@ Corollaire côté interface : un seul conteneur défilant. La liste de résultat
 avait le sien (`max-height` + `overflow`), ce qui piégeait la molette dès que le
 curseur la survolait.
 
+## La page d'accueil
+
+Sans elle, qui ouvre Scopus tombe sur une carte de France et doit deviner où
+cliquer — et tout le reste de l'outil est derrière ce clic. C'est une **section
+plein écran d'`index.html`**, pas un second fichier : le double-clic et la
+publication sur Pages doivent rester vrais tous les deux, et deux fichiers
+`file://` sont de toute façon deux origines opaques.
+
+Elle tient en un écran, sans défilement ni visite guidée, et pose une seule
+question sous deux formes de **poids délibérément inégaux** : « Voir un exemple »
+est le seul élément coloré de la page, « J'ai déjà des coordonnées » est un lien.
+Des actions concurrentes de même poids créent une charge de décision et font
+chuter le passage à l'acte ; la hiérarchie n'est donc pas cosmétique.
+
+**Le bouton principal annonce au lieu de ne rien faire.** La dalle d'exemple
+n'est pas encore arrêtée (#3) : « Voir un exemple » mène à un écran qui dit ce
+que l'exemple montrera et selon quels critères la dalle sera choisie. Un bouton
+muet se lit comme une panne ; un bouton qui annonce se lit comme un chantier.
+
+**L'image est un schéma dessiné, et le dit.** La comparaison promise — photo
+aérienne d'un côté, Sky-View Factor de l'autre, la cabane posée sur la coupure de
+sorte que sa moitié gauche disparaisse sous les arbres — demande une vraie dalle,
+donc la dalle d'exemple. Une illustration annoncée comme telle est honnête ; la
+même passée pour une donnée ne le serait pas. Elle se remplace par la paire réelle
+en même temps que #3, et c'est aussi la capture qu'attend le README (#6).
+
+**La ligne sur ce que l'outil ne sait pas faire n'est pas de la modestie** : elle
+détermine la qualité des retours. Qui comprend qu'il s'agit de règles
+géométriques réglables propose des coordonnées ; qui croit à une IA répond « ça
+ne marche pas ». Elle doit continuer à dire qu'aucune ruine réelle connue n'a
+servi à régler les seuils, aussi longtemps que c'est vrai.
+
+Trois points de mise en œuvre à ne pas défaire :
+
+- **Un `location.hash` non vide saute l'accueil.** C'est #3 qui écrira ce hash ;
+  le lire est déjà vrai et le restera. Sans cela, un lien partagé ouvrirait une
+  page de présentation au lieu de la dalle qu'il désigne.
+- **Les raccourcis clavier sont neutralisés tant que l'accueil est là.** Ils
+  piloteraient sinon un outil que l'écran recouvre entièrement.
+- **La largeur de l'image est bornée pour que sa hauteur le soit** —
+  `min(100%, 94vh)` à rapport 640/300, réduit à 74vh en fenêtre basse. Passer par
+  un `max-height` sur le SVG laisserait au contraire des bandes vides dans le
+  cadre, `preserveAspectRatio` faisant tenir le dessin dans une boîte qui n'a
+  plus son rapport.
+
+Un piège de mesure, à ne pas reproduire : **la fenêtre de Chrome headless ne
+descend pas sous ~500 px de large**, et son cliché rogné à la taille demandée
+donne l'illusion parfaite d'une mise en page qui déborde. Vérifier une largeur de
+téléphone demande un **iframe** — `position: fixed` s'y résout sur la taille du
+cadre. Mesuré ainsi à 380 px, la page tient.
+
 ## Le panneau suit la vue
 
 Une section porte `data-vue="carte"` ou `data-vue="3d"` pour déclarer l'onglet où
@@ -415,13 +466,143 @@ croisements. Le recollement reste à faire.
 
 ---
 
+## Trois onglets : Carte, 2D, 3D
+
+Le nom dit le **mode d'affichage**, pas le contenu — la question « où je vois
+quoi » doit avoir une réponse évidente. Carte pour explorer et choisir une dalle,
+2D pour la lire, 3D pour le nuage.
+
+Et **la 2D est la vue d'arrivée** : charger une dalle y bascule. Le nuage est le
+résultat le plus spectaculaire, mais ce n'est pas celui qu'on vient chercher — un
+objet de six mètres ne se voit pas dans un kilomètre carré de points, alors qu'il
+saute aux yeux sur une couche d'ouverture. La valeur de l'outil est de *montrer*,
+et c'est la 2D qui montre.
+
+Une conséquence à ne pas manquer : la bascule a lieu **avant** le comblement du
+MNT, pour que le voile d'attente se pose sur la vue qui recevra le résultat.
+`preparer2D()` doit donc vérifier que la grille est finalisée — `etat.grille.mnt`
+n'existe qu'après `RASTER.finaliser` — sans quoi le relief serait calculé sur une
+surface pleine de trous, et rien ne le dirait.
+
+### Deux couches, un rideau
+
+Le cœur de la vue : une couche à gauche, une autre à droite, un rideau qu'on
+glisse au milieu. C'est la démonstration la plus parlante de l'outil — une
+structure invisible sur la photo apparaît dans le relief — et c'est ce que
+vendent explorelidar.fr et daevorn-maps.org par abonnement.
+
+Les deux côtés partagent **tout** : même caméra, même échelle, même grille. Rien
+ne glisse quand on déplace la vue, et le rideau tombe au pixel. Ce n'est possible
+que parce que la photo a été rééchantillonnée dans la grille Lambert-93 (voir
+plus bas) : elle se lit sur les mêmes cellules que le relief.
+
+Quatre décisions :
+
+- **Le rideau se glisse, il ne se pose pas au clic.** La question s'était posée —
+  poser la ligne au clic éviterait d'avoir à viser la poignée. Mais le clic est
+  déjà pris (il sélectionne une détection), et une ligne de comparaison qui se
+  téléporte au milieu d'un déplacement désoriente plus qu'elle n'aide. Le
+  problème qu'on voulait résoudre est réglé autrement : **la bande sensible fait
+  22 px de large sur toute la hauteur**, on ne vise jamais la poignée.
+- **L'état du geste est un drapeau, pas `hasPointerCapture`.** La capture est une
+  commodité — elle garde le geste quand il sort de la bande — mais elle échoue
+  silencieusement si le pointeur n'est plus actif, et le rideau devient alors
+  sourd au mouvement sans que rien ne le signale.
+- **Les étiquettes se collent au rideau**, pas aux bords de l'écran : c'est là que
+  se fait la comparaison et là que l'œil est. Sans elles, deux nuances de gris
+  côte à côte ne disent pas laquelle est laquelle, dès qu'on a bougé un
+  sélecteur une fois.
+- **Deux listes déroulantes**, pas deux jeux de boutons : huit couches par côté
+  feraient seize boutons pour un choix qui se fait une fois.
+
+### Un cache de couches, parce qu'il y a deux côtés
+
+Une seule couche était gardée jusqu'ici (`coucheCalculee`). Avec deux côtés, un
+aller-retour du sélecteur recalculerait un Sky-View Factor à chaque mouvement —
+cinq secondes la pièce. Les couches sont donc gardées dans une table, vidée avec
+la grille et jamais avant : c'est elle qui définit la validité de ce qui est
+dedans. La photo l'est aussi — on ne repaie pas cent requêtes parce qu'on a bougé
+un sélecteur.
+
+Et une couche qui échoue **retombe sur l'ombrage** plutôt que de laisser un côté
+noir : l'ombrage ne dépend ni du réseau ni d'un calcul long.
+
+### La photo aérienne déformée dans la grille
+
+Le point technique qui décidait de tout : les tuiles arrivent en **Web
+Mercator**, les grilles sont en **Lambert-93**, et un carré Lambert-93 est tourné
+d'environ 1° en Mercator — une vingtaine de mètres en travers d'une dalle
+(mesuré : 1,15° et 20,1 m sur une dalle ariégeoise, `tools/ortho.test.js`).
+Superposées naïvement, les deux couches glisseraient l'une sur l'autre.
+
+Des deux issues possibles, c'est la seconde qui est retenue : **garder le canevas
+Lambert-93 et y déformer la photo** (`ortho.js`). Le relief garde sa lecture au
+pixel — une cellule, un pixel, aucun rééchantillonnage — et l'artefact tombe sur
+la photo, qui n'est que du contexte. C'est le bon endroit pour perdre de la
+précision. L'autre issue (une carte Leaflet avec le relief en surcouche) ferait
+perdre au relief la netteté qui le rend lisible.
+
+Mesuré sur une dalle réelle : **niveau 18, 100 tuiles** pour 1 km² à 50 cm. La
+durée, elle, est celle du réseau et de rien d'autre — **6,5 s** sur une exécution,
+**29,6 s** sur une autre, les mêmes tuiles depuis la même machine ; le
+rééchantillonnage des 4 M de cellules est négligeable devant. C'est le même
+constat que pour le chargement COPC : le débit bridé de l'IGN domine tout, et sa
+variance dépasse largement ce qu'on chercherait à optimiser.
+
+Le niveau est choisi comme le premier dont le pixel au sol est au plus égal au
+pas de la grille — sur-échantillonner la photo ne lui donne aucun détail, et
+chaque niveau de trop quadruple le nombre de tuiles. Le plafond à 19 n'est pas
+décoratif : au-delà, la Géoplateforme répond 404 — mesuré en Ariège, à Paris et
+en Vanoise, c'est le plafond de la couche et non une limite régionale (voir
+#12).
+
+Les tuiles passent par `RESEAU.recuperer` comme tout le reste — file bornée,
+réessais, 400 fantôme traité comme transitoire. Une tuile qui manque après ses
+réessais laisse un trou gris, elle ne fait pas échouer la photo entière : une
+zone sans orthophoto est un cas normal, et le relief, lui, est là.
+
+**La correspondance est un maillage interpolé, pas une projection par pixel.**
+Lambert-93 et Mercator sont tous deux conformes, donc leur composition est
+localement une similitude : un nœud toutes les 64 cellules suffit, et l'écart au
+calcul exact reste sous le dixième de pixel — mesuré, pas supposé.
+
+Trois pièges. Le premier est celui qui est passé, et il dit tout le reste :
+
+- **La ligne 0 du raster est au sud.** Toutes les grilles du projet indexent
+  ainsi — `RASTER.centreCellule` pose `y = ymin + (cy + 0,5)·pas` —, les images
+  font l'inverse, et le rééchantillonnage a d'abord suivi la convention des
+  images. Résultat : **la photo était retournée nord-sud**, livrée, et vue à
+  l'écran par l'utilisateur.
+
+  Ce qui compte est pourquoi les vérifications ne l'ont pas attrapée. Elles
+  comparaient le maillage à une correspondance **recalculée dans le test avec la
+  même convention que le code** — elles ne pouvaient que passer, y compris celle
+  qui remontait jusqu'aux vraies tuiles de l'IGN. C'est le mode de panne déjà
+  documenté pour `extraire` : un test qui rejoue l'hypothèse du code n'éprouve
+  rien. Le contrôle qui l'attrape fait venir la position d'une cellule de
+  `RASTER.centreCellule`, c'est-à-dire de la définition dont dépendent déjà
+  `mnt`, `hauteur` et la lecture au curseur : la photo doit s'y plier, et non
+  l'inverse. Vérifié en remettant le bogue : trois tests tombent.
+- **Ramener le dernier nœud du maillage sur le bord de la grille rompt
+  l'espacement.** L'interpolation divise par le pas ; un dernier intervalle plus
+  court lui fait appliquer un poids faux, et toute la bande de bord se décale.
+  Mesuré : **13 px, soit six mètres au sol**. Les nœuds restent donc à pas
+  constant, quitte à ce que le dernier tombe hors de la grille — la projection
+  est définie partout.
+- **Une photo décalée reste une photo plausible.** Rien à l'écran ne distingue la
+  bonne zone de celle d'à côté. D'où un contrôle croisé sur l'adressage des
+  tuiles : les indices calculés par la voie des mètres de Mercator sont comparés
+  à la formule usuelle « slippy map », qui exprime la même grille autrement. Une
+  erreur d'origine ou de convention y saute aux yeux, là où elle serait
+  invisible sur l'image.
+
 ## Lecture du relief
 
 Un nuage de points est le mauvais instrument pour repérer un objet de six mètres
 dans un kilomètre carré : on y voit l'ensemble et jamais le détail. C'est pour
 cette raison que la prospection lit des rasters ombrés depuis toujours.
-`relief.js` calcule ces images, `vue-relief.js` les affiche dans un onglet
-dédié — canevas 2D, nord en haut, **une cellule pour un pixel en Lambert-93**,
+`relief.js` calcule ces images, `vue-2d.js` les affiche dans l'onglet 2D —
+canevas, nord en haut, **une cellule pour un pixel en Lambert-93**,
 donc aucune reprojection et aucun rééchantillonnage. Les détections et les
 tracés s'y superposent gratuitement, eux aussi étant en Lambert-93.
 
@@ -445,10 +626,61 @@ terrain :
 
 **Deux familles de couches, parce que le classificateur IGN décide du sort d'un
 tas de pierres.** Classé 1 ou 6, il est retiré du MNT et le comblement met une
-surface lisse à sa place : invisible au micro-relief, visible en « hauteur des
-structures ». Classé 2, il *est* le terrain : invisible en hauteur, visible au
-micro-relief. Prises ensemble, les deux couvrent les deux cas — et c'est
-probablement là que se trouvent les ruines que la détection manque.
+surface lisse à sa place : il disparaît du micro-relief et ne reste visible qu'en
+« hauteur des structures ». Classé 2, il *est* le terrain : invisible en hauteur,
+visible au micro-relief. Prises ensemble, les deux couvrent les deux cas.
+
+C'est ce déséquilibre que corrige la section suivante — depuis, la surface
+affichée montre les deux.
+
+### Ce que la surface affichée retient, et ce qu'elle refusait
+
+Deux classes étaient jetées à la rastérisation (`default: break`) ou effacées par
+le comblement. Les rendre au terrain change ce qu'on voit, et la mesure au banc
+le dit sans ambiguïté.
+
+**L'eau est du terrain.** Une surface d'eau ne renvoie aucun point « sol » :
+ignorée, elle laissait un trou que le comblement refermait depuis les berges,
+c'est-à-dire un dôme ou un plan incliné là où il y a un plan d'eau horizontal.
+L'artefact est parfaitement lisible en ombrage et en Sky-View Factor, et il n'est
+pas du terrain. La classe 9 est donc versée dans l'accumulateur du sol — ce qui
+est aussi la convention des MNT, la surface de l'eau étant la surface du sol — et
+**ne coûte pas un octet** : pas de tableau supplémentaire, à 16 M de cellules
+chaque `Float32Array` en vaudrait 64 Mo.
+
+**Une ruine est opaque au laser**, et c'est ce qui l'efface. Elle ne laisse aucun
+retour sol sous elle ; le comblement met à sa place une surface lisse interpolée
+depuis ses bords, et elle disparaît exactement de la couche où on la cherche. Les
+points **non classés**, eux, sont là — ce sont ceux de la ruine. La surface
+affichée les prend donc **là où il n'y a aucun retour sol**, jamais ailleurs :
+substituer une mesure à une valeur inventée ne peut pas dégrader la surface.
+
+Mesuré au banc, cible = la couronne du mur, structure classée « bâtiment » :
+
+| Couche | d′ avant | d′ après |
+|---|---|---|
+| ouverture négative | 1,4 | **29,5** |
+| micro-relief | 0,4 | **14,0** |
+| Sky-View Factor | 1,9 | **10,8** |
+| ouverture positive | 1,4 | **8,7** |
+
+Les lignes « classé sol » du même banc sont **identiques au chiffre près**, ce qui
+est le contrôle qui compte : on ne remplace jamais du sol mesuré.
+
+Trois points à ne pas défaire :
+
+- **Le plafond de hauteur n'est pas un raffinement.** La classe 1 recueille aussi
+  tout ce que le classificateur n'a pas su ranger, végétation comprise. Sans lui,
+  un retour de branche à vingt mètres deviendrait un pic de terrain. Une ruine, un
+  muret, une charbonnière tiennent sous trois mètres ; un arbre non.
+- **`hauteur` reste mesurée contre le sol comblé**, jamais contre la surface
+  complétée — sinon toute structure aurait une hauteur nulle par construction. De
+  même, `trou` garde son sens strict (aucun retour **sol**) : c'est l'indice le
+  plus physique de la détection, et le compléter le viderait.
+- **`analyse` ne prend pas la substitution.** `lignes.js` construit son enveloppe
+  en ajoutant `hauteur` à cette surface : une structure qui serait déjà dans l'une
+  et encore dans l'autre compterait double. Vérifié — le banc en configuration de
+  production (50 cm) est **identique au caractère près** avant et après.
 
 **L'ouverture de Yokoyama (1998), positive et négative**, sort du même balayage
 d'horizons que le SVF : une passe, trois couches, et un mémo pour que passer de
@@ -478,8 +710,31 @@ qu'on le voit dominer. Chercher le mur dans la mauvaise couche ne rendrait donc
 rien du tout — et la signature complète d'une cabane ruinée est bien une paire,
 couronne en ouverture négative autour d'un enclos en ouverture positive.
 
-Deux pièges, l'un attrapé par les tests, l'autre à ne pas reproduire :
+Trois pièges, dont un vu à l'écran avant d'être compris :
 
+- **Une cellule sans donnée doit être écartée du balayage, pas seulement de la
+  lecture.** Elle porte une altitude de **repli** — la médiane de la dalle — qui
+  n'a aucun rapport avec le terrain local : dans une combe, elle vaut plusieurs
+  mètres de trop. Elle se comporte alors comme une tour, et toute cellule qui la
+  voit voit son horizon monter. Comme il n'y a que huit directions, l'ombre ne
+  s'étale pas : elle forme **une étoile à huit branches** autour de chaque trou.
+  Signature reconnaissable, et signalée par l'utilisateur avant d'être comprise ;
+  reproduite ensuite sur un plan horizontal percé d'un trou de 2 × 2 cellules —
+  **12 % de SVF** d'ombre portée jusqu'à sept mètres du trou.
+
+  La correction ne coûte rien, et c'est ce qui a demandé un deuxième essai. Un
+  test de validité par échantillon marche, mais alourdit la boucle la plus chaude
+  du projet de **36 %** (mesuré : 3,77 s → 5,13 s). La surface balayée porte donc
+  **NaN** dans les cellules sans donnée : NaN rend fausses *toutes* les
+  comparaisons, donc `tan > maxTan` et `tan < minTan` échouent ensemble et
+  l'échantillon est ignoré sans qu'une seule ligne soit ajoutée à la boucle —
+  3,70 s, soit le temps d'avant. Le prix assumé est une légère cécité au bord des
+  trous : un échantillon dont l'interpolation touche un trou est rejeté en entier.
+  Il éclaircit un peu, là où le défaut assombrissait en étoile.
+
+  Et la cellule sans donnée rend **NaN** plutôt qu'un nombre : le canevas la peint
+  en gris neutre, et les seuils des chaînes d'analyse rejettent toute comparaison
+  avec NaN. Elle est ignorée, pas devinée.
 - **Le rayon doit tomber exactement sur sa direction.** Avec des décalages
   entiers (`Math.round`) le rayon zigzague ; le maximum retient alors le pas le
   plus tourné vers l'amont et le minimum le moins tourné, si bien que les deux
@@ -567,7 +822,7 @@ Résultat sur les vingt scènes du banc : **8 structures sur 8 retrouvées**, ce
 à 0,33–0,39 m, **0 faux positif sur 12 scènes négatives** — dont un chaos de 240
 blocs qui allume pourtant 3,2 % des cellules. Coût sur une dalle entière :
 **4,8 s**, dont la totalité dans le balayage d'horizons, mémoïsé et partagé avec
-l'onglet Relief.
+l'onglet 2D.
 
 ### Ce que le banc a démenti
 
@@ -694,14 +949,72 @@ Trois choix, tous pour la même raison — que les deux vues soient *la même im
 
 - l'intervalle d'étalement est celui déjà calculé pour le canevas 2D, contraste
   compris, et il suit le curseur de contraste ;
-- changer de couche dans l'onglet Relief met le nuage à jour, et charger une
-  nouvelle dalle conserve le mode ;
+- changer de couche dans l'onglet 2D met le nuage à jour, et charger une
+  nouvelle dalle conserve le mode. La couche drapée est celle du **côté droit**
+  du rideau, ou la gauche si la droite porte la photo — il faut bien en choisir
+  une, et la droite est le côté du relief par convention ;
 - la rampe est le même gris neutre. Y mettre des couleurs ferait croire à une
   échelle qui n'existe pas — une couche d'ombrage se lit par le modelé.
 
 L'attribut de sommet est **partagé avec le mode « hauteur »** et réécrit au
 changement de mode : un attribut de plus coûterait 18 Mo de mémoire graphique sur
 une dalle, pour une donnée dont on n'a jamais besoin des deux à la fois.
+
+## Ce que l'outil dit quand ça ne marche pas
+
+Un message d'erreur juste et inutile est un défaut à part entière. « HTTP 429 sur
+https://data.geopf.fr/… » est exact, et ne dit ni si c'est réparable, ni s'il
+faut attendre, ni si c'est la faute de l'utilisateur. Or **chaque panne a une
+conduite à tenir différente** — attendre pour un 429, relancer pour un délai
+dépassé, vérifier son réseau pour un échec de connexion — et c'est cette conduite
+qui manquait, pas le code.
+
+`RESEAU.expliquer` traduit ; les appelants ne fournissent que le contexte de ce
+qui a échoué. Trois règles :
+
+- **L'état hors ligne prime sur tout le reste.** Sans réseau, les autres
+  diagnostics envoient chercher un problème chez l'IGN.
+- **Une panne inconnue passe telle quelle.** Mieux vaut une phrase technique
+  qu'une phrase rassurante et fausse : celle-là, au moins, se cherche dans un
+  moteur de recherche.
+- **Jamais d'URL à la figure.** Vérifié mécaniquement.
+
+Le voile d'alerte s'efface après une durée **proportionnelle à la longueur** du
+message : une phrase qui dit quoi faire fait deux lignes, et sept secondes ne
+suffisent pas à la lire.
+
+### Les états vides, un par un
+
+- **Clic hors de France.** Écarté avant même d'interroger le WFS, et surtout
+  avant de projeter en Lambert-93, qui n'est défini que pour la France.
+  `PROJ.dansEmpriseFrance` est un **rectangle englobant**, pas une frontière : il
+  déborde sur la mer et les pays voisins, et c'est assumé — il ne sert qu'à
+  choisir entre deux messages qui n'ont rien à voir, « le LiDAR HD ne couvre que
+  la France » et « cette zone n'a pas encore été volée ».
+- **Dalle sans sol connu.** Toutes les couches y valent NaN, ce qui est juste,
+  mais un aplat gris sans un mot se lit comme une panne de l'outil et non comme
+  une absence de donnée. En dessous de 2 % de cellules valides, l'outil le dit.
+- **Cas mobile.** Une dalle pleine fait 190 Mo à télécharger et 400 à 520 Mo de
+  grilles en mémoire — au-delà de ce qu'un navigateur mobile accorde à un onglet,
+  qu'il ferme sans prévenir. Le niveau proposé par défaut y est donc plafonné
+  (`budgetOctetsMobile`), et le coût annoncé porte un avertissement au-delà. Le
+  curseur reste libre : on avertit, on n'interdit pas. La détection d'appareil
+  portatif est une heuristique grossière — pointage tactile et écran étroit —
+  parce qu'il n'y a rien de mieux : `userAgentData.mobile` n'existe pas partout
+  et l'agent utilisateur ment. Se tromper ne coûte qu'une phrase de trop.
+
+### Sans WebGL2, seul l'onglet 3D tombe
+
+C'est le seul morceau de Scopus qui en dépende : la carte est en Leaflet, la vue
+2D est un canevas ordinaire, les grilles et le relief sont du calcul pur. Perdre
+le nuage de points ne doit donc pas perdre l'outil.
+
+Ce n'était pas le cas. `ouvrirDalle` appelait `vue3d.definirNuage` sans
+précaution : le chargement échouait au milieu, et l'utilisateur restait avec une
+interface à moitié morte et un message parlant de contexte WebGL. Tous ces appels
+passent désormais par `vue3d?.`, l'onglet est **désactivé** — `basculerVue` refuse
+un onglet désactivé, y compris au clavier — et un avis persistant dit à la fois ce
+qui manque et ce qui marche quand même.
 
 ## Voile d'attente : pourquoi la roue tourne
 
@@ -737,6 +1050,7 @@ Ce qui est enveloppé, relevé dans le code :
 | `RELIEF.svf`, `RELIEF.ouverture` | 8 directions × 20 pas sur 4 M de cellules, un seul balayage pour les trois |
 | `LIGNES.extraire` | le même balayage, 4,8 s sur une dalle — le reste de la chaîne est négligeable |
 | `RELIEF.preparer` | une passe sur 16 M de cellules |
+| `ORTHO.charger` | 100 tuiles WMTS puis 4 M cellules rééchantillonnées |
 | `Vue3D.definirNuage` | 4,4 M points entrelacés puis téléversés |
 
 Les couches de relief rapides — ombrage, micro-relief — n'y passent **pas** : sur
@@ -841,7 +1155,7 @@ désagréable que l'attente.
 
 `ANALYSE_MASQUEE = true` dans `app.js` retire de l'interface le volet Analyse
 entier — structures **et** sentiers — ainsi que les deux cases de superposition
-de l'onglet Relief. Tout le reste de ce document décrit du code qui existe,
+de l'onglet 2D. Tout le reste de ce document décrit du code qui existe,
 passe ses 71 tests, et ne s'exécute plus.
 
 **Pourquoi**, et l'argument n'est pas technique : sur une couche d'ouverture ou
@@ -948,12 +1262,30 @@ absence d'`import`, et surtout **absence de backtick dans les
 commentaires GLSL** — le piège documenté plus haut s'est reproduit deux fois, et
 se manifeste par un « SHADERS is not defined » à l'autre bout de l'application.
 
-`.tmp/` (non versionné) a servi à trois harnais à reconstruire au besoin :
+`.tmp/` (non versionné) a servi à plusieurs harnais à reconstruire au besoin :
 
 - `pipeline.mjs` — pipeline complet hors navigateur sur données IGN réelles ;
 - `selftest.html` — chaîne réelle en navigateur (modules, Worker, WASM, WebGL2,
   fetch IGN) ;
-- `run-browser.js` — pilote Chrome headless, la page renvoie son verdict par POST.
+- `run-browser.js` — pilote Chrome headless, la page renvoie son verdict par POST ;
+- `app2d.html` — **le parcours complet dans un iframe** : clic sur la carte,
+  choix d'une dalle, chargement au niveau le plus grossier, arrivée en 2D, photo,
+  rideau, changement de couche, aller-retour d'onglet. C'est le seul harnais qui
+  éprouve le câblage plutôt que les algorithmes, et il tourne sur données réelles.
+  Il renvoie aussi un **cliché du canevas 2D** par POST, `--screenshot` ne
+  survivant pas à un chargement de dalle (le temps virtuel s'épuise avant).
+
+L'assemblage de la photo se vérifie de son côté par comparaison **à la tuile
+d'origine** : la couleur d'une cellule du raster doit être celle du pixel de la
+tuile qui la couvre, la tuile étant redemandée séparément. Mesuré sur cinq
+cellules d'une dalle ariégeoise, écart moyen **3,5 / 255** — l'écart entre
+échantillonnage bilinéaire et plus proche voisin.
+
+Ce contrôle-là couvre l'assemblage de la mosaïque et l'adressage des tuiles ; il
+**n'a pas vu la photo retournée**, parce qu'il partageait la convention de lignes
+du code qu'il éprouvait. La convention, elle, se vérifie contre
+`RASTER.centreCellule` — voir le piège en tête de « La photo aérienne déformée
+dans la grille ».
 
 Résultats sur le plateau de Beille : 1 détection, 0 faux positif sur 25 ha ;
 la cabane de la BD TOPO retrouvée à 1,3 m.
@@ -977,6 +1309,11 @@ est disponible.
 | Détection de sentiers | 🚧 chaîne complète, non validée sur chemin réel |
 | Contrôle positif sur ruine effondrée | ❌ en attente de coordonnées |
 | **Détection automatique dans l'interface** | 🙈 **masquée** — `ANALYSE_MASQUEE` dans `app.js` |
+| Page d'accueil | ✅ — l'exemple mène à un écran d'annonce, faute de dalle d'exemple (#3) |
+| Onglets Carte / 2D / 3D, rideau de comparaison | ✅ |
+| États vides et messages utiles | ✅ |
+| Borne de zoom de la carte | ✅ |
+| Vue d'ouverture sur la France entière | ✅ |
 
 ## Jalon de publication
 
@@ -1008,9 +1345,10 @@ comprendre ce que fait l'outil ?* Si non, elle attend.
 ## Ce qui reste à faire
 
 Liste tenue hors du dépôt jusqu'ici, rapatriée telle quelle. Les numéros sont
-ceux d'origine, parce que les tâches se renvoient les unes aux autres. Deux sont
-faites et documentées plus haut : **#1** l'onglet Relief, **#7** le voile
-d'attente.
+ceux d'origine, parce que les tâches se renvoient les unes aux autres. Trois sont
+faites et documentées plus haut : **#1** l'onglet Relief — devenu l'onglet 2D
+avec **#13** —, **#7** le voile d'attente, **#14** la page d'accueil, **#13** les
+trois onglets et le rideau.
 
 ### #11 — Rallumer la détection, ou renoncer *(prioritaire)*
 
@@ -1043,7 +1381,7 @@ relief, micro-relief comme SVF. La donnée porte donc le signal, et toute panne
 restante est en aval — c'est un bug localisable, plus une impasse.
 
 Méthode, en descendant la chaîne avec le relief pour référence : prendre un
-chemin visible à l'œil dans l'onglet Relief et noter ses coordonnées, puis, à cet
+chemin visible à l'œil dans l'onglet 2D et noter ses coordonnées, puis, à cet
 endroit, comparer le `relief` de `sentiers.js` à la couche Micro-relief de
 `relief.js` — celle-ci est vérifiée contre des surfaces à réponse connue, une
 divergence désigne le lissage ou la marge de bord. Ensuite `rugosite` (surestimée,
@@ -1051,7 +1389,7 @@ elle rend le seuil inatteignable partout), `vesselness` (réponse non nulle sur 
 tracé ? échelles 1/2/4 m contre la largeur réelle ?), `hysteresis`, le squelette
 avant vectorisation, enfin les filtres — `stats.rejets` dit déjà lequel coupe.
 Les durées et les compteurs par étape sont affichés : s'en servir plutôt que
-deviner. Une couche de diagnostic dans l'onglet Relief — vesselness brute, masque
+deviner. Une couche de diagnostic dans l'onglet 2D — vesselness brute, masque
 après hystérésis — serait le moyen le plus rapide de voir où ça casse.
 
 **Repli acceptable avant publication :** marquer le volet Sentiers
@@ -1154,8 +1492,9 @@ de décalage en travers d'une dalle. Même piège que `L.rectangle`.
 Le détail du *pourquoi* est dans la section précédente ; voici ce que chacune
 demande.
 
-**#3 — Ouvrir sur un exemple, et l'état dans l'URL.** Un bouton « Voir un
-exemple » dans l'étape 1, l'état dans le **hash** (dalle, résolution, détection
+**#3 — Ouvrir sur un exemple, et l'état dans l'URL.** Le bouton « Voir un
+exemple » existe (#14) et mène à un écran d'annonce faute de dalle : il ne reste
+qu'à lui en donner une. Puis l'état dans le **hash** (dalle, résolution, détection
 sélectionnée, onglet actif — le hash marche aussi bien sur Pages qu'en `file://`,
 donc aucune régression sur le double-clic), et un bouton « Copier le lien ». Ne
 **pas** mettre les seuils dans l'URL : trop nombreux, changeants, et une URL de
@@ -1177,13 +1516,12 @@ positif, qui relève de la vérité terrain et peut rester privé :
 - **ne rien revendiquer comme validé** : `CLAUDE.md` dit qu'aucun contrôle
   positif n'existe et doit continuer à le dire.
 
-**#4 — États vides et messages utiles.** Faisable dès maintenant : dalle sans
-couverture LiDAR et clic hors de France ; réseau coupé ou 429 en rafale, avec un
-message qui dit **quoi faire** et pas seulement « HTTP 429 » ; « aucune détection
-avec ces seuils », à généraliser aux sentiers et au relief ; WebGL2 absent, en
-vérifiant qu'on ne reste pas avec une interface à moitié morte ; **cas mobile** —
-une dalle fait ~190 Mo, le dire plutôt que laisser un téléphone ramer puis
-planter, un visiteur de forum sur trois arrivera de là.
+**#4 — États vides et messages utiles — faite.** Le détail est dans « Ce que
+l'outil dit quand ça ne marche pas » ; les six cas de la liste d'origine sont
+couverts : clic hors de France, dalle sans couverture, pannes réseau traduites en
+conduite à tenir, dalle sans sol connu, WebGL2 absent sans interface à moitié
+morte, cas mobile. Les deux chaînes d'analyse avaient déjà leur « rien avec ces
+seuils » ; l'écran d'accueil est venu avec #14.
 
 Repoussé avec le bloc présentation : l'écran d'accueil qui dit ce que l'outil
 cherche et ce qu'il ne sait pas faire. Il forme un tout avec le bouton « Voir un
@@ -1205,131 +1543,183 @@ le PNR des Pyrénées ariégeoises sont les interlocuteurs naturels — eux peuv
 fournir des coordonnées de ruines connues, c'est-à-dire le contrôle positif qui
 manque.
 
-### #14 — Page d'accueil (notes de conception, rien de codé)
+### #18 — Petits correctifs repérés en travaillant
 
-La porte d'entrée de #3. Aujourd'hui, qui ouvre Scopus tombe sur une carte de
-France et doit deviner où cliquer.
+Aucun n'est architectural, tous sont vérifiés. Regroupés parce que chacun seul ne
+mérite pas une entrée.
 
-**Deux chemins, mais pas deux boutons égaux.** C'est le point le mieux établi de
-ce que dit la littérature du domaine : offrir plusieurs actions concurrentes de
-même poids crée une charge de décision et fait chuter le passage à l'acte — une
-page à une seule action convertit autour de 13,5 %, une page à cinq liens ou plus
-autour de 10,5 %. Donc **hiérarchie, pas symétrie** :
+- **La barre d'état déborde.** `.etat` n'a ni largeur bornée ni `white-space`, et
+  vit dans un en-tête de 46 px de haut. Depuis que les messages d'erreur disent
+  *quoi faire* (#4), ils font deux lignes : le texte passe alors sous la barre.
+  `max-width` + `text-overflow: ellipsis` — le message complet est de toute façon
+  dans l'alerte, qui est faite pour être lue.
+- **Pas de favicon.** L'onglet du navigateur montre l'icône par défaut, ce qui
+  fait bricolage sur une page qu'on va partager. Un SVG en `data:` dans le
+  `<head>` suffit : aucune dépendance, aucun fichier, et ça marche en `file://`.
+- **`f` (tout cadrer) ne marche qu'en 3D.** En 2D la touche ne fait rien alors que
+  le bouton, lui, existe. Elle devrait cadrer la vue courante. Une ligne.
+- **Le banc affiche « NaN % de cellules sans aucun point ».** Cause trouvée :
+  `RASTER.creerGrilles` ne pose pas de champ `N` sur ses grilles fines, et
+  `tools/banc-lignes.js` divise par `fine.N`. La boucle qui compte les vides ne
+  tourne donc jamais non plus (`i < undefined` est faux d'emblée). `fine.W *
+  fine.H` corrige les deux. Petit, mais c'est une statistique qu'on lit pour
+  juger un pas de grille — autant qu'elle dise quelque chose.
 
-- **action principale** — « Voir un exemple », bouton plein, gros, le seul
-  élément coloré de l'écran. Mène pour l'instant à un **placeholder assumé** :
-  une page qui dit ce que l'exemple montrera et qu'il est en préparation. Un
-  bouton qui ne fait rien se lit comme une panne ; un bouton qui annonce se lit
-  comme un chantier ;
-- **action secondaire** — « J'ai déjà des coordonnées », en lien ou bouton
-  contour, qui entre directement dans la carte.
+### #17 — Ouvrir sur la France — **faite**
 
-**Un seul écran, sans défilement, sans visite guidée.** La page d'accueil est
-elle-même un obstacle entre l'utilisateur et l'outil : elle doit énoncer la
-proposition en cinq secondes et rendre l'action visible sans défiler. La
-littérature d'onboarding est nette là-dessus — une visite guidée ne se justifie
-que lorsqu'on a épuisé tous les moyens de rendre l'interface explicite par
-elle-même.
+La carte s'ouvrait sur l'Ariège au zoom 12 : c'était la seule chose régionale du
+dépôt, alors que le README annonce dès sa deuxième phrase que l'outil marche
+partout où l'IGN a volé. Elle s'ouvre désormais sur **la France entière avec ses
+chantiers LiDAR**, ce qui répond du même coup à la première question d'un
+inconnu — « est-ce que ça couvre chez moi ? ».
 
-**Ce qu'elle contient, et rien d'autre :**
+Cadrée par `fitBounds` sur une emprise, et non par un centre plus un zoom : le
+même zoom 5 remplit un écran de portable et laisse la France minuscule sur un
+grand écran. Vérifié en 1400 × 900 et en 1000 × 700, le cadrage suit. Un repli au
+zoom 5 couvre le cas où le conteneur n'a pas encore de taille, `fitBounds` y
+calculant n'importe quoi.
 
-1. le nom, et une phrase qui dit ce que ça fait — pas ce que ça utilise ;
-2. **une image**, qui fait tout le travail : la même zone en photo aérienne et en
-   Sky-View Factor, où l'on voit des formes que la photo cache. C'est la
-   démonstration qui s'administre toute seule, et elle recoupe #13 ;
-3. les deux actions, hiérarchisées ;
-4. **une ligne sur ce que l'outil ne sait pas faire.** Ce n'est pas de la
-   modestie : c'est ce qui détermine la qualité des retours (voir #4). Qui
-   comprend qu'il s'agit de règles géométriques réglables propose des
-   coordonnées ; qui croit à une IA répond « ça marche pas » ;
-5. la mention **LiDAR HD © IGN, licence ouverte Etalab**.
+**La couche des chantiers tient l'échelle, et c'est mesuré** : 208 entités pour
+la France entière, avec `numberMatched = 208` — le service dit lui-même qu'il n'y
+a rien de plus, donc aucune troncature au plafond de 300. C'est exactement ce
+pour quoi cette couche existe à côté de la grille kilométrique, dont le WFS,
+lui, plafonne à 600 en silence.
 
-**Contraintes propres au projet, à ne pas oublier :**
+Le prix, à connaître : **1,1 Mo de GeoJSON en 570 ms** au démarrage. C'est la
+donnée qu'on veut montrer, donc c'est payé pour quelque chose — mais c'est une
+raison de plus de faire #15, une demi-seconde sans rien à l'écran se voyant très
+bien.
 
-- **dans `index.html`, pas dans un second fichier.** Le double-clic sur
-  `index.html` et la publication sur Pages doivent rester vrais tous les deux :
-  la page d'accueil est donc une section plein écran du document, masquée dès
-  qu'une dalle est choisie, et l'état de l'URL (#3) décide de l'afficher ou non ;
-- **même thème sombre** que l'application, avec les mêmes variables de
-  `styles.css`. Une accueil claire suivie d'un outil sombre fait un à-coup
-  visuel, et le sombre est là pour une raison — on regarde un nuage de points sur
-  fond noir ;
-- **aucune dépendance, aucune police distante.**
+Le message d'état dit maintenant **quoi faire** et pas seulement ce qu'il y a :
+« 208 chantiers LiDAR en vue — zoomez sur une zone bleue, ou cherchez une
+commune ». À cette échelle, le nombre seul ne mène nulle part si l'on ignore que
+le champ de recherche accepte un nom de commune.
 
-**À ne pas faire :** carrousel, visite guidée, fenêtre modale à congédier avant de
-voir la carte, superlatifs. Et surtout pas de capture d'interface prise avant que
-l'interface soit finie — c'est déjà la règle de #4.
+### #16 — La photo aérienne coûte cent tuiles, peut-être pour rien
 
-### #13 — Refonte des onglets : Carte, 2D, 3D
+Passer sur l'onglet 2D redemande **cent tuiles** au WMTS pour rendre la photo
+dans la grille — mesuré de 5 s à 65 s selon l'humeur de la passerelle, sur la
+même machine et les mêmes tuiles. Or la carte vient d'en afficher, de la même
+couche et du même service. L'impression que ça charge beaucoup pour peu est
+fondée ; reste à savoir laquelle des trois pistes rend le plus.
 
-Décidée avec l'utilisateur après la mise en veille de la détection : la valeur de
-l'outil est désormais de **montrer**, et c'est la vue 2D qui montre le mieux.
+- **Réutiliser les tuiles que Leaflet a déjà.** Elles sont dans le DOM, en
+  `<img>`. Piège à connaître avant de commencer : une image dessinée dans un
+  canevas **souille** celui-ci et `getImageData` lève ensuite une
+  `SecurityError` — sauf si la couche a été créée avec `crossOrigin`, ce qui
+  n'est pas le cas aujourd'hui. Et la limite est ailleurs : la carte affiche la
+  zone au zoom 14 ou 15 quand on choisit une dalle, la grille en demande 18. Les
+  tuiles utiles ne sont là que si l'on a zoomé à fond sur la dalle avant de la
+  charger, ce qui n'est pas le geste courant.
+- **Se demander si le zoom 18 est nécessaire.** Il est choisi comme le premier
+  niveau dont le pixel au sol tient dans le pas de la grille (0,44 m pour 0,50 m).
+  Le 17 coûterait **quatre fois moins** — 25 tuiles — pour 0,88 m au sol. La
+  photo n'est que du contexte ; la question est de savoir si elle reste lisible
+  quand on zoome sur une cabane, et ça se tranche en regardant.
+- **Charger en deux temps**, ce qui est sans doute la vraie réponse : une passe
+  grossière (zoom 15, quatre tuiles) posée tout de suite, puis le zoom 18 par
+  dessus quand il arrive. L'attente ne serait pas raccourcie, elle
+  disparaîtrait — c'est exactement ce que fait n'importe quelle carte glissante,
+  et ça se marie avec #15.
 
-**Trois onglets, dans cet ordre. Le nom dit le mode d'affichage, pas le contenu**
-— la question « où je vois quoi » doit avoir une réponse évidente :
+Ce qui ne change pas quelle que soit la piste : les tuiles restent en Web
+Mercator et doivent être rééchantillonnées dans la grille Lambert-93. On
+n'économise que le réseau, jamais la géométrie.
 
-- **Carte** — explorer, choisir une dalle.
-- **2D** — la vue d'arrivée après sélection, et le cœur de l'outil. Deux couches
-  au choix, **une à gauche, une à droite, un rideau au milieu** : photo aérienne,
-  ombrage, micro-relief, Sky-View Factor, ouverture. C'est la démonstration la
-  plus parlante qui soit — une structure invisible sur la photo apparaît dans le
-  relief — et c'est ce que vendent explorelidar.fr et daevorn-maps.org par
-  abonnement.
-- **3D** — le nuage de points, inchangé.
+### #15 — Un chargement qu'on voit
 
-Cette tâche absorbe l'ancienne #5 (rideau ortho ↔ relief).
+Le téléchargement d'une dalle est **le moment le plus long de l'outil** — une
+trentaine de secondes à pleine résolution — et c'est celui qui montre le moins.
+Aujourd'hui il n'existe que par deux choses : une barre de progression fine dans
+le panneau de gauche (`#barre-progression`), et un compteur qui défile dans le
+coin haut droit (`statut()`, « Téléchargement 12/24 — 3 210 000 points »). Qui ne
+regarde ni l'un ni l'autre ne voit pas que ça travaille.
 
-**Le point technique qui décide de tout : l'ortho n'est pas dans le même système
-que le relief.** Les tuiles arrivent en Web Mercator, les grilles sont en
-Lambert-93 — et c'est pour ça qu'une cellule vaut exactement un pixel, sans
-rééchantillonnage. Un carré Lambert-93 est tourné d'environ 1° en Mercator, soit
-une vingtaine de mètres en travers d'une dalle : superposées naïvement, les deux
-couches glisseraient l'une sur l'autre.
+C'est le même raisonnement que le voile d'attente (#7, fait) : **une page qui ne
+montre rien se lit comme une page figée**, et l'utilisateur relance ou ferme.
+Sauf que le cas n'est pas le même, et c'est ce qui rend la solution différente :
 
-Deux issues, la seconde est celle retenue :
+- le voile couvre un calcul **synchrone**, il est modal, et il ne peut animer que
+  `transform` ou `opacity` sous peine de se figer avec le reste ;
+- le téléchargement, lui, est **asynchrone** : le fil principal reste libre, on
+  peut donc animer ce qu'on veut, et surtout il doit **rester annulable** — le
+  bouton « Annuler » existe déjà et doit continuer d'être atteignable.
 
-1. faire de la 2D une carte Leaflet avec le relief en surcouche — l'ortho est
-   native, mais le relief doit être reprojeté et **perd sa netteté**, qui est
-   précisément ce qui le rend lisible ;
-2. **garder le canevas Lambert-93 et y déformer l'ortho.** Les tuiles sont
-   récupérées puis rééchantillonnées dans la grille. Le relief garde sa lecture au
-   pixel, et l'artefact tombe sur la photo, qui n'est que du contexte : c'est le
-   bon endroit pour perdre de la précision.
+Ce qu'on peut afficher est déjà mesuré et remonté par `surAvancement` : blocs
+faits sur blocs attendus, points décodés. Le coût total en mégaoctets est connu
+avant de commencer, il est même affiché sous le curseur de résolution.
 
-**Deux choses à régler en passant :**
+À trancher en regardant, pas en raisonnant : barre large et lisible plutôt que
+filet, pourcentage, volume en mégaoctets, et **où** — la vue d'arrivée est
+désormais la 2D, c'est peut-être là que le chargement doit se voir plutôt que
+dans le panneau.
 
-- **Un cache de couches.** Une seule est calculée à la fois aujourd'hui
-  (`coucheCalculee`). Deux côtés en demandent deux, et le Sky-View Factor coûte
-  5 s : sans cache, chaque mouvement du sélecteur les recalculerait.
-- **Le comportement du rideau** : poignée qu'on glisse, et à décider — se
-  pose-t-elle aussi au clic, pour comparer un point précis sans viser la poignée ?
+Un piège à ne pas ignorer si l'idée d'un temps restant vient : **le débit de
+l'IGN varie d'un facteur cinq**. Mesuré sur les cent tuiles d'une même photo
+aérienne, depuis la même machine : 6,5 s une fois, 29,6 s une autre. Une
+estimation qui saute de « 8 s » à « 2 min » est pire que pas d'estimation.
 
-**Conséquence en cascade, plutôt bonne :** si la 2D devient la vue d'arrivée,
-c'est elle que doit ouvrir la dalle d'exemple (#3) et elle qu'il faut
-photographier pour le README (#6). Le bloc publication s'en trouve simplifié, pas
-alourdi.
+### #14 — Page d'accueil — **faite**, sauf ce qui dépend de #3
 
-### #12 — Borner le zoom de la carte
+Écrite le 18 août 2026. Le pourquoi et les décisions sont remontés dans « La page
+d'accueil » ; les notes de conception qui tenaient ici sont réalisées telles
+quelles — hiérarchie des deux actions, écran unique, thème sombre, aucune
+dépendance, et rien de ce qui était proscrit (ni carrousel, ni visite guidée, ni
+fenêtre modale, ni capture d'interface).
 
-Au-delà du zoom 19, l'orthophoto n'a plus de donnée dans les Pyrénées : les
-tuiles reviennent en **404** et la carte devient entièrement grise, sans rien
-pour dire pourquoi. Deux choses, à faire ensemble :
+Deux choses restent, et **aucune ne se règle sans #3** :
 
-- `maxNativeZoom: 19` sur les couches de tuiles — Leaflet agrandit alors la
-  dernière tuile disponible au lieu d'en demander d'inexistantes. Une ligne dans
-  `carte.js` ;
-- borner le zoom de la carte et **dire** qu'on est au maximum, plutôt que de
-  laisser zoomer dans le vide. Même principe que les autres états vides (#4) : un
-  écran gris sans message se lit comme une panne.
+- **la dalle d'exemple.** « Voir un exemple » mène à un écran qui annonce ce que
+  l'exemple montrera et selon quels critères la dalle sera choisie. Le jour où
+  elle existe, ce bouton doit ouvrir la dalle, pas l'écran d'annonce ;
+- **l'image réelle.** Le schéma dessiné tient la place de la paire photo aérienne
+  ↔ Sky-View Factor, qui demande une dalle chargée — donc la même. Elle sert
+  aussi au README (#6).
 
-À vérifier avant de fixer la borne : le plan IGN monte peut-être plus haut que
-l'ortho, auquel cas la limite dépend de la couche affichée.
+Le reste de la liaison est déjà en place : un `location.hash` non vide saute
+l'accueil, ce qui suffira à ce que le lien partageable de #3 tombe directement
+sur sa dalle.
 
-### #5 — Rideau ortho ↔ relief — **absorbée par #13**
+### #13 — Refonte des onglets — **faite**
 
-Un curseur vertical qui balaie entre l'orthophoto et le relief. C'est la
-démonstration la plus parlante qui soit — une structure invisible sur la photo
-apparaît dans le relief — et c'est ce que vendent explorelidar.fr et
-daevorn-maps.org par abonnement. Le WMTS est déjà branché dans `carte.js` ;
-attention au piège du format, déjà documenté. Pas avant la mise en ligne : ça ne
-doit pas la retarder.
+Écrite le 18 août 2026, l'ancienne #5 (rideau ortho ↔ relief) absorbée avec elle.
+Le détail est dans « Trois onglets : Carte, 2D, 3D » ; ce qui suit n'est que la
+liste des points qui restaient ouverts au moment de l'écrire.
+
+- **Le comportement du rideau** était à décider : il se **glisse** et ne se pose
+  pas au clic, la bande sensible faisant 22 px de large sur toute la hauteur.
+- **Le cache de couches** est fait, la photo comprise.
+- **La question des pas différents ne s'est pas posée** : la photo est
+  rééchantillonnée directement dans la grille d'affichage à 50 cm, donc les deux
+  côtés lisent les mêmes cellules.
+
+Ce que ça change pour la suite, et c'est plutôt bon : la dalle d'exemple (#3)
+doit ouvrir sur la 2D, et c'est la 2D qu'il faut photographier pour le README
+(#6) et pour l'image de la page d'accueil (#14) — qui porte aujourd'hui un
+schéma dessiné en attendant. Trois tâches, une seule capture.
+
+### #12 — Borner le zoom de la carte — **faite**
+
+La borne réelle a été mesurée avant d'être fixée, et **la prémisse était
+fausse** : ce n'est pas une limite pyrénéenne. Sur les deux fonds et en trois
+lieux — Ariège, Paris, Vanoise — le niveau 19 répond 200, les niveaux 20 et 21
+répondent **404**, le 22 un 400 (la matrice n'existe pas). Le plafond est celui
+de la couche, partout en France.
+
+D'où `maxNativeZoom: 19` sur les deux couches — Leaflet agrandit alors la
+dernière tuile au lieu d'en demander d'inexistantes —, un `maxZoom: 20` sur la
+carte, et un avis en bas à gauche qui dit qu'on est au maximum. Le bouton « + »
+de Leaflet se grisait déjà tout seul à la borne ; ce qui manquait, c'était la
+phrase, et surtout le fait de ne plus voir la carte virer entièrement au gris.
+
+Le même chiffre borne le rééchantillonnage de la photo aérienne
+(`ORTHO.zoomPour`, plafond à 19) : c'est la même donnée et la même limite.
+
+Vérifié en navigateur, en temps réel : le bouton se grise, l'avis apparaît puis
+disparaît quand on redescend, et **aucune tuile n'échoue** au zoom maximal (0 sur
+16, contre autant de 404 auparavant). À faire en temps réel justement, et pas
+sous `--virtual-time-budget` : les douze clics de zoom s'y déclenchent
+instantanément, l'animation de Leaflet ne se pose jamais et les contrôles
+rapportent des échecs qui n'existent pas — même piège que pour les Workers.
+
+### #5 — Rideau ortho ↔ relief — **faite avec #13**

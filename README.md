@@ -31,7 +31,13 @@ commande, pas de base, pas de compte. Les données ne quittent jamais l'onglet.
    1 km² ; le coût exact en points et en mégaoctets est affiché avant tout
    téléchargement. Comptez une trentaine de secondes pour un kilomètre carré à
    pleine résolution.
-3. **Détecter.** Les candidats apparaissent sur la carte, dans le nuage 3D et
+3. **Lire la dalle en 2D.** C'est là qu'on arrive une fois le nuage chargé, et
+   c'est le cœur de l'outil : deux couches à la fois, une de chaque côté d'un
+   rideau qu'on glisse — photo aérienne, ombrage, micro-relief, Sky-View Factor,
+   ouverture. Une structure invisible sous les arbres apparaît dans le relief, et
+   le rideau le montre d'un seul geste. Les deux côtés partagent la même caméra
+   et la même grille : rien ne glisse quand on se déplace.
+4. **Détecter.** Les candidats apparaissent sur la carte, dans le nuage 3D et
    dans une liste triée par score, avec liens Google Earth / Maps / Géoportail
    et export GPX, GeoJSON ou CSV.
 
@@ -55,7 +61,8 @@ La boussole est projetée comme le reste de la scène : elle s'aplatit quand on
 rase le sol, s'arrondit quand on passe à la verticale, et dit donc d'un coup
 d'œil où l'on regarde. Un nuage de points n'offre aucun autre repère.
 
-Raccourcis : `c` carte · `v` nuage 3D · `t` vue de dessus · `f` tout cadrer.
+Raccourcis : `c` carte · `r` vue 2D · `v` nuage 3D · `t` vue de dessus · `f` tout cadrer.
+Les chiffres `1`, `2`, `3` font la même chose que `c`, `r`, `v`.
 
 Le rendu se fait **à la demande** : la vue n'est redessinée que lorsque quelque
 chose change. Redessiner en continu un nuage immobile saturait le navigateur —
@@ -77,7 +84,14 @@ Deux voies, strictement équivalentes :
 - **Ouvrir l'adresse en ligne** — <https://julesrumeau.github.io/Scopus/>
   (une fois Pages activé, voir plus bas)
 
-Un navigateur récent suffit (WebGL2 requis).
+Un navigateur récent suffit. **WebGL2 n'est requis que pour l'onglet 3D** : sans
+lui, cet onglet est neutralisé et le reste — carte, vue 2D, relief, photo
+aérienne — fonctionne normalement.
+
+Sur téléphone, prudence : une dalle pleine fait 190 Mo à télécharger et 400 à
+520 Mo de grilles en mémoire, ce qu'un navigateur mobile n'accorde pas à un
+onglet. La résolution proposée par défaut y est donc plus grossière, et le coût
+annoncé porte un avertissement au-delà — mais le curseur reste libre.
 
 Rien n'est chargé depuis le disque au moment de l'exécution — ce qui serait
 impossible en `file://` — et rien n'a besoin d'être installé : Leaflet et
@@ -278,7 +292,7 @@ perdu sur 184,5 Mo — donc les plages se regroupent. **1554 requêtes deviennen
 ### Le pipeline
 
 ```
-nuage → grilles 25 cm ─┬─ sol : Z minimal des points classe 2
+nuage → grilles 25 cm ─┬─ sol : Z minimal des points classes 2 et 9 (l'eau est du terrain)
                        ├─ signal : classes 1 (+6), hauteur au-dessus du terrain
                        └─ total : densité de points
                               │
@@ -522,6 +536,9 @@ src/sentiers.js                relief local, Frangi, squelette, vectorisation
 src/sortie.js                  rapprochement BD TOPO, liens, exports
 src/gl.js · shaders.js         WebGL2 (repris de FlowField)
 src/vue3d.js                   caméra orbitale, rendu par points
+src/relief.js                  ombrage, micro-relief, SVF, ouverture
+src/ortho.js                   photo aérienne redressée dans la grille Lambert-93
+src/vue-2d.js                  vue 2D, deux couches et rideau de comparaison
 src/carte.js                   Leaflet, couverture LiDAR, sélection de dalle
 src/grille.js                  grille kilométrique locale, tracée au canevas
 vendor/lazperf/                laz-perf ; `lazperf-embarque.js` est le fichier

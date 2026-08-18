@@ -281,7 +281,7 @@ test('la grille d’affichage agrège le sol et la hauteur des structures', () =
     g.solZ[c] = NaN;
   }
 
-  const t = RELIEF.preparer(g, { pasM: 0.5, inclureBati: false });
+  const t = RELIEF.preparer(g, { pasM: 0.5, inclureBati: false, inclureSursol: false });
   assert.equal(t.pas, 0.5);
   assert.equal(t.W, 20);
 
@@ -289,12 +289,112 @@ test('la grille d’affichage agrège le sol et la hauteur des structures', () =
   const i = 10 * t.W + 10;
   assert.ok(Math.abs(t.hauteur[i] - 1.2) < 1e-5, `hauteur agrégée : ${t.hauteur[i]}`);
   assert.equal(t.trou[i], 1, 'les quatre cellules fines sont sans retour sol');
-  assert.ok(Math.abs(t.mnt[i] - 10) < 1e-5);
+  assert.ok(Math.abs(t.mnt[i] - 10) < 1e-5, `sans substitution, la surface reste le sol comblé : ${t.mnt[i]}`);
 
   // Ailleurs, rien ne se dresse et le sol est partout connu.
   assert.equal(t.hauteur[0], 0);
   assert.equal(t.trou[0], 0);
   assert.ok(CONFIG.relief.pasM > 0, 'la configuration porte bien un pas de relief');
+});
+
+test('les retours non classés remplacent le sol inventé sous une structure', () => {
+  // Le cas pour lequel la substitution existe. Une ruine est opaque au laser :
+  // elle ne laisse aucun retour sol, le comblement met une surface lisse à sa
+  // place, et elle disparaît exactement de la couche où on la cherche. Les
+  // points non classés, eux, sont là.
+  const { RELIEF } = charger();
+  const W = 40, H = 40, N = W * H;
+  const grille = (zSursol) => {
+    const g = {
+      W, H, pas: 0.25,
+      emprise: { xmin: 0, ymin: 0, xmax: 10, ymax: 10 },
+      origine: [0, 0, 1500],
+      mnt: new Float32Array(N).fill(10),
+      solZ: new Float32Array(N).fill(10),
+      solConnu: new Uint8Array(N).fill(1),
+      solN: new Uint8Array(N).fill(3),
+      ncSomme: new Float32Array(N),
+      ncN: new Uint8Array(N),
+      batSomme: new Float32Array(N),
+      batN: new Uint8Array(N),
+    };
+    for (const c of [20 * W + 20, 20 * W + 21, 21 * W + 20, 21 * W + 21]) {
+      g.ncSomme[c] = zSursol * 2;
+      g.ncN[c] = 2;
+      g.solN[c] = 0;
+      g.solZ[c] = NaN;
+    }
+    return g;
+  };
+
+  const i = 10 * 20 + 10;
+
+  // Une ruine de 1,20 m : la surface affichée monte sur la mesure.
+  const ruine = RELIEF.preparer(grille(11.2), { pasM: 0.5, inclureBati: false, inclureSursol: true });
+  assert.ok(Math.abs(ruine.mnt[i] - 11.2) < 1e-5,
+    `la surface doit prendre l'altitude mesurée : ${ruine.mnt[i]}`);
+  // La surface d'analyse, elle, ne bouge pas : `lignes.js` lui ajoute `hauteur`
+  // pour former son enveloppe, et la structure y serait alors comptée deux fois.
+  assert.ok(Math.abs(ruine.analyse[i] - 10) < 1e-5,
+    `la surface d'analyse doit rester le sol : ${ruine.analyse[i]}`);
+  // Et la hauteur reste mesurée contre le sol comblé, pas contre la surface :
+  // sinon toute structure aurait une hauteur nulle par construction.
+  assert.ok(Math.abs(ruine.hauteur[i] - 1.2) < 1e-5, `hauteur : ${ruine.hauteur[i]}`);
+  assert.equal(ruine.trou[i], 1, '`trou` garde son sens strict : aucun retour sol');
+
+  // Un retour de branche à vingt mètres : au-dessus du plafond, donc ignoré.
+  // Sans ce garde-fou la classe 1 planterait des pics d'arbre dans le terrain.
+  const arbre = RELIEF.preparer(grille(30), { pasM: 0.5, inclureBati: false, inclureSursol: true });
+  assert.ok(Math.abs(arbre.mnt[i] - 10) < 1e-5,
+    `au-delà du plafond, la surface reste le sol comblé : ${arbre.mnt[i]}`);
+
+  // Le sol connu n'est jamais remplacé : ailleurs, rien ne bouge.
+  assert.ok(Math.abs(ruine.mnt[0] - 10) < 1e-5);
+});
+
+test('une cellule sans donnée ne fait pas obstacle : pas d’étoile à huit branches', () => {
+  // L'artefact : autour d'un trou, le Sky-View Factor dessine une étoile à
+  // autant de branches qu'il y a de directions balayées. La cause n'est pas le
+  // balayage mais ce qu'il lit — une cellule sans donnée porte une altitude de
+  // **repli**, sans rapport avec le terrain local. Elle se comporte donc comme
+  // une tour, et chaque cellule qui la voit le long d'une des huit directions
+  // voit son horizon monter. Huit directions, huit branches.
+  const { RELIEF } = charger();
+  const W = 61, H = 61, N = W * H;
+  const t = {
+    W, H, N, pas: 0.5,
+    mnt: new Float32Array(N),                 // plan parfaitement horizontal
+    valide: new Uint8Array(N).fill(1),
+    hauteur: new Float32Array(N),
+    trou: new Float32Array(N),
+    emprise: { xmin: 0, ymin: 0, xmax: W * 0.5, ymax: H * 0.5 },
+    origine: [0, 0, 0],
+  };
+  // Un trou de 2 × 2 au centre, comblé par une valeur de repli cinq mètres
+  // au-dessus du plan — l'ordre de grandeur d'une médiane de dalle en montagne.
+  const c = 30 * W + 30;
+  for (const i of [c, c + 1, c + W, c + W + 1]) { t.mnt[i] = 5; t.valide[i] = 0; }
+
+  const svf = RELIEF.svf(t, { svfDirections: 8, svfRayonM: 8 });
+
+  // Sur un plan horizontal, le SVF vaut exactement 1 partout. On regarde une
+  // couronne bien à l'écart du trou : tout écart y est l'ombre portée.
+  let pire = 0, pireOu = '';
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (!t.valide[i]) continue;
+      const d = Math.hypot(x - 30.5, y - 30.5);
+      if (d < 3 || d > 14) continue;
+      const ecart = Math.abs(1 - svf[i]);
+      if (Number.isFinite(svf[i]) && ecart > pire) { pire = ecart; pireOu = `(${x}, ${y})`; }
+    }
+  }
+  assert.ok(pire < 0.01,
+    `le trou porte une ombre jusqu'à ${(pire * 100).toFixed(1)} % de SVF en ${pireOu}`);
+
+  // Et la cellule sans donnée ne rend pas un nombre : elle ne sait rien.
+  assert.ok(!Number.isFinite(svf[c]), 'une cellule sans donnée doit rendre NaN');
 });
 
 test('le contraste resserre l’intervalle autour du point qui compte', () => {

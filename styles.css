@@ -89,8 +89,8 @@ html, body {
 .scene { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .vue { flex: 1; min-height: 0; position: relative; }
 #vue-carte { background: #0e1116; }
-#canvas3d, #canvas-relief { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
-#canvas3d:active, #canvas-relief:active { cursor: grabbing; }
+#canvas3d, #canvas-2d { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#canvas3d:active, #canvas-2d:active { cursor: grabbing; }
 
 .onglets {
   display: flex;
@@ -128,9 +128,15 @@ html, body {
 
 /* Le panneau suit la vue : `data-vue` déclare l'onglet où une section a un sens,
    et le panneau porte l'onglet courant. Une section sans `data-vue` vaut pour
-   les deux. Rien à câbler en JavaScript au-delà de l'attribut. */
-.panneau[data-vue="carte"] [data-vue="3d"],
-.panneau[data-vue="3d"] [data-vue="carte"] { display: none; }
+   toutes. Rien à câbler en JavaScript au-delà de l'attribut.
+
+   La règle est écrite en négatif — « tout ce qui n'est pas de la vue courante »
+   — et non paire par paire : avec deux vues, deux règles suffisaient ; avec
+   trois, il en faudrait six, et l'ancienne paire laissait justement la section
+   du relief visible dans les deux autres onglets. */
+.panneau[data-vue="carte"] [data-vue]:not([data-vue="carte"]),
+.panneau[data-vue="2d"] [data-vue]:not([data-vue="2d"]),
+.panneau[data-vue="3d"] [data-vue]:not([data-vue="3d"]) { display: none; }
 
 /* Bandeau du nuage chargé. Collant en haut du panneau, qui est le seul
    conteneur défilant : il reste sous les yeux quelle que soit la position dans
@@ -287,7 +293,6 @@ input[type=range]::-moz-range-thumb {
 .segments button.actif { background: var(--accent); border-color: var(--accent); color: #06202b; font-weight: 600; }
 /* Cinq couches de relief : la dernière occuperait une demi-ligne, autant lui
    donner toute la largeur plutôt qu'un trou à côté d'elle. */
-#couches-relief button:last-child:nth-child(odd) { grid-column: 1 / -1; }
 
 .cout {
   background: var(--fond-3);
@@ -548,7 +553,253 @@ input[type=range]::-moz-range-thumb {
 }
 .leaflet-tooltip-top::before { border-top-color: var(--bord); }
 
+/* Avis de zoom maximal. Discret — c'est une explication, pas une alerte — et
+   posé en bas à gauche, le seul coin que Leaflet laisse libre : le zoom occupe
+   le haut gauche, le sélecteur de couches le haut droit, l'attribution le bas
+   droit. */
+.avis-zoom {
+  max-width: 260px;
+  margin: 0 0 10px 10px !important;
+  padding: 6px 9px;
+  background: rgba(11, 14, 19, 0.86);
+  border: 1px solid var(--bord);
+  border-left: 3px solid var(--or);
+  border-radius: 6px;
+  color: var(--texte-2);
+  font-size: 11.5px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
 @media (max-width: 900px) {
   .grille { grid-template-columns: 1fr; grid-template-rows: 45% 55%; }
   .panneau { border-right: none; border-bottom: 1px solid var(--bord); }
+}
+
+/* Avis persistant : une capacité qui manque, et ce qui marche quand même. Il
+   n'expire pas comme une alerte — le fait, lui, ne passe pas. */
+.avis {
+  margin: 12px 16px 0;
+  padding: 9px 11px;
+  border: 1px solid var(--bord);
+  border-left: 3px solid var(--or);
+  border-radius: 6px;
+  background: var(--fond-3);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--texte-2);
+}
+.avis b { color: var(--texte); }
+.avis-detail { display: block; margin-top: 4px; font-size: 11px; opacity: 0.75; }
+.avis-detail:empty { display: none; }
+
+/* ── Rideau de comparaison ───────────────────────────────────────────────────
+   La bande sensible fait 22 px de large sur toute la hauteur du canevas : c'est
+   ce qui dispense de viser la poignée, et c'est pourquoi le rideau ne se pose
+   pas au clic. Le trait, lui, reste fin — c'est une ligne de comparaison, pas
+   une séparation. */
+
+.rideau {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 22px;
+  margin-left: -11px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 2;
+}
+/* Le trait, centré dans la bande. Doublé d'une ombre : il doit rester visible
+   aussi bien sur une photo claire que sur un relief sombre. */
+.rideau::before {
+  content: "";
+  position: absolute;
+  left: 10px; top: 0; bottom: 0;
+  width: 2px;
+  background: #dbe1ea;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.rideau-poignee {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: rgba(11, 14, 19, 0.85);
+  border: 2px solid #dbe1ea;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+/* Deux chevrons, qui disent dans quel sens la poignée se tire. */
+.rideau-poignee::before {
+  content: "‹ ›";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #dbe1ea;
+  font-size: 13px;
+  letter-spacing: -1px;
+}
+.rideau:hover .rideau-poignee, .rideau.tire .rideau-poignee { background: var(--accent); border-color: #fff; }
+.rideau.tire .rideau-poignee::before { color: #06202b; }
+
+/* Les deux sélecteurs de couche, côte à côte comme les deux moitiés de l'image. */
+.deux-cotes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.deux-cotes .champ { margin-bottom: 8px; }
+select {
+  width: 100%;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 7px;
+  color: var(--texte);
+  background: var(--fond-3);
+  border: 1px solid var(--bord);
+  border-radius: 6px;
+}
+select:focus { outline: 1px solid var(--accent); }
+
+/* ── Page d'accueil ──────────────────────────────────────────────────────────
+   Un seul écran, une action dominante, et le même thème sombre que l'outil —
+   une accueil claire suivie d'une application sombre fait un à-coup visuel, et
+   le sombre est là pour une raison : on regarde ensuite un nuage de points sur
+   fond noir.
+
+   `display: grid` ici serait précisément le piège documenté en tête de fichier
+   si la règle `[hidden] { display: none !important }` disparaissait : l'attribut
+   `hidden` deviendrait sans effet et l'accueil ne se fermerait plus. */
+
+.accueil {
+  position: fixed;
+  inset: 0;
+  /* Sous le voile d'attente (2500) et sous les alertes (3000) : rien ne se
+     calcule tant que l'accueil est là, mais l'ordre doit rester juste. */
+  z-index: 2000;
+  /* Centrage par flex : un enfant `width: 100%; max-width: …` est borné par son
+     conteneur quoi qu'il contienne, là où une colonne de grille `auto` se
+     dimensionne, elle, sur son contenu. Précaution et non correction — mesuré
+     dans un iframe de 380 px (la fenêtre de Chrome headless ne descend pas sous
+     ~500 px, et son cliché rogné donnait l'illusion d'un débordement), les deux
+     variantes tiennent aussi bien.
+     `safe` garde le haut du texte visible quand la fenêtre est plus courte que
+     la page. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  padding: clamp(14px, 3.5vh, 36px) 20px;
+  background: var(--fond);
+  /* Soupape : la page est dimensionnée pour tenir sans défilement, mais une
+     fenêtre très basse ne doit pas tronquer le texte pour autant. */
+  overflow-y: auto;
+}
+
+.accueil-boite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 760px;
+}
+.accueil-boite-texte { gap: 18px; }
+
+.accueil-titre {
+  margin: 0;
+  font-size: clamp(23px, 4vw, 33px);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+}
+.accueil-phrase {
+  margin: 0;
+  max-width: 48ch;
+  font-size: clamp(14.5px, 2.1vw, 17.5px);
+  line-height: 1.5;
+}
+
+/* La largeur est bornée pour que la hauteur le soit : à rapport 640/300, une
+   image large de 94 vh est haute de 44 vh. Passer par `max-height` sur le SVG
+   laisserait au contraire des bandes vides dans le cadre. */
+.accueil-figure {
+  margin: 0;
+  width: min(100%, 94vh);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.accueil-figure figcaption { font-size: 11.5px; color: var(--texte-2); }
+.apercu {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--bord);
+  border-radius: 8px;
+}
+.apercu text { font: 12.5px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.apercu-etiq { font-weight: 600; }
+.apercu-etiq.claire { fill: #e9efe4; }
+.apercu-etiq.sombre { fill: #151a22; }
+.apercu-legende text { fill: #1b212b; font-size: 12px; }
+.apercu-legende path { fill: none; stroke: #1b212b; stroke-width: 1.2; }
+
+.accueil-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 2px;
+}
+/* `.primaire` est pleine largeur dans le panneau ; ici c'est un bouton, et le
+   seul élément coloré de l'écran. */
+.accueil-agir {
+  width: auto;
+  padding: 12px 30px;
+  font-size: 15.5px;
+  border-radius: 8px;
+}
+.accueil-lien {
+  background: transparent;
+  border-color: transparent;
+  color: var(--texte-2);
+  padding: 12px 6px;
+  font-size: 13.5px;
+}
+.accueil-lien:hover { color: var(--texte); text-decoration: underline; }
+
+.accueil-limites {
+  margin: 0;
+  max-width: 64ch;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--texte-2);
+}
+.accueil-criteres {
+  margin: 0;
+  padding-left: 18px;
+  max-width: 62ch;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--texte-2);
+}
+.accueil-criteres b { color: var(--texte); font-weight: 600; }
+.accueil-credit { margin: 0; font-size: 11.5px; color: var(--texte-2); }
+.accueil-credit a { color: var(--texte-2); }
+/* L'écran de l'exemple porte une phrase en titre, pas un nom : les capitales
+   espacées du logotype la rendraient illisible. */
+.accueil-titre-simple {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--texte);
+  font-size: clamp(19px, 3vw, 25px);
+}
+
+/* Fenêtre basse : l'image cède la place au texte plutôt que de le repousser
+   hors de l'écran — la page doit tenir sans défilement, c'est sa raison d'être. */
+@media (max-height: 760px) {
+  .accueil-boite { gap: 10px; }
+  .accueil-figure { width: min(100%, 74vh); }
 }

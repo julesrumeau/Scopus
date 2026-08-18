@@ -112,13 +112,30 @@ const CONFIG = {
     // téléchargement reste en jeu.
     budgetPoints: 30_000_000,
     budgetOctets: 200 * 1024 * 1024,
+    // Budget proposé par défaut sur un appareil portatif. Un navigateur mobile
+    // accorde bien moins de mémoire à un onglet, et ferme celui-ci sans
+    // prévenir : mieux vaut proposer un niveau qui aboutit. Le curseur reste
+    // libre d'aller plus loin, avec un avertissement.
+    budgetOctetsMobile: 40 * 1024 * 1024,
   },
 
   // ── Carte ─────────────────────────────────────────────────────────────────
   carte: {
-    // Vue d'ouverture : Ariège, parce que c'est le terrain de départ. Rien
-    // d'autre n'est régional — l'outil fonctionne partout où l'IGN a volé.
-    vueInitiale: { lat: 42.87, lon: 1.42, zoom: 12 },
+    // Vue d'ouverture : **la France entière**, avec ses chantiers LiDAR.
+    //
+    // Elle s'ouvrait sur l'Ariège, terrain de départ du projet — et c'était la
+    // seule chose régionale de tout le dépôt. Un visiteur de Bretagne ou du
+    // Massif central en concluait que ce n'était pas pour lui, alors que sa zone
+    // est couverte. La carte de France répond du même coup à sa première
+    // question, « est-ce que ça couvre chez moi ? », sans qu'il ait à chercher.
+    //
+    // Une **emprise** et non un centre plus un zoom : le même zoom 5 remplit un
+    // écran de portable et laisse la France minuscule sur un grand écran.
+    // `fitBounds` s'adapte, un nombre en dur non.
+    empriseInitiale: { sud: 41.2, ouest: -5.6, nord: 51.2, est: 9.8 },
+    // Repli quand le conteneur n'a pas encore de taille : `fitBounds` calculerait
+    // alors n'importe quoi.
+    vueDeRepli: { lat: 46.6, lon: 2.4, zoom: 5 },
     // Zoom à partir duquel la grille kilométrique est tracée. En dessous, les
     // carrés seraient plus petits que le trait qui les dessine ; on n'affiche
     // alors que les emprises de chantier.
@@ -126,6 +143,20 @@ const CONFIG = {
     // Plafond de lignes tracées. Garde-fou : à un zoom trop large la grille
     // deviendrait un aplat illisible et coûteux.
     maxLignesGrille: 420,
+    // Dernier niveau de tuiles réellement servi par la Géoplateforme.
+    //
+    // Mesuré, et non supposé : sur les deux fonds et en trois lieux — Ariège,
+    // Paris, Vanoise — le niveau 19 répond 200, les niveaux 20 et 21 répondent
+    // **404**, le 22 un 400 (la matrice n'existe pas). Ce n'est donc pas une
+    // limite régionale, contrairement à ce qu'on croyait : c'est le plafond de
+    // la couche, partout.
+    zoomTuilesMax: 19,
+    // Un cran d'agrandissement au-dessus, et pas plus. Leaflet étire alors la
+    // dernière tuile disponible au lieu d'en demander d'inexistantes — on peut
+    // encore se rapprocher d'un détail, et un avis dit pourquoi c'est flou.
+    // Sans cette borne, la carte devenait entièrement grise, sans rien pour
+    // dire pourquoi : un écran gris sans message se lit comme une panne.
+    zoomMax: 20,
   },
 
   // ── Rendu ─────────────────────────────────────────────────────────────────
@@ -203,6 +234,23 @@ const CONFIG = {
     // Inclure la classe « bâtiment » dans la hauteur affichée, comme dans le
     // signal de détection.
     inclureBati: true,
+    // Compléter la surface affichée par les retours **non classés** là où il
+    // n'y a aucun retour sol.
+    //
+    // Une ruine ne laisse pas passer le laser : elle creuse un trou dans la
+    // classe sol, que le comblement referme par une surface lisse. Elle
+    // s'efface donc de l'ombrage, du micro-relief et du Sky-View Factor —
+    // c'est-à-dire des couches où on la cherche. Les points non classés sont
+    // ceux de la ruine ; les mettre à la place d'une valeur interpolée rend une
+    // mesure là où il n'y avait qu'une invention.
+    inclureSursol: true,
+    // Plafond de cette substitution, en mètres au-dessus du sol comblé.
+    //
+    // La classe 1 recueille tout ce que le classificateur n'a pas su ranger,
+    // végétation comprise. Sans plafond, un retour de branche à vingt mètres
+    // deviendrait un pic de terrain. Une ruine, un muret, une charbonnière
+    // tiennent tous sous trois mètres.
+    hauteurSursolMaxM: 3,
     // Resserrement de l'intervalle affiché. Au-dessus de 1 le contraste monte,
     // en dessous il s'adoucit. Rejoué à l'affichage seul : changer ce réglage
     // ne recalcule jamais la couche.

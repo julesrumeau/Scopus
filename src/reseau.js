@@ -138,4 +138,47 @@ function recuperer(url, opts = {}) {
   });
 }
 
-const RESEAU = { recuperer };
+/**
+ * Traduit une panne en une phrase qui dit **quoi faire**.
+ *
+ * « HTTP 429 sur https://data.geopf.fr/… » est exact et parfaitement inutile :
+ * l'utilisateur ne sait pas si c'est sa faute, si ça se répare, ni s'il doit
+ * attendre. Or chaque panne a une conduite à tenir différente — attendre pour un
+ * 429, relancer pour un délai dépassé, vérifier son réseau pour un échec de
+ * connexion — et c'est cette conduite qui manque, pas le code d'erreur.
+ *
+ * Le message brut est rendu tel quel quand il n'est pas reconnu : mieux vaut une
+ * phrase technique qu'une phrase rassurante et fausse.
+ */
+function expliquer(e) {
+  const m = String((e && e.message) || e || '');
+
+  // L'état hors ligne prime sur tout le reste : c'est la seule cause qui rende
+  // les autres diagnostics trompeurs.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return 'Vous êtes hors ligne. Scopus lit les données de l’IGN en direct : '
+      + 'rétablissez la connexion, puis relancez.';
+  }
+  if (/HTTP 429/.test(m)) {
+    return 'L’IGN limite le nombre de requêtes et vient de refuser les nôtres. '
+      + 'Attendez une minute avant de relancer — une résolution plus grossière en demande moins.';
+  }
+  if (/HTTP 5\d\d/.test(m)) {
+    return 'Le service de l’IGN est en difficulté (erreur serveur). '
+      + 'Rien à corriger de votre côté : réessayez dans quelques minutes.';
+  }
+  if (/HTTP 404/.test(m)) {
+    return 'L’IGN ne trouve pas cette donnée (404). La zone n’est peut-être pas couverte.';
+  }
+  if (/délai de \d+ ms dépassé/.test(m)) {
+    return 'L’IGN n’a pas répondu à temps. C’est fréquent aux heures chargées : '
+      + 'relancez, ou choisissez une résolution plus grossière.';
+  }
+  if (/Failed to fetch|NetworkError|network error|Load failed/i.test(m)) {
+    return 'La connexion à data.geopf.fr a échoué. Vérifiez votre réseau — '
+      + 'un bloqueur de contenu ou un VPN peut aussi couper l’accès.';
+  }
+  return m;
+}
+
+const RESEAU = { recuperer, expliquer };

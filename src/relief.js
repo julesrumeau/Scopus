@@ -66,7 +66,7 @@ function preparer(g, options = {}) {
 
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
-      let somme = 0, connues = 0, fines = 0, sansSol = 0, hMax = 0, zMax = -Infinity, mesurees = 0;
+      let somme = 0, sommeSol = 0, connues = 0, fines = 0, sansSol = 0, hMax = 0, zMax = -Infinity, mesurees = 0;
 
       for (let dy = 0; dy < f; dy++) {
         const yy = y * f + dy;
@@ -80,7 +80,57 @@ function preparer(g, options = {}) {
           // Seules les cellules que le comblement a atteintes portent une
           // altitude qui veut dire quelque chose ; ailleurs le MNT garde une
           // valeur de repli sans aucun rapport avec le terrain.
-          if (!g.solConnu || g.solConnu[c]) { somme += g.mnt[c]; connues++; }
+          const connue = !g.solConnu || g.solConnu[c];
+
+          // Altitude moyenne des retours non classés — et « bâtiment » si
+          // l'option le demande. Calculée ici plutôt qu'en passant par
+          // `RASTER.signal`, qui allouerait deux tableaux à la grille fine, soit
+          // ~96 Mo sur une dalle entière.
+          const n = g.ncN[c] + (p.inclureBati ? g.batN[c] : 0);
+          const zSursol = n
+            ? (g.ncSomme[c] + (p.inclureBati ? g.batSomme[c] : 0)) / n
+            : NaN;
+
+          // Hauteur du signal : ce sursol au-dessus du sol comblé. Mesurée
+          // contre `g.mnt`, jamais contre la surface complétée ci-dessous —
+          // sinon la hauteur d'une structure vaudrait zéro par construction.
+          if (n && connue) {
+            const h = zSursol - g.mnt[c];
+            if (h > hMax) hMax = h;
+          }
+
+          // Seules les cellules que le comblement a atteintes portent une
+          // altitude qui veut dire quelque chose ; ailleurs le MNT garde une
+          // valeur de repli sans aucun rapport avec le terrain.
+          if (connue) {
+            connues++;
+            // Le sol seul, qui reste la référence de la surface d'analyse.
+            sommeSol += g.mnt[c];
+
+            // La surface **affichée** : le même sol, complété par les retours
+            // non classés là où il n'y a aucun retour sol.
+            //
+            // Une ruine est opaque au laser : elle ne laisse aucun retour sol
+            // sous elle, et le comblement met à sa place une surface lisse
+            // interpolée depuis ses bords. Elle disparaît donc exactement de la
+            // couche où on la cherche. Les points non classés, eux, sont là —
+            // ce sont ceux de la ruine. Substituer une mesure à une valeur
+            // inventée ne peut pas dégrader la surface : on ne remplace jamais
+            // du sol mesuré, seulement du sol interpolé.
+            //
+            // Le plafond de hauteur n'est pas un raffinement. La classe 1
+            // recueille aussi ce que le classificateur n'a pas su ranger,
+            // végétation comprise : sans lui, un retour de branche à vingt
+            // mètres deviendrait un pic de terrain. Une ruine, un muret, une
+            // charbonnière tiennent sous trois mètres ; un arbre non.
+            let z = g.mnt[c];
+            if (p.inclureSursol && !g.solN[c] && n) {
+              const h = zSursol - g.mnt[c];
+              if (h > 0 && h <= p.hauteurSursolMaxM) z = zSursol;
+            }
+            somme += z;
+          }
+
           // Le maximum ne se prend que sur les cellules **réellement mesurées**,
           // et sur `solZ` — l'altitude brute — plutôt que sur le MNT comblé.
           // À 25 cm, une cellule ne reçoit que 0,6 point : plus de la moitié du
@@ -89,18 +139,9 @@ function preparer(g, options = {}) {
           // ne récupérait rien — mesuré : la cabane classée « sol » restait
           // invisible.
           if (g.solN[c] > 0 && g.solZ[c] > zMax) { zMax = g.solZ[c]; mesurees++; }
+          // `trou` garde son sens strict : aucun retour **sol**. C'est l'indice
+          // le plus physique de la détection, et le compléter ici le viderait.
           if (!g.solN[c]) sansSol++;
-
-          // Hauteur du signal : moyenne des points non classés — et des points
-          // « bâtiment » si l'option le demande — au-dessus du sol. Calculée
-          // ici plutôt qu'en passant par `RASTER.signal`, qui allouerait deux
-          // tableaux à la grille fine, soit ~96 Mo sur une dalle entière.
-          const n = g.ncN[c] + (p.inclureBati ? g.batN[c] : 0);
-          if (n && (!g.solConnu || g.solConnu[c])) {
-            const s = g.ncSomme[c] + (p.inclureBati ? g.batSomme[c] : 0);
-            const h = s / n - g.mnt[c];
-            if (h > hMax) hMax = h;
-          }
         }
       }
 
@@ -123,7 +164,10 @@ function preparer(g, options = {}) {
         // décale la surface de quelques centimètres, ce que l'ouverture ignore
         // — elle mesure des angles entre cellules, pas une altitude absolue.
         mnt[i] = somme / connues;
-        analyse[i] = mesurees ? zMax : mnt[i];
+        // `analyse` ne prend **pas** la substitution : `lignes.js` construit son
+        // enveloppe en ajoutant `hauteur` à cette surface, et une structure qui
+        // serait déjà dans l'une et encore dans l'autre compterait double.
+        analyse[i] = mesurees ? zMax : sommeSol / connues;
         valide[i] = 1;
       }
       hauteur[i] = hMax;
@@ -385,6 +429,38 @@ function balayerHorizons(t, options = {}) {
   }
 
   const { W, H, mnt } = t;
+  // Les cellules sans donnée sont **écartées du balayage**, pas seulement de la
+  // lecture.
+  //
+  // Elles portent une altitude de repli — la médiane de la dalle — qui n'a
+  // aucun rapport avec le terrain local : dans une combe, elle vaut plusieurs
+  // mètres de trop. La cellule se comporte alors comme une tour, et toute
+  // cellule qui la voit le long d'une des directions balayées voit son horizon
+  // monter. Comme il n'y a que huit directions, l'ombre ne s'étale pas : elle
+  // forme **une étoile à huit branches** autour de chaque trou, signature
+  // observée à l'écran sur données réelles.
+  // Repli défensif : une grille sans carte de validité est réputée pleine, ce
+  // qui rend exactement le comportement d'avant. Un `valide` manquant ne doit
+  // pas se traduire par une couche entièrement vide.
+  const valide = t.valide || new Uint8Array(t.N).fill(1);
+
+  // Surface de balayage : le MNT, **NaN dans les cellules sans donnée**.
+  //
+  // C'est ce qui coûte le moins cher. Un test de validité par échantillon
+  // fonctionne mais alourdit la boucle la plus chaude du projet de 36 %
+  // (mesuré : 3,77 s → 5,13 s sur 2000 × 2000, 8 directions sur 10 m). NaN, lui,
+  // rend fausses **toutes** les comparaisons : `tan > maxTan` et `tan < minTan`
+  // échouent ensemble, l'échantillon est ignoré sans qu'aucune ligne ne soit
+  // ajoutée à la boucle. Une copie de 16 Mo sur une dalle contre un tiers du
+  // temps de calcul.
+  //
+  // Le prix, assumé : un échantillon dont l'interpolation touche un trou est
+  // rejeté en entier, même si l'autre extrémité pèse tout le poids. Le rayon
+  // devient donc légèrement aveugle au bord des trous — il éclaircit un peu,
+  // là où le défaut d'origine assombrissait en étoile.
+  const surface = new Float32Array(t.N);
+  for (let i = 0; i < t.N; i++) surface[i] = valide[i] ? mnt[i] : NaN;
+
   const svf = new Float32Array(t.N);
   const ouvPos = new Float32Array(t.N);
   const ouvNeg = new Float32Array(t.N);
@@ -441,9 +517,9 @@ function balayerHorizons(t, options = {}) {
           const la = (y + y0) * W, lb = la + W, l = y * W;
           for (let x = xDeb; x < xFin; x++) {
             const xa = x + ox;
-            const z = w0 * mnt[la + xa] + ty * mnt[lb + xa];
+            const z = w0 * surface[la + xa] + ty * surface[lb + xa];
             const i = l + x;
-            const tan = (z - mnt[i]) / dist;
+            const tan = (z - surface[i]) / dist;
             if (tan > maxTan[i]) maxTan[i] = tan;
             if (tan < minTan[i]) minTan[i] = tan;
           }
@@ -457,9 +533,9 @@ function balayerHorizons(t, options = {}) {
           const la = (y + oy) * W, l = y * W;
           for (let x = xDeb; x < xFin; x++) {
             const xa = x + x0;
-            const z = w0 * mnt[la + xa] + tx * mnt[la + xa + 1];
+            const z = w0 * surface[la + xa] + tx * surface[la + xa + 1];
             const i = l + x;
-            const tan = (z - mnt[i]) / dist;
+            const tan = (z - surface[i]) / dist;
             if (tan > maxTan[i]) maxTan[i] = tan;
             if (tan < minTan[i]) minTan[i] = tan;
           }
@@ -480,6 +556,11 @@ function balayerHorizons(t, options = {}) {
 
   const versDeg = 180 / (Math.PI * n);
   for (let i = 0; i < t.N; i++) {
+    // Une cellule sans donnée ne rend pas un nombre : elle ne sait rien. Le
+    // canevas peint le non-fini en gris neutre, et les seuils des chaînes
+    // d'analyse rejettent toute comparaison avec NaN — dans les deux cas, elle
+    // est ignorée plutôt que devinée.
+    if (!valide[i]) { svf[i] = NaN; ouvPos[i] = NaN; ouvNeg[i] = NaN; continue; }
     svf[i] = 1 - svf[i] / n;
     ouvPos[i] *= versDeg;
     ouvNeg[i] *= versDeg;

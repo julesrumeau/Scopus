@@ -32,6 +32,32 @@ test('détecte une structure rectangulaire sur sol plat', () => {
   assert.ok(Number.isFinite(c.score) && c.score > 0.5, `score ${c.score}`);
 });
 
+test('l’eau est du terrain, et non un trou que le comblement bombe', () => {
+  // Une surface d'eau ne renvoie aucun point « sol ». Ignorée, elle laisse un
+  // trou que le comblement referme depuis les berges — c'est-à-dire un dôme ou
+  // un plan incliné là où il y a un plan d'eau horizontal, parfaitement lisible
+  // en ombrage et en Sky-View Factor. La classe 9 est donc versée dans le sol.
+  const centre = (g) => {
+    const cx = (g.W / 2) | 0, cy = (g.H / 2) | 0;
+    return g.mnt[cy * g.W + cx];
+  };
+
+  // Une mare de 8 m de rayon, 50 cm sous le niveau des berges.
+  const eau = rasteriser(nuageSynthetique({
+    dansStructure: disque(8), classeStructure: 9, hauteur: -0.5,
+  }));
+  assert.ok(Math.abs(centre(eau) + 0.5) < 0.1,
+    `la surface d'eau doit être mesurée à −0,50 m : ${centre(eau).toFixed(3)}`);
+
+  // Contrôle : la même géométrie dans une classe sans emploi (« divers ») laisse
+  // bien le trou, comblé depuis les berges. C'est ce que faisait l'eau avant.
+  const trou = rasteriser(nuageSynthetique({
+    dansStructure: disque(8), classeStructure: 67, hauteur: -0.5,
+  }));
+  assert.ok(Math.abs(centre(trou)) < 0.1,
+    `le trou comblé doit revenir au niveau des berges : ${centre(trou).toFixed(3)}`);
+});
+
 test('le centre détecté retombe sur le centre réel de la structure', () => {
   const g = rasteriser(nuageSynthetique({ dansStructure: rectangle(6, 6) }));
   const c = detecter(g).candidats[0];

@@ -1,25 +1,39 @@
-// Vue 2D du relief : une carte de la dalle, nord en haut, en Lambert-93.
+// Vue 2D : une carte de la dalle, nord en haut, en Lambert-93 — et **deux
+// couches à la fois**, l'une à gauche, l'autre à droite d'un rideau qu'on
+// glisse.
 //
 // Pourquoi un canevas 2D et pas la carte Leaflet : la grille *est* en
 // Lambert-93. La dessiner telle quelle, une cellule pour un pixel, évite toute
 // reprojection et tout rééchantillonnage — on regarde la donnée, pas une
 // interprétation de la donnée. Superposer les détections et les tracés est
-// gratuit pour la même raison : eux aussi sont en Lambert-93.
+// gratuit pour la même raison : eux aussi sont en Lambert-93. Et c'est la photo
+// aérienne qui vient se déformer ici (`ortho.js`), parce que l'artefact de
+// rééchantillonnage doit tomber sur le contexte, jamais sur la mesure.
+//
+// Le rideau est la démonstration même de l'outil : une structure invisible sur
+// la photo apparaît dans le relief, et on le voit d'un seul geste. Les deux
+// côtés partagent tout — même caméra, même échelle, même grille — donc rien ne
+// glisse quand on déplace la vue.
 //
 // Les gestes sont ceux de la vue 3D — glisser déplace, la molette zoome sous le
 // curseur — et le rendu est à la demande, pour la même raison qu'ailleurs : une
 // image fixe redessinée soixante fois par seconde ne change rien à l'écran.
 
-class VueRelief {
+const COTES = ['gauche', 'droite'];
+
+class Vue2D {
   constructor(canvas, callbacks = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.cb = callbacks;
 
     this.grille = null;      // sortie de RELIEF.preparer
-    this.couche = null;      // sortie de RELIEF.calculer
+    // Une source par côté : soit une couche calculée (valeurs + palette), soit
+    // la photo aérienne (RGBA déjà dans la grille). Les deux vivent sur les
+    // mêmes cellules, ce qui rend le rideau exact au pixel.
+    this.sources = { gauche: null, droite: null };
+    this.rideau = 0.5;       // position du rideau, en part de la largeur
     this.contraste = CONFIG.relief.contraste;
-    this.lut = null;         // table de 256 couleurs
     this.detections = [];
     this.traces = [];
     this.selection = null;
@@ -52,20 +66,39 @@ class VueRelief {
 
   definirGrille(t) {
     this.grille = t;
-    this.couche = null;
+    this.sources = { gauche: null, droite: null };
     if (t) this.cadrer();
     else this.invalider();
   }
 
   /**
-   * Installe une couche calculée et sa table de couleurs.
+   * Installe la source d'un côté du rideau.
+   *
+   * `{ type: 'couche', couche, libelle }` pour une couche calculée par
+   * `RELIEF.calculer`, `{ type: 'photo', rgba, libelle }` pour l'orthophoto
+   * rééchantillonnée par `ORTHO.charger`.
    *
    * La palette est précalculée en 256 entrées : une conversion par pixel et par
    * image, sur un canevas plein écran, ferait plusieurs millions d'appels.
    */
-  definirCouche(couche) {
-    this.couche = couche;
-    this.lut = couche ? construireLUT(couche.palette) : null;
+  definirSource(cote, source) {
+    this.sources[cote] = source
+      ? { ...source, lut: source.type === 'couche' ? construireLUT(source.couche.palette) : null }
+      : null;
+    this.invalider();
+  }
+
+  source(cote) { return this.sources[cote]; }
+
+  /** Couche calculée d'un côté, ou `null` si ce côté porte la photo. */
+  couche(cote) {
+    const s = this.sources[cote];
+    return s && s.type === 'couche' ? s.couche : null;
+  }
+
+  /** Position du rideau, en part de la largeur. */
+  definirRideau(part) {
+    this.rideau = Math.max(0, Math.min(1, part));
     this.invalider();
   }
 
@@ -81,10 +114,11 @@ class VueRelief {
     this.invalider();
   }
 
-  /** Intervalle réellement étalé sur la palette, contraste compris. */
-  etendue() {
-    if (!this.couche) return [0, 1];
-    return RELIEF.etirer(this.couche.base, this.couche.ancrage, this.contraste);
+  /** Intervalle réellement étalé sur la palette d'un côté, contraste compris. */
+  etendue(cote) {
+    const c = this.couche(cote);
+    if (!c) return [0, 1];
+    return RELIEF.etirer(c.base, c.ancrage, this.contraste);
   }
 
   definirDetections(candidats, grilleDetection) {
@@ -176,7 +210,7 @@ class VueRelief {
         this.centre[1] += glisse[1] - p[1];
         this.invalider();
       } else if (p) {
-        this.cb.surCurseur?.(this.lire(p[0], p[1]));
+        this.cb.surCurseur?.(this.lire(p[0], p[1], this._coteSous(e)));
       }
     });
 
@@ -225,8 +259,20 @@ class VueRelief {
     return trouvee ? trouvee.id : null;
   }
 
-  /** Valeurs sous un point Lambert-93, pour la ligne de lecture. */
-  lire(x, y) {
+  /** Côté du rideau sous un événement pointeur. */
+  _coteSous(ev) {
+    const r = this.canvas.getBoundingClientRect();
+    if (!(r.width > 0)) return 'droite';
+    return (ev.clientX - r.left) / r.width < this.rideau ? 'gauche' : 'droite';
+  }
+
+  /**
+   * Valeurs sous un point Lambert-93, pour la ligne de lecture.
+   *
+   * La valeur lue est celle du côté survolé, et non d'un côté choisi une fois
+   * pour toutes : sous le curseur il n'y a qu'une image, celle qu'on regarde.
+   */
+  lire(x, y, cote = 'droite') {
     const t = this.grille;
     if (!t) return null;
     const cx = Math.floor((x - t.emprise.xmin) / t.pas);
@@ -239,7 +285,8 @@ class VueRelief {
       // l'absolu : on remet l'origine, une fois, ici.
       altitude: t.valide[i] ? t.mnt[i] + t.origine[2] : null,
       hauteur: t.hauteur[i],
-      valeur: this.couche ? this.couche.valeurs[i] : null,
+      valeur: this.couche(cote) ? this.couche(cote).valeurs[i] : null,
+      couche: this.sources[cote]?.libelle || null,
     };
   }
 
@@ -255,12 +302,15 @@ class VueRelief {
 
     ctx.fillStyle = CONFIG.rendu.fond;
     ctx.fillRect(0, 0, w, h);
-    if (!this.grille || !this.couche) return;
+    if (!this.grille) return;
 
     const t = this.grille;
-    const valeurs = this.couche.valeurs;
-    const [min, max] = this.etendue();
-    const span = max - min || 1;
+    const sg = this._preparerSource('gauche');
+    const sd = this._preparerSource('droite');
+    if (!sg && !sd) return;
+    // Un seul côté servi tient toute la largeur : pendant qu'une couche se
+    // calcule, mieux vaut montrer l'autre que du fond noir.
+    const coupe = (sg && sd) ? Math.round(w * this.rideau) : (sg ? w : 0);
 
     // Le tampon d'image est conservé d'une image à l'autre : à 2400 × 1800, en
     // réallouer un à chaque déplacement de souris ferait passer 17 Mo par le
@@ -274,10 +324,10 @@ class VueRelief {
 
     // Correspondance écran → cellule, en incrémental : une multiplication par
     // pixel suffit, sans repasser par la transformation complète.
-    const gauche = this.centre[0] - (w / 2) * this.echelle;
+    const bordGauche = this.centre[0] - (w / 2) * this.echelle;
     const haut = this.centre[1] + (h / 2) * this.echelle;
     const parCellule = this.echelle / t.pas;
-    const cx0 = (gauche - t.emprise.xmin) / t.pas;
+    const cx0 = (bordGauche - t.emprise.xmin) / t.pas;
     const cy0 = (haut - t.emprise.ymin) / t.pas;
 
     for (let y = 0; y < h; y++) {
@@ -289,12 +339,31 @@ class VueRelief {
       const ligne = dehorsY ? 0 : (fy | 0) * t.W;
 
       for (let x = 0; x < w; x++, o += 4) {
+        // Le côté est choisi par un test par pixel plutôt que par deux boucles
+        // séparées : la branche est parfaitement prédite, et découper la ligne
+        // demanderait de dupliquer tout le corps.
+        const src = x < coupe ? sg : sd;
         const fx = cx0 + x * parCellule;
-        if (dehorsY || fx < 0 || fx >= t.W) {
+        if (!src || dehorsY || fx < 0 || fx >= t.W) {
           px[o] = fr; px[o + 1] = fg; px[o + 2] = fb; px[o + 3] = 255;
           continue;
         }
-        const v = valeurs[ligne + (fx | 0)];
+        const cellule = ligne + (fx | 0);
+
+        if (src.rgba) {
+          const k = cellule * 4;
+          if (src.rgba[k + 3] === 0) {
+            // Tuile manquante : le même gris que le sol inconnu, pour la même
+            // raison — un vide visible vaut mieux qu'une couleur inventée.
+            px[o] = 42; px[o + 1] = 46; px[o + 2] = 54; px[o + 3] = 255;
+          } else {
+            px[o] = src.rgba[k]; px[o + 1] = src.rgba[k + 1]; px[o + 2] = src.rgba[k + 2];
+            px[o + 3] = 255;
+          }
+          continue;
+        }
+
+        const v = src.valeurs[cellule];
         if (!Number.isFinite(v)) {
           // Hors marge ou sol inconnu : un gris neutre, qui se distingue de
           // toute valeur de la palette. Mieux vaut un vide visible qu'une
@@ -302,10 +371,10 @@ class VueRelief {
           px[o] = 42; px[o + 1] = 46; px[o + 2] = 54; px[o + 3] = 255;
           continue;
         }
-        let u = ((v - min) / span) * 255;
+        let u = ((v - src.min) / src.span) * 255;
         u = u < 0 ? 0 : u > 255 ? 255 : u;
         const k = (u | 0) * 3;
-        px[o] = this.lut[k]; px[o + 1] = this.lut[k + 1]; px[o + 2] = this.lut[k + 2];
+        px[o] = src.lut[k]; px[o + 1] = src.lut[k + 1]; px[o + 2] = src.lut[k + 2];
         px[o + 3] = 255;
       }
     }
@@ -316,7 +385,52 @@ class VueRelief {
     if (this.montrerSentiers) this._tracerSentiers(ctx, w, h);
     if (this.montrerDetections) this._tracerDetections(ctx, w, h);
     this._tracerEchelle(ctx, w, h, dpr);
+    if (sg && sd) this._tracerEtiquettes(ctx, w, dpr, coupe, sg, sd);
     ctx.restore();
+  }
+
+  /**
+   * Met une source en forme pour la boucle de rendu.
+   *
+   * L'étalement est résolu ici, une fois par image et non par pixel : c'est lui
+   * que le curseur de contraste déplace, sans rien recalculer de la couche.
+   */
+  _preparerSource(cote) {
+    const s = this.sources[cote];
+    if (!s) return null;
+    if (s.type === 'photo') return { rgba: s.rgba, libelle: s.libelle };
+    const [min, max] = this.etendue(cote);
+    return { valeurs: s.couche.valeurs, lut: s.lut, min, span: (max - min) || 1, libelle: s.libelle };
+  }
+
+  /**
+   * Nom de chaque couche, de part et d'autre du rideau.
+   *
+   * Sans eux, deux nuances de gris côte à côte ne disent pas laquelle est
+   * laquelle — et le rideau perd tout son sens dès qu'on a bougé le sélecteur
+   * une fois. Le libellé se colle au rideau plutôt qu'au bord de l'écran : c'est
+   * là que se fait la comparaison, et c'est là que l'œil est.
+   */
+  _tracerEtiquettes(ctx, w, dpr, coupe, sg, sd) {
+    ctx.font = `${11.5 * dpr}px system-ui, sans-serif`;
+    ctx.textBaseline = 'middle';
+    const y = 16 * dpr, marge = 9 * dpr;
+
+    for (const [src, aDroite] of [[sg, false], [sd, true]]) {
+      const texte = src.libelle || '';
+      if (!texte) continue;
+      const l = ctx.measureText(texte).width;
+      // Repoussée vers le bord quand le rideau est trop près de celui-ci, pour
+      // qu'une étiquette ne déborde jamais sur l'autre moitié.
+      let x = aDroite ? coupe + marge : coupe - marge - l;
+      x = Math.max(marge, Math.min(w - marge - l, x));
+      ctx.fillStyle = 'rgba(11, 14, 19, 0.78)';
+      ctx.beginPath();
+      ctx.roundRect(x - 6 * dpr, y - 9 * dpr, l + 12 * dpr, 18 * dpr, 4 * dpr);
+      ctx.fill();
+      ctx.fillStyle = '#dbe1ea';
+      ctx.fillText(texte, x, y);
+    }
   }
 
   _versEcran(x, y, w, h) {

@@ -91,6 +91,21 @@ function accumuler(g, bloc) {
 
     switch (bloc.cls[i]) {
       case CLASSE.SOL:
+      // L'eau **est** le terrain, et la traiter comme telle ne coûte pas un
+      // octet.
+      //
+      // Ignorée, une surface d'eau ne laisse aucun retour « sol » : le
+      // comblement propage alors les berges vers le milieu et fabrique un dôme
+      // ou un plan incliné là où il y a un plan d'eau horizontal. L'artefact est
+      // parfaitement lisible en ombrage et en Sky-View Factor, et il n'est pas
+      // du terrain. La convention des MNT est d'ailleurs celle-ci : la surface
+      // de l'eau est la surface du sol.
+      //
+      // Le minimum est plus discutable ici que pour le sol — un retour parasite
+      // sous la surface creuserait une fosse — mais les cellules d'eau en
+      // reçoivent plusieurs, et le comblement d'un dôme entier était un défaut
+      // autrement plus visible.
+      case CLASSE.EAU:
         // Le minimum, pas la moyenne : un point de sol mal classé sur un muret
         // tirerait la référence vers le haut et masquerait la structure.
         if (!(g.solZ[c] <= z)) g.solZ[c] = z;
@@ -105,7 +120,7 @@ function accumuler(g, bloc) {
         if (g.batN[c] < 255) g.batN[c]++;
         break;
       default:
-        break;   // végétation, eau, bruit : sans emploi dans la détection
+        break;   // végétation, bruit, ponts : sans emploi dans la détection
     }
   }
 }

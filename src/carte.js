@@ -22,9 +22,28 @@ class Carte {
   constructor(element, callbacks) {
     this.cb = callbacks;
 
-    const v = CONFIG.carte.vueInitiale;
-    this.map = L.map(element, { zoomControl: true, preferCanvas: true })
-      .setView([v.lat, v.lon], v.zoom);
+    this.map = L.map(element, {
+      zoomControl: true,
+      preferCanvas: true,
+      // Borne explicite : sans elle, le zoom maximal de la carte serait celui
+      // de la couche la plus permissive, et l'on zoomerait dans le vide.
+      maxZoom: CONFIG.carte.zoomMax,
+    });
+
+    // La France entière au départ, cadrée sur l'emprise plutôt qu'à un zoom
+    // fixe — le zoom qui va bien dépend de la taille de la fenêtre.
+    //
+    // `fitBounds` a besoin d'un conteneur mesurable : monté masqué, Leaflet le
+    // mesure à zéro et le cadrage part en vrille. D'où le repli, qui donne au
+    // moins une vue plausible ; `invalidateSize` fera le reste au retour sur
+    // l'onglet.
+    const e = CONFIG.carte.empriseInitiale;
+    const r = CONFIG.carte.vueDeRepli;
+    if (element.clientWidth > 0 && element.clientHeight > 0) {
+      this.map.fitBounds([[e.sud, e.ouest], [e.nord, e.est]], { padding: [10, 10] });
+    } else {
+      this.map.setView([r.lat, r.lon], r.zoom);
+    }
 
     // Les tuiles ne se chargent qu'une fois le geste fini, et pas pendant.
     //
@@ -42,9 +61,22 @@ class Carte {
     // prime. Le prix est un affichage qui se remplit à la fin du geste plutôt
     // que pendant — invisible en pratique, la carte servant surtout à désigner
     // une dalle.
-    const tuiles = { attribution: ATTRIBUTION, updateWhenIdle: true, updateWhenZooming: false, keepBuffer: 1 };
-    const plan = L.tileLayer(IGN.gabaritWMTS('plan'), { ...tuiles, maxZoom: 19 });
-    const ortho = L.tileLayer(IGN.gabaritWMTS('ortho'), { ...tuiles, maxZoom: 21 });
+    //
+    // `maxNativeZoom` est l'autre moitié de la borne : au-delà du dernier niveau
+    // servi, Leaflet **agrandit la dernière tuile** au lieu d'en demander qui
+    // n'existent pas. Sans lui, chaque tuile revenait en 404 et la carte
+    // devenait entièrement grise — sans rien pour dire pourquoi, ce qui se lit
+    // comme une panne de l'outil.
+    const tuiles = {
+      attribution: ATTRIBUTION,
+      updateWhenIdle: true,
+      updateWhenZooming: false,
+      keepBuffer: 1,
+      maxZoom: CONFIG.carte.zoomMax,
+      maxNativeZoom: CONFIG.carte.zoomTuilesMax,
+    };
+    const plan = L.tileLayer(IGN.gabaritWMTS('plan'), tuiles);
+    const ortho = L.tileLayer(IGN.gabaritWMTS('ortho'), tuiles);
     // Une tuile refusée est redemandée, jusqu'à trois fois.
     //
     // Même cause que le réessai des 400 dans `reseau.js` : la passerelle répond
@@ -92,7 +124,26 @@ class Carte {
     });
     this.map.on('click', (e) => this._surClic(e));
 
+    // Dire qu'on est au maximum, plutôt que de laisser croire à une image
+    // dégradée sans raison. Le bouton « + » de Leaflet se grise tout seul à la
+    // borne ; ce qui manquait, c'était la phrase.
+    this._avisZoom = L.control({ position: 'bottomleft' });
+    this._avisZoom.onAdd = () => {
+      const d = L.DomUtil.create('div', 'avis-zoom');
+      d.textContent = `Zoom maximal — les images de l'IGN s'arrêtent au niveau `
+        + `${CONFIG.carte.zoomTuilesMax} : la vue est agrandie, pas plus détaillée.`;
+      return d;
+    };
+    this._avisZoom.addTo(this.map);
+    this.map.on('zoomend', () => this._majAvisZoom());
+    this._majAvisZoom();
+
     this.rafraichirBlocs();
+  }
+
+  _majAvisZoom() {
+    const el = this._avisZoom.getContainer();
+    if (el) el.hidden = this.map.getZoom() <= CONFIG.carte.zoomTuilesMax;
   }
 
   /** Charge les emprises de chantier couvrant la fenêtre courante. */
@@ -111,7 +162,7 @@ class Carte {
       this.grille.definirBlocs(liste);
       this.cb.surCouverture?.(liste.length, this.map.getZoom());
     } catch (e) {
-      if (e.name !== 'AbortError') this.cb.surErreur?.(`Couverture LiDAR : ${e.message}`);
+      if (e.name !== 'AbortError') this.cb.surErreur?.(`Couverture LiDAR : ${RESEAU.expliquer(e)}`);
     }
   }
 
@@ -119,15 +170,25 @@ class Carte {
     const { lat, lng } = e.latlng;
     this.cb.surRecherche?.('Recherche de la dalle…');
 
+    // Hors de France, la question ne se pose même pas : on l'écarte avant
+    // d'interroger le WFS, et surtout avant de projeter en Lambert-93, qui n'est
+    // défini que pour la France.
+    if (!PROJ.dansEmpriseFrance(lng, lat)) {
+      this.cb.surErreur?.('Le LiDAR HD de l’IGN ne couvre que la France. '
+        + 'Revenez sur le territoire, puis cliquez dans une zone bleue.');
+      return;
+    }
+
     let dalle;
     try {
       dalle = await IGN.dalleAuPoint(lng, lat);
     } catch (err) {
-      this.cb.surErreur?.(`Dalle : ${err.message}`);
+      this.cb.surErreur?.(`Dalle : ${RESEAU.expliquer(err)}`);
       return;
     }
     if (!dalle) {
-      this.cb.surErreur?.('Pas de dalle LiDAR HD à cet endroit — la zone n’a pas encore été volée.');
+      this.cb.surErreur?.('Pas de LiDAR HD à cet endroit : cette zone n’a pas encore été volée, '
+        + 'ou n’est pas encore publiée. Les zones bleues sont celles qui en ont.');
       return;
     }
     this.selectionnerDalle(dalle);

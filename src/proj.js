@@ -94,4 +94,21 @@ function versDMS(lon, lat) {
   return `${part(lat, 'N', 'S')} ${part(lon, 'E', 'W')}`;
 }
 
-const PROJ = { versLambert93, versWGS84, versDMS };
+/**
+ * Le point tombe-t-il dans l'emprise de la France métropolitaine ?
+ *
+ * C'est un **rectangle englobant**, pas une frontière : il déborde sur la mer,
+ * l'Espagne et l'Italie. Il ne sert qu'à distinguer deux messages qui n'ont rien
+ * à voir — « le LiDAR HD ne couvre que la France » quand on a cliqué à l'autre
+ * bout du monde, et « cette zone n'a pas encore été volée » quand on est bien en
+ * France mais hors chantier. Pour cet usage, un rectangle suffit et une
+ * frontière exacte serait un poids mort.
+ *
+ * Il protège aussi la projection : Lambert-93 n'est défini que pour la France et
+ * rend n'importe quoi ailleurs.
+ */
+function dansEmpriseFrance(lon, lat) {
+  return lon >= -5.6 && lon <= 9.8 && lat >= 41.2 && lat <= 51.2;
+}
+
+const PROJ = { versLambert93, versWGS84, versDMS, dansEmpriseFrance };
