@@ -745,6 +745,22 @@ désagréable que l'attente.
 
 ## Pièges connus
 
+- **Tout passe par le même hôte, donc par une seule connexion HTTP/2.** Tuiles
+  WMTS, WFS des blocs, dalle au point, BD TOPO et les centaines de requêtes de
+  plage du COPC vont toutes à `data.geopf.fr`. Leaflet **ne passe pas** par la
+  file bornée de `reseau.js` et demande des dizaines de tuiles d'un coup à chaque
+  déplacement : dépasser le nombre de flux acceptés vaut un `REFUSED_STREAM`, qui
+  arrive côté `fetch` comme une panne réseau franche et consomme les réessais de
+  requêtes qui, elles, comptent. D'où `updateWhenIdle` sur les couches de tuiles.
+- **`fetch` n'a aucun délai maximal.** Une requête que la passerelle laisse
+  pendre immobilise une place en vol pour toujours, et le chargement s'arrête
+  sans message. Mesuré un jour de charge sur `data.geopf.fr` : `GetCapabilities`
+  à 22 s, une requête de blocs à 48 s puis en échec, la même répondant en 0,2 s
+  en temps normal. `reseau.js` pose donc un délai **par tentative**. Attention en
+  le touchant : le délai arrive sous la forme d'un abandon, exactement comme
+  l'annulation de l'utilisateur — les confondre rend un chargement définitivement
+  perdu pour une seule requête trop lente. Le verdict se prend sur
+  `signal.aborted`, jamais sur le nom de l'erreur.
 - **Le tas WASM détache ses vues quand il grandit.** laz-perf alloue ses tampons
   internes en cours de décompression ; une croissance remplace l'ArrayBuffer
   sous-jacent et toute `DataView` mise en cache devient inutilisable

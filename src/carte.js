@@ -26,8 +26,25 @@ class Carte {
     this.map = L.map(element, { zoomControl: true, preferCanvas: true })
       .setView([v.lat, v.lon], v.zoom);
 
-    const plan = L.tileLayer(IGN.gabaritWMTS('plan'), { attribution: ATTRIBUTION, maxZoom: 19 });
-    const ortho = L.tileLayer(IGN.gabaritWMTS('ortho'), { attribution: ATTRIBUTION, maxZoom: 21 });
+    // Les tuiles ne se chargent qu'une fois le geste fini, et pas pendant.
+    //
+    // Tout le projet tape sur le **même hôte** — tuiles WMTS, WFS des blocs,
+    // dalle au point, BD TOPO, et les centaines de requêtes de plage du COPC —
+    // donc sur une seule connexion HTTP/2. Leaflet, lui, ne passe pas par la
+    // file bornée de `reseau.js` : un déplacement de carte lance des dizaines de
+    // tuiles d'un coup, sans limite. Ajoutez un téléchargement de dalle en cours
+    // et le serveur refuse d'ouvrir un flux de plus — `REFUSED_STREAM`, qui
+    // arrive côté `fetch` comme une panne réseau franche et consomme les
+    // réessais de requêtes qui, elles, comptent.
+    //
+    // `updateWhenIdle` attend la fin du déplacement, `updateWhenZooming` celle du
+    // zoom, et `keepBuffer` réduit la couronne de tuiles hors écran demandées en
+    // prime. Le prix est un affichage qui se remplit à la fin du geste plutôt
+    // que pendant — invisible en pratique, la carte servant surtout à désigner
+    // une dalle.
+    const tuiles = { attribution: ATTRIBUTION, updateWhenIdle: true, updateWhenZooming: false, keepBuffer: 1 };
+    const plan = L.tileLayer(IGN.gabaritWMTS('plan'), { ...tuiles, maxZoom: 19 });
+    const ortho = L.tileLayer(IGN.gabaritWMTS('ortho'), { ...tuiles, maxZoom: 21 });
     ortho.addTo(this.map);
     L.control.layers({ 'Photo aérienne': ortho, 'Plan IGN': plan }, null, { collapsed: true }).addTo(this.map);
 
@@ -46,7 +63,10 @@ class Carte {
     let minuteur = null;
     this.map.on('moveend zoomend', () => {
       clearTimeout(minuteur);
-      minuteur = setTimeout(() => this.rafraichirBlocs(), 300);
+      // 300 ms suffisaient tant que la carte était seule à parler à l'IGN. Une
+      // demi-seconde évite qu'un enchaînement de petits déplacements ne mette
+      // trois requêtes WFS en vol au moment précis où les tuiles repartent.
+      minuteur = setTimeout(() => this.rafraichirBlocs(), 500);
     });
     this.map.on('click', (e) => this._surClic(e));
 

@@ -51,7 +51,23 @@ function recuperer(url, opts = {}) {
 
       try {
         const entetes = plage ? { Range: `bytes=${plage[0]}-${plage[1]}` } : undefined;
-        const rep = await fetch(url, { headers: entetes, signal });
+
+        // Délai maximal **par tentative**, en plus du signal de l'appelant.
+        //
+        // `fetch` n'en a aucun : une requête que la passerelle laisse pendre
+        // occupe une des trois places en vol indéfiniment, et le chargement
+        // entier s'arrête sans message. Observé sur `data.geopf.fr` un jour de
+        // charge — un `GetCapabilities` à 22 s, la même requête de blocs à 48 s
+        // puis en échec, alors qu'elle répond en 0,2 s en temps normal.
+        //
+        // Couper et reprendre vaut mieux qu'attendre : le recul exponentiel
+        // laisse au serveur le temps de se dégager, et la place en vol repart
+        // servir une autre requête entre-temps.
+        const limite = AbortSignal.timeout(CONFIG.reseau.delaiMaxMs);
+        const rep = await fetch(url, {
+          headers: entetes,
+          signal: signal ? AbortSignal.any([signal, limite]) : limite,
+        });
 
         // 429 et 5xx sont transitoires : on recule et on repart. Le reste est
         // définitif — insister ne ferait qu'aggraver la charge.
@@ -94,8 +110,15 @@ function recuperer(url, opts = {}) {
         return buf;
 
       } catch (e) {
-        if (e.name === 'AbortError') throw e;
-        dernierEchec = e;
+        // Seul l'abandon **de l'appelant** est définitif : c'est l'utilisateur
+        // qui a annulé, ou une nouvelle dalle qui remplace l'ancienne. Le délai
+        // maximal, lui, arrive aussi sous la forme d'un abandon, et doit au
+        // contraire être réessayé — les confondre rendait un chargement
+        // définitivement perdu pour une seule requête trop lente.
+        if (signal?.aborted) throw e;
+        dernierEchec = e.name === 'TimeoutError' || e.name === 'AbortError'
+          ? new Error(`délai de ${CONFIG.reseau.delaiMaxMs} ms dépassé sur ${url}`)
+          : e;
         // Une panne réseau franche mérite aussi un réessai : le Wi-Fi qui
         // hoquette au milieu de 400 requêtes est le cas nominal, pas l'exception.
         if (essai < CONFIG.reseau.tentatives - 1) await sommeil(recul(essai));

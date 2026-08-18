@@ -97,6 +97,11 @@ const CONFIG = {
     requetesParallèles: 3,
     tentatives: 6,
     reculInitialMs: 700,
+    // Délai maximal par tentative. `fetch` n'en a pas : sans lui, une requête
+    // que la passerelle laisse pendre immobilise une place en vol pour toujours
+    // et le chargement s'arrête en silence. 30 s laissent passer un bloc de
+    // 8 Mo sur une connexion lente, tout en coupant court à ce qui pend.
+    delaiMaxMs: 30000,
   },
 
   // ── Chargement du nuage ───────────────────────────────────────────────────
