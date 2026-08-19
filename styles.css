@@ -668,6 +668,24 @@ select:focus { outline: 1px solid var(--accent); }
    si la règle `[hidden] { display: none !important }` disparaissait : l'attribut
    `hidden` deviendrait sans effet et l'accueil ne se fermerait plus. */
 
+/* Le reste de l'interface existe déjà dans le DOM et tourne — la carte est
+   construite au chargement du script, avant même que l'accueil ne soit posé
+   dessus. Tant que l'accueil est ouvert, elle doit rester invisible (elle
+   transparaîtrait sous le voile, encombrée) et hors du clavier, sans qu'une
+   ligne de JavaScript n'ait à le piloter : `#accueil` porte déjà l'attribut
+   `hidden` que `masquerAccueil()` pose, sur le même principe que `data-vue`. */
+#accueil:not([hidden]) ~ .barre,
+#accueil:not([hidden]) ~ .grille .panneau,
+#accueil:not([hidden]) ~ .grille .onglets {
+  visibility: hidden;
+}
+/* La colonne du panneau (380px fixes) doit disparaître, pas seulement devenir
+   invisible : sinon la carte qui sert de fond à l'accueil resterait décalée
+   d'autant vers la droite, visible sur les trois quarts de l'écran seulement. */
+#accueil:not([hidden]) ~ .grille {
+  grid-template-columns: 0 1fr;
+}
+
 .accueil {
   position: fixed;
   inset: 0;
@@ -687,12 +705,27 @@ select:focus { outline: 1px solid var(--accent); }
   align-items: center;
   justify-content: safe center;
   padding: clamp(14px, 3.5vh, 36px) 20px;
-  background: var(--fond);
+  /* Un voile, pas un aplat : la carte Leaflet tourne dessous et sert de fond —
+     plus vraie et plus légère que le schéma dessiné qu'elle remplace. Piège à
+     ne pas reproduire : un `background-color` opaque ici, même sous un
+     `background-image` translucide, bloque entièrement ce qu'il y a derrière —
+     les deux couches ne se mélangent qu'entre elles, jamais avec le contenu
+     sous l'élément. Seul un dégradé dont aucun arrêt n'est opaque laisse
+     passer la carte. Il assombrit davantage les bords que le centre, pour que
+     les tuiles claires du fond ne viennent jamais rivaliser avec les coins de
+     l'écran ; la carte de texte, elle, porte son propre fond quasi opaque et
+     n'a besoin d'aucune aide au milieu. */
+  background: radial-gradient(ellipse 85% 65% at 50% 42%,
+    rgba(11, 14, 19, 0.55) 0%, rgba(11, 14, 19, 0.86) 100%);
   /* Soupape : la page est dimensionnée pour tenir sans défilement, mais une
      fenêtre très basse ne doit pas tronquer le texte pour autant. */
   overflow-y: auto;
 }
 
+/* La carte de texte flotte sur la carte géographique : fond quasi opaque pour
+   rester lisible quel que soit ce qu'il y a dessous (tuile claire, zone bleue
+   de couverture), `backdrop-filter` en confort visuel plutôt qu'en nécessité —
+   sans lui la carte reste lisible, juste moins « posée ». */
 .accueil-boite {
   display: flex;
   flex-direction: column;
@@ -700,7 +733,14 @@ select:focus { outline: 1px solid var(--accent); }
   text-align: center;
   gap: 14px;
   width: 100%;
-  max-width: 760px;
+  max-width: 620px;
+  padding: clamp(26px, 4vh, 40px) clamp(22px, 5vw, 42px);
+  background: rgba(15, 19, 26, 0.88);
+  border: 1px solid var(--bord);
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.65);
 }
 .accueil-boite-texte { gap: 18px; }
 
@@ -718,31 +758,6 @@ select:focus { outline: 1px solid var(--accent); }
   font-size: clamp(14.5px, 2.1vw, 17.5px);
   line-height: 1.5;
 }
-
-/* La largeur est bornée pour que la hauteur le soit : à rapport 640/300, une
-   image large de 94 vh est haute de 44 vh. Passer par `max-height` sur le SVG
-   laisserait au contraire des bandes vides dans le cadre. */
-.accueil-figure {
-  margin: 0;
-  width: min(100%, 94vh);
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.accueil-figure figcaption { font-size: 11.5px; color: var(--texte-2); }
-.apercu {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--bord);
-  border-radius: 8px;
-}
-.apercu text { font: 12.5px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-.apercu-etiq { font-weight: 600; }
-.apercu-etiq.claire { fill: #e9efe4; }
-.apercu-etiq.sombre { fill: #151a22; }
-.apercu-legende text { fill: #1b212b; font-size: 12px; }
-.apercu-legende path { fill: none; stroke: #1b212b; stroke-width: 1.2; }
 
 .accueil-actions {
   display: flex;
@@ -797,9 +812,8 @@ select:focus { outline: 1px solid var(--accent); }
   font-size: clamp(19px, 3vw, 25px);
 }
 
-/* Fenêtre basse : l'image cède la place au texte plutôt que de le repousser
-   hors de l'écran — la page doit tenir sans défilement, c'est sa raison d'être. */
+/* Fenêtre basse : la carte perd du confort, pas de contenu — il n'y a plus de
+   figure à céder, seulement moins de respiration autour du texte. */
 @media (max-height: 760px) {
-  .accueil-boite { gap: 10px; }
-  .accueil-figure { width: min(100%, 74vh); }
+  .accueil-boite { gap: 10px; padding: 20px 24px; }
 }

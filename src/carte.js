@@ -168,12 +168,21 @@ class Carte {
 
   async _surClic(e) {
     const { lat, lng } = e.latlng;
+    await this.selectionnerAuPoint(lng, lat);
+  }
+
+  /**
+   * Sélectionne la dalle contenant un point WGS84 — issu d'un clic sur la
+   * carte ou d'un lien partagé (#3). Les deux chemins convergent ici pour ne
+   * jamais diverger sur ce qui compte, l'emprise exacte et l'URL du COPC.
+   */
+  async selectionnerAuPoint(lon, lat) {
     this.cb.surRecherche?.('Recherche de la dalle…');
 
     // Hors de France, la question ne se pose même pas : on l'écarte avant
     // d'interroger le WFS, et surtout avant de projeter en Lambert-93, qui n'est
     // défini que pour la France.
-    if (!PROJ.dansEmpriseFrance(lng, lat)) {
+    if (!PROJ.dansEmpriseFrance(lon, lat)) {
       this.cb.surErreur?.('Le LiDAR HD de l’IGN ne couvre que la France. '
         + 'Revenez sur le territoire, puis cliquez dans une zone bleue.');
       return;
@@ -181,7 +190,7 @@ class Carte {
 
     let dalle;
     try {
-      dalle = await IGN.dalleAuPoint(lng, lat);
+      dalle = await IGN.dalleAuPoint(lon, lat);
     } catch (err) {
       this.cb.surErreur?.(`Dalle : ${RESEAU.expliquer(err)}`);
       return;

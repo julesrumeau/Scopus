@@ -152,6 +152,39 @@ const vue2d = new Vue2D($('canvas-2d'), {
 });
 vue2d.demarrer();
 
+// ── Lien partageable (#3) ────────────────────────────────────────────────────
+//
+// Le lien ne porte que la dalle : ses deux indices kilométriques Lambert-93,
+// dont la grille se déduit exactement — voir « La carte » dans CLAUDE.md. Pas
+// les seuils (trop nombreux, changeants, illisibles en URL), pas la résolution,
+// pas l'onglet : ouvrir un lien sélectionne la dalle, exactement comme un clic
+// sur la carte, et laisse le choix de charger le nuage à qui l'ouvre.
+
+function hashDeDalle(d) {
+  return `d=${Math.round(d.emprise.xmin / 1000)},${Math.round(d.emprise.ymin / 1000)}`;
+}
+
+function dalleDepuisHash(hash) {
+  const m = /^#d=(-?\d+),(-?\d+)$/.exec(hash);
+  return m ? { x: Number(m[1]), y: Number(m[2]) } : null;
+}
+
+/**
+ * Copie le lien courant. `navigator.clipboard` peut refuser en silence — pas
+ * seulement en `file://`, mesuré aussi en headless sans geste utilisateur — et
+ * l'échec ne doit pas priver du lien : `prompt()` repose sur aucune permission
+ * et marche partout, texte déjà sélectionné pour un Ctrl+C manuel.
+ */
+async function copierLien() {
+  try {
+    await navigator.clipboard.writeText(location.href);
+    statut('Lien copié dans le presse-papiers');
+  } catch {
+    prompt('Copiez ce lien :', location.href);
+  }
+}
+$('btn-partager').addEventListener('click', copierLien);
+
 // ── Carte ───────────────────────────────────────────────────────────────────
 
 const carte = new Carte($('vue-carte'), {
@@ -164,6 +197,11 @@ const carte = new Carte($('vue-carte'), {
       + ligneDetail('Altimétrie', d.systemeAltimetrique || '—')
       + ligneDetail('Emprise', `X ${d.emprise.xmin}–${d.emprise.xmax}\nY ${d.emprise.ymin}–${d.emprise.ymax}`);
     $('info-dalle').hidden = true;
+    $('rangee-partager').hidden = false;
+    // `replaceState`, jamais `location.hash =` : la seconde empile une entrée
+    // d'historique à chaque dalle choisie, et le bouton Retour du navigateur
+    // deviendrait inutilisable après quelques clics d'exploration.
+    history.replaceState(null, '', '#' + hashDeDalle(d));
     ouvrirDalle(d);
   },
   surCouverture: (nb, zoom) => {
@@ -1589,8 +1627,22 @@ $('btn-carte-directe').addEventListener('click', entrerDansLaCarte);
 $('btn-exemple-carte').addEventListener('click', entrerDansLaCarte);
 
 // Un hash non vide veut dire qu'on arrive par un lien qui désigne déjà une
-// destination : s'interposer serait une gêne. C'est #3 qui écrira ce hash ;
-// le lire est vrai dès maintenant et le restera.
-if (location.hash.length > 1) masquerAccueil();
+// destination : s'interposer serait une gêne.
+if (location.hash.length > 1) {
+  masquerAccueil();
+  const cible = dalleDepuisHash(location.hash);
+  if (cible) {
+    const centre = PROJ.versWGS84(cible.x * 1000 + 500, cible.y * 1000 + 500);
+    // `carte.invalider()` d'abord : fermer l'accueil rend au panneau sa colonne
+    // de 380 px, et Leaflet ne le détecte pas tout seul — un redimensionnement
+    // purement CSS, sans évènement `resize` — même piège que le retour sur
+    // l'onglet Carte.
+    requestAnimationFrame(() => {
+      carte.invalider();
+      carte.allerA(centre.lon, centre.lat, 16);
+      carte.selectionnerAuPoint(centre.lon, centre.lat);
+    });
+  }
+}
 
 })();
