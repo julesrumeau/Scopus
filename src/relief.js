@@ -594,15 +594,6 @@ function ouverture(t, options = {}, signe = 'positive') {
  */
 const COUCHES = [
   {
-    cle: 'ombrage',
-    ancrage: 'centre',
-    libelle: 'Ombrage',
-    aide: 'Quatre soleils combinés. La lecture la plus familière du terrain.',
-    calculer: (t) => ombrageMulti(t),
-    etendue: () => [0, 1],
-    palette: 'gris',
-  },
-  {
     cle: 'svf',
     ancrage: 'haut',
     libelle: 'Sky-View Factor',
@@ -611,6 +602,15 @@ const COUCHES = [
     etendue: (v) => [centile(v, 0.02), 1],
     palette: 'gris',
     lent: true,
+  },
+  {
+    cle: 'ombrage',
+    ancrage: 'centre',
+    libelle: 'Ombrage',
+    aide: 'Quatre soleils combinés. La lecture la plus familière du terrain.',
+    calculer: (t) => ombrageMulti(t),
+    etendue: () => [0, 1],
+    palette: 'gris',
   },
   {
     cle: 'ouverture-pos',

@@ -359,10 +359,12 @@ est le seul élément coloré de la page, « J'ai déjà des coordonnées » est
 Des actions concurrentes de même poids créent une charge de décision et font
 chuter le passage à l'acte ; la hiérarchie n'est donc pas cosmétique.
 
-**Le bouton principal annonce au lieu de ne rien faire.** La dalle d'exemple
-n'est pas encore arrêtée (#5) : « Voir un exemple » mène à un écran qui dit ce
-que l'exemple montrera et selon quels critères la dalle sera choisie. Un bouton
-muet se lit comme une panne ; un bouton qui annonce se lit comme un chantier.
+**Le bouton principal fait la vraie chose, pas une promesse.** Il menait
+d'abord à un écran qui annonçait ce que l'exemple montrerait, faute de dalle
+choisie — un bouton muet se lit comme une panne, un bouton qui annonce comme
+un chantier. Il sélectionne et charge maintenant une vraie dalle tout seul, le
+même mécanisme que le lien partageable (voir « Le lien partageable ») ; il ne
+manque plus que le choix définitif de cette dalle (#4).
 
 **Le fond est la carte elle-même, pas une image.** Un premier jet dessinait la
 comparaison promise en SVG — photo aérienne d'un côté, Sky-View Factor de
@@ -374,9 +376,9 @@ posé sur `#vue-carte` —, et la carte de texte flotte dessus avec son propre f
 quasi opaque. Le reste de l'interface (en-tête, panneau, onglets) reste masqué
 tant que l'accueil est ouvert, par une règle CSS sur `#accueil:not([hidden]) ~ …`
 et non par du JavaScript, sur le même principe que `data-vue`. La comparaison
-photo ↔ relief promise par la phrase d'accroche, elle, reste à montrer pour de
-vrai : c'est la dalle d'exemple (#5), qui remplacera aussi la capture attendue
-par le README (#6).
+photo ↔ relief promise par la phrase d'accroche, elle, se montre déjà pour de
+vrai dès qu'on clique « Voir un exemple » : c'est la dalle d'exemple (#4) qui
+la porte, et c'est aussi la capture qu'attend le README (#5).
 
 **La ligne sur ce que l'outil ne sait pas faire n'est pas de la modestie** : elle
 détermine la qualité des retours. Qui comprend qu'il s'agit de règles
@@ -1455,7 +1457,7 @@ est disponible.
 | Détection de sentiers | 🚧 chaîne complète, non validée sur chemin réel |
 | Contrôle positif sur ruine effondrée | ❌ en attente de coordonnées |
 | **Détection automatique dans l'interface** | 🙈 **masquée** — `ANALYSE_MASQUEE` dans `app.js` |
-| Page d'accueil | ✅ — voile sur la carte vivante ; l'exemple mène à un écran d'annonce, faute de dalle d'exemple (#5) |
+| Page d'accueil | ✅ — voile sur la carte vivante ; « Voir un exemple » sélectionne et charge déjà une vraie dalle, reste à en choisir la définitive (#4) |
 | Onglets Carte / 2D / 3D, rideau de comparaison | ✅ |
 | États vides et messages utiles | ✅ |
 | Borne de zoom de la carte | ✅ |

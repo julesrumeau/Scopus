@@ -685,9 +685,11 @@ const CHOIX_2D = [
 
 const def2D = (cle) => CHOIX_2D.find((c) => c.cle === cle) || CHOIX_2D[0];
 
-// Photo à gauche, relief à droite : c'est le sens de lecture de la comparaison,
-// et l'ombrage est la couche de relief la plus familière — et la moins chère.
-let couches2D = { gauche: PHOTO, droite: 'ombrage' };
+// Photo à gauche, relief à droite : c'est le sens de lecture de la comparaison.
+// Le Sky-View Factor par défaut coûte plus cher que l'ombrage (calcul « lent »,
+// balayage d'horizons) mais lit pareillement versant et plat, sans direction
+// d'éclairage à deviner — préféré après usage réel.
+let couches2D = { gauche: PHOTO, droite: 'svf' };
 let contrasteRelief = CONFIG.relief.contraste;
 
 /**

@@ -10,10 +10,10 @@ renvois `(#N)` ailleurs dans le document ont été mis à jour en conséquence.
 L'ordre reste celui d'origine ; seuls les *(prioritaire)* sont un jugement de
 priorité explicite, le reste est classé par ancienneté et non par urgence.
 
-**7 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
+**6 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
 l'issue est incertaine — tout le reste est du travail dont la forme est déjà
-connue. #5 (dalle d'exemple) mérite un statut à part : elle ne demande aucun
-code, elle débloque à elle seule #6 et la publication, et les critères de choix
+connue. #4 (dalle d'exemple) mérite un statut à part : elle ne demande aucun
+code, elle débloque à elle seule #5 et la publication, et les critères de choix
 sont déjà arrêtés — c'est le gain le plus rapide de la liste.
 
 ### #1 — Rallumer la détection, ou renoncer *(prioritaire)*
@@ -63,15 +63,7 @@ après hystérésis — serait le moyen le plus rapide de voir où ça casse.
 le pire des trois choix — l'utilisateur conclura que c'est *l'outil* qui est
 cassé.
 
-### #3 — Draper le relief sur un maillage 3D, si la coloration ne suffit pas
-
-La voie 1 — colorer les points du nuage par la couche de relief courante — est
-faite ; voir « Le relief dans le nuage ». Reste la voie 2, un vrai chantier : un
-maillage de terrain de 4 M de sommets, niveau de détail, zones sans sol connu,
-plusieurs sessions de travail. À ne lancer que si la coloration des points se
-révèle insuffisante à l'usage réel — pas avant, et pas par principe.
-
-### #4 — Vignettes par détection et export du relief
+### #3 — Vignettes par détection et export du relief
 
 La **vignette** est le plus utile : un carré de relief d'environ 60 × 60 m
 centré sur le candidat, dans la liste des résultats à côté du score et joint à
@@ -101,7 +93,7 @@ pas manquer alors — `<gx:LatLonQuad>` et non `<LatLonBox>` : un carré Lambert
 est tourné d'environ 1° en WGS84 dans les Pyrénées, soit une vingtaine de mètres
 de décalage en travers d'une dalle. Même piège que `L.rectangle`.
 
-### #5 — Choisir la dalle d'exemple *(gain rapide — débloque #6 et la publication)*
+### #4 — Choisir la dalle d'exemple *(gain rapide — débloque #5 et la publication)*
 
 **Le mécanisme est fait**, testé de bout en bout en navigateur réel : « Voir un
 exemple » sélectionne et charge tout seul la dalle de
@@ -141,7 +133,7 @@ de la vérité terrain et peut rester privé :
 - **ne rien revendiquer comme validé** : `CLAUDE.md` dit qu'aucun contrôle
   positif n'existe et doit continuer à le dire.
 
-### #6 — Passage de robustesse et captures du README
+### #5 — Passage de robustesse et captures du README
 
 Robustesse sur les chemins qu'un inconnu emprunte : connexion coupée en plein
 chargement (vérifier qu'Annuler retombe sur ses pieds), rafale de 429, zone
@@ -150,7 +142,7 @@ téléchargement. Vérifier que Pages sert bien la version publiée **et** que l
 double-clic sur `index.html` marche toujours. `npm test` au vert.
 
 Deux ou trois captures dans le README — la carte, le nuage colorisé, une
-détection avec sa fiche — **dépendent de #5** : c'est la dalle d'exemple, en
+détection avec sa fiche — **dépendent de #4** : c'est la dalle d'exemple, en
 2D, qui doit être photographiée.
 
 Où poster ensuite : Géorezo, forum OSM France, SIG francophone sur Mastodon,
@@ -159,7 +151,7 @@ le PNR des Pyrénées ariégeoises sont les interlocuteurs naturels — eux peuv
 fournir des coordonnées de ruines connues, c'est-à-dire le contrôle positif qui
 manque.
 
-### #7 — La photo aérienne coûte cent tuiles, peut-être pour rien
+### #6 — La photo aérienne coûte cent tuiles, peut-être pour rien
 
 Passer sur l'onglet 2D redemande **cent tuiles** au WMTS pour rendre la photo
 dans la grille — mesuré de 5 s à 65 s selon l'humeur de la passerelle, sur la
