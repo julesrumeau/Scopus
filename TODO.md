@@ -10,7 +10,7 @@ renvois `(#N)` ailleurs dans le document ont été mis à jour en conséquence.
 L'ordre reste celui d'origine ; seuls les *(prioritaire)* sont un jugement de
 priorité explicite, le reste est classé par ancienneté et non par urgence.
 
-**4 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
+**3 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
 l'issue est incertaine — tout le reste est du travail dont la forme est déjà
 connue.
 
@@ -64,37 +64,7 @@ après hystérésis — serait le moyen le plus rapide de voir où ça casse.
 le pire des trois choix — l'utilisateur conclura que c'est *l'outil* qui est
 cassé.
 
-### #3 — La photo aérienne coûte cent tuiles, peut-être pour rien
-
-**Essayé et revenu en arrière.** Le zoom avait été abaissé à 17 pour la photo
-seule (132 tuiles → 36) : comparé côte à côte sur un recadrage de 250 m, la
-différence semblait mineure, mais à l'usage réel la perte de qualité s'est
-révélée trop marquée — l'auteur a demandé de revenir au zoom 18. La leçon à
-garder : un recadrage isolé ne suffit pas à juger, il faut l'avis sur l'usage
-réel avant de trancher un compromis qualité/vitesse. Ne pas réessayer le zoom
-17 sans nouvelle raison.
-
-Les deux autres pistes, écartées ou repoussées :
-
-- **Réutiliser les tuiles que Leaflet a déjà** — écartée. Une image dessinée
-  dans un canevas **souille** celui-ci (`getImageData` lèverait une
-  `SecurityError` sans `crossOrigin`, absent aujourd'hui), et surtout la carte
-  affiche la zone au zoom 14-15 quand on choisit une dalle, la grille en
-  demande 17-18 : les tuiles utiles ne sont là que si l'on a zoomé à fond avant
-  de charger, ce qui n'est pas le geste courant.
-- **Charger en deux temps** (une passe grossière posée tout de suite, la fine
-  par-dessus quand elle arrive) reste la vraie réponse : elle ne sacrifie
-  aucune qualité, contrairement au zoom abaissé — l'attente ne serait pas
-  raccourcie, elle disparaîtrait. C'est un chantier réel (voir la description
-  plus haut, restructurer `sourcePhoto`/`appliquerCote` pour deux passes avec
-  garde anti-course aux deux étapes), mais c'est la piste qui n'a pas encore
-  été essayée pour de vrai.
-
-Ce qui ne change pas : les tuiles restent en Web Mercator et doivent être
-rééchantillonnées dans la grille Lambert-93. On n'économise que le réseau,
-jamais la géométrie.
-
-### #4 — Rendre l'outil vraiment responsive
+### #3 — Rendre l'outil vraiment responsive
 
 Un seul point de rupture existe aujourd'hui (`@media (max-width: 900px)`) : le
 panneau passe au-dessus de la scène au lieu d'à côté. Jamais vérifié à une
