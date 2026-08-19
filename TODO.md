@@ -66,15 +66,35 @@ cassé.
 
 ### #3 — Passage de robustesse et captures du README
 
-Robustesse sur les chemins qu'un inconnu emprunte : connexion coupée en plein
-chargement (vérifier qu'Annuler retombe sur ses pieds), rafale de 429, zone
-sans LiDAR, double chargement et changement de dalle en cours de
-téléchargement. Vérifier que Pages sert bien la version publiée **et** que le
-double-clic sur `index.html` marche toujours. `npm test` au vert.
+**Le passage de robustesse est fait**, vérifié en navigateur réel (pas
+seulement lu dans le code) :
 
-Deux ou trois captures dans le README — la carte, le nuage colorisé, une
-détection avec sa fiche : la dalle d'exemple est maintenant fixée (Bois des
-Caures, Verdun, `#d=877,6904`), il ne reste qu'à la photographier en 2D.
+- **Annuler en plein téléchargement** retombe sur ses pieds — bouton
+  « Charger » réactivé, barre de progression refermée, aucun état bloqué.
+- **Rafale de 429 simulée** (6 refus consécutifs forcés sur les vraies
+  requêtes IGN) : la sélection de dalle aboutit quand même, au bon nom de
+  dalle — le réessai avec recul dispersé absorbe la rafale sans que rien ne
+  se voie côté utilisateur.
+- **Clic loin de la France** : message clair et immédiat, pas de requête
+  Lambert-93 hors de son domaine de validité.
+- **Changer de dalle en cours de téléchargement** et **double-clic sur
+  « Charger »** : les deux retombent sur un état stable, une seule dalle
+  effectivement chargée, aucune interface bloquée.
+- **GitHub Pages** sert bien la dernière version poussée (vérifié en ligne).
+- `npm test` au vert (86 tests).
+
+**Reste seulement les captures du README** — l'auteur les prend lui-même,
+deux emplacements réservés :
+
+- `docs/capture-2d.png` — vue 2D de la dalle d'exemple (Bois des Caures,
+  `#d=877,6904`), photo aérienne à gauche et Sky-View Factor à droite : c'est
+  l'image qui montre en un coup d'œil ce que fait l'outil.
+- `docs/capture-carte.png` — la carte de France avec les chantiers LiDAR en
+  bleu, pour montrer la couverture nationale.
+
+Le double-clic sur `index.html` en `file://`, lui, a déjà été confirmé par
+l'usage réel de l'auteur cette session (liens `file://…#d=x,y` ouverts et
+fonctionnels).
 
 Où poster ensuite : Géorezo, forum OSM France, SIG francophone sur Mastodon,
 forums d'archéologie et de patrimoine (pierre sèche), r/geomatique. Wikipedra et
