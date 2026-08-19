@@ -94,8 +94,10 @@ WFS de l'IGN, contrôles mécaniques sur les sources. Sur données réelles
 (plateau de Beille), la cabane connue est retrouvée à 1,3 m, sans faux positif,
 à trois échelles d'emprise. Détail complet et chiffres dans `CLAUDE.md`.
 
-**Non validé :** aucune ruine effondrée ni aucun chemin connu n'a encore servi
-de contrôle positif — ni pour les structures, ni pour les sentiers.
+**Non validé pour la détection automatique** (masquée, structures comme
+sentiers) : aucune ruine ni chemin réels n'ont servi de contrôle positif à
+l'algorithme. La lecture du relief à l'œil, elle, vient d'être confirmée sur
+une ruine réelle connue de l'auteur.
 
 ---
 

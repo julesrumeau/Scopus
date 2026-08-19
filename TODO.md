@@ -33,8 +33,11 @@ raisonnement :
 3. **Y renoncer** et faire de Scopus un lecteur de relief, ce qu'il est déjà et
    fait bien.
 
-Ne rien décider tant que la lecture visuelle n'a pas été pratiquée sur plusieurs
-dalles : c'est elle qui dira si un détecteur manque vraiment.
+Premier point en faveur de l'option 3 : une ruine réelle connue de l'utilisateur,
+peu visible sur le terrain, se lit sans ambiguïté dans le relief calculé — sans
+détecteur. Un seul cas ne tranche pas encore ; ne rien décider tant que la
+lecture visuelle n'a pas été pratiquée sur plusieurs dalles, c'est elle qui dira
+si un détecteur manque vraiment.
 
 ### #2 — Débloquer la détection de sentiers *(prioritaire)*
 

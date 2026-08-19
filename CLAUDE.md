@@ -383,8 +383,9 @@ la porte, et c'est aussi la capture qu'attend le README (#5).
 **La ligne sur ce que l'outil ne sait pas faire n'est pas de la modestie** : elle
 détermine la qualité des retours. Qui comprend qu'il s'agit de règles
 géométriques réglables propose des coordonnées ; qui croit à une IA répond « ça
-ne marche pas ». Elle doit continuer à dire qu'aucune ruine réelle connue n'a
-servi à régler les seuils, aussi longtemps que c'est vrai.
+ne marche pas ». Elle ne porte plus sur la détection automatique — masquée, la
+question ne se pose plus pour un visiteur — mais sur ce que l'outil fait
+réellement : calculer le relief, sans rien repérer à la place de qui regarde.
 
 Trois points de mise en œuvre à ne pas défaire :
 
@@ -1282,6 +1283,10 @@ toujours — on lit des images ombrées. Les deux chaînes automatiques demanden
 des seuils justes pour rendre le même service en moins bien, et **aucune n'a
 jamais été confrontée à une structure réelle connue**.
 
+Confirmé depuis, sur un cas réel : une ruine connue de l'utilisateur, peu
+visible sur le terrain, se lit sans ambiguïté dans le relief calculé par
+l'outil. L'argument ci-dessus n'était pas que théorique.
+
 Ce qui a emporté la décision : une fonction livrée qui promet et rend zéro fait
 conclure que l'*outil* est cassé, pas cette fonction-là. La voie par la forme
 venait précisément de rendre zéro en silence sur une dalle réelle, faute d'un
@@ -1289,9 +1294,12 @@ réglage lu au mauvais endroit ; et le premier essai de sa surface d'analyse ava
 dégradé le Sky-View Factor à l'écran. Deux régressions visibles en un essai, sur
 une chaîne qu'aucune vérité terrain ne permet de régler.
 
-**Ce qui manque pour la rallumer n'est pas du code** : c'est un contrôle positif,
-une ruine dont on connaisse les coordonnées. Le drapeau se remet à `false` en une
-ligne.
+**Ce qui manque pour la rallumer n'est pas du code** : c'est un contrôle positif
+pour l'algorithme lui-même — une ruine dont on connaisse les coordonnées,
+passée dans le pipeline de détection pour vérifier qu'il la retrouve avec un
+score juste. La lecture à l'œil, elle, vient d'être confirmée ; ce n'est pas la
+même chose que faire tourner l'algorithme et en vérifier le score. Le drapeau
+se remet à `false` en une ligne.
 
 Conséquence sur le reste du document : les sections qui suivent restent la
 référence du code, pas de l'interface.
@@ -1437,11 +1445,15 @@ La correspondance avec la BD TOPO : moins de 1,5 m d'écart, 16 m² mesurés pou
 été vérifiée séparément en Bretagne, dans les Alpes, les Vosges, en Corse et en
 Île-de-France.
 
-**Non validé :** aucune ruine effondrée connue n'a servi de contrôle positif. Le
-chemin « non classé » — celui de la spec, celui des ruines — n'a été vérifié que
-sur cas synthétique, avec une cabane debout (classée « bâtiment ») comme seul
-contrôle disponible. C'est le premier test à faire dès qu'une ruine géolocalisée
-est disponible.
+**Non validé pour l'algorithme :** aucune ruine effondrée connue n'a servi de
+contrôle positif à la détection automatique elle-même — masquée, elle ne
+tourne d'ailleurs plus. Le chemin « non classé » — celui de la spec, celui des
+ruines — n'a été vérifié que sur cas synthétique, avec une cabane debout
+(classée « bâtiment ») comme seul contrôle disponible. C'est le premier test à
+faire dès qu'une ruine géolocalisée est disponible **pour l'algorithme**. La
+lecture à l'œil du relief, elle, vient d'être confirmée sur une ruine réelle
+peu visible, connue de l'utilisateur — voir « La détection automatique est
+masquée ».
 
 ---
 
@@ -1467,18 +1479,22 @@ est disponible.
 ## Jalon de publication
 
 Publier **n'est pas la récompense d'un outil fini** : c'est la prochaine étape de
-validation. Le seul manque sérieux du projet — aucune ruine effondrée connue n'a
-servi de contrôle positif — ne se comble pas en développant. Il se comble quand
-quelqu'un répond « j'ai un orri à telle coordonnée, essaie ». Tant que
-l'application n'est pas en ligne, ce message ne peut pas arriver, et les seuils
-restent réglés sur du synthétique.
+validation. Le manque qui reste — la détection automatique, masquée, n'a jamais
+tourné sur une ruine réelle connue — ne se comble pas en développant : il se
+comble quand quelqu'un répond « j'ai un orri à telle coordonnée, essaie ». Ce
+n'est plus le seul manque du projet, cela dit : la lecture à l'œil du relief,
+c'est-à-dire l'outil tel qu'il se présente aujourd'hui, vient d'être confirmée
+sur une ruine réelle. Ce qui reste à calibrer est optionnel et éteint, pas ce
+que montre l'accueil. Tant que l'application n'est pas en ligne, le message
+« j'ai un orri à telle coordonnée » ne peut de toute façon pas arriver, et les
+seuils de détection resteraient réglés sur du synthétique.
 
 Trois choses, et rien d'autre, avant de poster :
 
 | Condition | Pourquoi elle est bloquante |
 |---|---|
 | **Ouvrir sur un exemple** | Sans elle, un visiteur voit une carte de France et ne sait pas où cliquer. Tout le reste de l'outil devient inatteignable. Le lien partageable, lui, est fait ; ne manque que la dalle vers laquelle il pointerait par défaut. |
-| **Dire ce que l'outil ne sait pas faire** | Détermine la *qualité* des retours. Qui comprend que ce sont des règles réglables, et que le cas « ruine » n'est pas validé, propose des coordonnées. Qui croit à une IA répond « ça marche pas ». |
+| **Dire ce que l'outil ne sait pas faire** | Détermine la *qualité* des retours. Qui comprend qu'il s'agit de règles réglables et que rien n'est détecté automatiquement propose des coordonnées. Qui croit à une IA répond « ça marche pas ». |
 | **Passage de robustesse + captures dans le README** | Un inconnu emprunte les chemins qu'on n'emprunte jamais : réseau qui lâche, 429 en rafale, zone sans LiDAR, téléphone. |
 
 Tout le reste — relief affiché, SVF, vignettes, export PNG, rideau ortho, carnet
