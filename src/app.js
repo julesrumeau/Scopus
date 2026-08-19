@@ -1575,6 +1575,11 @@ function basculerVue(quoi) {
   // noir à montrer, et les raccourcis clavier y mèneraient quand même.
   if ($(`onglet-${quoi}`)?.disabled) return;
 
+  // Changer d'onglet referme le tiroir (sous 900 px) : sans ça, la scène qu'on
+  // vient de choisir resterait cachée derrière le panneau qu'on avait ouvert
+  // pour la choisir. Sans effet au-dessus de 900 px, où le tiroir n'existe pas.
+  fermerTiroir();
+
   // Le panneau suit : les sections marquées `data-vue` s'affichent ou non selon
   // l'onglet, sans que rien d'autre n'ait à le savoir.
   $('panneau').dataset.vue = quoi;
@@ -1594,6 +1599,25 @@ function basculerVue(quoi) {
 $('onglet-carte').addEventListener('click', () => basculerVue('carte'));
 $('onglet-2d').addEventListener('click', () => basculerVue('2d'));
 $('onglet-3d').addEventListener('click', () => basculerVue('3d'));
+
+// ── Tiroir du panneau (sous 900 px) ─────────────────────────────────────────
+// Au-dessus de 900 px, `.btn-menu` et `.fond-panneau` restent `display: none`
+// par la feuille de style : ces fonctions ne font alors rien de visible.
+
+function ouvrirTiroir() {
+  $('panneau').classList.add('ouvert');
+  $('fond-panneau').hidden = false;
+  $('btn-menu').setAttribute('aria-expanded', 'true');
+}
+function fermerTiroir() {
+  $('panneau').classList.remove('ouvert');
+  $('fond-panneau').hidden = true;
+  $('btn-menu').setAttribute('aria-expanded', 'false');
+}
+$('btn-menu').addEventListener('click', () =>
+  $('panneau').classList.contains('ouvert') ? fermerTiroir() : ouvrirTiroir());
+$('fond-panneau').addEventListener('click', fermerTiroir);
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') fermerTiroir(); });
 
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;

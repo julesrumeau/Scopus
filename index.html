@@ -66,10 +66,19 @@
 </section>
 
 <header class="barre">
+  <!-- Sous 900 px, le panneau est un tiroir replié par défaut — la moitié de
+       l'écran pour des curseurs de seuils ne laissait plus de place pour ce
+       qu'on est venu voir. Ce bouton n'existe visuellement qu'à cette
+       largeur (`.btn-menu` masqué au-delà par CSS). -->
+  <button id="btn-menu" class="btn-menu" aria-label="Ouvrir le panneau" aria-expanded="false">☰</button>
   <h1>Scopus</h1>
   <span class="sous-titre">LiDAR HD · lecture du relief</span>
   <span id="etat" class="etat">Cliquez une dalle sur la carte</span>
 </header>
+
+<!-- Estompage derrière le tiroir ouvert : un tapotement dessus le referme.
+     N'existe visuellement que sous 900 px, comme le tiroir lui-même. -->
+<div id="fond-panneau" class="fond-panneau" hidden></div>
 
 <main class="grille">
 

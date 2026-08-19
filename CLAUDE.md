@@ -505,6 +505,36 @@ permanence, ils noyaient les deux boutons qui font le travail. La numérotation
 des étapes a disparu avec tout ça : elle ne pouvait plus être juste dès lors que
 les sections apparaissent et disparaissent.
 
+### Sous 900 px, le panneau devient un tiroir
+
+Un premier essai empilait le panneau au-dessus de la scène (45 %/55 %) —
+jamais vérifié à une vraie largeur de téléphone, et mesuré ensuite comme
+inutilisable : à 380 px, la carte ou le nuage n'avaient plus qu'une bande de
+quelques centimètres. Un panneau de 380 px ne partage pas l'écran avec quoi
+que ce soit d'utile en dessous de 900 px, il faut choisir lequel des deux est
+visible à l'instant, pas les tasser tous les deux.
+
+Le panneau devient donc un tiroir : `position: fixed`, ouvert par un bouton
+« ☰ » fixé en haut à gauche de la barre de titre (`#btn-menu`, masqué
+au-dessus de 900 px), fermé par défaut, glissé hors écran par `transform`
+plutôt que cascadé (une transition sur `display` n'existe pas). Sorti du flux
+de la grille par le `position: fixed`, il laisse `.grille` repasser à une
+seule colonne — la scène récupère toute la largeur, ce que l'empilement ne
+permettait pas. Un rideau (`#fond-panneau`) capte le clic pour refermer et
+assombrit la scène pendant que le tiroir est ouvert, sur le même principe que
+le rideau de comparaison 2D mais pour un tout autre geste.
+
+Changer d'onglet referme le tiroir automatiquement, câblé dans `basculerVue`
+— le même choke point que pour `data-vue` — pour qu'aucun appelant n'ait à y
+penser séparément : sans ça, choisir un onglet depuis le tiroir laisserait
+la scène cachée derrière le panneau qu'on venait de quitter.
+
+Piège mesuré en vrai navigateur, pas supposé : `.btn-menu` est un enfant flex
+de `.barre` aux côtés du titre et de l'état, et sans `flex-shrink: 0` il se
+faisait écraser à 380 px — 30 px de large posés en CSS, 15 px mesurés à
+l'écran. Une zone tactile qui rétrécit sous la pression de ses voisins ne se
+voit qu'en la mesurant, jamais en la lisant dans la feuille de style.
+
 ## Filtrage des classes
 
 Par l'**alpha de la palette**, pas par les buffers : `paletteClasses` écrit 0

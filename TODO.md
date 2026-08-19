@@ -10,9 +10,8 @@ renvois `(#N)` ailleurs dans le document ont été mis à jour en conséquence.
 L'ordre reste celui d'origine ; seuls les *(prioritaire)* sont un jugement de
 priorité explicite, le reste est classé par ancienneté et non par urgence.
 
-**3 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
-l'issue est incertaine — tout le reste est du travail dont la forme est déjà
-connue.
+**2 tâches restent**, et les deux sont marquées *(prioritaire)* : ce sont les
+seules dont l'issue est incertaine.
 
 ### #1 — Rallumer la détection, ou renoncer *(prioritaire)*
 
@@ -64,21 +63,3 @@ après hystérésis — serait le moyen le plus rapide de voir où ça casse.
 le pire des trois choix — l'utilisateur conclura que c'est *l'outil* qui est
 cassé.
 
-### #3 — Rendre l'outil vraiment responsive
-
-Un seul point de rupture existe aujourd'hui (`@media (max-width: 900px)`) : le
-panneau passe au-dessus de la scène au lieu d'à côté. Jamais vérifié à une
-vraie largeur de téléphone, contrairement à l'accueil — testé, lui, à 380 px
-via iframe (la fenêtre de Chrome headless ne descend pas plus bas). Les
-curseurs de seuils, les boutons d'export, la carte et le rideau de
-comparaison n'ont aucune garantie de rester utilisables en dessous de 900 px.
-
-Ce qui existe déjà et compte pour beaucoup : le garde-fou mobile
-(`budgetOctetsMobile`) plafonne la résolution par défaut et avertit au-delà —
-le cas le plus coûteux, charger 190 Mo sur un forfait limité, est déjà traité.
-Ce qui reste, c'est la mise en page elle-même : tient-elle à l'écran, les
-zones tactiles sont-elles assez grandes, le rideau se glisse-t-il au doigt
-comme à la souris.
-
-À vérifier avant de corriger quoi que ce soit — même piège que pour l'accueil :
-tester en iframe, pas en rétrécissant la fenêtre du navigateur.

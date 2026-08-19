@@ -47,6 +47,30 @@ html, body {
   border-bottom: 1px solid var(--bord);
   height: 46px;
 }
+/* Masqué par défaut : n'apparaît que sous 900 px, où le panneau devient un
+   tiroir (voir le media query plus bas). */
+.btn-menu {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  /* Sans ça, un enfant flex rétrécit sous sa largeur posée dès que ses voisins
+     (titre, sous-titre, état) manquent de place — mesuré à 380 px : 30 px
+     tombait à 15. Le bouton doit garder sa taille tactile quoi qu'il arrive. */
+  flex-shrink: 0;
+  padding: 0;
+  background: var(--fond-3);
+  border: 1px solid var(--bord);
+  border-radius: 6px;
+  color: var(--texte);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  align-self: center;
+}
+/* Masqué par défaut, comme `.btn-menu` : n'existe que sous 900 px. */
+.fond-panneau { display: none; }
 .barre h1 {
   margin: 0;
   font-size: 17px;
@@ -264,27 +288,46 @@ button:disabled { opacity: 0.42; cursor: not-allowed; }
 .champ > span { display: flex; justify-content: space-between; color: var(--texte-2); margin-bottom: 4px; }
 .champ b { color: var(--texte); font-variant-numeric: tabular-nums; font-weight: 600; }
 
+/* La zone cliquable (`height`, sur l'élément lui-même) est volontairement plus
+   haute que la piste visible (4 px, sur les pseudo-éléments de piste) : à la
+   souris personne ne remarque la différence, au doigt un pouce de 14 px sur
+   une ligne de 4 px est sous les tailles tactiles recommandées (WCAG 2.5.5,
+   24 px minimum). Mesuré sur l'app à 380 px de large — voir TODO.md. */
 input[type=range] {
   width: 100%;
-  height: 4px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
   appearance: none;
-  background: var(--fond-3);
-  border-radius: 2px;
+  background: transparent;
   outline: none;
+  cursor: pointer;
 }
 /* Le curseur reste en place pendant la lecture de l'index, mais inerte : il
-   doit le dire, comme le fait le bouton juste dessous. */
-input[type=range]:disabled { opacity: 0.42; cursor: not-allowed; }
+   doit le dire, comme le fait le bouton juste dessous. `opacity` sur
+   l'élément lui-même dimme aussi ses pseudo-éléments de piste et de pouce. */
+input[type=range]:disabled { cursor: not-allowed; opacity: 0.42; }
+input[type=range]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--fond-3);
+  border-radius: 2px;
+}
+input[type=range]::-moz-range-track {
+  height: 4px;
+  background: var(--fond-3);
+  border-radius: 2px;
+}
 input[type=range]::-webkit-slider-thumb {
   appearance: none;
-  width: 14px; height: 14px;
+  width: 18px; height: 18px;
+  margin-top: -7px;   /* recentre le pouce sur la piste de 4 px : -(18-4)/2 */
   border-radius: 50%;
   background: var(--accent);
   cursor: pointer;
   border: 2px solid var(--fond-2);
 }
 input[type=range]::-moz-range-thumb {
-  width: 12px; height: 12px;
+  width: 16px; height: 16px;
   border-radius: 50%;
   background: var(--accent);
   cursor: pointer;
@@ -615,8 +658,45 @@ input[type=range]::-moz-range-thumb {
 }
 
 @media (max-width: 900px) {
-  .grille { grid-template-columns: 1fr; grid-template-rows: 45% 55%; }
-  .panneau { border-right: none; border-bottom: 1px solid var(--bord); }
+  /* Sous 900 px, le panneau (380 px) ne laisse plus de place à la scène — un
+     empilement 45 %/55 % essayé d'abord ne réglait rien, la carte comme le
+     nuage restant écrasés sur une bande de quelques centimètres. Le panneau
+     devient donc un tiroir hors du flux de la grille (`position: fixed`),
+     qui se pose *par-dessus* la scène au lieu de partager l'écran avec elle :
+     `.grille` repasse à une seule colonne, entièrement pour la scène. */
+  .grille { grid-template-columns: 1fr; }
+  .btn-menu { display: flex; }
+
+  /* Fermé par défaut, glissé hors écran plutôt que masqué par `hidden` : un
+     `display: none` empêcherait toute transition d'ouverture. Sous l'accueil,
+     le voile d'attente et les alertes (2000 et plus), au-dessus de la scène
+     et du rideau d'arrière-plan. */
+  .panneau {
+    position: fixed;
+    top: 46px;
+    left: 0;
+    bottom: 0;
+    width: min(85vw, 380px);
+    border-right: 1px solid var(--bord);
+    z-index: 1500;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+  }
+  .panneau.ouvert { transform: translateX(0); }
+
+  /* Capte le clic pour refermer le tiroir et assombrit la scène pendant
+     qu'il est ouvert. */
+  .fond-panneau:not([hidden]) {
+    display: block;
+    position: fixed;
+    top: 46px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1400;
+  }
 }
 
 /* Avis persistant : une capacité qui manque, et ce qui marche quand même. Il
