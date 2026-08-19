@@ -10,7 +10,7 @@ renvois `(#N)` ailleurs dans le document ont été mis à jour en conséquence.
 L'ordre reste celui d'origine ; seuls les *(prioritaire)* sont un jugement de
 priorité explicite, le reste est classé par ancienneté et non par urgence.
 
-**5 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
+**6 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
 l'issue est incertaine — tout le reste est du travail dont la forme est déjà
 connue.
 
@@ -114,30 +114,46 @@ manque.
 
 ### #5 — La photo aérienne coûte cent tuiles, peut-être pour rien
 
-Passer sur l'onglet 2D redemande **cent tuiles** au WMTS pour rendre la photo
-dans la grille — mesuré de 5 s à 65 s selon l'humeur de la passerelle, sur la
-même machine et les mêmes tuiles. Or la carte vient d'en afficher, de la même
-couche et du même service. L'impression que ça charge beaucoup pour peu est
-fondée ; reste à savoir laquelle des trois pistes rend le plus.
+**Une des trois pistes envisagées est faite.** Plafond de zoom abaissé à 17
+pour la photo spécifiquement (`CONFIG.relief.zoomPhotoMax`), sans toucher au
+plafond général des tuiles de carte. Comparé côte à côte sur la dalle
+d'exemple (Bois des Caures) : **132 tuiles → 36**, aucune différence visible à
+l'écran — la photo n'est que du contexte, jamais l'endroit où une structure se
+lit, donc la légère perte de netteté de la canopée ne coûte rien en pratique.
 
-- **Réutiliser les tuiles que Leaflet a déjà.** Elles sont dans le DOM, en
-  `<img>`. Piège à connaître avant de commencer : une image dessinée dans un
-  canevas **souille** celui-ci et `getImageData` lève ensuite une
-  `SecurityError` — sauf si la couche a été créée avec `crossOrigin`, ce qui
-  n'est pas le cas aujourd'hui. Et la limite est ailleurs : la carte affiche la
-  zone au zoom 14 ou 15 quand on choisit une dalle, la grille en demande 18. Les
-  tuiles utiles ne sont là que si l'on a zoomé à fond sur la dalle avant de la
-  charger, ce qui n'est pas le geste courant.
-- **Se demander si le zoom 18 est nécessaire.** Il est choisi comme le premier
-  niveau dont le pixel au sol tient dans le pas de la grille (0,44 m pour 0,50 m).
-  Le 17 coûterait **quatre fois moins** — 25 tuiles — pour 0,88 m au sol. La
-  photo n'est que du contexte ; la question est de savoir si elle reste lisible
-  quand on zoome sur une cabane, et ça se tranche en regardant.
-- **Charger en deux temps**, ce qui est sans doute la vraie réponse : une passe
-  grossière (zoom 15, quatre tuiles) posée tout de suite, puis le zoom 18 par
-  dessus quand il arrive. L'attente ne serait pas raccourcie, elle
-  disparaîtrait — c'est exactement ce que fait n'importe quelle carte glissante.
+Les deux autres pistes, écartées ou repoussées :
 
-Ce qui ne change pas quelle que soit la piste : les tuiles restent en Web
-Mercator et doivent être rééchantillonnées dans la grille Lambert-93. On
-n'économise que le réseau, jamais la géométrie.
+- **Réutiliser les tuiles que Leaflet a déjà** — écartée. Une image dessinée
+  dans un canevas **souille** celui-ci (`getImageData` lèverait une
+  `SecurityError` sans `crossOrigin`, absent aujourd'hui), et surtout la carte
+  affiche la zone au zoom 14-15 quand on choisit une dalle, la grille en
+  demande 17-18 : les tuiles utiles ne sont là que si l'on a zoomé à fond avant
+  de charger, ce qui n'est pas le geste courant.
+- **Charger en deux temps** (une passe grossière posée tout de suite, la fine
+  par-dessus quand elle arrive) reste la vraie réponse si le temps de charge
+  gêne encore après le passage à 36 tuiles — mais c'est un chantier réel (voir
+  l'historique de cette fiche), à ne lancer que si le gain du zoom 17 seul ne
+  suffit pas à l'usage.
+
+Ce qui ne change pas : les tuiles restent en Web Mercator et doivent être
+rééchantillonnées dans la grille Lambert-93. On n'économise que le réseau,
+jamais la géométrie.
+
+### #6 — Rendre l'outil vraiment responsive
+
+Un seul point de rupture existe aujourd'hui (`@media (max-width: 900px)`) : le
+panneau passe au-dessus de la scène au lieu d'à côté. Jamais vérifié à une
+vraie largeur de téléphone, contrairement à l'accueil — testé, lui, à 380 px
+via iframe (la fenêtre de Chrome headless ne descend pas plus bas). Les
+curseurs de seuils, les boutons d'export, la carte et le rideau de
+comparaison n'ont aucune garantie de rester utilisables en dessous de 900 px.
+
+Ce qui existe déjà et compte pour beaucoup : le garde-fou mobile
+(`budgetOctetsMobile`) plafonne la résolution par défaut et avertit au-delà —
+le cas le plus coûteux, charger 190 Mo sur un forfait limité, est déjà traité.
+Ce qui reste, c'est la mise en page elle-même : tient-elle à l'écran, les
+zones tactiles sont-elles assez grandes, le rideau se glisse-t-il au doigt
+comme à la souris.
+
+À vérifier avant de corriger quoi que ce soit — même piège que pour l'accueil :
+tester en iframe, pas en rétrécissant la fenêtre du navigateur.

@@ -888,6 +888,7 @@ async function sourcePhoto() {
       photoEnCours = ATTENTE.pendant('Photo aérienne', (etape) =>
         ORTHO.charger(t.emprise, t.pas, t.W, t.H, {
           signal,
+          zMax: CONFIG.relief.zoomPhotoMax,
           surProgres: (faites, total) => {
             if (faites % 5 === 0 || faites === total) etape(null, `${faites} / ${total} tuiles`);
           },

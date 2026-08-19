@@ -231,6 +231,16 @@ const CONFIG = {
     // pleine. Le calcul est en prime seize fois plus léger, ce qui décide de la
     // faisabilité du Sky-View Factor.
     pasM: 0.5,
+    // Plafond de zoom pour la photo aérienne rééchantillonnée dans cette
+    // grille — distinct du plafond général des tuiles (`carte.zoomTuilesMax`,
+    // celui au-delà duquel l'IGN répond 404). `ORTHO.zoomPour` choisirait 18
+    // pour un pas de 50 cm à cette latitude (le pixel y tient tout juste
+    // dans la cellule) ; borné à 17 ici, comparé côte à côte sur la dalle du
+    // Bois des Caures — 132 tuiles → 36, deux fois et demi plus vite —, la
+    // texture de canopée perd un peu de netteté, imperceptible en pratique :
+    // la photo n'est que du contexte, jamais l'endroit où une structure se
+    // lit. Voir TODO.md.
+    zoomPhotoMax: 17,
     // Rayon du lissage qui définit le « relief général » à soustraire. Doit
     // dépasser nettement la taille des objets cherchés, sans quoi une cabane
     // serait absorbée dans sa propre référence.
