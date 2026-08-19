@@ -7,13 +7,20 @@ intervenant sur le projet.
 
 ## Présentation
 
-Outil web personnel d'exploration du LiDAR HD de l'IGN, destiné à repérer des
-structures absentes des cartes — ruines et cabanes en pierre sèche — en Ariège
-et dans les Pyrénées.
+Outil web personnel d'exploration du LiDAR HD de l'IGN, utilisable partout en
+France — pas seulement en Ariège et dans les Pyrénées, où le projet est né. Il
+calcule et affiche le relief caché sous la végétation — ombrage, micro-relief,
+Sky-View Factor, ouverture — et le compare à la photo aérienne : cabanes,
+ruines, sentiers, terrasses s'y lisent à l'œil, sans qu'aucune détection ne
+soit nécessaire pour les voir.
 
-Détection par **règles géométriques explicites**, sans apprentissage : chaque
-rejet doit rester explicable, sans quoi les seuils ne peuvent pas être réglés,
-seulement subis.
+Une détection automatique existe aussi, destinée à repérer des structures
+absentes des cartes — ruines et cabanes en pierre sèche. Par **règles
+géométriques explicites**, sans apprentissage : chaque rejet doit rester
+explicable, sans quoi les seuils ne peuvent pas être réglés, seulement subis.
+Elle est aujourd'hui **masquée dans l'interface** — voir « La détection
+automatique est masquée » plus bas : les deux chaînes existent et sont
+testées, mais n'ont jamais été confrontées à une structure réelle connue.
 
 ---
 
@@ -113,6 +120,17 @@ Deux points appris à l'usage :
 Accepter un niveau à moitié produirait un nuage dont une part est fine et
 l'autre grossière, avec une frontière visible et une détection faussée le long
 de cette frontière.
+
+Chaque niveau divise l'espacement par deux — le compromis résolution/volume
+qu'expose le curseur *Résolution*, pour une dalle entière (1 km²) :
+
+| Niveau | Espacement | À télécharger |
+|---|---|---|
+| 1 | 3,4 m | 7 Mo |
+| 2 | 1,7 m | 27 Mo |
+| 3 | 85 cm | 70 Mo |
+| 4 | 43 cm | 137 Mo |
+| 5 | 21 cm | 185 Mo |
 
 ### Le worker : pour la fluidité, pas pour la vitesse
 
@@ -216,6 +234,29 @@ apparaît légèrement tourné. Toute emprise doit donc être tracée en polygon
 côtés reprojetés, jamais en `L.rectangle` — c'est ce qui faisait paraître la
 zone d'intérêt de travers dans sa dalle.
 
+**La carte s'ouvre sur la France entière**, cadrée par `fitBounds` sur une
+emprise et non par un centre plus un zoom fixe — le zoom qui va bien dépend de
+la taille de la fenêtre, vérifié en 1400 × 900 comme en 1000 × 700. Un repli au
+zoom 5 couvre le cas où le conteneur n'a pas encore de taille, `fitBounds` y
+calculant n'importe quoi. La couche des chantiers tient l'échelle et c'est
+mesuré : 208 entités pour la France entière, avec `numberMatched = 208` — le
+service dit lui-même qu'il n'y a rien de plus, donc aucune troncature au
+plafond de 300, contrairement au quadrillage kilométrique qui plafonne à 600 en
+silence. Le prix, à connaître : 1,1 Mo de GeoJSON en 570 ms au démarrage.
+
+**Le zoom de la carte est borné à 19**, et ce n'est pas une limite pyrénéenne :
+mesuré sur les deux fonds en trois lieux (Ariège, Paris, Vanoise), le niveau 19
+répond 200, les niveaux 20 et 21 répondent 404, le 22 un 400 — le plafond est
+celui de la couche, partout en France. `maxNativeZoom: 19` fait agrandir la
+dernière tuile plutôt que d'en demander qui n'existent pas, `maxZoom: 20` reste
+sur la carte, et un avis en bas à gauche dit qu'on est au maximum plutôt que de
+laisser la carte virer entièrement au gris. Le même chiffre borne le
+rééchantillonnage de la photo aérienne (`ORTHO.zoomPour`) : c'est la même
+donnée et la même limite. Vérifié en temps réel, pas sous
+`--virtual-time-budget` : les clics de zoom s'y déclenchent instantanément,
+l'animation de Leaflet ne se pose jamais et les contrôles rapportent des échecs
+qui n'existent pas — même piège que pour les Workers.
+
 ---
 
 ## Navigation dans le nuage
@@ -267,7 +308,7 @@ Quatre décisions :
   les deux cas les poignées deviennent illisibles et intouchables — précisément
   dans les vues d'où l'on veut se réorienter.
 
-Les conventions de signe sont vérifiées à froid (`tools/boussole.test.js`) :
+Les conventions de signe sont vérifiées à froid (`test/boussole.test.js`) :
 elles ne cassent rien quand elles sont fausses, elles mettent juste le nord au
 mauvais endroit, et ça ne se verrait qu'à l'export.
 
@@ -319,16 +360,23 @@ Des actions concurrentes de même poids créent une charge de décision et font
 chuter le passage à l'acte ; la hiérarchie n'est donc pas cosmétique.
 
 **Le bouton principal annonce au lieu de ne rien faire.** La dalle d'exemple
-n'est pas encore arrêtée (#3) : « Voir un exemple » mène à un écran qui dit ce
+n'est pas encore arrêtée (#5) : « Voir un exemple » mène à un écran qui dit ce
 que l'exemple montrera et selon quels critères la dalle sera choisie. Un bouton
 muet se lit comme une panne ; un bouton qui annonce se lit comme un chantier.
 
-**L'image est un schéma dessiné, et le dit.** La comparaison promise — photo
-aérienne d'un côté, Sky-View Factor de l'autre, la cabane posée sur la coupure de
-sorte que sa moitié gauche disparaisse sous les arbres — demande une vraie dalle,
-donc la dalle d'exemple. Une illustration annoncée comme telle est honnête ; la
-même passée pour une donnée ne le serait pas. Elle se remplace par la paire réelle
-en même temps que #3, et c'est aussi la capture qu'attend le README (#6).
+**Le fond est la carte elle-même, pas une image.** Un premier jet dessinait la
+comparaison promise en SVG — photo aérienne d'un côté, Sky-View Factor de
+l'autre. Remplacé : la carte Leaflet est déjà construite et déjà en train de
+charger les 208 chantiers LiDAR de la France (voir « La carte ») au moment où l'accueil
+s'affiche par-dessus elle, donc un dessin statique en refaisait moins bien une
+donnée déjà là. `.accueil` n'est plus un aplat mais un voile — un dégradé sombre
+posé sur `#vue-carte` —, et la carte de texte flotte dessus avec son propre fond
+quasi opaque. Le reste de l'interface (en-tête, panneau, onglets) reste masqué
+tant que l'accueil est ouvert, par une règle CSS sur `#accueil:not([hidden]) ~ …`
+et non par du JavaScript, sur le même principe que `data-vue`. La comparaison
+photo ↔ relief promise par la phrase d'accroche, elle, reste à montrer pour de
+vrai : c'est la dalle d'exemple (#5), qui remplacera aussi la capture attendue
+par le README (#6).
 
 **La ligne sur ce que l'outil ne sait pas faire n'est pas de la modestie** : elle
 détermine la qualité des retours. Qui comprend qu'il s'agit de règles
@@ -338,22 +386,61 @@ servi à régler les seuils, aussi longtemps que c'est vrai.
 
 Trois points de mise en œuvre à ne pas défaire :
 
-- **Un `location.hash` non vide saute l'accueil.** C'est #3 qui écrira ce hash ;
-  le lire est déjà vrai et le restera. Sans cela, un lien partagé ouvrirait une
-  page de présentation au lieu de la dalle qu'il désigne.
+- **Un `location.hash` non vide saute l'accueil.** Il désigne maintenant une
+  dalle précise plutôt qu'une simple présence — voir « Le lien partageable ».
+  Sans cela, un lien partagé ouvrirait une page de présentation au lieu de la
+  dalle qu'il désigne.
 - **Les raccourcis clavier sont neutralisés tant que l'accueil est là.** Ils
   piloteraient sinon un outil que l'écran recouvre entièrement.
-- **La largeur de l'image est bornée pour que sa hauteur le soit** —
-  `min(100%, 94vh)` à rapport 640/300, réduit à 74vh en fenêtre basse. Passer par
-  un `max-height` sur le SVG laisserait au contraire des bandes vides dans le
-  cadre, `preserveAspectRatio` faisant tenir le dessin dans une boîte qui n'a
-  plus son rapport.
+- **La colonne du panneau se réduit à zéro, elle ne devient pas seulement
+  invisible.** `visibility: hidden` sur `.panneau` sans toucher la grille
+  laisserait sa colonne de 380 px réservée, et la carte de fond se retrouverait
+  décalée d'autant vers la droite — visible sur les trois quarts de l'écran
+  seulement. `grid-template-columns: 0 1fr` sur `.grille` referme la colonne en
+  plus de la vider.
 
 Un piège de mesure, à ne pas reproduire : **la fenêtre de Chrome headless ne
 descend pas sous ~500 px de large**, et son cliché rogné à la taille demandée
 donne l'illusion parfaite d'une mise en page qui déborde. Vérifier une largeur de
 téléphone demande un **iframe** — `position: fixed` s'y résout sur la taille du
 cadre. Mesuré ainsi à 380 px, la page tient.
+
+## Le lien partageable
+
+Comprimis retenu avec l'utilisateur, plus étroit que ce que #3 envisageait au
+départ : le hash ne porte que la **dalle**, deux indices kilométriques
+Lambert-93 (`#d=592,6183`) — pas la résolution, pas l'onglet, pas les seuils.
+Ouvrir un lien **sélectionne** la dalle, exactement l'état obtenu par un clic
+sur la carte, et laisse le choix de charger le nuage à qui l'ouvre : le
+téléchargement engage jusqu'à 190 Mo, personne ne doit le subir en ouvrant un
+lien.
+
+`Carte.selectionnerAuPoint(lon, lat)` est le point de convergence : un clic sur
+la carte (`_surClic`) et un lien partagé y passent tous les deux, jusqu'à la
+requête WFS qui donne l'URL du COPC — aucune divergence possible sur ce qui
+compte. Au clic, le hash est réécrit par `history.replaceState`, jamais
+`location.hash =` : la seconde empile une entrée d'historique à chaque dalle
+désignée, et le bouton Retour du navigateur deviendrait inutilisable après
+quelques clics d'exploration — vérifié en navigateur, deux sélections
+successives ne laissent qu'une entrée.
+
+Le lien se copie par `navigator.clipboard.writeText`, avec repli sur
+`prompt()` : l'API refuse parfois en silence — mesuré, `NotAllowedError`, y
+compris hors `file://` — et l'échec ne doit pas priver du lien. `prompt()` ne
+dépend d'aucune permission et présente le texte déjà sélectionné pour un
+Ctrl+C manuel.
+
+Au chargement sur un hash non vide, fermer l'accueil rend au panneau sa colonne
+de 380 px — la carte, qui occupait l'écran entier derrière le voile
+translucide de l'accueil, doit donc être réinvalidée (`carte.invalider()`)
+avant d'être recentrée : un redimensionnement purement CSS, sans évènement
+`resize`, que Leaflet ne détecte jamais tout seul. Même piège que le retour sur
+l'onglet Carte.
+
+Parcours vérifié de bout en bout en navigateur réel (`.tmp/lien-dalle.html`,
+non versionné) : sélection sur la carte → hash écrit → rechargement à froid sur
+ce hash → même dalle resélectionnée sans le moindre clic, aucune entrée
+d'historique en trop.
 
 ## Le panneau suit la vue
 
@@ -440,6 +527,12 @@ Quatre décisions à ne pas défaire, chacune née d'une mesure :
   creux ont la même forme ; seul leur rapport à la pente les distingue. Le
   retirer fait remonter tous les ravins et fossés de drainage.
 
+**Pourquoi la hessienne (Frangi) et pas un ombrage**, le réflexe habituel : un
+ombrage dépend d'une direction d'éclairage et rate les structures qui lui sont
+parallèles. La littérature archéologique lui préfère des visualisations non
+directionnelles ; la hessienne l'est tout autant, et détecte au lieu de
+simplement montrer.
+
 **Le point fragile est la densité du masque.** L'amincissement de Zhang-Suen
 ronge le masque couronne par couronne : son coût croît avec la surface *et*
 avec l'épaisseur des taches. Sur la dalle de Beille il couvre déjà **35 % de la
@@ -459,10 +552,32 @@ Répartition mesurée (dalle entière, nuage d'affichage chargé, tas à 522 Mo)
 | vectorisation + recollement | 0,2 s |
 | qualification | 0,2 s |
 
-État : validé sur relief synthétique (sentier trouvé, ravine écartée, les deux
-séparés lorsqu'ils coexistent), **non validé sur chemin réel connu**. Les tracés
-remontés sont fragmentés — rien au-delà de 30 m — le squelette se coupant aux
-croisements. Le recollement reste à faire.
+**Validé** sur relief synthétique — sept tests à vérité connue : un sentier de
+niveau est trouvé avec la bonne profondeur, une ravine de même profondeur mais
+orientée dans la pente est écartée, et les deux sont séparés lorsqu'ils
+coexistent sur le même versant.
+
+**Mesuré sur la dalle du plateau de Beille**, 1 km² à pleine résolution, en
+3,5 s :
+
+| Sensibilité | Tracés retenus | Plus longs tracés |
+|---|---|---|
+| 0,35 *(défaut)* | 147 | 203 m / 40 cm · 259 m / 37 cm · 296 m / 56 cm |
+| 0,60 | 63 | 112 m / 25 cm · 182 m / 39 cm · 137 m / 16 cm |
+
+Les profondeurs tombent dans la fourchette attendue d'un sentier (10 à 56 cm)
+et les longueurs se comptent en centaines de mètres — la version précédente,
+qui triait sur l'amplitude, ne remontait que des tronçons de 25 à 30 m creusés
+de 70 à 250 cm : des ravines. Le détail des rejets montre que les deux
+nouveaux critères portent l'essentiel du tri : 506 tracés écartés sur la
+tortuosité, 411 sur la profondeur.
+
+**Non validé sur chemin réel connu** : rien ne dit que ces 147 tracés sont des
+sentiers, seule leur signature est cohérente. Deux limites en plus : la
+reconstitution reste partielle (73 m retrouvés sur 128 m exploitables pour un
+tracé sinueux synthétique), et les **sentes de brebis** (terracettes) ne sont
+pas traitées — c'est une texture périodique et non une ligne, qui relève d'une
+analyse de Fourier plutôt que de ce pipeline.
 
 ---
 
@@ -532,7 +647,7 @@ noir : l'ombrage ne dépend ni du réseau ni d'un calcul long.
 Le point technique qui décidait de tout : les tuiles arrivent en **Web
 Mercator**, les grilles sont en **Lambert-93**, et un carré Lambert-93 est tourné
 d'environ 1° en Mercator — une vingtaine de mètres en travers d'une dalle
-(mesuré : 1,15° et 20,1 m sur une dalle ariégeoise, `tools/ortho.test.js`).
+(mesuré : 1,15° et 20,1 m sur une dalle ariégeoise, `test/ortho.test.js`).
 Superposées naïvement, les deux couches glisseraient l'une sur l'autre.
 
 Des deux issues possibles, c'est la seconde qui est retenue : **garder le canevas
@@ -554,7 +669,7 @@ pas de la grille — sur-échantillonner la photo ne lui donne aucun détail, et
 chaque niveau de trop quadruple le nombre de tuiles. Le plafond à 19 n'est pas
 décoratif : au-delà, la Géoplateforme répond 404 — mesuré en Ariège, à Paris et
 en Vanoise, c'est le plafond de la couche et non une limite régionale (voir
-#12).
+« La carte »).
 
 Les tuiles passent par `RESEAU.recuperer` comme tout le reste — file bornée,
 réessais, 400 fantôme traité comme transitoire. Une tuile qui manque après ses
@@ -931,7 +1046,7 @@ vide, le mode de panne le plus coûteux du projet étant celui qui ressemble à
 « il n'y a rien à cet endroit ».
 
 Les deux voies sont **complémentaires et non redondantes**, ce que vérifie
-`tools/voies.test.js` sur le même nuage : un bâti plein est vu par le classement
+`test/voies.test.js` sur le même nuage : un bâti plein est vu par le classement
 et pas par la forme — il n'a pas d'intérieur fermé au ciel — tandis qu'un anneau
 est vu par la forme et pas par le classement. Un mur épais est vu par les deux, à
 moins de deux mètres près, ce qui rend la fusion possible.
@@ -1245,6 +1360,21 @@ Deux garde-fous : pente moyenne sur l'emprise ≤ 22°, et pente locale maximale
 Sur cas synthétique à 35°, le filtre de pente vide le masque et le fragment
 restant tombe sous la surface minimale.
 
+### Écarter ce qui est déjà cartographié
+
+L'outil cherche des structures **hors carte** ; sans recoupement, il
+signalerait surtout des granges, bergeries et maisons parfaitement connues,
+bien plus nombreuses que les ruines. Chaque détection est donc comparée au
+**bâti de la BD TOPO**, interrogé en direct par le même service web que les
+dalles — rien n'est stocké ni téléchargé à l'avance.
+
+Une détection à moins de 25 m d'un bâtiment connu est marquée, et masquable
+d'une case, jamais supprimée : la BD TOPO et le cadastre manquent
+régulièrement les cabanes d'estive, et une trouvaille écartée à tort ne se
+rattrape pas. La distance se mesure au **contour** du bâtiment, pas à son
+centre — une grange de 60 m a son centre à 30 m de son propre pignon, ce qui
+la ferait passer pour hors carte à moins de mesurer au bon endroit.
+
 ---
 
 ## Validation
@@ -1253,6 +1383,10 @@ restant tombe sous la surface minimale.
 surface / forme / élongation / hauteur / pente, comblement du MNT, altitude
 absolue, absence de valeur non finie) et projection contre les coins de dalle
 publiés par le WFS de l'IGN, référence externe et non aller-retour avec soi-même.
+
+La projection est vérifiée à **5 mm près** contre les coins de dalle publiés
+par le WFS, et l'aller-retour Lambert-93 ↔ WGS84 est exact au micromètre sur
+toute la France métropolitaine.
 
 S'y ajoutent des contrôles mécaniques sur les sources, nés de fautes réellement
 commises : syntaxe de chaque fichier de `src/`, correspondance avec les balises
@@ -1287,12 +1421,24 @@ du code qu'il éprouvait. La convention, elle, se vérifie contre
 `RASTER.centreCellule` — voir le piège en tête de « La photo aérienne déformée
 dans la grille ».
 
-Résultats sur le plateau de Beille : 1 détection, 0 faux positif sur 25 ha ;
-la cabane de la BD TOPO retrouvée à 1,3 m.
+Résultats sur le plateau de Beille (dalle `LHD_FXX_0592_6184`), à trois échelles
+— la détection retombe sur la même cabane à chaque fois :
+
+| Emprise analysée | Points traversés | Détections | Faux positifs |
+|---|---|---|---|
+| 160 m | 0,87 M | 1 | 0 |
+| 500 m (25 ha) | 5,6 M | 1 | 0 |
+| dalle entière (1 km²) | 39,1 M | 1 | 0 |
+
+La correspondance avec la BD TOPO : moins de 1,5 m d'écart, 16 m² mesurés pour
+19 m² au cadastre, hauteur 2,0 m, score 0,84, rang 1. La couverture nationale a
+été vérifiée séparément en Bretagne, dans les Alpes, les Vosges, en Corse et en
+Île-de-France.
 
 **Non validé :** aucune ruine effondrée connue n'a servi de contrôle positif. Le
 chemin « non classé » — celui de la spec, celui des ruines — n'a été vérifié que
-sur cas synthétique. C'est le premier test à faire dès qu'une ruine géolocalisée
+sur cas synthétique, avec une cabane debout (classée « bâtiment ») comme seul
+contrôle disponible. C'est le premier test à faire dès qu'une ruine géolocalisée
 est disponible.
 
 ---
@@ -1309,11 +1455,12 @@ est disponible.
 | Détection de sentiers | 🚧 chaîne complète, non validée sur chemin réel |
 | Contrôle positif sur ruine effondrée | ❌ en attente de coordonnées |
 | **Détection automatique dans l'interface** | 🙈 **masquée** — `ANALYSE_MASQUEE` dans `app.js` |
-| Page d'accueil | ✅ — l'exemple mène à un écran d'annonce, faute de dalle d'exemple (#3) |
+| Page d'accueil | ✅ — voile sur la carte vivante ; l'exemple mène à un écran d'annonce, faute de dalle d'exemple (#5) |
 | Onglets Carte / 2D / 3D, rideau de comparaison | ✅ |
 | États vides et messages utiles | ✅ |
 | Borne de zoom de la carte | ✅ |
 | Vue d'ouverture sur la France entière | ✅ |
+| Lien partageable | ✅ — la dalle seule ; voir « Le lien partageable » |
 
 ## Jalon de publication
 
@@ -1328,7 +1475,7 @@ Trois choses, et rien d'autre, avant de poster :
 
 | Condition | Pourquoi elle est bloquante |
 |---|---|
-| **Ouvrir sur un exemple, et un lien partageable** | Sans elle, un visiteur voit une carte de France et ne sait pas où cliquer. Tout le reste de l'outil devient inatteignable. |
+| **Ouvrir sur un exemple** | Sans elle, un visiteur voit une carte de France et ne sait pas où cliquer. Tout le reste de l'outil devient inatteignable. Le lien partageable, lui, est fait ; ne manque que la dalle vers laquelle il pointerait par défaut. |
 | **Dire ce que l'outil ne sait pas faire** | Détermine la *qualité* des retours. Qui comprend que ce sont des règles réglables, et que le cas « ruine » n'est pas validé, propose des coordonnées. Qui croit à une IA répond « ça marche pas ». |
 | **Passage de robustesse + captures dans le README** | Un inconnu emprunte les chemins qu'on n'emprunte jamais : réseau qui lâche, 429 en rafale, zone sans LiDAR, téléphone. |
 
@@ -1342,384 +1489,6 @@ comprendre ce que fait l'outil ?* Si non, elle attend.
 
 ---
 
-## Ce qui reste à faire
+## Reste à faire
 
-Liste tenue hors du dépôt jusqu'ici, rapatriée telle quelle. Les numéros sont
-ceux d'origine, parce que les tâches se renvoient les unes aux autres. Trois sont
-faites et documentées plus haut : **#1** l'onglet Relief — devenu l'onglet 2D
-avec **#13** —, **#7** le voile d'attente, **#14** la page d'accueil, **#13** les
-trois onglets et le rideau.
-
-### #11 — Rallumer la détection, ou renoncer *(prioritaire)*
-
-Masquée le 18 août 2026 (`ANALYSE_MASQUEE`), les deux chaînes avec. La question
-à trancher n'est pas « comment la réparer » mais **à quoi elle sert**, puisque
-l'ouverture et le SVF montrent les mêmes formes à l'œil et sans seuil.
-
-Trois issues possibles, à départager par l'usage réel de l'outil, pas par le
-raisonnement :
-
-1. **Rallumer telle quelle** dès qu'un contrôle positif existe — une ruine
-   géolocalisée règle les seuils en une après-midi, et les deux voies ont chacune
-   leur cas propre (`tools/voies.test.js`).
-2. **La réduire à une aide à la lecture** : ne plus prétendre décider, seulement
-   pointer les endroits où regarder, en assumant les faux positifs.
-3. **Y renoncer** et faire de Scopus un lecteur de relief, ce qu'il est déjà et
-   fait bien.
-
-Ne rien décider tant que la lecture visuelle n'a pas été pratiquée sur plusieurs
-dalles : c'est elle qui dira si un détecteur manque vraiment.
-
-### #10 — Débloquer la détection de sentiers *(prioritaire)*
-
-Rédigé quand la chaîne rendait **zéro tracé**. Depuis, elle en remonte 147 sur
-Beille ; ce qui reste entier, c'est qu'**aucun chemin connu n'a servi de contrôle
-positif** — rien ne dit que ces 147 sont des sentiers.
-
-Ce qui rend le diagnostic possible : des sentiers connus sont **nets** dans le
-relief, micro-relief comme SVF. La donnée porte donc le signal, et toute panne
-restante est en aval — c'est un bug localisable, plus une impasse.
-
-Méthode, en descendant la chaîne avec le relief pour référence : prendre un
-chemin visible à l'œil dans l'onglet 2D et noter ses coordonnées, puis, à cet
-endroit, comparer le `relief` de `sentiers.js` à la couche Micro-relief de
-`relief.js` — celle-ci est vérifiée contre des surfaces à réponse connue, une
-divergence désigne le lissage ou la marge de bord. Ensuite `rugosite` (surestimée,
-elle rend le seuil inatteignable partout), `vesselness` (réponse non nulle sur le
-tracé ? échelles 1/2/4 m contre la largeur réelle ?), `hysteresis`, le squelette
-avant vectorisation, enfin les filtres — `stats.rejets` dit déjà lequel coupe.
-Les durées et les compteurs par étape sont affichés : s'en servir plutôt que
-deviner. Une couche de diagnostic dans l'onglet 2D — vesselness brute, masque
-après hystérésis — serait le moyen le plus rapide de voir où ça casse.
-
-**Repli acceptable avant publication :** marquer le volet Sentiers
-« expérimental », ou le retirer. Livrer une fonction qui promet et rend zéro est
-le pire des trois choix — l'utilisateur conclura que c'est *l'outil* qui est
-cassé.
-
-### #9 — Nourrir la détection au Sky-View Factor
-
-**Fait au 18 août 2026 :** l'ouverture positive et négative sort du même
-balayage que le SVF, elle est affichable et testée (voir « Lecture du relief »).
-Reste la voie de signal elle-même. Suite décidée avec l'utilisateur : chaîne
-**commune** aux structures et aux sentiers — crête et creux se lisent dans la
-même hessienne, aux signes près — extraction de lignes puis tri par la
-**topologie**, boucle fermée pour une structure, ligne ouverte pour un sentier.
-La fermeture se mesure par ajustement de cercle, tolérant aux brèches, plutôt
-que par un test binaire : un mur ruiné a une entrée. Le banc synthétique est écrit et a tranché le pas
-(50 cm), la couche (ouverture négative) et la surface d'entrée (MNT + hauteur) —
-voir « Le banc synthétique tranche trois choix ». Reste à écrire l'extraction de
-lignes elle-même, et à trancher le filtre de crête sur le même banc.
-
-La piste la plus prometteuse du projet, et elle se mène avec #10 : la même passe
-de SVF sert les deux chaînes. Ordre à respecter quand même — localiser d'abord le
-point de rupture des sentiers, changer l'entrée ensuite. On ne change pas
-l'alimentation d'un tuyau bouché avant de savoir où il est bouché.
-
-Pourquoi c'est fort : des décombres classés « sol » par l'IGN ne produisent
-**aucun** signal aujourd'hui — ils *sont* le terrain — alors que le SVF, calculé
-sur le MNT, voit exactement ce cas. Il est de plus sans dimension et vit dans
-[0, 1] avec le même sens partout, là où les seuils en multiples de la rugosité
-locale existent précisément parce qu'une valeur en mètres ne transfère pas d'une
-prairie à un plateau rocheux. Pour un chemin creux c'est l'usage canonique ; pour
-une structure la signature est lisible — couronne de murs claire enserrant un
-intérieur sombre.
-
-Concrètement : ajouter le SVF (et peut-être l'openness) aux grilles offertes aux
-chaînes ; pour les structures, ouvrir une **seconde voie de signal** — cellules
-dont le SVF s'écarte de sa moyenne locale de plus de k dispersions — puis lui
-appliquer la morphologie et les filtres de forme **déjà validés**, en **union**
-avec la voie par classification et non en remplacement, en gardant trace de la
-voie qui a trouvé quoi ; pour les sentiers, passer Frangi sur le SVF.
-
-Trois difficultés à anticiper : le SVF montre **tout** (haies, rigoles, traces de
-pulvérisage), donc les filtres de forme deviennent le vrai tri et non un
-raffinement ; c'est le seul calcul lourd du lot, à calculer une fois par dalle et
-garder plutôt qu'à payer à chaque lancement ; et les pas diffèrent — détection à
-25 cm, relief à 50 cm — à trancher entre suréchantillonner et mener cette voie
-sur la grille grossière.
-
-### #8 — Voir le relief dans la vue 3D *(voie 1 faite)*
-
-**Fait au 18 août 2026 :** la coloration des points par la couche de relief. Voir
-« Le relief dans le nuage ». Reste la voie 2, le drapage sur un maillage, qui
-n'est à lancer que si la première se révèle insuffisante à l'usage.
-
-Le relief n'existe que dans l'onglet 2D, et le SVF se lit mieux que le nuage.
-Deux voies de coût très différent :
-
-1. **Colorer les points par la couche de relief** — quelques dizaines de lignes,
-   toute la plomberie existe (`definirHauteurs()` téléverse déjà une valeur par
-   point, le vertex shader a son `u_mode`, `RASTER.hauteurParPoint` sait lire la
-   cellule sous un point).
-2. **Draper le relief sur un maillage de terrain** — un vrai chantier : 4 M de
-   sommets, niveau de détail, zones sans sol connu. Plusieurs sessions.
-
-Faire la 1, s'en servir, et ne lancer la 2 que si elle manque encore.
-
-### #2 — Vignettes par détection et export du relief
-
-*Dépend de #1, faite.* La **vignette** est le plus utile : un carré de relief
-d'environ 60 × 60 m centré sur le candidat, dans la liste des résultats à côté du
-score et joint à l'export. Elle répond à la seule question qui compte devant
-douze candidats — lequel vaut deux heures de marche — là où il faut aujourd'hui
-basculer en 3D et viser, un par un. Question à trancher en regardant : sur une
-cabane, la vignette tirée du MNT comblé sera lisse ; c'est peut-être
-l'information (« l'algorithme voit un trou dans le sol ici »), sinon la calculer
-sur un MNS ou afficher les deux.
-
-Puis l'**image de dalle** : PNG + world file `.pgw` + `.prj` en EPSG:2154,
-~20 lignes, aucune dépendance — la grille *est* en Lambert-93, donc ça s'ouvre
-calé au pixel dans QGIS.
-
-Deux choses **écartées après discussion**, à ne pas rouvrir sans raison neuve :
-
-- **pas de polygone d'emprise** — à ~4 points sol/m², la couronne de murs d'une
-  cabane de 6 × 4 m ne donne qu'une quarantaine de points : ça établit une
-  présence, pas un contour. Le GeoJSON porte déjà surface, longueur, largeur et
-  azimut avec leur imprécision assumée ; un polygone n'ajouterait qu'une autorité
-  que la donnée n'a pas. L'outil sort des **pistes**, le format doit le dire.
-- **pas de MBTiles** — il faudrait embarquer sql.js (~1 Mo de WASM, le traitement
-  réservé à laz-perf) pour un fichier que peu d'applications lisent.
-
-En réserve, seulement si l'image se révèle utile sur le terrain : KMZ. Piège à ne
-pas manquer alors — `<gx:LatLonQuad>` et non `<LatLonBox>` : un carré Lambert-93
-est tourné d'environ 1° en WGS84 dans les Pyrénées, soit une vingtaine de mètres
-de décalage en travers d'une dalle. Même piège que `L.rectangle`.
-
-### #3, #4, #6 — Le bloc publication
-
-Le détail du *pourquoi* est dans la section précédente ; voici ce que chacune
-demande.
-
-**#3 — Ouvrir sur un exemple, et l'état dans l'URL.** Le bouton « Voir un
-exemple » existe (#14) et mène à un écran d'annonce faute de dalle : il ne reste
-qu'à lui en donner une. Puis l'état dans le **hash** (dalle, résolution, détection
-sélectionnée, onglet actif — le hash marche aussi bien sur Pages qu'en `file://`,
-donc aucune régression sur le double-clic), et un bouton « Copier le lien ». Ne
-**pas** mettre les seuils dans l'URL : trop nombreux, changeants, et une URL de
-400 caractères n'est pas partageable.
-
-Critères de la dalle d'exemple, arrêtés — à ne pas confondre avec le contrôle
-positif, qui relève de la vérité terrain et peut rester privé :
-
-- **aucune habitation.** Règle, pas préférence : un outil qui cherche du bâti hors
-  carte ne pointe pas par défaut sur le domicile de quelqu'un ;
-- de préférence **sous couvert forestier** — l'orthophoto ne montre que des
-  arbres et le SVF montre terrasses, chemins creux, charbonnières : la
-  démonstration s'administre toute seule ;
-- **vérifiable** vaut mieux qu'inédit : les liens Google Earth, Maps et
-  Géoportail sont déjà générés ;
-- micro-relief anthropique **dense** plutôt qu'une belle pièce isolée ; les
-  charbonnières sont particulièrement rentables ;
-- la détection doit y rendre une poignée de candidats, pas deux cents ;
-- **ne rien revendiquer comme validé** : `CLAUDE.md` dit qu'aucun contrôle
-  positif n'existe et doit continuer à le dire.
-
-**#4 — États vides et messages utiles — faite.** Le détail est dans « Ce que
-l'outil dit quand ça ne marche pas » ; les six cas de la liste d'origine sont
-couverts : clic hors de France, dalle sans couverture, pannes réseau traduites en
-conduite à tenir, dalle sans sol connu, WebGL2 absent sans interface à moitié
-morte, cas mobile. Les deux chaînes d'analyse avaient déjà leur « rien avec ces
-seuils » ; l'écran d'accueil est venu avec #14.
-
-Repoussé avec le bloc présentation : l'écran d'accueil qui dit ce que l'outil
-cherche et ce qu'il ne sait pas faire. Il forme un tout avec le bouton « Voir un
-exemple » (#3) et les captures (#6) — **les trois se font ensemble et en
-dernier**, quand l'interface ne bouge plus. On ne photographie pas une interface
-avant qu'elle soit finie.
-
-**#6 — Passage de publication.** Robustesse sur les chemins qu'un inconnu
-emprunte : connexion coupée en plein chargement (vérifier qu'Annuler retombe sur
-ses pieds), rafale de 429, zone sans LiDAR, double chargement et changement de
-dalle en cours de téléchargement. Deux ou trois captures dans le README — la
-carte, le nuage colorisé, une détection avec sa fiche. Vérifier que Pages sert
-bien la version publiée **et** que le double-clic sur `index.html` marche
-toujours. `npm test` au vert.
-
-Où poster ensuite : Géorezo, forum OSM France, SIG francophone sur Mastodon,
-forums d'archéologie et de patrimoine (pierre sèche), r/geomatique. Wikipedra et
-le PNR des Pyrénées ariégeoises sont les interlocuteurs naturels — eux peuvent
-fournir des coordonnées de ruines connues, c'est-à-dire le contrôle positif qui
-manque.
-
-### #18 — Petits correctifs repérés en travaillant
-
-Aucun n'est architectural, tous sont vérifiés. Regroupés parce que chacun seul ne
-mérite pas une entrée.
-
-- **La barre d'état déborde.** `.etat` n'a ni largeur bornée ni `white-space`, et
-  vit dans un en-tête de 46 px de haut. Depuis que les messages d'erreur disent
-  *quoi faire* (#4), ils font deux lignes : le texte passe alors sous la barre.
-  `max-width` + `text-overflow: ellipsis` — le message complet est de toute façon
-  dans l'alerte, qui est faite pour être lue.
-- **Pas de favicon.** L'onglet du navigateur montre l'icône par défaut, ce qui
-  fait bricolage sur une page qu'on va partager. Un SVG en `data:` dans le
-  `<head>` suffit : aucune dépendance, aucun fichier, et ça marche en `file://`.
-- **`f` (tout cadrer) ne marche qu'en 3D.** En 2D la touche ne fait rien alors que
-  le bouton, lui, existe. Elle devrait cadrer la vue courante. Une ligne.
-- **Le banc affiche « NaN % de cellules sans aucun point ».** Cause trouvée :
-  `RASTER.creerGrilles` ne pose pas de champ `N` sur ses grilles fines, et
-  `tools/banc-lignes.js` divise par `fine.N`. La boucle qui compte les vides ne
-  tourne donc jamais non plus (`i < undefined` est faux d'emblée). `fine.W *
-  fine.H` corrige les deux. Petit, mais c'est une statistique qu'on lit pour
-  juger un pas de grille — autant qu'elle dise quelque chose.
-
-### #17 — Ouvrir sur la France — **faite**
-
-La carte s'ouvrait sur l'Ariège au zoom 12 : c'était la seule chose régionale du
-dépôt, alors que le README annonce dès sa deuxième phrase que l'outil marche
-partout où l'IGN a volé. Elle s'ouvre désormais sur **la France entière avec ses
-chantiers LiDAR**, ce qui répond du même coup à la première question d'un
-inconnu — « est-ce que ça couvre chez moi ? ».
-
-Cadrée par `fitBounds` sur une emprise, et non par un centre plus un zoom : le
-même zoom 5 remplit un écran de portable et laisse la France minuscule sur un
-grand écran. Vérifié en 1400 × 900 et en 1000 × 700, le cadrage suit. Un repli au
-zoom 5 couvre le cas où le conteneur n'a pas encore de taille, `fitBounds` y
-calculant n'importe quoi.
-
-**La couche des chantiers tient l'échelle, et c'est mesuré** : 208 entités pour
-la France entière, avec `numberMatched = 208` — le service dit lui-même qu'il n'y
-a rien de plus, donc aucune troncature au plafond de 300. C'est exactement ce
-pour quoi cette couche existe à côté de la grille kilométrique, dont le WFS,
-lui, plafonne à 600 en silence.
-
-Le prix, à connaître : **1,1 Mo de GeoJSON en 570 ms** au démarrage. C'est la
-donnée qu'on veut montrer, donc c'est payé pour quelque chose — mais c'est une
-raison de plus de faire #15, une demi-seconde sans rien à l'écran se voyant très
-bien.
-
-Le message d'état dit maintenant **quoi faire** et pas seulement ce qu'il y a :
-« 208 chantiers LiDAR en vue — zoomez sur une zone bleue, ou cherchez une
-commune ». À cette échelle, le nombre seul ne mène nulle part si l'on ignore que
-le champ de recherche accepte un nom de commune.
-
-### #16 — La photo aérienne coûte cent tuiles, peut-être pour rien
-
-Passer sur l'onglet 2D redemande **cent tuiles** au WMTS pour rendre la photo
-dans la grille — mesuré de 5 s à 65 s selon l'humeur de la passerelle, sur la
-même machine et les mêmes tuiles. Or la carte vient d'en afficher, de la même
-couche et du même service. L'impression que ça charge beaucoup pour peu est
-fondée ; reste à savoir laquelle des trois pistes rend le plus.
-
-- **Réutiliser les tuiles que Leaflet a déjà.** Elles sont dans le DOM, en
-  `<img>`. Piège à connaître avant de commencer : une image dessinée dans un
-  canevas **souille** celui-ci et `getImageData` lève ensuite une
-  `SecurityError` — sauf si la couche a été créée avec `crossOrigin`, ce qui
-  n'est pas le cas aujourd'hui. Et la limite est ailleurs : la carte affiche la
-  zone au zoom 14 ou 15 quand on choisit une dalle, la grille en demande 18. Les
-  tuiles utiles ne sont là que si l'on a zoomé à fond sur la dalle avant de la
-  charger, ce qui n'est pas le geste courant.
-- **Se demander si le zoom 18 est nécessaire.** Il est choisi comme le premier
-  niveau dont le pixel au sol tient dans le pas de la grille (0,44 m pour 0,50 m).
-  Le 17 coûterait **quatre fois moins** — 25 tuiles — pour 0,88 m au sol. La
-  photo n'est que du contexte ; la question est de savoir si elle reste lisible
-  quand on zoome sur une cabane, et ça se tranche en regardant.
-- **Charger en deux temps**, ce qui est sans doute la vraie réponse : une passe
-  grossière (zoom 15, quatre tuiles) posée tout de suite, puis le zoom 18 par
-  dessus quand il arrive. L'attente ne serait pas raccourcie, elle
-  disparaîtrait — c'est exactement ce que fait n'importe quelle carte glissante,
-  et ça se marie avec #15.
-
-Ce qui ne change pas quelle que soit la piste : les tuiles restent en Web
-Mercator et doivent être rééchantillonnées dans la grille Lambert-93. On
-n'économise que le réseau, jamais la géométrie.
-
-### #15 — Un chargement qu'on voit
-
-Le téléchargement d'une dalle est **le moment le plus long de l'outil** — une
-trentaine de secondes à pleine résolution — et c'est celui qui montre le moins.
-Aujourd'hui il n'existe que par deux choses : une barre de progression fine dans
-le panneau de gauche (`#barre-progression`), et un compteur qui défile dans le
-coin haut droit (`statut()`, « Téléchargement 12/24 — 3 210 000 points »). Qui ne
-regarde ni l'un ni l'autre ne voit pas que ça travaille.
-
-C'est le même raisonnement que le voile d'attente (#7, fait) : **une page qui ne
-montre rien se lit comme une page figée**, et l'utilisateur relance ou ferme.
-Sauf que le cas n'est pas le même, et c'est ce qui rend la solution différente :
-
-- le voile couvre un calcul **synchrone**, il est modal, et il ne peut animer que
-  `transform` ou `opacity` sous peine de se figer avec le reste ;
-- le téléchargement, lui, est **asynchrone** : le fil principal reste libre, on
-  peut donc animer ce qu'on veut, et surtout il doit **rester annulable** — le
-  bouton « Annuler » existe déjà et doit continuer d'être atteignable.
-
-Ce qu'on peut afficher est déjà mesuré et remonté par `surAvancement` : blocs
-faits sur blocs attendus, points décodés. Le coût total en mégaoctets est connu
-avant de commencer, il est même affiché sous le curseur de résolution.
-
-À trancher en regardant, pas en raisonnant : barre large et lisible plutôt que
-filet, pourcentage, volume en mégaoctets, et **où** — la vue d'arrivée est
-désormais la 2D, c'est peut-être là que le chargement doit se voir plutôt que
-dans le panneau.
-
-Un piège à ne pas ignorer si l'idée d'un temps restant vient : **le débit de
-l'IGN varie d'un facteur cinq**. Mesuré sur les cent tuiles d'une même photo
-aérienne, depuis la même machine : 6,5 s une fois, 29,6 s une autre. Une
-estimation qui saute de « 8 s » à « 2 min » est pire que pas d'estimation.
-
-### #14 — Page d'accueil — **faite**, sauf ce qui dépend de #3
-
-Écrite le 18 août 2026. Le pourquoi et les décisions sont remontés dans « La page
-d'accueil » ; les notes de conception qui tenaient ici sont réalisées telles
-quelles — hiérarchie des deux actions, écran unique, thème sombre, aucune
-dépendance, et rien de ce qui était proscrit (ni carrousel, ni visite guidée, ni
-fenêtre modale, ni capture d'interface).
-
-Deux choses restent, et **aucune ne se règle sans #3** :
-
-- **la dalle d'exemple.** « Voir un exemple » mène à un écran qui annonce ce que
-  l'exemple montrera et selon quels critères la dalle sera choisie. Le jour où
-  elle existe, ce bouton doit ouvrir la dalle, pas l'écran d'annonce ;
-- **l'image réelle.** Le schéma dessiné tient la place de la paire photo aérienne
-  ↔ Sky-View Factor, qui demande une dalle chargée — donc la même. Elle sert
-  aussi au README (#6).
-
-Le reste de la liaison est déjà en place : un `location.hash` non vide saute
-l'accueil, ce qui suffira à ce que le lien partageable de #3 tombe directement
-sur sa dalle.
-
-### #13 — Refonte des onglets — **faite**
-
-Écrite le 18 août 2026, l'ancienne #5 (rideau ortho ↔ relief) absorbée avec elle.
-Le détail est dans « Trois onglets : Carte, 2D, 3D » ; ce qui suit n'est que la
-liste des points qui restaient ouverts au moment de l'écrire.
-
-- **Le comportement du rideau** était à décider : il se **glisse** et ne se pose
-  pas au clic, la bande sensible faisant 22 px de large sur toute la hauteur.
-- **Le cache de couches** est fait, la photo comprise.
-- **La question des pas différents ne s'est pas posée** : la photo est
-  rééchantillonnée directement dans la grille d'affichage à 50 cm, donc les deux
-  côtés lisent les mêmes cellules.
-
-Ce que ça change pour la suite, et c'est plutôt bon : la dalle d'exemple (#3)
-doit ouvrir sur la 2D, et c'est la 2D qu'il faut photographier pour le README
-(#6) et pour l'image de la page d'accueil (#14) — qui porte aujourd'hui un
-schéma dessiné en attendant. Trois tâches, une seule capture.
-
-### #12 — Borner le zoom de la carte — **faite**
-
-La borne réelle a été mesurée avant d'être fixée, et **la prémisse était
-fausse** : ce n'est pas une limite pyrénéenne. Sur les deux fonds et en trois
-lieux — Ariège, Paris, Vanoise — le niveau 19 répond 200, les niveaux 20 et 21
-répondent **404**, le 22 un 400 (la matrice n'existe pas). Le plafond est celui
-de la couche, partout en France.
-
-D'où `maxNativeZoom: 19` sur les deux couches — Leaflet agrandit alors la
-dernière tuile au lieu d'en demander d'inexistantes —, un `maxZoom: 20` sur la
-carte, et un avis en bas à gauche qui dit qu'on est au maximum. Le bouton « + »
-de Leaflet se grisait déjà tout seul à la borne ; ce qui manquait, c'était la
-phrase, et surtout le fait de ne plus voir la carte virer entièrement au gris.
-
-Le même chiffre borne le rééchantillonnage de la photo aérienne
-(`ORTHO.zoomPour`, plafond à 19) : c'est la même donnée et la même limite.
-
-Vérifié en navigateur, en temps réel : le bouton se grise, l'avis apparaît puis
-disparaît quand on redescend, et **aucune tuile n'échoue** au zoom maximal (0 sur
-16, contre autant de 404 auparavant). À faire en temps réel justement, et pas
-sous `--virtual-time-budget` : les douze clics de zoom s'y déclenchent
-instantanément, l'animation de Leaflet ne se pose jamais et les contrôles
-rapportent des échecs qui n'existent pas — même piège que pour les Workers.
-
-### #5 — Rideau ortho ↔ relief — **faite avec #13**
+Voir `TODO.md`.
