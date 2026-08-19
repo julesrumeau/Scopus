@@ -10,11 +10,9 @@ renvois `(#N)` ailleurs dans le document ont été mis à jour en conséquence.
 L'ordre reste celui d'origine ; seuls les *(prioritaire)* sont un jugement de
 priorité explicite, le reste est classé par ancienneté et non par urgence.
 
-**6 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
+**5 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
 l'issue est incertaine — tout le reste est du travail dont la forme est déjà
-connue. #4 (dalle d'exemple) mérite un statut à part : elle ne demande aucun
-code, elle débloque à elle seule #5 et la publication, et les critères de choix
-sont déjà arrêtés — c'est le gain le plus rapide de la liste.
+connue.
 
 ### #1 — Rallumer la détection, ou renoncer *(prioritaire)*
 
@@ -96,47 +94,7 @@ pas manquer alors — `<gx:LatLonQuad>` et non `<LatLonBox>` : un carré Lambert
 est tourné d'environ 1° en WGS84 dans les Pyrénées, soit une vingtaine de mètres
 de décalage en travers d'une dalle. Même piège que `L.rectangle`.
 
-### #4 — Choisir la dalle d'exemple *(gain rapide — débloque #5 et la publication)*
-
-**Le mécanisme est fait**, testé de bout en bout en navigateur réel : « Voir un
-exemple » sélectionne et charge tout seul la dalle de
-`CONFIG.carte.dalleExemple` (deux nombres — les mêmes indices que le lien
-partageable `#d=x,y`) et atterrit en 2D sans écran intermédiaire ni clic
-supplémentaire. Changer d'exemple ne touche qu'à ces deux nombres, rien
-d'autre. L'ancien écran d'annonce (`accueil-exemple`) a été retiré, devenu
-sans objet.
-
-Un candidat forêt (553, 6280) a été essayé et vérifié en conditions réelles :
-réseau de sentiers net et dense sous une photo qui ne montre que des arbres,
-aucune habitation — le critère « vérifiable » et « sous couvert forestier »
-tiennent bien. Mais un coin de la dalle (conifères plus denses, donc moins de
-retours sol) produit un amas d'étoiles à huit branches — l'artefact documenté
-des cellules sans donnée (« Une cellule sans donnée doit être écartée du
-balayage »), pas un bug, mais visible dans la vue par défaut qui cadre toute
-l'emprise. Pas disqualifiant en soi, mais à trancher avant de figer le choix :
-soit une zone plus homogène, soit recadrer la vue par défaut sur la partie
-nette plutôt que sur l'emprise entière. Reste donc à choisir la dalle
-définitive — cette forêt, une autre, ou les cabanes de montagne écartées en
-discussion (structures moins alignées avec la nouvelle accroche « explorer »,
-mais plus immédiatement lisibles).
-
-Critères déjà arrêtés — à ne pas confondre avec le contrôle positif, qui relève
-de la vérité terrain et peut rester privé :
-
-- **aucune habitation.** Règle, pas préférence : un outil qui cherche du bâti
-  hors carte ne pointe pas par défaut sur le domicile de quelqu'un ;
-- de préférence **sous couvert forestier** — l'orthophoto ne montre que des
-  arbres et le SVF montre terrasses, chemins creux, charbonnières : la
-  démonstration s'administre toute seule ;
-- **vérifiable** vaut mieux qu'inédit : les liens Google Earth, Maps et
-  Géoportail sont déjà générés depuis l'outil ;
-- micro-relief anthropique **dense** plutôt qu'une belle pièce isolée ; les
-  charbonnières sont particulièrement rentables ;
-- la détection doit y rendre une poignée de candidats, pas deux cents ;
-- **ne rien revendiquer comme validé** : `CLAUDE.md` dit qu'aucun contrôle
-  positif n'existe et doit continuer à le dire.
-
-### #5 — Passage de robustesse et captures du README
+### #4 — Passage de robustesse et captures du README
 
 Robustesse sur les chemins qu'un inconnu emprunte : connexion coupée en plein
 chargement (vérifier qu'Annuler retombe sur ses pieds), rafale de 429, zone
@@ -145,8 +103,8 @@ téléchargement. Vérifier que Pages sert bien la version publiée **et** que l
 double-clic sur `index.html` marche toujours. `npm test` au vert.
 
 Deux ou trois captures dans le README — la carte, le nuage colorisé, une
-détection avec sa fiche — **dépendent de #4** : c'est la dalle d'exemple, en
-2D, qui doit être photographiée.
+détection avec sa fiche : la dalle d'exemple est maintenant fixée (Bois des
+Caures, Verdun, `#d=877,6904`), il ne reste qu'à la photographier en 2D.
 
 Où poster ensuite : Géorezo, forum OSM France, SIG francophone sur Mastodon,
 forums d'archéologie et de patrimoine (pierre sèche), r/geomatique. Wikipedra et
@@ -154,7 +112,7 @@ le PNR des Pyrénées ariégeoises sont les interlocuteurs naturels — eux peuv
 fournir des coordonnées de ruines connues, c'est-à-dire le contrôle positif qui
 manque.
 
-### #6 — La photo aérienne coûte cent tuiles, peut-être pour rien
+### #5 — La photo aérienne coûte cent tuiles, peut-être pour rien
 
 Passer sur l'onglet 2D redemande **cent tuiles** au WMTS pour rendre la photo
 dans la grille — mesuré de 5 s à 65 s selon l'humeur de la passerelle, sur la

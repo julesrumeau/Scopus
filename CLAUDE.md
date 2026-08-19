@@ -370,8 +370,13 @@ chuter le passage à l'acte ; la hiérarchie n'est donc pas cosmétique.
 d'abord à un écran qui annonçait ce que l'exemple montrerait, faute de dalle
 choisie — un bouton muet se lit comme une panne, un bouton qui annonce comme
 un chantier. Il sélectionne et charge maintenant une vraie dalle tout seul, le
-même mécanisme que le lien partageable (voir « Le lien partageable ») ; il ne
-manque plus que le choix définitif de cette dalle (#4).
+même mécanisme que le lien partageable (voir « Le lien partageable »). La
+dalle est arrêtée : le Bois des Caures, à Verdun (`#d=877,6904`) — champ de
+bataille de 1916, trous d'obus et tranchées intacts sous la forêt depuis plus
+d'un siècle, sujet d'une étude LiDAR académique dédiée (De Matos-Machado et
+al., 600 000 « polémoformes » et 400 km de tranchées recensés sur la forêt
+domaniale de Verdun). La photo aérienne n'y montre qu'un bois ; le Sky-View
+Factor y montre un fortin bastionné cerné de centaines d'impacts d'obus.
 
 **Le fond est la carte elle-même, pas une image.** Un premier jet dessinait la
 comparaison promise en SVG — photo aérienne d'un côté, Sky-View Factor de
@@ -384,8 +389,8 @@ quasi opaque. Le reste de l'interface (en-tête, panneau, onglets) reste masqué
 tant que l'accueil est ouvert, par une règle CSS sur `#accueil:not([hidden]) ~ …`
 et non par du JavaScript, sur le même principe que `data-vue`. La comparaison
 photo ↔ relief promise par la phrase d'accroche, elle, se montre déjà pour de
-vrai dès qu'on clique « Voir un exemple » : c'est la dalle d'exemple (#4) qui
-la porte, et c'est aussi la capture qu'attend le README (#5).
+vrai dès qu'on clique « Voir un exemple » : c'est la dalle du Bois des Caures
+qui la porte, et c'est aussi la capture qu'attend le README (#4).
 
 **La ligne sur ce que l'outil ne sait pas faire n'est pas de la modestie** : elle
 détermine la qualité des retours. Qui comprend qu'il s'agit de règles
@@ -1476,7 +1481,7 @@ masquée ».
 | Détection de sentiers | 🚧 chaîne complète, non validée sur chemin réel |
 | Contrôle positif sur ruine effondrée | ❌ en attente de coordonnées |
 | **Détection automatique dans l'interface** | 🙈 **masquée** — `ANALYSE_MASQUEE` dans `app.js` |
-| Page d'accueil | ✅ — voile sur la carte vivante ; « Voir un exemple » sélectionne et charge déjà une vraie dalle, reste à en choisir la définitive (#4) |
+| Page d'accueil | ✅ — voile sur la carte vivante ; « Voir un exemple » sélectionne et charge le Bois des Caures (Verdun) |
 | Onglets Carte / 2D / 3D, rideau de comparaison | ✅ |
 | États vides et messages utiles | ✅ |
 | Borne de zoom de la carte | ✅ |

@@ -160,9 +160,15 @@ const CONFIG = {
     // Dalle que le bouton « Voir un exemple » de l'accueil sélectionne et
     // charge tout seul. Les deux nombres sont les indices kilométriques
     // Lambert-93 de la dalle — exactement ceux du lien partageable
-    // (`#d=553,6280`) : coller ceux d'un lien copié dans l'outil suffit à
+    // (`#d=877,6904`) : coller ceux d'un lien copié dans l'outil suffit à
     // changer l'exemple, aucun autre fichier à toucher.
-    dalleExemple: { x: 553, y: 6280 },
+    //
+    // Bois des Caures, Verdun (Meuse) — champ de bataille de 1916, trous
+    // d'obus et tranchées intacts sous la forêt depuis plus d'un siècle.
+    // Une étude LiDAR académique existe spécifiquement sur cette zone :
+    // 600 000 « polémoformes » et 400 km de tranchées recensés sur la
+    // forêt domaniale de Verdun (De Matos-Machado et al.).
+    dalleExemple: { x: 877, y: 6904 },
   },
 
   // ── Rendu ─────────────────────────────────────────────────────────────────
