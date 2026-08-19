@@ -390,7 +390,7 @@ tant que l'accueil est ouvert, par une règle CSS sur `#accueil:not([hidden]) ~ 
 et non par du JavaScript, sur le même principe que `data-vue`. La comparaison
 photo ↔ relief promise par la phrase d'accroche, elle, se montre déjà pour de
 vrai dès qu'on clique « Voir un exemple » : c'est la dalle du Bois des Caures
-qui la porte, et c'est aussi la capture qu'attend le README (#4).
+qui la porte, et c'est aussi la capture qui ouvre désormais le README.
 
 **La ligne sur ce que l'outil ne sait pas faire n'est pas de la modestie** : elle
 détermine la qualité des retours. Qui comprend qu'il s'agit de règles
@@ -1501,13 +1501,20 @@ que montre l'accueil. Tant que l'application n'est pas en ligne, le message
 « j'ai un orri à telle coordonnée » ne peut de toute façon pas arriver, et les
 seuils de détection resteraient réglés sur du synthétique.
 
-Trois choses, et rien d'autre, avant de poster :
+Trois choses, et rien d'autre, étaient posées comme condition avant de poster
+— **les trois sont faites** :
 
-| Condition | Pourquoi elle est bloquante |
+| Condition | Pourquoi elle était bloquante |
 |---|---|
-| **Ouvrir sur un exemple** | Sans elle, un visiteur voit une carte de France et ne sait pas où cliquer. Tout le reste de l'outil devient inatteignable. Le lien partageable, lui, est fait ; ne manque que la dalle vers laquelle il pointerait par défaut. |
-| **Dire ce que l'outil ne sait pas faire** | Détermine la *qualité* des retours. Qui comprend qu'il s'agit de règles réglables et que rien n'est détecté automatiquement propose des coordonnées. Qui croit à une IA répond « ça marche pas ». |
-| **Passage de robustesse + captures dans le README** | Un inconnu emprunte les chemins qu'on n'emprunte jamais : réseau qui lâche, 429 en rafale, zone sans LiDAR, téléphone. |
+| **Ouvrir sur un exemple** ✅ | Sans elle, un visiteur voit une carte de France et ne sait pas où cliquer. « Voir un exemple » sélectionne et charge maintenant le Bois des Caures (Verdun) tout seul. |
+| **Dire ce que l'outil ne sait pas faire** ✅ | Détermine la *qualité* des retours. L'accueil dit qu'aucune détection automatique ne tourne, sans faire croire à une IA. |
+| **Passage de robustesse + captures dans le README** ✅ | Vérifié en navigateur réel : Annuler en plein téléchargement, rafale de 429 simulée, clic hors de France, changement de dalle et double-clic en cours de route — tout retombe sur ses pieds. GitHub Pages sert la dernière version. Les deux captures sont dans `docs/`. |
+
+**Reste l'annonce elle-même**, un geste hors du dépôt : Géorezo, forum OSM
+France, SIG francophone sur Mastodon, forums d'archéologie et de patrimoine
+(pierre sèche), r/geomatique. Wikipedra et le PNR des Pyrénées ariégeoises
+sont les interlocuteurs naturels — eux peuvent fournir des coordonnées de
+ruines connues, c'est-à-dire le contrôle positif qui manque à l'algorithme.
 
 Tout le reste — relief affiché, SVF, vignettes, export PNG, rideau ortho, carnet
 de prospection, noms de villes et lieux-dits sur la photo aérienne (à réfléchir :
