@@ -1585,7 +1585,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'c' || e.key === '1') basculerVue('carte');
   if (e.key === 'r' || e.key === '2') basculerVue('2d');
   if (e.key === 'v' || e.key === '3') basculerVue('3d');
-  if (e.key === 'f') vue3d?.cadrer();
+  if (e.key === 'f') { if ($('panneau').dataset.vue === '2d') vue2d.cadrer(); else vue3d?.cadrer(); }
   if (e.key === 't') { vue3d?.vueDeDessus(); basculerVue('3d'); }
 });
 

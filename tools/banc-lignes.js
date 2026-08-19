@@ -255,9 +255,14 @@ export function rasteriser(scene, pas, classement, graine = 1) {
 
   const fine = RASTER.rasteriser(nuage);
   const g = RELIEF.preparer(fine, { inclureBati: true });
+  // `creerGrilles` n'expose pas de champ `N` — seulement `W` et `H`. Diviser
+  // par `fine.N` (undefined) rendait « NaN % » et, pire, empêchait la boucle
+  // de tourner du tout (`i < undefined` est faux d'emblée), donc `vides`
+  // restait à 0 en silence.
+  const nFine = fine.W * fine.H;
   let vides = 0;
-  for (let i = 0; i < fine.N; i++) if (!fine.solN[i]) vides++;
-  g.partVide = vides / fine.N;
+  for (let i = 0; i < nFine; i++) if (!fine.solN[i]) vides++;
+  g.partVide = vides / nFine;
   g.fine = fine;
   return g;
 }

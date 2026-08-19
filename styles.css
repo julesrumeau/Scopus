@@ -61,6 +61,17 @@ html, body {
   font-size: 12px;
   color: var(--texte-2);
   font-variant-numeric: tabular-nums;
+  /* Les messages qui disent quoi faire (pas seulement ce qu'il y a) font
+     souvent deux lignes, et débordaient sous la barre de 46 px. Tronqué à une
+     ligne : le message complet est de toute façon dans l'alerte, faite pour
+     être lue. `min-width: 0` est nécessaire ici — sans lui, un enfant flex ne
+     rétrécit jamais sous la largeur de son contenu et l'ellipse ne se déclenche
+     pas. */
+  max-width: 42vw;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .etat.travail { color: var(--or); }
 .etat.erreur { color: var(--alerte); }
