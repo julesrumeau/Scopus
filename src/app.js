@@ -1621,9 +1621,27 @@ function masquerAccueil() {
   $('accueil').hidden = true;
 }
 
-// Adresse reconstruite plutôt qu'écrite en clair dans le HTML : freine les
-// moissonneurs de spam les plus bêtes, sans prétendre à une vraie protection.
-$('lien-contact').href = `mailto:${'jules.rumeau1'}@${'gmail.com'}`;
+// Un `mailto:` suppose un client de bureau configuré — de moins en moins
+// vrai, la plupart ne lisant leur courrier que dans le navigateur, où cliquer
+// le lien ne fait alors rien de visible. Copier l'adresse marche partout,
+// même repli sur `prompt()` que le lien partageable (`copierLien`) si le
+// presse-papiers refuse. Reconstruite plutôt qu'écrite en clair dans le HTML :
+// freine les moissonneurs de spam les plus bêtes, sans prétendre à une vraie
+// protection.
+$('lien-contact').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const adresse = `${'jules.rumeau1'}@${'gmail.com'}`;
+  try {
+    await navigator.clipboard.writeText(adresse);
+  } catch {
+    prompt('Copiez cette adresse :', adresse);
+    return;
+  }
+  const lien = e.target;
+  const texteAvant = lien.textContent;
+  lien.textContent = 'Adresse copiée !';
+  setTimeout(() => { lien.textContent = texteAvant; }, 2000);
+});
 
 function entrerDansLaCarte() {
   masquerAccueil();
