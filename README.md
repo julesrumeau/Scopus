@@ -154,3 +154,7 @@ un CDN, condition de l'ouverture par double-clic :
 | [laz-perf 0.0.7](https://github.com/hobuinc/laz-perf) | Apache-2.0 |
 
 Textes complets dans [`vendor/LICENCES.md`](vendor/LICENCES.md).
+
+---
+
+Un retour sur l'outil, un bug ? <jules.rumeau1@gmail.com>

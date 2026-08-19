@@ -1621,6 +1621,10 @@ function masquerAccueil() {
   $('accueil').hidden = true;
 }
 
+// Adresse reconstruite plutôt qu'écrite en clair dans le HTML : freine les
+// moissonneurs de spam les plus bêtes, sans prétendre à une vraie protection.
+$('lien-contact').href = `mailto:${'jules.rumeau1'}@${'gmail.com'}`;
+
 function entrerDansLaCarte() {
   masquerAccueil();
   basculerVue('carte');
