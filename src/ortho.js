@@ -63,7 +63,7 @@ function versPixelPM(lonDeg, latDeg, z) {
  * leur composition est localement une similitude, dont l'échelle ne varie que de
  * 1,5·10⁻⁷ par mètre en latitude. Sur un pas de maillage de 64 cellules, l'écart
  * à l'interpolation linéaire est très inférieur au pixel — mesuré, et non
- * supposé : `tools/ortho.test.js` le compare au calcul exact sur une dalle
+ * supposé : `test/ortho.test.js` le compare au calcul exact sur une dalle
  * entière.
  */
 function maillage(emprise, pas, W, H, z, pasMaillage = 64) {

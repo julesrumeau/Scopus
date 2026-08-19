@@ -4,7 +4,7 @@
 // vérité terrain est posée, on vérifie que le pipeline la retrouve avec les
 // bonnes dimensions, et qu'il rejette ce qu'il doit rejeter.
 //
-//   node --test tools/
+//   node --test test/
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

@@ -10,7 +10,7 @@
 // fondation : un flou faux produirait un micro-relief faux, d'apparence
 // parfaitement plausible. Les algorithmes ci-dessous sont ceux de la
 // littérature, nommés, et vérifiés contre des surfaces à réponse connue
-// (`tools/relief.test.js`).
+// (`test/relief.test.js`).
 //
 // Ce qui est réutilisé, en revanche, c'est `raster.js` : ses grilles ont fait
 // leurs preuves, la détection de structures trouve effectivement ce qu'elle
@@ -397,7 +397,7 @@ function ombrageMulti(t) {
  * **efface la pente d'ensemble exactement**, et non seulement à peu près. Sur
  * n'importe quel plan incliné, les deux ouvertures valent 90°, parce que
  * l'élévation vue vers l'amont annule celle vue vers l'aval — c'est ce que
- * vérifie `tools/relief.test.js`. Une structure se lit donc à la même valeur en
+ * vérifie `test/relief.test.js`. Une structure se lit donc à la même valeur en
  * fond de vallée et sur un versant à 30°, ce qu'aucun seuil en mètres ne sait
  * faire. Et les deux signes séparent ce qu'une seule couche mélange : un mur
  * ruiné est une couronne convexe autour d'un intérieur concave.

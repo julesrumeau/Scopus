@@ -12,7 +12,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SCENES, rasteriser, COTE, MODULES } from './banc-lignes.js';
+import { SCENES, rasteriser, COTE, MODULES } from '../tools/banc-lignes.js';
 
 const { LIGNES, RELIEF } = MODULES;
 // Aucune surcharge : les tests doivent éprouver **le chemin de production**.

@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Exploration LiDAR HD (IGN) et détection de structures hors carte. Entièrement statique : ouvrir index.html suffit.",
+  "description": "Explorer le LiDAR HD de l'IGN dans le navigateur. Entièrement statique : ouvrir index.html suffit.",
   "scripts": {
-    "test": "node --test tools/",
+    "test": "node --test test/*.test.js",
     "embarquer-lazperf": "node tools/embarquer-lazperf.js",
     "banc": "node tools/banc-lignes.js"
   }
