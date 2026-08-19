@@ -185,7 +185,11 @@ function detecterSentiers(g, reglages = {}) {
 
   return {
     traces,
-    carte: { ...t, relief, reponse, orientation, squelette },
+    // `masque` et `rugosite` ne servent à rien pour le résultat final — seul
+    // `squelette` compte en aval — mais c'est justement ce qui manque pour
+    // diagnostiquer où le signal se perd étape par étape (voir #2 du TODO) :
+    // sans eux, impossible de voir la réponse ou le masque avant amincissement.
+    carte: { ...t, relief, rugosite, reponse, orientation, masque, squelette },
     stats: {
       pas: t.pas,
       cellules: t.N,

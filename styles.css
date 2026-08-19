@@ -250,6 +250,23 @@ html, body {
 .repli > .rangee { padding-bottom: 11px; }
 .repli .secondaire { width: 100%; font-size: 12px; }
 
+/* Rendu à la résolution native de la grille de travail des sentiers (souvent
+   bien plus large que le panneau) : `max-width` la ramène à la largeur
+   disponible sans jamais faire déborder le panneau, `image-rendering` évite
+   un flou d'interpolation qui masquerait le grain que le diagnostic veut
+   justement montrer. */
+.diag-canvas {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 10px 0;
+  border: 1px solid var(--bord);
+  border-radius: 4px;
+  background: #000;
+  image-rendering: pixelated;
+}
+
 .vide { color: var(--texte-2); font-size: 12.5px; line-height: 1.6; }
 
 .detail { margin: 0 0 12px; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 12.5px; }

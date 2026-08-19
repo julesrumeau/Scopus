@@ -55,8 +55,27 @@ elle rend le seuil inatteignable partout), `vesselness` (réponse non nulle sur 
 tracé ? échelles 1/2/4 m contre la largeur réelle ?), `hysteresis`, le squelette
 avant vectorisation, enfin les filtres — `stats.rejets` dit déjà lequel coupe.
 Les durées et les compteurs par étape sont affichés : s'en servir plutôt que
-deviner. Une couche de diagnostic dans l'onglet 2D — vesselness brute, masque
-après hystérésis — serait le moyen le plus rapide de voir où ça casse.
+deviner.
+
+Le moyen d'y voir clair existe désormais : un panneau « Diagnostic (étapes
+internes) » dans le volet Sentiers (`#diag-sentiers`) affiche au choix chacune
+de ces cinq étapes en niveaux de gris, à la résolution native de la grille de
+travail — relief local, rugosité, réponse vesselness brute, masque après
+hystérésis, squelette aminci. Vérifié en navigateur réel sur la dalle de
+Beille : les cinq couches se dessinent avec un contenu non uniforme, aux
+dimensions attendues (2000×2000 à 50 cm pour 1 km²). Reste masqué avec le
+reste de l'analyse (`ANALYSE_MASQUEE`) — un développeur y accède en repassant
+le drapeau à `false`, comme pour tout le volet.
+
+Une recherche bibliographique (hollow ways/sunken lanes, CarcassonNet,
+extraction de crêtes/vallées par tensor voting) confirme que la famille
+d'algorithme retenue — hessienne sur un relief local, hystérésis, squelette —
+est la bonne piste : c'est celle que la littérature utilise pour ce type
+d'objet, et ce que le seuil relatif à la rugosité locale et le recollement
+directionnel de `relier()` couvrent déjà rejoint ce qu'elle propose de mieux
+en dehors de l'apprentissage automatique (écarté ici, voir CLAUDE.md). Rien
+n'indique donc qu'il faille changer d'algorithme — seulement voir, avec le
+diagnostic ci-dessus et un vrai sentier connu, où le signal se perd.
 
 **Repli acceptable avant publication :** marquer le volet Sentiers
 « expérimental », ou le retirer. Livrer une fonction qui promet et rend zéro est

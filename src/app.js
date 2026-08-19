@@ -1386,12 +1386,64 @@ $('btn-sentiers').addEventListener('click', async () => {
 
     afficherSentiers();
     statut(`${etat.sentiers.traces.length} sentier(s) candidat(s)`);
+
+    $('diag-sentiers').hidden = false;
+    dessinerDiagnosticSentiers();
   } catch (e) {
     alerter(`Sentiers : ${e.message}`);
   } finally {
     $('btn-sentiers').disabled = false;
   }
 });
+
+$('diag-sentiers-couche').addEventListener('change', dessinerDiagnosticSentiers);
+
+/**
+ * Diagnostic (#2 du todo) : affiche telle quelle une étape interne de
+ * `SENTIERS.detecterSentiers`, jamais visible autrement puisque seul le
+ * résultat final (`squelette` vectorisé) sort de la chaîne. Sans vérité
+ * terrain, c'est le seul moyen de voir où un tracé repéré à l'œil disparaît.
+ *
+ * Étirement min/max simple, propre à chaque couche : le but est de voir la
+ * structure du signal, pas de comparer des amplitudes d'une couche à l'autre.
+ *
+ * La grille des sentiers suit la même convention que `RASTER` — ligne 0 au
+ * sud — alors qu'un canevas peint sa ligne 0 en haut. Le piège est documenté
+ * pour la photo aérienne (voir CLAUDE.md) et reproduit ici à l'identique
+ * faute d'inverser : nord en haut, comme partout ailleurs dans l'outil.
+ */
+function dessinerDiagnosticSentiers() {
+  const t = etat.sentiers?.carte;
+  if (!t) return;
+  const valeurs = t[$('diag-sentiers-couche').value];
+  const { W, H } = t;
+
+  const canvas = $('diag-sentiers-canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(W, H);
+
+  let min = Infinity, max = -Infinity;
+  for (let i = 0; i < valeurs.length; i++) {
+    const v = valeurs[i];
+    if (Number.isFinite(v) && v < min) min = v;
+    if (Number.isFinite(v) && v > max) max = v;
+  }
+  const etendue = (max - min) || 1;
+
+  for (let cy = 0; cy < H; cy++) {
+    const sy = H - 1 - cy; // ligne 0 de `t` = sud, ligne 0 du canevas = haut
+    for (let cx = 0; cx < W; cx++) {
+      const v = valeurs[sy * W + cx];
+      const g = Number.isFinite(v) ? Math.round(255 * (v - min) / etendue) : 0;
+      const o = (cy * W + cx) * 4;
+      img.data[o] = img.data[o + 1] = img.data[o + 2] = g;
+      img.data[o + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
 
 function afficherSentiers() {
   const traces = etat.sentiers?.traces || [];

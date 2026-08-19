@@ -258,6 +258,27 @@
         </details>
         <button id="btn-sentiers" class="primaire">Chercher des sentiers</button>
         <div id="stats-sentiers" class="stats" hidden></div>
+
+        <!-- Diagnostic (#2 du todo) : aucun sentier connu n'a encore servi de
+             contrôle, donc pas de vérité terrain pour régler les seuils à
+             l'aveugle. Ce qui reste possible : voir où, dans la chaîne à six
+             étapes, le signal d'un tracé repéré à l'œil se perd — en comparant
+             chaque étape intermédiaire, jamais visible autrement. -->
+        <details class="repli" id="diag-sentiers" hidden>
+          <summary>Diagnostic (étapes internes)</summary>
+          <label class="champ">
+            <span>Couche</span>
+            <select id="diag-sentiers-couche">
+              <option value="relief">Relief local (à comparer au Micro-relief de l'onglet 2D)</option>
+              <option value="rugosite">Rugosité locale</option>
+              <option value="reponse" selected>Réponse vesselness brute</option>
+              <option value="masque">Masque après hystérésis</option>
+              <option value="squelette">Squelette aminci</option>
+            </select>
+          </label>
+          <canvas id="diag-sentiers-canvas" class="diag-canvas"></canvas>
+        </details>
+
         <ol id="liste-sentiers" class="liste"></ol>
         <div class="rangee exports" id="exports-sentiers" hidden>
           <button id="exp-sent-gpx" class="secondaire">GPX (traces)</button>
