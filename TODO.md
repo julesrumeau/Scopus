@@ -10,7 +10,7 @@ renvois `(#N)` ailleurs dans le document ont été mis à jour en conséquence.
 L'ordre reste celui d'origine ; seuls les *(prioritaire)* sont un jugement de
 priorité explicite, le reste est classé par ancienneté et non par urgence.
 
-**9 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
+**8 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
 l'issue est incertaine — tout le reste est du travail dont la forme est déjà
 connue. #5 (dalle d'exemple) mérite un statut à part : elle ne demande aucun
 code, elle débloque à elle seule #6 et la publication, et les critères de choix
@@ -150,29 +150,7 @@ le PNR des Pyrénées ariégeoises sont les interlocuteurs naturels — eux peuv
 fournir des coordonnées de ruines connues, c'est-à-dire le contrôle positif qui
 manque.
 
-### #7 — Petits correctifs repérés en travaillant
-
-Aucun n'est architectural, tous sont vérifiés. Regroupés parce que chacun seul ne
-mérite pas une entrée.
-
-- **La barre d'état déborde.** `.etat` n'a ni largeur bornée ni `white-space`, et
-  vit dans un en-tête de 46 px de haut. Depuis que les messages d'erreur disent
-  *quoi faire*, ils font deux lignes : le texte passe alors sous la barre.
-  `max-width` + `text-overflow: ellipsis` — le message complet est de toute façon
-  dans l'alerte, qui est faite pour être lue.
-- **Pas de favicon.** L'onglet du navigateur montre l'icône par défaut, ce qui
-  fait bricolage sur une page qu'on va partager. Un SVG en `data:` dans le
-  `<head>` suffit : aucune dépendance, aucun fichier, et ça marche en `file://`.
-- **`f` (tout cadrer) ne marche qu'en 3D.** En 2D la touche ne fait rien alors que
-  le bouton, lui, existe. Elle devrait cadrer la vue courante. Une ligne.
-- **Le banc affiche « NaN % de cellules sans aucun point ».** Cause trouvée :
-  `RASTER.creerGrilles` ne pose pas de champ `N` sur ses grilles fines, et
-  `tools/banc-lignes.js` divise par `fine.N`. La boucle qui compte les vides ne
-  tourne donc jamais non plus (`i < undefined` est faux d'emblée). `fine.W *
-  fine.H` corrige les deux. Petit, mais c'est une statistique qu'on lit pour
-  juger un pas de grille — autant qu'elle dise quelque chose.
-
-### #8 — La photo aérienne coûte cent tuiles, peut-être pour rien
+### #7 — La photo aérienne coûte cent tuiles, peut-être pour rien
 
 Passer sur l'onglet 2D redemande **cent tuiles** au WMTS pour rendre la photo
 dans la grille — mesuré de 5 s à 65 s selon l'humeur de la passerelle, sur la
@@ -197,13 +175,13 @@ fondée ; reste à savoir laquelle des trois pistes rend le plus.
   grossière (zoom 15, quatre tuiles) posée tout de suite, puis le zoom 18 par
   dessus quand il arrive. L'attente ne serait pas raccourcie, elle
   disparaîtrait — c'est exactement ce que fait n'importe quelle carte glissante,
-  et ça se marie avec #9.
+  et ça se marie avec #8.
 
 Ce qui ne change pas quelle que soit la piste : les tuiles restent en Web
 Mercator et doivent être rééchantillonnées dans la grille Lambert-93. On
 n'économise que le réseau, jamais la géométrie.
 
-### #9 — Un chargement qu'on voit
+### #8 — Un chargement qu'on voit
 
 Le téléchargement d'une dalle est **le moment le plus long de l'outil** — une
 trentaine de secondes à pleine résolution — et c'est celui qui montre le moins.
