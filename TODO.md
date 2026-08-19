@@ -10,7 +10,7 @@ renvois `(#N)` ailleurs dans le document ont été mis à jour en conséquence.
 L'ordre reste celui d'origine ; seuls les *(prioritaire)* sont un jugement de
 priorité explicite, le reste est classé par ancienneté et non par urgence.
 
-**6 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
+**5 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
 l'issue est incertaine — tout le reste est du travail dont la forme est déjà
 connue.
 
@@ -64,37 +64,7 @@ après hystérésis — serait le moyen le plus rapide de voir où ça casse.
 le pire des trois choix — l'utilisateur conclura que c'est *l'outil* qui est
 cassé.
 
-### #3 — Vignettes par détection et export du relief
-
-La **vignette** est le plus utile : un carré de relief d'environ 60 × 60 m
-centré sur le candidat, dans la liste des résultats à côté du score et joint à
-l'export. Elle répond à la seule question qui compte devant douze candidats —
-lequel vaut deux heures de marche — là où il faut aujourd'hui basculer en 3D et
-viser, un par un. Question à trancher en regardant : sur une cabane, la
-vignette tirée du MNT comblé sera lisse ; c'est peut-être l'information
-(« l'algorithme voit un trou dans le sol ici »), sinon la calculer sur un MNS ou
-afficher les deux.
-
-Puis l'**image de dalle** : PNG + world file `.pgw` + `.prj` en EPSG:2154,
-~20 lignes, aucune dépendance — la grille *est* en Lambert-93, donc ça s'ouvre
-calé au pixel dans QGIS.
-
-Deux choses **écartées après discussion**, à ne pas rouvrir sans raison neuve :
-
-- **pas de polygone d'emprise** — à ~4 points sol/m², la couronne de murs d'une
-  cabane de 6 × 4 m ne donne qu'une quarantaine de points : ça établit une
-  présence, pas un contour. Le GeoJSON porte déjà surface, longueur, largeur et
-  azimut avec leur imprécision assumée ; un polygone n'ajouterait qu'une autorité
-  que la donnée n'a pas. L'outil sort des **pistes**, le format doit le dire.
-- **pas de MBTiles** — il faudrait embarquer sql.js (~1 Mo de WASM, le traitement
-  réservé à laz-perf) pour un fichier que peu d'applications lisent.
-
-En réserve, seulement si l'image se révèle utile sur le terrain : KMZ. Piège à ne
-pas manquer alors — `<gx:LatLonQuad>` et non `<LatLonBox>` : un carré Lambert-93
-est tourné d'environ 1° en WGS84 dans les Pyrénées, soit une vingtaine de mètres
-de décalage en travers d'une dalle. Même piège que `L.rectangle`.
-
-### #4 — Passage de robustesse et captures du README
+### #3 — Passage de robustesse et captures du README
 
 Robustesse sur les chemins qu'un inconnu emprunte : connexion coupée en plein
 chargement (vérifier qu'Annuler retombe sur ses pieds), rafale de 429, zone
@@ -112,7 +82,7 @@ le PNR des Pyrénées ariégeoises sont les interlocuteurs naturels — eux peuv
 fournir des coordonnées de ruines connues, c'est-à-dire le contrôle positif qui
 manque.
 
-### #5 — La photo aérienne coûte cent tuiles, peut-être pour rien
+### #4 — La photo aérienne coûte cent tuiles, peut-être pour rien
 
 **Essayé et revenu en arrière.** Le zoom avait été abaissé à 17 pour la photo
 seule (132 tuiles → 36) : comparé côte à côte sur un recadrage de 250 m, la
@@ -142,7 +112,7 @@ Ce qui ne change pas : les tuiles restent en Web Mercator et doivent être
 rééchantillonnées dans la grille Lambert-93. On n'économise que le réseau,
 jamais la géométrie.
 
-### #6 — Rendre l'outil vraiment responsive
+### #5 — Rendre l'outil vraiment responsive
 
 Un seul point de rupture existe aujourd'hui (`@media (max-width: 900px)`) : le
 panneau passe au-dessus de la scène au lieu d'à côté. Jamais vérifié à une
