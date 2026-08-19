@@ -157,6 +157,12 @@ const CONFIG = {
     // Sans cette borne, la carte devenait entièrement grise, sans rien pour
     // dire pourquoi : un écran gris sans message se lit comme une panne.
     zoomMax: 20,
+    // Dalle que le bouton « Voir un exemple » de l'accueil sélectionne et
+    // charge tout seul. Les deux nombres sont les indices kilométriques
+    // Lambert-93 de la dalle — exactement ceux du lien partageable
+    // (`#d=553,6280`) : coller ceux d'un lien copié dans l'outil suffit à
+    // changer l'exemple, aucun autre fichier à toucher.
+    dalleExemple: { x: 553, y: 6280 },
   },
 
   // ── Rendu ─────────────────────────────────────────────────────────────────

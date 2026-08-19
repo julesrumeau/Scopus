@@ -21,6 +21,7 @@ const etat = {
   couts: [],
   niveau: 0,
   abandonIndex: null,
+  promesseIndex: null,
   nuage: null,
   grille: null,
   resultat: null,
@@ -202,7 +203,10 @@ const carte = new Carte($('vue-carte'), {
     // d'historique à chaque dalle choisie, et le bouton Retour du navigateur
     // deviendrait inutilisable après quelques clics d'exploration.
     history.replaceState(null, '', '#' + hashDeDalle(d));
-    ouvrirDalle(d);
+    // Publiée sur `etat` : c'est ce que le bouton « Voir un exemple » attend
+    // pour savoir quand l'index COPC est lu et déclencher le chargement à sa
+    // place, sans dupliquer cette lecture.
+    etat.promesseIndex = ouvrirDalle(d);
   },
   surCouverture: (nb, zoom) => {
     if (etat.dalle) return;   // ne pas écraser l'état d'une dalle déjà choisie
@@ -1598,10 +1602,6 @@ $('btn-cadrer').addEventListener('click', () => { vue3d?.cadrer(); basculerVue('
 // cliquer : tout le reste de l'outil devient inatteignable. Elle ne pose qu'une
 // question — voir un exemple, ou entrer avec ses propres coordonnées — et
 // s'efface au premier des deux gestes, définitivement.
-//
-// L'exemple n'existe pas encore : le bouton mène à un écran qui dit ce qu'il
-// montrera. Un bouton muet se lit comme une panne, un bouton qui annonce se lit
-// comme un chantier — et c'est bien un chantier.
 
 function masquerAccueil() {
   $('accueil').hidden = true;
@@ -1615,34 +1615,48 @@ function entrerDansLaCarte() {
   $('recherche').focus();
 }
 
-$('btn-exemple').addEventListener('click', () => {
-  $('accueil-principal').hidden = true;
-  $('accueil-exemple').hidden = false;
-});
-$('btn-exemple-retour').addEventListener('click', () => {
-  $('accueil-exemple').hidden = true;
-  $('accueil-principal').hidden = false;
+/**
+ * Sélectionne la dalle dont les indices kilométriques Lambert-93 sont `x, y`
+ * — le calcul commun au lien partagé (`#d=x,y`) et au bouton « Voir un
+ * exemple ». Recentre la carte dessus et attend la fin de la sélection avant
+ * de résoudre, pour qu'un appelant puisse enchaîner sur `etat.promesseIndex`.
+ */
+function selectionnerDalleParIndices(x, y, zoom = 16) {
+  const centre = PROJ.versWGS84(x * 1000 + 500, y * 1000 + 500);
+  return new Promise((resolve) => {
+    // `carte.invalider()` d'abord : fermer l'accueil rend au panneau sa colonne
+    // de 380 px, et Leaflet ne le détecte pas tout seul — un redimensionnement
+    // purement CSS, sans évènement `resize` — même piège que le retour sur
+    // l'onglet Carte.
+    requestAnimationFrame(async () => {
+      carte.invalider();
+      carte.allerA(centre.lon, centre.lat, zoom);
+      await carte.selectionnerAuPoint(centre.lon, centre.lat);
+      resolve();
+    });
+  });
+}
+
+$('btn-exemple').addEventListener('click', async () => {
+  masquerAccueil();
+  basculerVue('carte');
+  const { x, y } = CONFIG.carte.dalleExemple;
+  await selectionnerDalleParIndices(x, y);
+  // `surDalle` publie `etat.promesseIndex` de façon synchrone avant que
+  // `selectionnerAuPoint` ne rende la main : l'attendre à son tour signale que
+  // l'index COPC est prêt, sans relire ce que la sélection a déjà lu.
+  await etat.promesseIndex;
+  if (!etat.entete) return;   // sélection ou lecture d'index en échec : déjà signalé par une alerte
+  $('btn-charger').click();
 });
 $('btn-carte-directe').addEventListener('click', entrerDansLaCarte);
-$('btn-exemple-carte').addEventListener('click', entrerDansLaCarte);
 
 // Un hash non vide veut dire qu'on arrive par un lien qui désigne déjà une
 // destination : s'interposer serait une gêne.
 if (location.hash.length > 1) {
   masquerAccueil();
   const cible = dalleDepuisHash(location.hash);
-  if (cible) {
-    const centre = PROJ.versWGS84(cible.x * 1000 + 500, cible.y * 1000 + 500);
-    // `carte.invalider()` d'abord : fermer l'accueil rend au panneau sa colonne
-    // de 380 px, et Leaflet ne le détecte pas tout seul — un redimensionnement
-    // purement CSS, sans évènement `resize` — même piège que le retour sur
-    // l'onglet Carte.
-    requestAnimationFrame(() => {
-      carte.invalider();
-      carte.allerA(centre.lon, centre.lat, 16);
-      carte.selectionnerAuPoint(centre.lon, centre.lat);
-    });
-  }
+  if (cible) selectionnerDalleParIndices(cible.x, cible.y);
 }
 
 })();

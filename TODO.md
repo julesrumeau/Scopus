@@ -101,20 +101,29 @@ pas manquer alors — `<gx:LatLonQuad>` et non `<LatLonBox>` : un carré Lambert
 est tourné d'environ 1° en WGS84 dans les Pyrénées, soit une vingtaine de mètres
 de décalage en travers d'une dalle. Même piège que `L.rectangle`.
 
-### #5 — Choisir et publier la dalle d'exemple *(gain rapide — débloque #6 et la publication)*
+### #5 — Choisir la dalle d'exemple *(gain rapide — débloque #6 et la publication)*
 
-Le mécanisme est fait des deux côtés : le lien partageable (« Le lien
-partageable ») et l'écran d'accueil (« La page d'accueil »). Il ne manque plus
-que la dalle elle-même — le seul artefact qui reste à produire dans tout le
-bloc publication, et aucun code n'est nécessaire pour l'exploiter une fois
-choisie :
+**Le mécanisme est fait**, testé de bout en bout en navigateur réel : « Voir un
+exemple » sélectionne et charge tout seul la dalle de
+`CONFIG.carte.dalleExemple` (deux nombres — les mêmes indices que le lien
+partageable `#d=x,y`) et atterrit en 2D sans écran intermédiaire ni clic
+supplémentaire. Changer d'exemple ne touche qu'à ces deux nombres, rien
+d'autre. L'ancien écran d'annonce (`accueil-exemple`) a été retiré, devenu
+sans objet.
 
-- **« Voir un exemple » ouvre la dalle**, en 2D, rideau déjà posé sur photo
-  aérienne contre relief calculé, au lieu de l'écran d'annonce actuel
-  (`accueil-exemple`) — c'est cette vue-là qui tient lieu de la comparaison
-  promise par la phrase d'accroche ; il n'y a pas d'image séparée à produire
-  sur l'accueil lui-même ;
-- **c'est la même capture qu'attend le README** (#6).
+Un candidat forêt (553, 6280) a été essayé et vérifié en conditions réelles :
+réseau de sentiers net et dense sous une photo qui ne montre que des arbres,
+aucune habitation — le critère « vérifiable » et « sous couvert forestier »
+tiennent bien. Mais un coin de la dalle (conifères plus denses, donc moins de
+retours sol) produit un amas d'étoiles à huit branches — l'artefact documenté
+des cellules sans donnée (« Une cellule sans donnée doit être écartée du
+balayage »), pas un bug, mais visible dans la vue par défaut qui cadre toute
+l'emprise. Pas disqualifiant en soi, mais à trancher avant de figer le choix :
+soit une zone plus homogène, soit recadrer la vue par défaut sur la partie
+nette plutôt que sur l'emprise entière. Reste donc à choisir la dalle
+définitive — cette forêt, une autre, ou les cabanes de montagne écartées en
+discussion (structures moins alignées avec la nouvelle accroche « explorer »,
+mais plus immédiatement lisibles).
 
 Critères déjà arrêtés — à ne pas confondre avec le contrôle positif, qui relève
 de la vérité terrain et peut rester privé :
