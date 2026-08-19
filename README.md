@@ -142,6 +142,10 @@ voir `TODO.md`.
 
 ## Licences
 
+Ce dépôt est sous licence **[MIT](LICENSE)** : libre de réutilisation, y compris
+commerciale, modification et redistribution comprises, à condition de garder
+la mention de copyright.
+
 Données **LiDAR HD © IGN**, licence ouverte Etalab — réutilisation libre, y
 compris commerciale, sous réserve de mentionner la source.
 
