@@ -114,12 +114,13 @@ manque.
 
 ### #5 — La photo aérienne coûte cent tuiles, peut-être pour rien
 
-**Une des trois pistes envisagées est faite.** Plafond de zoom abaissé à 17
-pour la photo spécifiquement (`CONFIG.relief.zoomPhotoMax`), sans toucher au
-plafond général des tuiles de carte. Comparé côte à côte sur la dalle
-d'exemple (Bois des Caures) : **132 tuiles → 36**, aucune différence visible à
-l'écran — la photo n'est que du contexte, jamais l'endroit où une structure se
-lit, donc la légère perte de netteté de la canopée ne coûte rien en pratique.
+**Essayé et revenu en arrière.** Le zoom avait été abaissé à 17 pour la photo
+seule (132 tuiles → 36) : comparé côte à côte sur un recadrage de 250 m, la
+différence semblait mineure, mais à l'usage réel la perte de qualité s'est
+révélée trop marquée — l'auteur a demandé de revenir au zoom 18. La leçon à
+garder : un recadrage isolé ne suffit pas à juger, il faut l'avis sur l'usage
+réel avant de trancher un compromis qualité/vitesse. Ne pas réessayer le zoom
+17 sans nouvelle raison.
 
 Les deux autres pistes, écartées ou repoussées :
 
@@ -130,10 +131,12 @@ Les deux autres pistes, écartées ou repoussées :
   demande 17-18 : les tuiles utiles ne sont là que si l'on a zoomé à fond avant
   de charger, ce qui n'est pas le geste courant.
 - **Charger en deux temps** (une passe grossière posée tout de suite, la fine
-  par-dessus quand elle arrive) reste la vraie réponse si le temps de charge
-  gêne encore après le passage à 36 tuiles — mais c'est un chantier réel (voir
-  l'historique de cette fiche), à ne lancer que si le gain du zoom 17 seul ne
-  suffit pas à l'usage.
+  par-dessus quand elle arrive) reste la vraie réponse : elle ne sacrifie
+  aucune qualité, contrairement au zoom abaissé — l'attente ne serait pas
+  raccourcie, elle disparaîtrait. C'est un chantier réel (voir la description
+  plus haut, restructurer `sourcePhoto`/`appliquerCote` pour deux passes avec
+  garde anti-course aux deux étapes), mais c'est la piste qui n'a pas encore
+  été essayée pour de vrai.
 
 Ce qui ne change pas : les tuiles restent en Web Mercator et doivent être
 rééchantillonnées dans la grille Lambert-93. On n'économise que le réseau,
