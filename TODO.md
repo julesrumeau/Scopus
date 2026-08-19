@@ -10,7 +10,7 @@ renvois `(#N)` ailleurs dans le document ont été mis à jour en conséquence.
 L'ordre reste celui d'origine ; seuls les *(prioritaire)* sont un jugement de
 priorité explicite, le reste est classé par ancienneté et non par urgence.
 
-**8 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
+**7 tâches restent.** Les deux marquées *(prioritaire)* sont les seules dont
 l'issue est incertaine — tout le reste est du travail dont la forme est déjà
 connue. #5 (dalle d'exemple) mérite un statut à part : elle ne demande aucun
 code, elle débloque à elle seule #6 et la publication, et les critères de choix
@@ -183,43 +183,8 @@ fondée ; reste à savoir laquelle des trois pistes rend le plus.
 - **Charger en deux temps**, ce qui est sans doute la vraie réponse : une passe
   grossière (zoom 15, quatre tuiles) posée tout de suite, puis le zoom 18 par
   dessus quand il arrive. L'attente ne serait pas raccourcie, elle
-  disparaîtrait — c'est exactement ce que fait n'importe quelle carte glissante,
-  et ça se marie avec #8.
+  disparaîtrait — c'est exactement ce que fait n'importe quelle carte glissante.
 
 Ce qui ne change pas quelle que soit la piste : les tuiles restent en Web
 Mercator et doivent être rééchantillonnées dans la grille Lambert-93. On
 n'économise que le réseau, jamais la géométrie.
-
-### #8 — Un chargement qu'on voit
-
-Le téléchargement d'une dalle est **le moment le plus long de l'outil** — une
-trentaine de secondes à pleine résolution — et c'est celui qui montre le moins.
-Aujourd'hui il n'existe que par deux choses : une barre de progression fine dans
-le panneau de gauche (`#barre-progression`), et un compteur qui défile dans le
-coin haut droit (`statut()`, « Téléchargement 12/24 — 3 210 000 points »). Qui ne
-regarde ni l'un ni l'autre ne voit pas que ça travaille.
-
-C'est le même raisonnement que le voile d'attente (fait, voir « Voile
-d'attente ») : **une page qui ne montre rien se lit comme une page figée**, et
-l'utilisateur relance ou ferme. Sauf que le cas n'est pas le même, et c'est ce
-qui rend la solution différente :
-
-- le voile couvre un calcul **synchrone**, il est modal, et il ne peut animer que
-  `transform` ou `opacity` sous peine de se figer avec le reste ;
-- le téléchargement, lui, est **asynchrone** : le fil principal reste libre, on
-  peut donc animer ce qu'on veut, et surtout il doit **rester annulable** — le
-  bouton « Annuler » existe déjà et doit continuer d'être atteignable.
-
-Ce qu'on peut afficher est déjà mesuré et remonté par `surAvancement` : blocs
-faits sur blocs attendus, points décodés. Le coût total en mégaoctets est connu
-avant de commencer, il est même affiché sous le curseur de résolution.
-
-À trancher en regardant, pas en raisonnant : barre large et lisible plutôt que
-filet, pourcentage, volume en mégaoctets, et **où** — la vue d'arrivée est
-désormais la 2D, c'est peut-être là que le chargement doit se voir plutôt que
-dans le panneau.
-
-Un piège à ne pas ignorer si l'idée d'un temps restant vient : **le débit de
-l'IGN varie d'un facteur cinq**. Mesuré sur les cent tuiles d'une même photo
-aérienne, depuis la même machine : 6,5 s une fois, 29,6 s une autre. Une
-estimation qui saute de « 8 s » à « 2 min » est pire que pas d'estimation.

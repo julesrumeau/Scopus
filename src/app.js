@@ -322,6 +322,8 @@ async function ouvrirDalle(d) {
   $('btn-annuler').hidden = true;
   $('progression').hidden = true;
   $('barre-progression').style.width = '0';
+  $('progression-pct').textContent = '0 %';
+  $('progression-detail').textContent = '—';
   $('val-niveau').textContent = '—';
   $('cout').textContent = 'Lecture de l’index COPC…';
   statut('Lecture de l’index COPC…', 'travail');
@@ -467,7 +469,15 @@ $('btn-charger').addEventListener('click', async () => {
       niveauAffichage: niveauVue,
       surBloc: (bloc) => RASTER.accumuler(grille, bloc),
       surAvancement: (a) => {
-        $('barre-progression').style.width = `${(a.faits / a.total) * 100}%`;
+        // En octets, pas en blocs : les plages groupées n'ont pas toutes la
+        // même taille, et c'est le volume — pas leur nombre — qu'on annonce
+        // juste à côté (« X / Y Mo »). Les deux chiffres doivent s'accorder.
+        const totalOctets = etat.couts[etat.niveau].octets;
+        const pct = totalOctets ? Math.min(100, (a.octets / totalOctets) * 100) : 0;
+        $('barre-progression').style.width = `${pct}%`;
+        $('progression-pct').textContent = `${pct.toFixed(0)} %`;
+        $('progression-detail').textContent =
+          `${octets(a.octets)} / ${octets(totalOctets)} · ${milliers(a.points)} points`;
         statut(`Téléchargement ${a.faits}/${a.total} — ${milliers(a.points)} points`, 'travail');
       },
       signal: ctrl.signal,
@@ -566,6 +576,8 @@ $('btn-charger').addEventListener('click', async () => {
       $('btn-annuler').hidden = true;
       $('progression').hidden = true;
       $('barre-progression').style.width = '0';
+      $('progression-pct').textContent = '0 %';
+      $('progression-detail').textContent = '—';
     }
     if (etat.abandon === ctrl) etat.abandon = null;
   }

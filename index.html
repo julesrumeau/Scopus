@@ -137,7 +137,13 @@
           <button id="btn-charger" class="primaire" disabled>Charger le nuage</button>
           <button id="btn-annuler" class="secondaire" hidden>Annuler</button>
         </div>
-        <div id="progression" class="progression" hidden><div id="barre-progression"></div></div>
+        <div id="progression" class="progression" hidden>
+          <div class="progression-piste">
+            <div id="barre-progression"></div>
+            <span id="progression-pct" class="progression-pct">0 %</span>
+          </div>
+          <div id="progression-detail" class="progression-detail">—</div>
+        </div>
       </div>
     </section>
 

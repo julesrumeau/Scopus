@@ -145,6 +145,7 @@ async function charger(entete, noeuds, emprise, opts = {}) {
   const lots = [];
   let faits = 0;
   let pointsRecus = 0;
+  let octetsRecus = 0;
 
   const plages = grouperPlages(noeuds);
 
@@ -153,6 +154,10 @@ async function charger(entete, noeuds, emprise, opts = {}) {
       plage: [plage.debut, plage.fin - 1],
       signal,
     });
+    // Compté une fois par plage groupée (la requête réellement faite), pas par
+    // nœud : la boucle ci-dessous itère sur les nœuds d'une même plage, qui
+    // partagent tous les mêmes octets déjà reçus.
+    octetsRecus += octets.byteLength;
 
     for (const noeud of plage.noeuds) {
       if (signal?.aborted) return;
@@ -191,7 +196,7 @@ async function charger(entete, noeuds, emprise, opts = {}) {
 
       faits++;
       pointsRecus += res.nbPoints;
-      surAvancement?.({ faits, total: noeuds.length, points: pointsRecus });
+      surAvancement?.({ faits, total: noeuds.length, points: pointsRecus, octets: octetsRecus });
     }
   });
 
