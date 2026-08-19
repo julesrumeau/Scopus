@@ -38,6 +38,13 @@ Quatre contraintes expliquent la quasi-totalité des choix techniques :
 4. **Le volume de données est le problème central.** Une dalle fait ~190 Mo pour
    ~30 M de points. Toute l'architecture de chargement découle de là.
 
+Une seule entorse volontaire à « rien n'est envoyé ailleurs » : un compteur de
+visites [GoatCounter](https://www.goatcounter.com), une balise dans `<head>`,
+sans cookie ni donnée personnelle. Ce n'est pas un backend du projet — aucune
+donnée LiDAR ni résultat de détection ne quitte jamais l'onglet, c'est
+toujours vrai — juste une visite anonyme comptée par un tiers. La ligne de
+crédit dans l'app le dit.
+
 ## Vivre en `file://`
 
 Une page ouverte depuis le disque a l'origine « null ». Relevé exact, mesuré sur
