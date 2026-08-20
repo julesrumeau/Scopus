@@ -163,13 +163,18 @@ function detecterSentiers(g, reglages = {}) {
 
   // ── 6. Qualification ──────────────────────────────────────────────────────
   const traces = [];
-  const motifs = { longueur: 0, ravine: 0, penteLongue: 0, profondeur: 0, tortuosite: 0 };
+  const motifs = { longueur: 0, ravine: 0, penteLongue: 0, profondeur: 0, tortuosite: 0, pelote: 0 };
 
   for (const chaine of chaines) {
     const mes = mesurerTrace(chaine, t, relief, reponse, echelle, p);
     if (mes.longueur < p.longueurMinM) { motifs.longueur++; continue; }
     if (mes.penteLongueMed > p.penteLongueMaxDeg) { motifs.penteLongue++; continue; }
     if (mes.tortuosite > p.tortuositeMax) { motifs.tortuosite++; continue; }
+    // Une pelote — plusieurs fragments recollés à tort dans un coin bruité —
+    // parcourt beaucoup de distance sans s'éloigner de son point de départ.
+    // Filtre géométrique, indépendant de la calibration sur du terrain réel :
+    // « ça va quelque part » ne demande aucune vérité terrain pour être vrai.
+    if (mes.compacite > p.compaciteMax) { motifs.pelote++; continue; }
     if (mes.alignementPente > p.alignementMax) { motifs.ravine++; continue; }
     if (mes.profondeurMed < p.profondeurMinM || mes.profondeurMed > p.profondeurMaxM) {
       motifs.profondeur++; continue;
@@ -760,6 +765,21 @@ function mesurerTrace(chaine, t, relief, reponse, echelle, p) {
   const milieu = simple[simple.length >> 1];
   const gpsMilieu = PROJ.versWGS84(milieu[0], milieu[1]);
 
+  // Envergure : distance à vol d'oiseau entre les deux bouts du tracé
+  // simplifié, en mètres. Un vrai chemin va quelque part — ses deux bouts sont
+  // loin l'un de l'autre, même s'il serpente. `vectoriser` produit aussi des
+  // **boucles** quand le squelette contient un cycle (voir son commentaire) :
+  // sans extrémité franche, il en choisit une arbitrairement, et le tracé
+  // revient près de son point de départ. Mesuré sur la dalle de Beille : la
+  // boîte englobante ne les distinguait pas d'un sentier sinueux (2,2 à 2,9,
+  // à peine au-dessus du 1,2 d'un vrai tracé) parce qu'une boucle occupe une
+  // vraie surface — seule la distance bout-à-bout s'effondre pour elle, un
+  // vrai chemin ne revenant pas sur son point de départ à cette échelle.
+  const [x0, y0] = simple[0], [x1f, y1f] = simple[simple.length - 1];
+  const envergure = Math.hypot(x1f - x0, y1f - y0);
+  const compacite = envergure > 1e-6 ? longueur / envergure : Infinity;
+  const autocroisements = compterAutocroisements(simple);
+
   return {
     longueur,
     nbPoints: simple.length,
@@ -776,8 +796,39 @@ function mesurerTrace(chaine, t, relief, reponse, echelle, p) {
     penteLongueEcartType: ecartType(pentes),
     alignementPente: med(alignements),
     reponseMed: med(reponses),
+    envergure,
+    compacite,
+    autocroisements,
     score: 0,
   };
+}
+
+/**
+ * Nombre de croisements du tracé simplifié avec lui-même.
+ *
+ * Mesuré nécessaire avant de trancher : la compacité (longueur / envergure)
+ * ne suffit pas à écarter une pelote — un enchevêtrement de boucles réparties
+ * sur une zone assez large en garde une bonne malgré des dizaines
+ * d'auto-croisements. Un vrai chemin, lui, ne se recoupe normalement jamais :
+ * ce test topologique attrape directement ce que « connecter des points »
+ * produit et qu'une courbe cohérente ne produit pas.
+ *
+ * Segments non adjacents seulement (`j` démarre à `i + 2`) : deux segments
+ * consécutifs partagent un sommet, ce qui n'est pas un croisement.
+ */
+function compterAutocroisements(pts) {
+  const croise = (a, b, c, e) => {
+    const d = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    const d1 = d(c, e, a), d2 = d(c, e, b), d3 = d(a, b, c), d4 = d(a, b, e);
+    return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+  };
+  let n = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    for (let j = i + 2; j < pts.length - 1; j++) {
+      if (croise(pts[i], pts[i + 1], pts[j], pts[j + 1])) n++;
+    }
+  }
+  return n;
 }
 
 /** Douglas-Peucker, itératif. */

@@ -1357,6 +1357,7 @@ const REGLAGES_SENTIERS = [
   { cle: 'penteLongueMaxDeg', libelle: 'Pente du tracé max.', min: 5, max: 45, pas: 1, unite: '°' },
   { cle: 'alignementMax', libelle: 'Tolérance « ravine »', min: 0.3, max: 1, pas: 0.05, unite: '' },
   { cle: 'seuilHaut', libelle: 'Seuil de déclenchement', min: 0.05, max: 0.8, pas: 0.05, unite: '' },
+  { cle: 'compaciteMax', libelle: 'Tolérance « pelote »', min: 1.2, max: 8, pas: 0.1, unite: '' },
 ];
 
 const reglagesSentiers = { ...CONFIG.sentiers };
@@ -1400,8 +1401,9 @@ $('btn-sentiers').addEventListener('click', async () => {
     $('stats-sentiers').innerHTML =
       `Grille <b>${st.pas.toFixed(2)} m</b> · <b>${st.chainesBrutes}</b> tracés bruts, `
       + `<b>${st.retenues}</b> retenus — ${secondes} s<br>`
-      + `écartés — longueur ${st.rejets.longueur} · ravine ${st.rejets.ravine}`
-      + ` · pente ${st.rejets.penteLongue} · profondeur ${st.rejets.profondeur}`;
+      + `écartés — longueur ${st.rejets.longueur} · pelote ${st.rejets.pelote}`
+      + ` · ravine ${st.rejets.ravine} · pente ${st.rejets.penteLongue}`
+      + ` · profondeur ${st.rejets.profondeur}`;
 
     afficherSentiers();
     statut(`${etat.sentiers.traces.length} sentier(s) candidat(s)`);
@@ -1486,7 +1488,8 @@ function afficherSentiers() {
       </div>
       <div class="mesures">${s.longueur.toFixed(0)} m · creux ${(s.profondeurMed * 100).toFixed(0)} cm
         · large ${s.largeurMed.toFixed(1)} m · pente ${s.penteLongueMed.toFixed(0)}°
-        · ravine ${s.alignementPente.toFixed(2)}</div>
+        · ravine ${s.alignementPente.toFixed(2)} · pelote ${s.compacite.toFixed(1)}
+        · croise ${s.autocroisements}</div>
       <div class="coords">${l.dms} · ${s.altitude.toFixed(0)} m</div>
       <div class="actions">
         <a href="${l.earth}" target="_blank" rel="noopener">Google&nbsp;Earth</a>

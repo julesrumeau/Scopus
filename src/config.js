@@ -416,6 +416,19 @@ const CONFIG = {
     alignementMax: 0.80,
     // Tolérance de simplification des polylignes, en mètres.
     toleranceM: 1.0,
+    // Compacité maximale : longueur parcourue divisée par l'envergure — la
+    // distance à vol d'oiseau entre les deux bouts du tracé simplifié, pas la
+    // diagonale de sa boîte englobante (essayé d'abord : une boucle occupe une
+    // vraie surface, la boîte ne la distinguait donc pas d'un sentier sinueux —
+    // 2,2 à 2,9 contre 1,2, à peine séparés). `vectoriser` produit des boucles
+    // quand le squelette contient un cycle, sans extrémité franche à privilégier
+    // (voir son commentaire) ; un vrai chemin, lui, ne revient pas près de son
+    // point de départ à cette échelle. Mesuré : le sentier sinueux du test
+    // synthétique (ondulation de ±8 m tous les 60 m) vaut 1,20 à 1,24 avec
+    // cette définition. Sur la dalle de Beille, ce filtre écarte 107 tracés
+    // (133 retenus avant ce filtre → 110 après) — les deux amas de tracés
+    // enchevêtrés visibles sur le canevas 2D disparaissent.
+    compaciteMax: 3.0,
   },
 
   // ── Sortie ────────────────────────────────────────────────────────────────

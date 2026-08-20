@@ -556,7 +556,7 @@ Chaîne séparée (`sentiers.js`), sur le **relief seul** — jamais les classes
 Relief local → rugosité locale → Frangi multi-échelle → hystérésis →
 amincissement Zhang-Suen → vectorisation → filtres.
 
-Quatre décisions à ne pas défaire, chacune née d'une mesure :
+Cinq décisions à ne pas défaire, chacune née d'une mesure :
 
 - **Le seuil est en multiples de la rugosité locale**, jamais en mètres. Le
   relief local médian vaut 2 cm sur synthétique lisse et **79 cm sur le plateau
@@ -573,6 +573,17 @@ Quatre décisions à ne pas défaire, chacune née d'une mesure :
 - **L'alignement à la pente est le critère décisif.** Une ravine et un chemin
   creux ont la même forme ; seul leur rapport à la pente les distingue. Le
   retirer fait remonter tous les ravins et fossés de drainage.
+- **L'envergure d'un tracé se mesure bout à bout, jamais par sa boîte
+  englobante.** `vectoriser` produit des boucles quand le squelette contient un
+  cycle — sans extrémité franche, il en choisit une arbitrairement — et sur un
+  terrain bruité, un vrai chemin comme une boucle sans queue ni tête peuvent
+  tous deux occuper une boîte englobante de taille comparable. Retenu sur
+  20 août 2026 après un retour utilisateur sur la dalle de Beille : deux amas
+  de tracés qui s'entrecroisaient et rebouclaient sur eux-mêmes,
+  visuellement des « pelotes ». Le filtre par boîte englobante n'en écartait
+  que 6 sur 133 (2,2 à 2,9, à peine au-dessus du 1,2 d'un sentier sinueux) ; la
+  distance à vol d'oiseau entre les deux bouts en écarte 107 — les amas
+  disparaissent du rendu 2D. `CONFIG.sentiers.compaciteMax`.
 
 **Pourquoi la hessienne (Frangi) et pas un ombrage**, le réflexe habituel : un
 ombrage dépend d'une direction d'éclairage et rate les structures qui lui sont
@@ -625,6 +636,20 @@ reconstitution reste partielle (73 m retrouvés sur 128 m exploitables pour un
 tracé sinueux synthétique), et les **sentes de brebis** (terracettes) ne sont
 pas traitées — c'est une texture périodique et non une ligne, qui relève d'une
 analyse de Fourier plutôt que de ce pipeline.
+
+**Depuis, un premier retour réel a été confronté** — la détection démasquée
+(voir plus bas), essayée sur Beille par l'utilisateur : à l'œil, les tracés
+ressemblaient à des points reliés au hasard plutôt qu'à des courbes
+cohérentes. Confirmé en rejouant sur le canevas 2D : deux amas d'une centaine
+de mètres où les tracés s'entrecroisaient et rebouclaient sur eux-mêmes, sans
+qu'aucun ne corresponde aux deux lignes nettes et sinueuses pourtant visibles
+dans le micro-relief au même endroit. Cause identifiée et corrigée par le
+filtre de compacité ci-dessus (« L'envergure d'un tracé… ») : 133 tracés
+retenus avant, 110 après, les deux amas disparus du rendu. **Le premier retour
+utilisateur réel sur cette chaîne a donc trouvé un vrai bogue en une
+observation, là où le banc synthétique et les mesures sur Beille n'avaient
+rien vu venir** — aucun des sept tests à vérité connue ne produit de boucle,
+et le compte de tracés seul (147 puis 133) ne dit rien de leur forme.
 
 ---
 

@@ -90,6 +90,26 @@ réglages et les tracés trouvés sont maintenant visibles et actifs dans
 l'interface réelle, sur les trois onglets. Objectif : des retours sur de
 vraies dalles plutôt que sur des cas synthétiques.
 
+**Premier retour, et premier bogue trouvé grâce à lui** : sur Beille, les
+tracés ressemblaient à des points reliés au hasard, pas à des courbes
+cohérentes — deux amas d'une centaine de mètres où ils s'entrecroisaient et
+rebouclaient sur eux-mêmes. Cause : `vectoriser` referme parfois un cycle du
+squelette en boucle plutôt qu'en ligne ouverte, et rien ne l'écartait. Corrigé
+par un filtre de compacité (longueur du tracé / distance à vol d'oiseau entre
+ses deux bouts, voir `CONFIG.sentiers.compaciteMax` et le point dédié plus
+haut dans ce document) : 133 tracés retenus avant sur Beille, 110 après, les
+deux amas disparus du rendu. La leçon vaut d'être notée : ni les sept tests
+synthétiques ni les mesures précédentes sur Beille n'avaient vu venir ce
+défaut, parce qu'aucun ne regardait la **forme** d'ensemble d'un tracé — un
+compte de tracés retenus ne dit rien de leur cohérence visuelle.
+
+Un compte d'auto-croisements du tracé simplifié (`autocroisements`, affiché
+dans chaque fiche sous « croise ») a été ajouté au passage pour le diagnostic,
+mesuré mais pas encore filtré — sur Beille après le filtre de compacité,
+seuls 4 tracés sur 110 en ont au moins un (max 1). Pas assez net pour justifier
+un seuil dur pour l'instant ; à surveiller si un terrain plus accidenté en
+produit davantage.
+
 **Repli acceptable avant publication :** marquer le volet Sentiers
 « expérimental », ou le retirer. Livrer une fonction qui promet et rend zéro est
 le pire des trois choix — l'utilisateur conclura que c'est *l'outil* qui est
