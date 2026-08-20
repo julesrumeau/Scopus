@@ -58,6 +58,15 @@ const etat = {
  */
 const ANALYSE_MASQUEE = true;
 
+/**
+ * Sentiers seuls, démasqués : la détection de structures reste derrière
+ * `ANALYSE_MASQUEE` (aucune ruine connue n'a encore servi de contrôle positif
+ * à *cette* chaîne), mais celle des sentiers a désormais un usage réel en
+ * cours — la démasquer permet des retours sur de vraies dalles, ce qu'aucun
+ * banc synthétique ne peut remplacer. Voir #2 du TODO.
+ */
+const SENTIERS_MASQUES = false;
+
 // ── Retours à l'utilisateur ─────────────────────────────────────────────────
 
 let minuteurAlerte = null;
@@ -510,7 +519,7 @@ $('btn-charger').addEventListener('click', async () => {
     // qui va recevoir le résultat.
     $('section-vide-3d').hidden = true;
     $('section-affichage').hidden = false;
-    $('section-analyse').hidden = ANALYSE_MASQUEE;
+    $('section-analyse').hidden = ANALYSE_MASQUEE && SENTIERS_MASQUES;
     // Le nuage est le résultat le plus spectaculaire, mais ce n'est pas celui
     // qu'on vient chercher : un objet de six mètres ne se voit pas dans un
     // kilomètre carré de points. La 2D est la vue d'arrivée.
@@ -962,12 +971,12 @@ $('contraste-relief').addEventListener('input', (e) => {
   majDrapage3D();
 });
 
-// Les deux superpositions n'ont plus rien à superposer tant que l'analyse est
-// masquée : leurs cases sont retirées avec elle, plutôt que de laisser deux
-// réglages qui ne font visiblement rien.
-for (const id of ['relief-detections', 'relief-sentiers']) {
-  $(id).closest('label').hidden = ANALYSE_MASQUEE;
-}
+// Une superposition n'a rien à superposer tant que sa détection est masquée :
+// sa case est retirée avec elle, plutôt que de laisser un réglage qui ne fait
+// visiblement rien. Les deux chaînes n'étant plus masquées ensemble, chacune
+// suit désormais son propre drapeau.
+$('relief-detections').closest('label').hidden = ANALYSE_MASQUEE;
+$('relief-sentiers').closest('label').hidden = SENTIERS_MASQUES;
 $('relief-detections').addEventListener('change', (e) =>
   vue2d.definirCalques({ detections: e.target.checked }));
 $('relief-sentiers').addEventListener('change', (e) =>
@@ -1028,6 +1037,10 @@ for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
  * l'autre.
  */
 function montrerVolet(nom) {
+  // Les structures restent masquées quel que soit l'appelant : sans ce garde,
+  // un appel resté câblé sur 'structures' (sélection d'une détection, par
+  // exemple) rouvrirait un volet que `ANALYSE_MASQUEE` est censé fermer.
+  if (ANALYSE_MASQUEE && nom === 'structures') nom = 'sentiers';
   for (const b of $('volets').children) b.classList.toggle('actif', b.dataset.volet === nom);
   for (const v of document.querySelectorAll('#section-analyse .volet')) {
     v.hidden = v.dataset.volet !== nom;
@@ -1038,6 +1051,12 @@ $('volets').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (b) montrerVolet(b.dataset.volet);
 });
+
+// Un commutateur à deux options n'a de sens que si les deux mènent quelque
+// part : structures masquée, il ne reste qu'un choix, donc plus de choix du
+// tout. On force le volet initial en conséquence.
+$('volets').hidden = ANALYSE_MASQUEE;
+montrerVolet(ANALYSE_MASQUEE ? 'sentiers' : 'structures');
 
 // ── Affichage du nuage ──────────────────────────────────────────────────────
 

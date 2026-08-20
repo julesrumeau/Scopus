@@ -19,8 +19,10 @@ absentes des cartes — ruines et cabanes en pierre sèche. Par **règles
 géométriques explicites**, sans apprentissage : chaque rejet doit rester
 explicable, sans quoi les seuils ne peuvent pas être réglés, seulement subis.
 Elle est aujourd'hui **masquée dans l'interface** — voir « La détection
-automatique est masquée » plus bas : les deux chaînes existent et sont
-testées, mais n'ont jamais été confrontées à une structure réelle connue.
+automatique est masquée » plus bas : elle existe et passe ses tests, mais n'a
+jamais été confrontée à une structure réelle connue. La détection de
+sentiers, chaîne distincte décrite plus loin, ne l'est plus : elle est
+exposée pour recueillir des retours sur de vraies dalles.
 
 ---
 
@@ -1313,10 +1315,20 @@ désagréable que l'attente.
 
 ## La détection automatique est masquée
 
-`ANALYSE_MASQUEE = true` dans `app.js` retire de l'interface le volet Analyse
-entier — structures **et** sentiers — ainsi que les deux cases de superposition
-de l'onglet 2D. Tout le reste de ce document décrit du code qui existe,
-passe ses 71 tests, et ne s'exécute plus.
+`ANALYSE_MASQUEE = true` dans `app.js` retire de l'interface le volet
+Structures et sa case de superposition dans l'onglet 2D. Tout le reste de ce
+document décrit du code qui existe, passe ses 71 tests, et ne s'exécute plus
+depuis l'interface.
+
+**Les sentiers, eux, ne sont plus masqués** — second drapeau, `SENTIERS_MASQUES
+= false` (20 août 2026) : cette chaîne a un usage réel en cours plutôt qu'un
+manque de contrôle positif à proprement parler (voir #2 du TODO), et
+démasquer permet de recueillir des retours sur de vraies dalles, ce qu'aucun
+banc synthétique ne peut remplacer. `montrerVolet()` refuse d'ouvrir le volet
+Structures tant qu'`ANALYSE_MASQUEE` tient, quel que soit l'appelant — un
+garde unique plutôt qu'à vérifier à chaque site d'appel — et le commutateur
+Structures/Sentiers se masque avec lui : un choix à deux options n'en a plus
+qu'une n'est plus un choix.
 
 **Pourquoi**, et l'argument n'est pas technique : sur une couche d'ouverture ou
 de Sky-View Factor, un mur ruiné, une terrasse ou un chemin creux **se voient à
@@ -1508,9 +1520,10 @@ masquée ».
 | 2. Parsing LAZ, rendu par points, colorisation | ✅ |
 | 3. Pipeline de détection, cas falaise | ✅ — seuils à affiner sur cas réels |
 | 4. Lambert-93 → WGS84, liens, dédup BD TOPO, exports | ✅ |
-| Détection de sentiers | 🚧 chaîne complète, non validée sur chemin réel |
+| Détection de sentiers | 🚧 chaîne complète, non validée sur chemin réel ; démasquée pour recueillir des retours |
 | Contrôle positif sur ruine effondrée | ❌ en attente de coordonnées |
-| **Détection automatique dans l'interface** | 🙈 **masquée** — `ANALYSE_MASQUEE` dans `app.js` |
+| **Détection de structures dans l'interface** | 🙈 **masquée** — `ANALYSE_MASQUEE` dans `app.js` |
+| **Détection de sentiers dans l'interface** | 👁️ **démasquée** — `SENTIERS_MASQUES` dans `app.js` |
 | Page d'accueil | ✅ — voile sur la carte vivante ; « Voir un exemple » sélectionne et charge le Bois des Caures (Verdun) |
 | Onglets Carte / 2D / 3D, rideau de comparaison | ✅ |
 | États vides et messages utiles | ✅ |

@@ -77,6 +77,19 @@ en dehors de l'apprentissage automatique (écarté ici, voir CLAUDE.md). Rien
 n'indique donc qu'il faille changer d'algorithme — seulement voir, avec le
 diagnostic ci-dessus et un vrai sentier connu, où le signal se perd.
 
+Un essai sur une dalle de haute montagne (`#d=542,6196`) a montré un piège à
+ne pas reproduire : une ligne repérée à l'œil sur une miniature basse
+résolution ne tenait plus à l'examen serré — la réponse vesselness y est
+dense et chaotique sur toute la dalle (terrain d'éboulis), et rien de propre
+n'en ressort à cet endroit précis. Repérer un candidat demande donc de
+regarder à pleine résolution dans l'outil, pas sur un cliché réduit.
+
+**Démasqué le 20 août 2026** (`SENTIERS_MASQUES` dans `app.js`, indépendant
+d'`ANALYSE_MASQUEE` qui garde les structures fermées) : le bouton, les
+réglages et les tracés trouvés sont maintenant visibles et actifs dans
+l'interface réelle, sur les trois onglets. Objectif : des retours sur de
+vraies dalles plutôt que sur des cas synthétiques.
+
 **Repli acceptable avant publication :** marquer le volet Sentiers
 « expérimental », ou le retirer. Livrer une fonction qui promet et rend zéro est
 le pire des trois choix — l'utilisateur conclura que c'est *l'outil* qui est
