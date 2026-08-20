@@ -21,8 +21,10 @@ explicable, sans quoi les seuils ne peuvent pas être réglés, seulement subis.
 Elle est aujourd'hui **masquée dans l'interface** — voir « La détection
 automatique est masquée » plus bas : elle existe et passe ses tests, mais n'a
 jamais été confrontée à une structure réelle connue. La détection de
-sentiers, chaîne distincte décrite plus loin, ne l'est plus : elle est
-exposée pour recueillir des retours sur de vraies dalles.
+sentiers, chaîne distincte décrite plus loin, l'est aussi : brièvement
+exposée pour recueillir des retours sur de vraies dalles, elle a corrigé un
+bogue réel mais pas convaincu au-delà, et reste masquée en attendant un
+chemin connu pour se calibrer.
 
 ---
 
@@ -1345,15 +1347,19 @@ Structures et sa case de superposition dans l'onglet 2D. Tout le reste de ce
 document décrit du code qui existe, passe ses 71 tests, et ne s'exécute plus
 depuis l'interface.
 
-**Les sentiers, eux, ne sont plus masqués** — second drapeau, `SENTIERS_MASQUES
-= false` (20 août 2026) : cette chaîne a un usage réel en cours plutôt qu'un
-manque de contrôle positif à proprement parler (voir #2 du TODO), et
-démasquer permet de recueillir des retours sur de vraies dalles, ce qu'aucun
-banc synthétique ne peut remplacer. `montrerVolet()` refuse d'ouvrir le volet
-Structures tant qu'`ANALYSE_MASQUEE` tient, quel que soit l'appelant — un
-garde unique plutôt qu'à vérifier à chaque site d'appel — et le commutateur
-Structures/Sentiers se masque avec lui : un choix à deux options n'en a plus
-qu'une n'est plus un choix.
+**Les sentiers ont eu leur propre drapeau, `SENTIERS_MASQUES`, brièvement
+ouvert le 20 août 2026** pour recueillir des retours sur de vraies dalles —
+ce qu'aucun banc synthétique ne peut remplacer. Le retour est arrivé vite : un
+vrai bogue trouvé et corrigé (les tracés en pelote, voir plus haut), puis un
+constat que ce correctif ne réglait pas — ce qui restait ne convainquait
+toujours pas à l'œil sur plusieurs dalles, sans doute encore beaucoup de
+ravinement naturel sous une signature indiscernable d'un chemin. Remasqué le
+même jour. `montrerVolet()` refuse d'ouvrir le volet Structures tant
+qu'`ANALYSE_MASQUEE` tient, quel que soit l'appelant — un garde unique plutôt
+qu'à vérifier à chaque site d'appel — et le commutateur Structures/Sentiers se
+masque avec `ANALYSE_MASQUEE` : un choix à deux options qui n'en a plus
+qu'une n'est plus un choix. La section entière ne se rouvre que si les deux
+drapeaux tombent ensemble.
 
 **Pourquoi**, et l'argument n'est pas technique : sur une couche d'ouverture ou
 de Sky-View Factor, un mur ruiné, une terrasse ou un chemin creux **se voient à
@@ -1545,10 +1551,10 @@ masquée ».
 | 2. Parsing LAZ, rendu par points, colorisation | ✅ |
 | 3. Pipeline de détection, cas falaise | ✅ — seuils à affiner sur cas réels |
 | 4. Lambert-93 → WGS84, liens, dédup BD TOPO, exports | ✅ |
-| Détection de sentiers | 🚧 chaîne complète, non validée sur chemin réel ; démasquée pour recueillir des retours |
+| Détection de sentiers | 🚧 chaîne complète, non validée sur chemin réel ; un essai réel a corrigé un bogue (pelotes) sans convaincre au-delà |
 | Contrôle positif sur ruine effondrée | ❌ en attente de coordonnées |
 | **Détection de structures dans l'interface** | 🙈 **masquée** — `ANALYSE_MASQUEE` dans `app.js` |
-| **Détection de sentiers dans l'interface** | 👁️ **démasquée** — `SENTIERS_MASQUES` dans `app.js` |
+| **Détection de sentiers dans l'interface** | 🙈 **masquée** — `SENTIERS_MASQUES` dans `app.js`, réessayé et refermé le 20 août 2026 |
 | Page d'accueil | ✅ — voile sur la carte vivante ; « Voir un exemple » sélectionne et charge le Bois des Caures (Verdun) |
 | Onglets Carte / 2D / 3D, rideau de comparaison | ✅ |
 | États vides et messages utiles | ✅ |

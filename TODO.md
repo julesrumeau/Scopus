@@ -130,8 +130,14 @@ le résidu fin après soustraction d'une tendance large — le second capture
 mieux une dépression étroite (0,6 à 4 m) que le premier. Le relief local
 reste donc le signal d'entrée, sans changement de code.
 
-**Repli acceptable avant publication :** marquer le volet Sentiers
-« expérimental », ou le retirer. Livrer une fonction qui promet et rend zéro est
-le pire des trois choix — l'utilisateur conclura que c'est *l'outil* qui est
-cassé.
+**Remasqué le 20 août 2026** (`SENTIERS_MASQUES` remis à `true`) après ce
+premier usage réel : le bogue des pelotes corrigé, ce qui restait ne
+convainquait toujours pas à l'œil sur plusieurs dalles — vraisemblablement
+encore beaucoup de ravinement naturel sous une signature qui ne se
+distingue pas d'un chemin. Livrer une fonction qui promet et ne rend pas
+grand-chose de crédible est le pire des choix — ça se lit comme un défaut de
+*l'outil*, pas de cette chaîne précisément. Rien n'est perdu : le filtre de
+compacité, le diagnostic à cinq couches et la piste de l'ouverture écartée
+restent acquis pour la prochaine tentative, qui demandera un vrai chemin
+connu pour se calibrer plutôt que d'autres essais à l'aveugle.
 

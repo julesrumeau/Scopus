@@ -59,13 +59,18 @@ const etat = {
 const ANALYSE_MASQUEE = true;
 
 /**
- * Sentiers seuls, démasqués : la détection de structures reste derrière
- * `ANALYSE_MASQUEE` (aucune ruine connue n'a encore servi de contrôle positif
- * à *cette* chaîne), mais celle des sentiers a désormais un usage réel en
- * cours — la démasquer permet des retours sur de vraies dalles, ce qu'aucun
- * banc synthétique ne peut remplacer. Voir #2 du TODO.
+ * Remasqué le 20 août 2026 après un premier vrai usage sur plusieurs dalles.
+ *
+ * Le retour a corrigé un bogue réel (des tracés en pelote, voir #2 du TODO,
+ * `CONFIG.sentiers.compaciteMax`) mais n'a pas réglé la question de fond :
+ * même sans boucle, une bonne part de ce qui reste suit vraisemblablement du
+ * ravinement naturel plutôt que de vrais chemins — signature identique, et
+ * rien à part une coordonnée de sentier connu ne permet de trancher. Démasquer
+ * sans ce contrôle promettait plus que la chaîne ne rend, exactement l'écueil
+ * qui avait fait masquer les structures. Le drapeau se remet à `false` en une
+ * ligne dès qu'un chemin connu existe pour recalibrer.
  */
-const SENTIERS_MASQUES = false;
+const SENTIERS_MASQUES = true;
 
 // ── Retours à l'utilisateur ─────────────────────────────────────────────────
 
