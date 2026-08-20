@@ -110,6 +110,26 @@ seuls 4 tracés sur 110 en ont au moins un (max 1). Pas assez net pour justifier
 un seuil dur pour l'instant ; à surveiller si un terrain plus accidenté en
 produit davantage.
 
+**Piste testée et écartée : l'ouverture de Yokoyama comme signal d'entrée, à
+la place du relief local.** Sur une suggestion de remplacer le relief local
+(LRM) par une couche déjà validée ailleurs dans l'outil, essayé sur données
+réelles de Beille (hors dépôt, harnais jetable) : ouverture positive (le
+signe attendu pour un creux, par analogie avec « l'intérieur de l'enclos » du
+banc de `lignes.js`) et négative, à rayon standard (10 m) et resserré (3 m),
+seuil d'hystérésis standard et abaissé de moitié. Dans tous les cas la
+réponse reste diffuse plutôt que sélective — non nulle sur ~70 % de la dalle
+mais jamais franchement piquée — et produit beaucoup moins de matière que le
+relief local à réglages comparables : 69 chaînes brutes contre 997, 1 tracé
+retenu contre 76 même au seuil le plus permissif testé. Le rendu visuel des
+deux réponses se ressemble dans l'ensemble (même terrain sous-jacent) mais
+celle de l'ouverture est nettement moins contrastée, sans jamais dépasser le
+niveau où l'hystérésis peut trier. Hypothèse pour l'expliquer, non vérifiée
+plus avant : l'ouverture est déjà un lissage directionnel sur son rayon de
+balayage, quand le relief local est construit spécifiquement pour préserver
+le résidu fin après soustraction d'une tendance large — le second capture
+mieux une dépression étroite (0,6 à 4 m) que le premier. Le relief local
+reste donc le signal d'entrée, sans changement de code.
+
 **Repli acceptable avant publication :** marquer le volet Sentiers
 « expérimental », ou le retirer. Livrer une fonction qui promet et rend zéro est
 le pire des trois choix — l'utilisateur conclura que c'est *l'outil* qui est
