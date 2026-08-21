@@ -442,9 +442,36 @@ class Vue3D {
     const c = this.canvas;
     let glisse = null;
 
+    // Pincement à deux doigts : `wheel` ne se déclenche jamais pour un geste
+    // tactile réel — sans ce suivi, aucun zoom n'est possible au doigt. Un
+    // deuxième doigt qui touche par accident pendant un glissé (la paume, un
+    // pouce) est le cas courant à ne pas laisser corrompre le déplacement en
+    // cours : avant ce garde, un pointeur en trop remplaçait `glisse` par sa
+    // propre référence et son relâchement arrêtait tout le geste en cours,
+    // ce qui rendait le déplacement erratique dès qu'un second contact
+    // apparaissait — le mode courant sur un écran tactile.
+    const doigts = new Map();
+    let pince = null;
+
+    const milieu = () => {
+      const [a, b] = [...doigts.values()];
+      return { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 };
+    };
+    const ecart = () => {
+      const [a, b] = [...doigts.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+
     c.addEventListener('pointerdown', (e) => {
       this._arreterAnimation();
       c.setPointerCapture(e.pointerId);
+      doigts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (doigts.size >= 2) {
+        glisse = null;
+        pince = { distance: ecart(), point: this._pointSousCurseur(milieu()) };
+        return;
+      }
       glisse = {
         x: e.clientX, y: e.clientY,
         // Bouton principal : déplacement. Clic droit, bouton du milieu ou
@@ -455,6 +482,25 @@ class Vue3D {
     });
 
     c.addEventListener('pointermove', (e) => {
+      if (doigts.has(e.pointerId)) doigts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pince && doigts.size >= 2) {
+        const d = ecart();
+        if (pince.distance > 0) {
+          const ancienne = this.cam.distance;
+          this.cam.distance = Math.max(2, Math.min(6000, ancienne * (pince.distance / d)));
+          if (pince.point) {
+            const k = this.cam.distance / ancienne;
+            for (const i of [0, 2]) {
+              this.cam.cible[i] = pince.point[i] + (this.cam.cible[i] - pince.point[i]) * k;
+            }
+          }
+        }
+        pince.distance = d;
+        this.invalider();
+        return;
+      }
+
       if (!glisse) return;
       const dx = e.clientX - glisse.x;
       const dy = e.clientY - glisse.y;
@@ -473,8 +519,18 @@ class Vue3D {
     });
 
     const relacher = (e) => {
-      if (glisse) c.releasePointerCapture?.(e.pointerId);
-      glisse = null;
+      c.releasePointerCapture?.(e.pointerId);
+      doigts.delete(e.pointerId);
+      if (doigts.size < 2) pince = null;
+      if (doigts.size === 1) {
+        // Un doigt reste au sol : reprendre le glissé depuis sa position
+        // actuelle, pas depuis le point de départ d'origine — sinon la vue
+        // saute au relâchement du second doigt.
+        const [pos] = doigts.values();
+        glisse = { x: pos.x, y: pos.y, orbite: false };
+      } else if (doigts.size === 0) {
+        glisse = null;
+      }
     };
     c.addEventListener('pointerup', relacher);
     c.addEventListener('pointercancel', relacher);

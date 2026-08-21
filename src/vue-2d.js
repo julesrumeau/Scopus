@@ -195,13 +195,58 @@ class Vue2D {
     // chaque déplacement finissant sur une boîte sélectionnerait la détection.
     let depart = null;
 
+    // Pincement à deux doigts : `wheel` ne se déclenche jamais pour un geste
+    // tactile réel (seul le pinch de pavé tactile passe par là, en `wheel` +
+    // `ctrlKey`) — sans ce suivi, aucun zoom n'est possible au doigt. Un
+    // deuxième doigt qui touche par accident pendant un glissé (la paume, un
+    // pouce) est le cas courant à ne pas laisser corrompre le déplacement en
+    // cours, d'où le passage explicite en mode pincement dès deux pointeurs.
+    const doigts = new Map();
+    let pince = null;
+    let pinceUtilisee = false;
+
+    const milieu = () => {
+      const [a, b] = [...doigts.values()];
+      return { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 };
+    };
+    const ecart = () => {
+      const [a, b] = [...doigts.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+
     c.addEventListener('pointerdown', (e) => {
       c.setPointerCapture(e.pointerId);
+      doigts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (doigts.size >= 2) {
+        glisse = null;
+        pinceUtilisee = true;
+        pince = { distance: ecart(), lambert: this._lambertSousCurseur(milieu()) };
+        return;
+      }
       glisse = this._lambertSousCurseur(e);
       depart = [e.clientX, e.clientY];
     });
 
     c.addEventListener('pointermove', (e) => {
+      if (doigts.has(e.pointerId)) doigts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pince && doigts.size >= 2) {
+        const d = ecart();
+        if (pince.distance > 0) {
+          const ancienne = this.echelle;
+          this.echelle = Math.max(0.02, Math.min(8, ancienne * (pince.distance / d)));
+          if (pince.lambert) {
+            const k = this.echelle / ancienne;
+            this.centre[0] = pince.lambert[0] + (this.centre[0] - pince.lambert[0]) * k;
+            this.centre[1] = pince.lambert[1] + (this.centre[1] - pince.lambert[1]) * k;
+          }
+        }
+        pince.distance = d;
+        this.invalider();
+        return;
+      }
+
       const p = this._lambertSousCurseur(e);
       if (glisse && p) {
         // Déplacement mesuré par différence de points visés, comme en 3D : la
@@ -215,8 +260,18 @@ class Vue2D {
     });
 
     const relacher = (e) => {
-      if (glisse) c.releasePointerCapture?.(e.pointerId);
-      glisse = null;
+      c.releasePointerCapture?.(e.pointerId);
+      doigts.delete(e.pointerId);
+      if (doigts.size < 2) pince = null;
+      if (doigts.size === 1) {
+        // Un doigt reste au sol : reprendre le glissé depuis sa position
+        // actuelle, pas depuis le point de départ d'origine — sinon la vue
+        // saute au relâchement du second doigt.
+        const [pos] = doigts.values();
+        glisse = this._lambertSousCurseur({ clientX: pos.x, clientY: pos.y });
+      } else if (doigts.size === 0) {
+        glisse = null;
+      }
     };
     c.addEventListener('pointerup', relacher);
     c.addEventListener('pointercancel', relacher);
@@ -238,7 +293,9 @@ class Vue2D {
     }, { passive: false });
 
     c.addEventListener('click', (e) => {
-      const bouge = depart && Math.hypot(e.clientX - depart[0], e.clientY - depart[1]) > 4;
+      const bouge = pinceUtilisee ||
+        (depart && Math.hypot(e.clientX - depart[0], e.clientY - depart[1]) > 4);
+      pinceUtilisee = false;
       depart = null;
       const p = this._lambertSousCurseur(e);
       if (bouge || !p || !this.cb.surClic) return;
