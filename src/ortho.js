@@ -131,9 +131,14 @@ function empriseTuiles(m) {
  * Les tuiles passent par `RESEAU.recuperer`, comme tout le reste : file bornée,
  * réessais, et le 400 fantôme de la passerelle traité comme transitoire. Leaflet
  * ne passe pas par là, ce qui est précisément la raison de son `updateWhenIdle`.
+ *
+ * `fond` choisit la couche WMTS (`CONFIG.ign.fonds`) — `'ortho'` (photo
+ * aérienne, JPEG) ou `'plan'` (Plan IGN v2, PNG). Même pipeline pour les
+ * deux : ce n'est qu'une image de plus à redresser dans la grille, le format
+ * seul diffère, lu dans la config plutôt que supposé.
  */
 async function charger(emprise, pas, W, H, opts = {}) {
-  const { signal, surProgres, zMax = 19 } = opts;
+  const { signal, surProgres, zMax = 19, fond = 'ortho' } = opts;
   const t0 = performance.now();
   const centre = PROJ.versWGS84((emprise.xmin + emprise.xmax) / 2, (emprise.ymin + emprise.ymax) / 2);
   const z = zoomPour(pas, centre.lat, zMax);
@@ -144,7 +149,8 @@ async function charger(emprise, pas, W, H, opts = {}) {
   const ty0 = Math.floor(b.ymin / TUILE), ty1 = Math.floor(b.ymax / TUILE);
   const ntx = tx1 - tx0 + 1, nty = ty1 - ty0 + 1;
 
-  const gabarit = IGN.gabaritWMTS('ortho');
+  const gabarit = IGN.gabaritWMTS(fond);
+  const mime = CONFIG.ign.fonds[fond].format;
   const total = ntx * nty;
   let faites = 0, manquantes = 0;
 
@@ -160,7 +166,7 @@ async function charger(emprise, pas, W, H, opts = {}) {
       demandes.push((async () => {
         try {
           const octets = await RESEAU.recuperer(url, { signal });
-          const image = await createImageBitmap(new Blob([octets], { type: 'image/jpeg' }));
+          const image = await createImageBitmap(new Blob([octets], { type: mime }));
           ctx.drawImage(image, (tx - tx0) * TUILE, (ty - ty0) * TUILE);
           image.close?.();
         } catch (e) {

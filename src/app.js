@@ -166,7 +166,7 @@ const vue2d = new Vue2D($('canvas-2d'), {
   },
   // Mode sélection : `p` est déjà résolu par `lire()`, la même valeur que le
   // survol affiche dans le HUD.
-  surSelectionPoint: (p) => { if (p) afficherSelection(p.x, p.y, p.altitude); },
+  surSelectionPoint: (p) => { if (p) afficherSelection(p.x, p.y, p.altitude, p.hauteur); },
 });
 vue2d.demarrer();
 
@@ -180,38 +180,51 @@ vue2d.demarrer();
 // affiché — `etat.reliefGrille`, déjà calculé pour l'onglet 2D.
 
 function definirModeInteraction(mode) {
-  vue2d.modeSelection = mode === 'selection';
-  if (vue3d) vue3d.modeSelection = mode === 'selection';
+  vue2d.mode = mode;
+  if (vue3d) vue3d.mode = mode;
   $('mode-deplacement').classList.toggle('actif', mode === 'deplacement');
   $('mode-selection').classList.toggle('actif', mode === 'selection');
+  $('mode-mesure').classList.toggle('actif', mode === 'mesure');
   // La flèche plutôt que la main : un curseur qui dit « cliquer un point »
   // plutôt que « glisser pour déplacer ». Une classe, pas un style en ligne —
   // un style en ligne l'emporterait aussi sur `:active { cursor: grabbing }`
-  // pendant un glissé effectif, ce qui casserait le déplacement en sélection.
-  $('canvas-2d').classList.toggle('mode-selection', mode === 'selection');
-  $('canvas3d').classList.toggle('mode-selection', mode === 'selection');
+  // pendant un glissé effectif, ce qui casserait le déplacement en sélection
+  // comme en mesure.
+  $('canvas-2d').classList.toggle('mode-vise', mode !== 'deplacement');
+  $('canvas3d').classList.toggle('mode-vise', mode !== 'deplacement');
 }
 $('mode-deplacement').addEventListener('click', () => definirModeInteraction('deplacement'));
 $('mode-selection').addEventListener('click', () => definirModeInteraction('selection'));
+$('mode-mesure').addEventListener('click', () => definirModeInteraction('mesure'));
 
 // Coordonnées du point actuellement affiché — lues par les liens « Ouvrir
 // dans » au clic, pas mémorisées dans `etat` : rien d'autre n'en a besoin.
 let selectionActuelle = null;
 
-function afficherSelection(x, y, altitude) {
+/**
+ * @param {number} x Lambert-93
+ * @param {number} y Lambert-93
+ * @param {?number} sol altitude du sol comblé, ou `null` si inconnue
+ * @param {number} [hauteur] sursol au-dessus de ce sol (bâtiment, ruine…), 0 si aucun
+ */
+function afficherSelection(x, y, sol, hauteur = 0) {
   const { lon, lat } = PROJ.versWGS84(x, y);
-  selectionActuelle = { lon, lat, altitude };
+  // Le sommet est ce qui a été visé — un toit s'il y en a un à cet endroit,
+  // le sol sinon — donc c'est lui qui porte le marqueur, pas le sol seul.
+  const sommetPoint = MESURE.sommet({ sol, hauteur });
+  selectionActuelle = { lon, lat, sol, hauteur, sommet: sommetPoint };
   $('selection-vide').hidden = true;
   $('detail-selection').hidden = false;
   $('detail-selection').innerHTML = ligneDetail('Longitude', `${lon.toFixed(6)}°`)
     + ligneDetail('Latitude', `${lat.toFixed(6)}°`)
-    + ligneDetail('Altitude', altitude == null ? '—' : `${altitude.toFixed(1)} m`);
+    + ligneDetail('Altitude', sommetPoint == null ? '—' : `${sommetPoint.toFixed(1)} m`)
+    + (hauteur > 0.05 ? ligneDetail('Hauteur au-dessus du sol', `+${hauteur.toFixed(2)} m`) : '');
   $('selection-liens').hidden = false;
 
   // Même point dans les deux vues : sélectionner en 2D puis passer en 3D (ou
   // l'inverse) doit retrouver le marqueur au même endroit, pas le perdre.
   vue2d.definirPointSelectionne([x, y]);
-  vue3d?.definirPointSelectionne({ x, y, altitude });
+  vue3d?.definirPointSelectionne({ x, y, altitude: sommetPoint });
 }
 
 function effacerSelection() {
@@ -252,7 +265,7 @@ function chercherPoint() {
 
   const lambert = PROJ.versLambert93(p.lon, p.lat);
   const t = etat.reliefGrille;
-  let altitude = null;
+  let altitude = null, hauteur = 0;
   if (t) {
     const cx = Math.floor((lambert.x - t.emprise.xmin) / t.pas);
     const cy = Math.floor((lambert.y - t.emprise.ymin) / t.pas);
@@ -260,12 +273,13 @@ function chercherPoint() {
       alerter('Ce point est en dehors de la dalle chargée.');
       return;
     }
-    if (t.valide[cy * t.W + cx]) altitude = t.mnt[cy * t.W + cx] + t.origine[2];
+    const i = cy * t.W + cx;
+    if (t.valide[i]) { altitude = t.mnt[i] + t.origine[2]; hauteur = t.hauteur[i]; }
   }
 
-  afficherSelection(lambert.x, lambert.y, altitude);
+  afficherSelection(lambert.x, lambert.y, altitude, hauteur);
   vue2d.viser(lambert.x, lambert.y);
-  if (altitude != null) vue3d?.centrerSur(lambert.x, lambert.y, altitude);
+  if (altitude != null) vue3d?.centrerSur(lambert.x, lambert.y, altitude + hauteur);
 }
 $('btn-recherche-point').addEventListener('click', chercherPoint);
 $('recherche-point').addEventListener('keydown', (e) => {
@@ -279,7 +293,84 @@ if (vue3d) {
   vue3d.onSelectionPoint = (rayon) => {
     const pt = TERRAIN.pointDuTerrain(rayon, etat.reliefGrille, CONFIG.rendu.exagerationZ, vue3d.zmin);
     if (!pt) { statut('Aucun terrain sous ce point — visez le nuage', 'erreur'); return; }
-    afficherSelection(pt.x, pt.y, pt.altitude);
+    afficherSelection(pt.x, pt.y, pt.sol, pt.hauteur);
+  };
+}
+
+// ── Mesure entre deux points ─────────────────────────────────────────────────
+//
+// Même mécanique que la sélection : un clic en mode Mesure vise un point, via
+// `lire()` en 2D et `TERRAIN.pointDuTerrain` en 3D. Le premier clic pose le
+// point A, le second pose B et calcule les distances ; un troisième clic
+// repart à zéro avec un nouveau point A plutôt que d'empiler un tracé — on
+// mesure entre deux points, pas un chemin.
+
+let mesureA = null;   // { x, y, sol, hauteur } Lambert-93 absolu, ou null
+let mesureB = null;
+
+function afficherMesure() {
+  const versVue3D = (p) => (p && MESURE.sommet(p) != null ? { x: p.x, y: p.y, altitude: MESURE.sommet(p) } : null);
+  vue2d.definirMesure(mesureA ? [mesureA.x, mesureA.y] : null, mesureB ? [mesureB.x, mesureB.y] : null);
+  vue3d?.definirMesure(versVue3D(mesureA), versVue3D(mesureB));
+
+  if (!mesureA) {
+    $('mesure-vide').hidden = false;
+    $('detail-mesure').hidden = true;
+    $('mesure-actions').hidden = true;
+    return;
+  }
+  $('mesure-vide').hidden = true;
+  $('mesure-actions').hidden = false;
+
+  const ligne = (p) => {
+    const { lon, lat } = PROJ.versWGS84(p.x, p.y);
+    const s = MESURE.sommet(p);
+    return `${lat.toFixed(6)}°, ${lon.toFixed(6)}° · ${s == null ? 'sol inconnu' : `${s.toFixed(1)} m`}`
+      + (p.hauteur > 0.05 ? ` (dont +${p.hauteur.toFixed(2)} m de sursol)` : '');
+  };
+
+  let html = ligneDetail('Point A', ligne(mesureA));
+  if (!mesureB) {
+    html += ligneDetail('Point B', 'cliquez un second point');
+    $('detail-mesure').innerHTML = html;
+    $('detail-mesure').hidden = false;
+    return;
+  }
+
+  const { horizontale, denivele, totale } = MESURE.distances(mesureA, mesureB);
+
+  html += ligneDetail('Point B', ligne(mesureB));
+  html += ligneDetail('Distance horizontale', `${horizontale.toFixed(1)} m`);
+  html += ligneDetail('Dénivelé', denivele == null
+    ? 'sol inconnu sur l’un des deux points'
+    : `${denivele >= 0 ? '+' : ''}${denivele.toFixed(1)} m`);
+  html += ligneDetail('Distance totale', totale == null ? '—' : `${totale.toFixed(1)} m`);
+  $('detail-mesure').innerHTML = html;
+  $('detail-mesure').hidden = false;
+}
+
+function ajouterPointMesure(x, y, sol, hauteur = 0) {
+  // Les deux points déjà posés : le clic suivant en recommence une, plutôt
+  // que d'empiler un troisième point que rien n'afficherait.
+  if (mesureA && mesureB) { mesureA = null; mesureB = null; }
+  if (!mesureA) mesureA = { x, y, sol, hauteur }; else mesureB = { x, y, sol, hauteur };
+  afficherMesure();
+}
+
+function effacerMesure() {
+  mesureA = null;
+  mesureB = null;
+  afficherMesure();
+}
+
+$('btn-mesure-effacer').addEventListener('click', effacerMesure);
+
+vue2d.cb.surPointMesure = (p) => { if (p) ajouterPointMesure(p.x, p.y, p.altitude, p.hauteur); };
+if (vue3d) {
+  vue3d.onPointMesure = (rayon) => {
+    const pt = TERRAIN.pointDuTerrain(rayon, etat.reliefGrille, CONFIG.rendu.exagerationZ, vue3d.zmin);
+    if (!pt) { statut('Aucun terrain sous ce point — visez le nuage', 'erreur'); return; }
+    ajouterPointMesure(pt.x, pt.y, pt.sol, pt.hauteur);
   };
 }
 
@@ -633,8 +724,10 @@ $('btn-charger').addEventListener('click', async () => {
     $('stats-detection').hidden = true;
     $('bloc-resultats').hidden = true;
     carte.afficherDetections([], selectionner_);
-    // Un point sélectionné sur l'ancienne dalle n'a plus de sens ici.
+    // Un point sélectionné ou une mesure sur l'ancienne dalle n'a plus de
+    // sens ici.
     effacerSelection();
+    effacerMesure();
 
     // On bascule AVANT l'analyse, pas après : le voile se poserait sinon sur la
     // carte, qui n'a rien à voir avec ce qui se calcule et qui charge par
@@ -644,6 +737,7 @@ $('btn-charger').addEventListener('click', async () => {
     $('section-affichage').hidden = false;
     $('section-analyse').hidden = ANALYSE_MASQUEE && SENTIERS_MASQUES;
     $('section-selection').hidden = false;
+    $('section-mesure').hidden = false;
     // Le nuage est le résultat le plus spectaculaire, mais ce n'est pas celui
     // qu'on vient chercher : un objet de six mètres ne se voit pas dans un
     // kilomètre carré de points. La 2D est la vue d'arrivée.
@@ -777,6 +871,8 @@ function fermerNuage() {
   $('section-vide-3d').hidden = false;
   $('section-selection').hidden = true;
   effacerSelection();
+  $('section-mesure').hidden = true;
+  effacerMesure();
   $('liste').innerHTML = '';
   $('liste-sentiers').innerHTML = '';
   $('compte').textContent = '';
@@ -807,13 +903,22 @@ $('btn-fermer-nuage').addEventListener('click', fermerNuage);
 // elle se lit sur les mêmes cellules que le relief, et le rideau tombe au pixel.
 
 const PHOTO = 'photo';
+const PLAN = 'plan';
+// Les deux valent 'ortho'/'plan' côté service IGN (`CONFIG.ign.fonds`) — les
+// clés ici sont celles du sélecteur, `ortho.js` fait la correspondance.
+const FONDS = { [PHOTO]: 'ortho', [PLAN]: 'plan' };
 
-/** Ce que les deux listes proposent : la photo, puis les couches de relief. */
+/** Ce que les deux listes proposent : les fonds WMTS, puis les couches de relief. */
 const CHOIX_2D = [
   {
     cle: PHOTO,
     libelle: 'Photo aérienne',
     aide: 'Orthophoto de l’IGN, redressée dans la grille Lambert-93. C’est le contexte : ce qu’on verrait en survolant.',
+  },
+  {
+    cle: PLAN,
+    libelle: 'Plan IGN',
+    aide: 'Carte IGN — routes, toponymes, courbes de niveau — redressée dans la grille comme la photo. Plus lisible pour se repérer que la photo aérienne là où le couvert végétal cache tout.',
   },
   ...RELIEF.COUCHES.map((c) => ({ cle: c.cle, libelle: c.libelle, aide: c.aide })),
 ];
@@ -836,22 +941,25 @@ let contrasteRelief = CONFIG.relief.contraste;
  * définit la validité de ce qui est dedans.
  */
 const couches2DCalculees = new Map();
-let photoChargee = null;
-let photoEnCours = null;
-let chargementPhoto = null;
+// Un fond (photo ou plan) par entrée, chacun avec son résultat, sa promesse en
+// cours et son contrôleur d'annulation — la photo et le plan peuvent être
+// demandés en même temps si les deux côtés du rideau les choisissent.
+const fondsCharges = new Map();
+const fondsEnCours = new Map();
+const fondsAbort = new Map();
 
-/** Les couches calculées seulement : la photo ne dépend pas de la surface. */
+/** Les couches calculées seulement : les fonds ne dépendent pas de la surface. */
 function viderCouches2D() {
   couches2DCalculees.clear();
 }
 
-/** Tout, photo comprise : à réserver au changement de dalle. */
+/** Tout, fonds compris : à réserver au changement de dalle. */
 function viderCache2D() {
   viderCouches2D();
-  photoChargee = null;
-  photoEnCours = null;
-  chargementPhoto?.abort();
-  chargementPhoto = null;
+  fondsCharges.clear();
+  fondsEnCours.clear();
+  for (const controleur of fondsAbort.values()) controleur.abort();
+  fondsAbort.clear();
 }
 
 for (const cote of ['gauche', 'droite']) {
@@ -859,6 +967,49 @@ for (const cote of ['gauche', 'droite']) {
     `<option value="${c.cle}">${echapper(c.libelle)}</option>`).join('');
   $(`couche-${cote}`).value = couches2D[cote];
   $(`couche-${cote}`).addEventListener('change', (e) => choisirCouche2D(cote, e.target.value));
+}
+
+/**
+ * Réglages du balayage d'horizons (directions, rayon) : propres au
+ * Sky-View Factor, affichés seulement quand cette couche est choisie d'un
+ * côté ou de l'autre — les autres couches n'en ont pas besoin, les montrer
+ * tout le temps encombrerait le panneau pour rien.
+ */
+function majVisibiliteReglagesSVF() {
+  $('svf-reglages').hidden = couches2D.gauche !== 'svf' && couches2D.droite !== 'svf';
+}
+majVisibiliteReglagesSVF();
+
+$('svf-directions').value = CONFIG.relief.svfDirections;
+$('val-svf-directions').textContent = CONFIG.relief.svfDirections;
+$('svf-rayon').value = CONFIG.relief.svfRayonM;
+$('val-svf-rayon').textContent = `${CONFIG.relief.svfRayonM} m`;
+
+// Coût linéaire au nombre de directions et au rayon (`balayerHorizons`), donc
+// on ne recalcule qu'au relâchement (`change`), pas à chaque cran glissé
+// (`input`, qui ne fait que rafraîchir le chiffre affiché) — recalculer à
+// chaque cran ferait tourner un balayage de plusieurs secondes en boucle
+// pendant le glissé.
+$('svf-directions').addEventListener('input', (e) => {
+  $('val-svf-directions').textContent = e.target.value;
+});
+$('svf-directions').addEventListener('change', async (e) => {
+  CONFIG.relief.svfDirections = Number(e.target.value);
+  await recalculerSVF();
+});
+$('svf-rayon').addEventListener('input', (e) => {
+  $('val-svf-rayon').textContent = `${e.target.value} m`;
+});
+$('svf-rayon').addEventListener('change', async (e) => {
+  CONFIG.relief.svfRayonM = Number(e.target.value);
+  await recalculerSVF();
+});
+
+/** Le SVF partage son balayage avec les deux ouvertures : on vide tout le cache. */
+async function recalculerSVF() {
+  viderCouches2D();
+  await appliquerCote('gauche');
+  await appliquerCote('droite');
 }
 
 $('btn-echanger').addEventListener('click', async () => {
@@ -952,6 +1103,7 @@ async function choisirCouche2D(cote, cle) {
   couches2D[cote] = cle;
   $(`couche-${cote}`).value = cle;
   $('relief-aide').textContent = def2D(cle).aide;
+  majVisibiliteReglagesSVF();
   await appliquerCote(cote);
 }
 
@@ -966,7 +1118,7 @@ async function appliquerCote(cote) {
   if (!etat.reliefGrille) return;
 
   try {
-    const source = cle === PHOTO ? await sourcePhoto() : await sourceCouche(cle);
+    const source = (cle === PHOTO || cle === PLAN) ? await sourceFond(cle) : await sourceCouche(cle);
     // Le sélecteur a pu rebouger pendant le calcul : on ne pose que ce qui est
     // encore demandé, sans quoi une couche lente écraserait la couche rapide
     // choisie entre-temps.
@@ -1004,39 +1156,43 @@ async function sourceCouche(cle) {
 }
 
 /**
- * Photo aérienne de la dalle, redressée dans la grille.
+ * Fond WMTS de la dalle (photo aérienne ou Plan IGN), redressé dans la grille.
  *
  * Une centaine de tuiles passent par la file bornée de `reseau.js` — jamais par
  * Leaflet, qui n'y passe pas et sature la connexion HTTP/2 partagée. Le résultat
  * est gardé pour la dalle : on ne repaie pas cent requêtes parce qu'on a bougé
- * un sélecteur.
+ * un sélecteur. Photo et plan sont mis en cache séparément — les deux peuvent
+ * être demandés à la fois si chaque côté du rideau choisit l'un des deux.
  */
-async function sourcePhoto() {
-  if (!photoChargee) {
-    // La promesse en cours est partagée : les deux côtés peuvent demander la
-    // photo, et deux chargements simultanés feraient deux cents requêtes pour
-    // la même image.
-    if (!photoEnCours) {
+async function sourceFond(cle) {
+  if (!fondsCharges.has(cle)) {
+    // La promesse en cours est partagée : les deux côtés peuvent demander le
+    // même fond, et deux chargements simultanés feraient deux cents requêtes
+    // pour la même image.
+    if (!fondsEnCours.has(cle)) {
       const t = etat.reliefGrille;
-      chargementPhoto = new AbortController();
-      const signal = chargementPhoto.signal;
-      photoEnCours = ATTENTE.pendant('Photo aérienne', (etape) =>
+      const controleur = new AbortController();
+      fondsAbort.set(cle, controleur);
+      const promesse = ATTENTE.pendant(def2D(cle).libelle, (etape) =>
         ORTHO.charger(t.emprise, t.pas, t.W, t.H, {
-          signal,
+          fond: FONDS[cle],
+          signal: controleur.signal,
           surProgres: (faites, total) => {
             if (faites % 5 === 0 || faites === total) etape(null, `${faites} / ${total} tuiles`);
           },
         }), 'tuiles WMTS de l’IGN');
+      fondsEnCours.set(cle, promesse);
       // Un échec ne doit pas laisser une promesse rejetée en cache : la
       // prochaine tentative doit repartir de zéro.
-      photoEnCours.catch(() => { photoEnCours = null; });
+      promesse.catch(() => { fondsEnCours.delete(cle); });
     }
-    photoChargee = await photoEnCours;
-    if (photoChargee.manquantes) {
-      statut(`Photo aérienne : ${photoChargee.manquantes} tuile(s) manquante(s)`, 'erreur');
+    const resultat = await fondsEnCours.get(cle);
+    fondsCharges.set(cle, resultat);
+    if (resultat.manquantes) {
+      statut(`${def2D(cle).libelle} : ${resultat.manquantes} tuile(s) manquante(s)`, 'erreur');
     }
   }
-  return { type: 'photo', rgba: photoChargee.rgba, libelle: 'Photo aérienne' };
+  return { type: 'photo', rgba: fondsCharges.get(cle).rgba, libelle: def2D(cle).libelle };
 }
 
 /**
@@ -1073,9 +1229,9 @@ function majStats2D() {
     lignes.push(`${cote} : étalement <b>${min.toFixed(2)}</b> à <b>${max.toFixed(2)}</b>`
       + ` · calcul <b>${c.duree.toFixed(0)} ms</b>`);
   }
-  if (photoChargee) {
-    lignes.push(`photo : niveau <b>${photoChargee.zoom}</b> · ${photoChargee.tuiles} tuiles`
-      + ` · <b>${(photoChargee.duree / 1000).toFixed(1)} s</b>`);
+  for (const [cle, fond] of fondsCharges) {
+    lignes.push(`${def2D(cle).libelle.toLowerCase()} : niveau <b>${fond.zoom}</b> · ${fond.tuiles} tuiles`
+      + ` · <b>${(fond.duree / 1000).toFixed(1)} s</b>`);
   }
   $('relief-stats').hidden = false;
   $('relief-stats').innerHTML = lignes.join('<br>');

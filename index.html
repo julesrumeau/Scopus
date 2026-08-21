@@ -192,6 +192,20 @@
       </div>
     </section>
 
+    <!-- ─── 2D et 3D : mesure entre deux points ───────────────────────────
+         Même principe que « Point sélectionné » ci-dessus : commune aux deux
+         onglets, placée avant « Affichage » pour garder la même position dans
+         les deux (voir le commentaire de section-selection). -->
+    <section class="etape" data-vue="2d 3d" id="section-mesure" hidden>
+      <h2>Mesure</h2>
+      <p class="vide" id="mesure-vide">Passez en mode <b>Mesure</b> ci-dessus,
+        puis cliquez deux points pour la distance entre eux.</p>
+      <dl class="detail" id="detail-mesure" hidden></dl>
+      <div class="rangee" id="mesure-actions" hidden>
+        <button id="btn-mesure-effacer" class="secondaire">Effacer</button>
+      </div>
+    </section>
+
     <!-- ─── 3D : rendu du nuage ──────────────────────────────────────────── -->
     <section class="etape" data-vue="3d" id="section-affichage" hidden>
       <h2>Affichage</h2>
@@ -335,6 +349,29 @@
           <button id="btn-rideau-centre" class="secondaire" title="Remettre le rideau au milieu">Rideau au centre</button>
         </div>
         <p class="note" id="relief-aide"></p>
+        <!-- Réglages du balayage d'horizons, propres au Sky-View Factor : ne
+             s'affichent que si cette couche est choisie d'un côté ou de l'autre,
+             pour ne pas encombrer le panneau des couches qui n'en ont pas besoin. -->
+        <div id="svf-reglages" hidden>
+          <label class="champ">
+            <span>
+              <span class="libelle-aide">Directions Sky-View Factor
+                <button type="button" class="aide-info" title="Nombre de directions balayées pour estimer l’horizon de chaque cellule. En augmenter lisse les formes rondes et atténue les artefacts autour des trous de données, sans changer la finesse spatiale — celle-là dépend de la grille, pas de ce réglage. Coût linéaire : doubler les directions double le temps de calcul.">?</button>
+              </span>
+              <b id="val-svf-directions">8</b>
+            </span>
+            <input type="range" id="svf-directions" min="4" max="24" step="1" value="8">
+          </label>
+          <label class="champ">
+            <span>
+              <span class="libelle-aide">Rayon Sky-View Factor
+                <button type="button" class="aide-info" title="Distance balayée pour chercher l’horizon. Un rayon court isole les petites structures (plus de contraste local) mais ignore le relief plus lointain qui bloquerait réellement une part du ciel — la part visible peut alors être surestimée près d’une vraie pente. Un rayon long est plus fidèle au relief réel mais dilue les petites structures, coûte plus cher, et élargit la marge de bord invalide autour de la dalle (exactement égale à ce rayon).">?</button>
+              </span>
+              <b id="val-svf-rayon">10 m</b>
+            </span>
+            <input type="range" id="svf-rayon" min="3" max="30" step="1" value="10">
+          </label>
+        </div>
         <!-- Une ruine est opaque au laser : elle ne laisse aucun retour sol, le
              comblement met une surface lisse à sa place, et elle s'efface de la
              couche même où on la cherche. Cette case remet la mesure. -->
@@ -383,8 +420,8 @@
       <span class="aide" id="aide-vue">Cliquez dans une zone bleue pour choisir une dalle</span>
     </nav>
     <!-- Sous-barre commune à la 2D et à la 3D : masquée sur la carte, où « cliquer
-         un point » n'a pas de sens. Déplacement par défaut ; en sélection, le clic
-         vise un point plutôt que la vue elle-même. -->
+         un point » n'a pas de sens. Déplacement par défaut ; en sélection ou en
+         mesure, le clic vise un point plutôt que déplacer la vue elle-même. -->
     <nav class="onglets" id="barre-mode" hidden>
       <button id="mode-deplacement" class="btn-mode actif" title="Déplacement : glisser pour naviguer"
               aria-label="Déplacement">
@@ -401,6 +438,17 @@
               aria-label="Sélection">
         <svg class="icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <polygon points="5,3 5,17.5 8.6,14 11,20 13.2,19 10.8,13.5 16,13.5"/>
+        </svg>
+      </button>
+      <button id="mode-mesure" class="btn-mode" title="Mesure : cliquez deux points pour la distance entre eux"
+              aria-label="Mesure">
+        <svg class="icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <g transform="rotate(-45 12 12)">
+            <rect x="3" y="9.5" width="18" height="5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            <line x1="7" y1="9.5" x2="7" y2="12" stroke="currentColor" stroke-width="1.3"/>
+            <line x1="11" y1="9.5" x2="11" y2="13" stroke="currentColor" stroke-width="1.3"/>
+            <line x1="15" y1="9.5" x2="15" y2="12" stroke="currentColor" stroke-width="1.3"/>
+          </g>
         </svg>
       </button>
     </nav>
@@ -475,6 +523,7 @@
 <script src="src/boussole.js"></script>
 <script src="src/vue3d.js"></script>
 <script src="src/terrain.js"></script>
+<script src="src/mesure.js"></script>
 <script src="src/vue-2d.js"></script>
 <script src="src/carte.js"></script>
 <script src="src/app.js"></script>

@@ -125,13 +125,13 @@ html, body {
 .vue { flex: 1; min-height: 0; position: relative; }
 #vue-carte { background: #0e1116; }
 #canvas3d, #canvas-2d { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
-/* Mode Sélection : la flèche plutôt que la main, pour dire « cliquer un point »
-   plutôt que « glisser pour déplacer ». Déclarée avant `:active` et à
-   spécificité égale (id + classe contre id + pseudo-classe) : la règle qui
+/* Mode Sélection ou Mesure : la flèche plutôt que la main, pour dire « cliquer
+   un point » plutôt que « glisser pour déplacer ». Déclarée avant `:active` et
+   à spécificité égale (id + classe contre id + pseudo-classe) : la règle qui
    suit l'emporte à égalité, donc `:active` garde le dernier mot pendant un
-   glissé effectif — le geste de glisser continue toujours de déplacer, en
-   sélection comme ailleurs, seul le curseur au repos change. */
-#canvas3d.mode-selection, #canvas-2d.mode-selection { cursor: default; }
+   glissé effectif — le geste de glisser continue toujours de déplacer, quel
+   que soit le mode, seul le curseur au repos change. */
+#canvas3d.mode-vise, #canvas-2d.mode-vise { cursor: default; }
 #canvas3d:active, #canvas-2d:active { cursor: grabbing; }
 
 .onglets {
@@ -330,6 +330,26 @@ button:disabled { opacity: 0.42; cursor: not-allowed; }
 .champ { display: block; margin-bottom: 11px; font-size: 12.5px; }
 .champ > span { display: flex; justify-content: space-between; color: var(--texte-2); margin-bottom: 4px; }
 .champ b { color: var(--texte); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* Petit « ? » d'infobulle à côté d'un intitulé de réglage — le détail vient de
+   l'attribut `title`, natif, sans rien à câbler. */
+.libelle-aide { display: inline-flex; align-items: center; gap: 4px; }
+.aide-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--bord);
+  background: var(--fond-3);
+  color: var(--texte-2);
+  font-size: 10px;
+  line-height: 1;
+  cursor: help;
+}
+.aide-info:hover { border-color: var(--accent); color: var(--texte); }
 
 /* La zone cliquable (`height`, sur l'élément lui-même) est volontairement plus
    haute que la piste visible (4 px, sur les pseudo-éléments de piste) : à la
