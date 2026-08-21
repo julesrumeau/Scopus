@@ -43,6 +43,23 @@ test('les shaders sont bien exposés et non tronqués', () => {
   }
 });
 
+test('la taille de point garde un plancher qui suit le réglage, pas une constante', () => {
+  // Régression du 21 août 2026 : un plancher fixe (`clamp(taille, 1.0, 24.0)`)
+  // annulait le curseur « Taille des points » dès qu'on s'éloigne — aux
+  // réglages par défaut, tout point à plus de 30-60 m de la caméra tombait
+  // déjà sous 1 px et s'y figeait, donc le curseur ne faisait plus rien sur
+  // une dalle entière (vue à plus d'un kilomètre, le cas courant). Ce test ne
+  // rejoue pas le rendu — GLSL ne s'exécute pas sous Node — mais vérifie que
+  // le plancher dépend bien de `u_taillePoint`, mécaniquement, comme les
+  // autres contrôles de ce fichier.
+  const { SHADERS } = chargerScripts(['shaders.js']);
+  const src = SHADERS.pointsVS;
+  assert.ok(!/clamp\(\s*taille\s*,\s*1\.0\s*,\s*24\.0\s*\)/.test(src),
+    'plancher fixe de retour : la taille des points redeviendrait insensible au réglage, loin de la caméra');
+  assert.match(src, /plancher\s*=\s*clamp\(\s*u_taillePoint/,
+    'le plancher doit dépendre de u_taillePoint, pas d’une constante');
+});
+
 test('aucun échantillonnage à LOD implicite en vertex shader', () => {
   const { SHADERS } = chargerScripts(['shaders.js']);
   for (const nom of ['pointsVS', 'lignesVS']) {

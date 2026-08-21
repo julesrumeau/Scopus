@@ -103,7 +103,14 @@ void main() {
   if (u_attenuation > 0.5) {
     taille = u_taillePoint * u_hauteurViewport / max(dist, 1.0) * 0.02;
   }
-  gl_PointSize = clamp(taille, 1.0, 24.0);
+  // Un plancher fixe à 1 px annulait le curseur dès qu'on s'éloigne : aux
+  // réglages par défaut, tout point à plus de 30-60 m de la caméra tombe déjà
+  // sous 1 px et s'y fige, donc le curseur ne fait plus rien sur une dalle
+  // entière (vue à plus d'un kilomètre) — précisément le cas signalé. Le
+  // plancher suit maintenant le réglage plutôt qu'une constante : loin, les
+  // points restent minuscules, mais le curseur y reste sensible.
+  float plancher = clamp(u_taillePoint * 0.3, 1.0, 6.0);
+  gl_PointSize = clamp(taille, plancher, 24.0);
 
   if (u_mode == 0)      v_couleur = rampeElevation((a_pos.z - u_zmin) / max(u_zref, 1.0));
   else if (u_mode == 1) v_couleur = pal.rgb;
