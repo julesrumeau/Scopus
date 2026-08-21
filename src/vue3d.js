@@ -31,11 +31,22 @@ class Vue3D {
     this.nbSommetsSel = 0;
     this.nbSommetsSentiers = 0;
     this.nbSommetsTraceSel = 0;
+    this.vaoPointSel = null;
+    this.bufPointSel = null;
+    this.nbSommetsPointSel = 0;
 
     // Caméra orbitale. Distance et cible en mètres, angles en radians.
     this.cam = { cible: [0, 0, 0], distance: 300, azimut: -Math.PI / 4, elevation: 0.6 };
     this.focus = null;
     this._animation = 0;
+
+    // Mode sélection : un clic vise un point (coordonnées) plutôt que de
+    // déplacer la vue — commutable depuis l'extérieur, partagé avec la vue 2D.
+    // `onSelectionPoint(rayon)` reçoit le rayon caméra du point cliqué ;
+    // trouver où il touche le terrain demande le MNT affiché, que cette classe
+    // ne connaît pas — c'est à l'appelant de faire la marche.
+    this.modeSelection = false;
+    this.onSelectionPoint = null;
 
     this.boussole = elementBoussole
       ? new Boussole(elementBoussole, (v) => this.orienterVers(v))
@@ -166,6 +177,7 @@ class Vue3D {
     this.nbSommetsSel = 0;
     this.nbSommetsSentiers = 0;
     this.nbSommetsTraceSel = 0;
+    this.nbSommetsPointSel = 0;
     this.focus = null;
     this._arreterAnimation();
     this.invalider();
@@ -208,6 +220,19 @@ class Vue3D {
   effacerFocus() { this.focus = null; this.invalider(); }
 
   /**
+   * Recentre la caméra sur un point donné, sans toucher à sa distance ni à
+   * son angle — contrairement à `viser`, qui cadre une détection. Sert à
+   * retrouver un point cherché par ses coordonnées (voir « Point
+   * sélectionné » dans app.js) sans le faire disparaître hors champ.
+   */
+  centrerSur(x, y, altitude) {
+    if (!this.nuage) return;
+    const o = this.nuage.origine;
+    this.cam.cible = [x - o[0], (altitude - o[2] - this.zmin) * CONFIG.rendu.exagerationZ, -(y - o[1])];
+    this.invalider();
+  }
+
+  /**
    * Masque des classifications. `masquees` est un itérable de numéros de classe.
    *
    * Le filtrage passe par l'alpha de la palette : une texture de 1 Ko réécrite,
@@ -235,6 +260,37 @@ class Vue3D {
 
   definirSelection(candidat, grille) {
     this.nbSommetsSel = candidat ? this._remplirBoites([candidat], grille, 'Sel') : 0;
+    this.invalider();
+  }
+
+  /**
+   * Marqueur du point choisi en mode Sélection (voir app.js) : une croix
+   * posée au-dessus du point, reliée au sol par un montant. Une croix plutôt
+   * qu'un point seul — un point n'a pas d'étendue à l'écran et disparaîtrait
+   * de profil selon l'angle de vue.
+   *
+   * `p` est en Lambert-93 absolu, comme partout ailleurs dans l'API publique
+   * (`viser`, `definirDetections`) ; la conversion vers le repère local du
+   * nuage se fait ici, une fois.
+   */
+  definirPointSelectionne(p) {
+    // L'altitude peut manquer (sol inconnu, sélectionné depuis la 2D) : sans
+    // elle le montant n'a pas de hauteur à viser, donc pas de marqueur plutôt
+    // qu'un marqueur planté à une hauteur inventée.
+    if (!p || !this.nuage || !Number.isFinite(p.altitude)) {
+      this.nbSommetsPointSel = 0;
+      this.invalider();
+      return;
+    }
+    const o = this.nuage.origine;
+    const lx = p.x - o[0], ly = p.y - o[1], lz = p.altitude - o[2];
+    const h = 1.5, r = 0.5;
+    const sommets = [
+      lx, ly, lz, lx, ly, lz + h,                    // montant, du sol à la croix
+      lx - r, ly, lz + h, lx + r, ly, lz + h,         // croix, est-ouest
+      lx, ly - r, lz + h, lx, ly + r, lz + h,         // croix, nord-sud
+    ];
+    this.nbSommetsPointSel = this._televerserLignes(sommets, 'PointSel');
     this.invalider();
   }
 
@@ -392,17 +448,16 @@ class Vue3D {
   }
 
   /**
-   * Point du plan horizontal passant par la cible, sous un pixel donné.
+   * Rayon caméra passant par un pixel donné, en repère local — le même que le
+   * nuage, `cam.cible` et `oeil`. Direction non unitaire, comme `_repere` la
+   * construit : ça ne gêne pas une intersection de plan (`_pointSousCurseur`),
+   * qui résout un paramètre sans se soucier de sa norme.
    *
-   * Ce plan sert de sol virtuel : il donne un point d'accroche stable pour
-   * saisir le terrain et pour zoomer là où pointe le curseur, sans avoir à
-   * relire le tampon de profondeur. À l'échelle où l'on inspecte une structure,
-   * il colle de près au relief réel.
-   *
-   * Renvoie `null` en visée rasante, quand le rayon devient parallèle au plan
-   * et que l'intersection part à l'infini.
+   * `rayonEcran` en fait une version publique et normalisée, pour qui a besoin
+   * d'une vraie distance le long du rayon — la sélection d'un point du MNT,
+   * qui marche le rayon par pas.
    */
-  _pointSousCurseur(ev) {
+  _rayonBrut(ev) {
     const r = this.canvas.getBoundingClientRect();
     // Canevas masqué ou pas encore dimensionné : sans ce garde, l'aspect vaut
     // 0/0 et la cible de la caméra part en NaN — définitivement, car plus aucun
@@ -418,6 +473,32 @@ class Vue3D {
 
     const dir = [0, 1, 2].map((i) =>
       avant[i] + droite[i] * ndcX * tan * aspect + haut[i] * ndcY * tan);
+    return { oeil, dir };
+  }
+
+  /** Rayon caméra normalisé passant par un pixel donné, en repère local. */
+  rayonEcran(ev) {
+    const rayon = this._rayonBrut(ev);
+    if (!rayon) return null;
+    const n = Math.hypot(...rayon.dir) || 1;
+    return { oeil: rayon.oeil, direction: rayon.dir.map((v) => v / n) };
+  }
+
+  /**
+   * Point du plan horizontal passant par la cible, sous un pixel donné.
+   *
+   * Ce plan sert de sol virtuel : il donne un point d'accroche stable pour
+   * saisir le terrain et pour zoomer là où pointe le curseur, sans avoir à
+   * relire le tampon de profondeur. À l'échelle où l'on inspecte une structure,
+   * il colle de près au relief réel.
+   *
+   * Renvoie `null` en visée rasante, quand le rayon devient parallèle au plan
+   * et que l'intersection part à l'infini.
+   */
+  _pointSousCurseur(ev) {
+    const rayon = this._rayonBrut(ev);
+    if (!rayon) return null;
+    const { oeil, dir } = rayon;
 
     if (Math.abs(dir[1]) < 1e-3) return null;
     const t = (this.cam.cible[1] - oeil[1]) / dir[1];
@@ -459,6 +540,13 @@ class Vue3D {
     const doigts = new Map();
     let pince = null;
 
+    // Point de départ en pixels, pour distinguer un clic d'un glissé — un
+    // clic en mode sélection vise un point, un glissé ne doit pas en viser un
+    // au relâchement. `pinceUtilisee` fait pareil pour un pincement à deux
+    // doigts qui se termine à un seul.
+    let depart = null;
+    let pinceUtilisee = false;
+
     const milieu = () => {
       const [a, b] = [...doigts.values()];
       return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
@@ -475,10 +563,13 @@ class Vue3D {
 
       if (doigts.size >= 2) {
         glisse = null;
+        depart = null;
+        pinceUtilisee = true;
         const m = milieu();
         pince = { distance: ecart(), cx: m.x, cy: m.y };
         return;
       }
+      depart = [e.clientX, e.clientY];
       glisse = {
         x: e.clientX, y: e.clientY,
         // Bouton principal : déplacement. Clic droit, bouton du milieu ou
@@ -571,6 +662,16 @@ class Vue3D {
       }
       this.invalider();
     }, { passive: false });
+
+    c.addEventListener('click', (e) => {
+      const bouge = pinceUtilisee ||
+        (depart && Math.hypot(e.clientX - depart[0], e.clientY - depart[1]) > 4);
+      pinceUtilisee = false;
+      depart = null;
+      if (bouge || !this.modeSelection) return;
+      const rayon = this.rayonEcran(e);
+      if (rayon) this.onSelectionPoint?.(rayon);
+    });
 
     // Double-clic : amener sous les yeux ce qu'on vient de repérer.
     c.addEventListener('dblclick', (e) => {
@@ -753,7 +854,8 @@ class Vue3D {
     // détection derrière une crête reste masquée, ce qui donne la bonne lecture
     // spatiale.
     const l = this.progLignes;
-    if (this.nbSommetsLignes || this.nbSommetsSel || this.nbSommetsSentiers || this.nbSommetsTraceSel) {
+    if (this.nbSommetsLignes || this.nbSommetsSel || this.nbSommetsSentiers
+      || this.nbSommetsTraceSel || this.nbSommetsPointSel) {
       gl.useProgram(l);
       gl.uniformMatrix4fv(l.u.u_vp, false, vp);
       gl.uniform1f(l.u.u_exagerationZ, CONFIG.rendu.exagerationZ);
@@ -780,6 +882,13 @@ class Vue3D {
       gl.uniform4f(l.u.u_couleur, 1.0, 1.0, 1.0, 1.0);
       gl.bindVertexArray(this.vaoTraceSel);
       gl.drawArrays(gl.LINES, 0, this.nbSommetsTraceSel);
+    }
+    // Magenta : la seule couleur du lot qui ne sert à rien d'autre dans cette
+    // vue, pour rester lisible quel que soit ce qu'il y a dessous.
+    if (this.nbSommetsPointSel) {
+      gl.uniform4f(l.u.u_couleur, 1.0, 0.25, 0.85, 1.0);
+      gl.bindVertexArray(this.vaoPointSel);
+      gl.drawArrays(gl.LINES, 0, this.nbSommetsPointSel);
     }
     gl.bindVertexArray(null);
   }

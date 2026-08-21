@@ -125,6 +125,13 @@ html, body {
 .vue { flex: 1; min-height: 0; position: relative; }
 #vue-carte { background: #0e1116; }
 #canvas3d, #canvas-2d { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+/* Mode Sélection : la flèche plutôt que la main, pour dire « cliquer un point »
+   plutôt que « glisser pour déplacer ». Déclarée avant `:active` et à
+   spécificité égale (id + classe contre id + pseudo-classe) : la règle qui
+   suit l'emporte à égalité, donc `:active` garde le dernier mot pendant un
+   glissé effectif — le geste de glisser continue toujours de déplacer, en
+   sélection comme ailleurs, seul le curseur au repos change. */
+#canvas3d.mode-selection, #canvas-2d.mode-selection { cursor: default; }
 #canvas3d:active, #canvas-2d:active { cursor: grabbing; }
 
 .onglets {
@@ -147,6 +154,21 @@ html, body {
 .onglets button.actif { background: var(--fond-3); color: var(--texte); border-color: var(--bord); }
 .aide { margin-left: auto; color: var(--texte-2); font-size: 11px; }
 
+/* Boutons à icône seule (sous-barre Déplacement/Sélection) : le nom passe en
+   infobulle (`title`) plutôt qu'en texte visible, deux mots étant de trop pour
+   une barre déjà partagée avec les onglets. `.onglets button` en spécificité
+   égale suffirait à fixer le padding, mais pas à annuler `width`/`height` —
+   d'où `.onglets button.btn-mode`, plus spécifique, pour tout regrouper. */
+.onglets button.btn-mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 30px;
+  padding: 0;
+}
+.btn-mode .icone { width: 16px; height: 16px; fill: currentColor; display: block; }
+
 /* ── Étapes ──────────────────────────────────────────────────────────────── */
 
 .etape { padding: 14px 16px; border-bottom: 1px solid var(--bord); }
@@ -168,10 +190,14 @@ html, body {
    La règle est écrite en négatif — « tout ce qui n'est pas de la vue courante »
    — et non paire par paire : avec deux vues, deux règles suffisaient ; avec
    trois, il en faudrait six, et l'ancienne paire laissait justement la section
-   du relief visible dans les deux autres onglets. */
-.panneau[data-vue="carte"] [data-vue]:not([data-vue="carte"]),
-.panneau[data-vue="2d"] [data-vue]:not([data-vue="2d"]),
-.panneau[data-vue="3d"] [data-vue]:not([data-vue="3d"]) { display: none; }
+   du relief visible dans les deux autres onglets.
+
+   `~=` plutôt que `=` : une section peut valoir pour plusieurs onglets à la
+   fois (`data-vue="2d 3d"`, la sélection d'un point) sans dupliquer son
+   balisage, chaque token de la liste étant comparé séparément. */
+.panneau[data-vue="carte"] [data-vue]:not([data-vue~="carte"]),
+.panneau[data-vue="2d"] [data-vue]:not([data-vue~="2d"]),
+.panneau[data-vue="3d"] [data-vue]:not([data-vue~="3d"]) { display: none; }
 
 /* Bandeau du nuage chargé. Collant en haut du panneau, qui est le seul
    conteneur défilant : il reste sous les yeux quelle que soit la position dans

@@ -121,20 +121,11 @@ function tousAnneaux(geom) {
 async function geocoder(texte, signal) {
   const brut = texte.trim();
 
-  const paire = /^\s*(-?\d+(?:[.,]\d+)?)\s*[,; ]\s*(-?\d+(?:[.,]\d+)?)\s*$/.exec(brut);
-  if (paire) {
-    const a = parseFloat(paire[1].replace(',', '.'));
-    const b = parseFloat(paire[2].replace(',', '.'));
-    // Au-delà de 180, ce ne peut plus être un angle : c'est du Lambert-93.
-    if (Math.abs(a) > 180 || Math.abs(b) > 180) {
-      const g = PROJ.versWGS84(a, b);
-      return [{ label: `Lambert-93 ${a} ${b}`, lon: g.lon, lat: g.lat }];
-    }
-    return [{ label: `${a}, ${b}`, lon: b, lat: a }];
-  }
+  const paire = PROJ.depuisTexte(brut);
+  if (paire) return [{ label: brut, lon: paire.lon, lat: paire.lat }];
 
-  const p = new URLSearchParams({ q: brut, limit: '6', index: 'address' });
-  const rep = await RESEAU.recuperer(`${CONFIG.ign.geocodage}?${p}`, { type: 'json', signal });
+  const params = new URLSearchParams({ q: brut, limit: '6', index: 'address' });
+  const rep = await RESEAU.recuperer(`${CONFIG.ign.geocodage}?${params}`, { type: 'json', signal });
   return (rep.features || []).map((f) => ({
     label: f.properties?.label || brut,
     lon: f.geometry.coordinates[0],

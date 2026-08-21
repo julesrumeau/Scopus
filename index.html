@@ -169,6 +169,29 @@
         une dalle, puis revenez ici.</p>
     </section>
 
+    <!-- ─── 2D et 3D : point sélectionné ──────────────────────────────────
+         Commun aux deux onglets (`data-vue="2d 3d"`) : le mode Sélection de la
+         sous-barre change ce que fait un clic dans les deux vues à la fois.
+         Placée AVANT « Affichage » (3D seule, et haute — cinq boutons, deux
+         curseurs, une légende) : sans ça, cette section pousse la sélection
+         plus bas en 3D qu'en 2D, où rien ne la précède. Même position dans
+         les deux onglets, et non pas « en haut en 2D, en bas en 3D ». -->
+    <section class="etape" data-vue="2d 3d" id="section-selection" hidden>
+      <h2>Point sélectionné</h2>
+      <div class="recherche">
+        <input type="search" id="recherche-point" placeholder="Coordonnées GPS, ex. 42.74, 1.68"
+               autocomplete="off" spellcheck="false">
+        <button id="btn-recherche-point" class="secondaire" title="Chercher ce point">→</button>
+      </div>
+      <p class="vide" id="selection-vide">Passez en mode <b>Sélection</b> ci-dessus,
+        cliquez un point du relief ou du nuage, ou entrez ses coordonnées ci-dessus.</p>
+      <dl class="detail" id="detail-selection" hidden></dl>
+      <div class="rangee" id="selection-liens" hidden>
+        <button id="lien-gmaps" class="secondaire">Google Maps</button>
+        <button id="lien-osm" class="secondaire">OpenStreetMap</button>
+      </div>
+    </section>
+
     <!-- ─── 3D : rendu du nuage ──────────────────────────────────────────── -->
     <section class="etape" data-vue="3d" id="section-affichage" hidden>
       <h2>Affichage</h2>
@@ -359,6 +382,28 @@
       <button id="onglet-3d">3D</button>
       <span class="aide" id="aide-vue">Cliquez dans une zone bleue pour choisir une dalle</span>
     </nav>
+    <!-- Sous-barre commune à la 2D et à la 3D : masquée sur la carte, où « cliquer
+         un point » n'a pas de sens. Déplacement par défaut ; en sélection, le clic
+         vise un point plutôt que la vue elle-même. -->
+    <nav class="onglets" id="barre-mode" hidden>
+      <button id="mode-deplacement" class="btn-mode actif" title="Déplacement : glisser pour naviguer"
+              aria-label="Déplacement">
+        <svg class="icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <rect x="5.6" y="6" width="2.3" height="8" rx="1.15"/>
+          <rect x="8.6" y="4" width="2.3" height="10" rx="1.15"/>
+          <rect x="11.6" y="4.4" width="2.3" height="9.6" rx="1.15"/>
+          <rect x="14.6" y="6.4" width="2.3" height="7.6" rx="1.15"/>
+          <rect x="5.4" y="12" width="12.4" height="8" rx="4"/>
+          <rect x="2" y="12.4" width="4.6" height="2.3" rx="1.15" transform="rotate(-35 4.3 13.55)"/>
+        </svg>
+      </button>
+      <button id="mode-selection" class="btn-mode" title="Sélection : cliquez un point pour ses coordonnées"
+              aria-label="Sélection">
+        <svg class="icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <polygon points="5,3 5,17.5 8.6,14 11,20 13.2,19 10.8,13.5 16,13.5"/>
+        </svg>
+      </button>
+    </nav>
     <div id="vue-carte" class="vue"></div>
     <div id="vue-2d" class="vue" hidden>
       <canvas id="canvas-2d"></canvas>
@@ -429,6 +474,7 @@
 <script src="src/shaders.js"></script>
 <script src="src/boussole.js"></script>
 <script src="src/vue3d.js"></script>
+<script src="src/terrain.js"></script>
 <script src="src/vue-2d.js"></script>
 <script src="src/carte.js"></script>
 <script src="src/app.js"></script>

@@ -38,8 +38,13 @@ class Vue2D {
     this.traces = [];
     this.selection = null;
     this.traceChoisie = null;
+    this.pointSelectionne = null;   // [x, y] Lambert-93, voir definirPointSelectionne
     this.montrerDetections = true;
     this.montrerSentiers = true;
+    // Mode sélection : un clic vise un point (coordonnées) plutôt que de
+    // choisir une détection — commutable depuis l'extérieur, partagé avec la
+    // vue 3D.
+    this.modeSelection = false;
 
     // Caméra : centre visé en Lambert-93, et mètres par pixel écran.
     this.centre = [0, 0];
@@ -133,6 +138,9 @@ class Vue2D {
   }
 
   definirSelection(candidat) { this.selection = candidat ? candidat.id : null; this.invalider(); }
+
+  /** Marqueur du point choisi en mode Sélection. `p` : [x, y] Lambert-93, ou `null`. */
+  definirPointSelectionne(p) { this.pointSelectionne = p; this.invalider(); }
 
   definirTraces(traces) {
     this.traces = (traces || []).map((s) => ({ id: s.id, points: s.points || [] }));
@@ -298,7 +306,16 @@ class Vue2D {
       pinceUtilisee = false;
       depart = null;
       const p = this._lambertSousCurseur(e);
-      if (bouge || !p || !this.cb.surClic) return;
+      if (bouge || !p) return;
+
+      // Mode sélection : le clic vise un point plutôt que de choisir une
+      // détection. `lire` fait déjà tout le travail — c'est la même valeur
+      // que le survol affiche dans le HUD, simplement figée par le clic.
+      if (this.modeSelection) {
+        this.cb.surSelectionPoint?.(this.lire(p[0], p[1], this._coteSous(e)));
+        return;
+      }
+      if (!this.cb.surClic) return;
       this.cb.surClic(this._detectionA(p[0], p[1]));
     });
   }
@@ -441,6 +458,7 @@ class Vue2D {
     ctx.lineWidth = Math.max(1, dpr);
     if (this.montrerSentiers) this._tracerSentiers(ctx, w, h);
     if (this.montrerDetections) this._tracerDetections(ctx, w, h);
+    if (this.pointSelectionne) this._tracerPointSelectionne(ctx, w, h);
     this._tracerEchelle(ctx, w, h, dpr);
     if (sg && sd) this._tracerEtiquettes(ctx, w, dpr, coupe, sg, sd);
     ctx.restore();
@@ -512,6 +530,39 @@ class Vue2D {
       const lx = Math.max(7, x1 - x0), ly = Math.max(7, y0 - y1);
       ctx.strokeRect(x0 - (lx - (x1 - x0)) / 2, y1 - (ly - (y0 - y1)) / 2, lx, ly);
     }
+  }
+
+  /**
+   * Marqueur du point choisi en mode Sélection — même couleur qu'en 3D
+   * (`vue3d.js`, `definirPointSelectionne`), pour que ce soit lisiblement le
+   * même point d'une vue à l'autre.
+   */
+  _tracerPointSelectionne(ctx, w, h) {
+    const [sx, sy] = this._versEcran(this.pointSelectionne[0], this.pointSelectionne[1], w, h);
+    const r = 7;
+    ctx.save();
+    // Contour sombre d'abord : la couleur du marqueur reste lisible sur un
+    // fond clair comme sur un fond sombre.
+    ctx.strokeStyle = '#0b0e13';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(sx - r - 6, sy); ctx.lineTo(sx - r + 2, sy);
+    ctx.moveTo(sx + r - 2, sy); ctx.lineTo(sx + r + 6, sy);
+    ctx.moveTo(sx, sy - r - 6); ctx.lineTo(sx, sy - r + 2);
+    ctx.moveTo(sx, sy + r - 2); ctx.lineTo(sx, sy + r + 6);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ff40d9';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(sx - r - 6, sy); ctx.lineTo(sx - r + 2, sy);
+    ctx.moveTo(sx + r - 2, sy); ctx.lineTo(sx + r + 6, sy);
+    ctx.moveTo(sx, sy - r - 6); ctx.lineTo(sx, sy - r + 2);
+    ctx.moveTo(sx, sy + r - 2); ctx.lineTo(sx, sy + r + 6);
+    ctx.stroke();
+    ctx.restore();
   }
 
   _tracerSentiers(ctx, w, h) {

@@ -111,4 +111,24 @@ function dansEmpriseFrance(lon, lat) {
   return lon >= -5.6 && lon <= 9.8 && lat >= 41.2 && lat <= 51.2;
 }
 
-const PROJ = { versLambert93, versWGS84, versDMS, dansEmpriseFrance };
+/**
+ * Une paire de coordonnées tapée directement, dans les deux conventions
+ * courantes — « 42.74, 1.68 » (latitude, longitude, comme un GPS) ou une
+ * paire de valeurs Lambert-93 à six/sept chiffres. `null` si le texte n'est
+ * pas une paire de nombres — c'est alors un nom de lieu, à chercher ailleurs.
+ *
+ * Partagé par la recherche de dalle (`ign.js`) et la recherche d'un point
+ * dans « Point sélectionné » (`app.js`) : deux occasions de taper des
+ * coordonnées, une seule règle pour les reconnaître.
+ */
+function depuisTexte(texte) {
+  const paire = /^\s*(-?\d+(?:[.,]\d+)?)\s*[,; ]\s*(-?\d+(?:[.,]\d+)?)\s*$/.exec(texte.trim());
+  if (!paire) return null;
+  const a = parseFloat(paire[1].replace(',', '.'));
+  const b = parseFloat(paire[2].replace(',', '.'));
+  // Au-delà de 180, ce ne peut plus être un angle : c'est du Lambert-93.
+  if (Math.abs(a) > 180 || Math.abs(b) > 180) return versWGS84(a, b);
+  return { lon: b, lat: a };
+}
+
+const PROJ = { versLambert93, versWGS84, versDMS, dansEmpriseFrance, depuisTexte };

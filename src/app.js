@@ -164,8 +164,124 @@ const vue2d = new Vue2D($('canvas-2d'), {
     const c = (etat.resultat?.candidats || []).find((x) => x.id === id);
     if (c) selectionner_(c);
   },
+  // Mode sélection : `p` est déjà résolu par `lire()`, la même valeur que le
+  // survol affiche dans le HUD.
+  surSelectionPoint: (p) => { if (p) afficherSelection(p.x, p.y, p.altitude); },
 });
 vue2d.demarrer();
+
+// ── Sélection d'un point (#4) ────────────────────────────────────────────────
+//
+// Un mode partagé par les onglets 2D et 3D, activé par la sous-barre sous les
+// onglets : par défaut on déplace la vue, en « Sélection » un clic vise un
+// point plutôt que la vue elle-même. En 3D, ce point ne vient pas du plan
+// horizontal qui sert au déplacement de la caméra (`_pointSousCurseur`, une
+// approximation délibérée) mais d'une marche du rayon caméra contre le MNT
+// affiché — `etat.reliefGrille`, déjà calculé pour l'onglet 2D.
+
+function definirModeInteraction(mode) {
+  vue2d.modeSelection = mode === 'selection';
+  if (vue3d) vue3d.modeSelection = mode === 'selection';
+  $('mode-deplacement').classList.toggle('actif', mode === 'deplacement');
+  $('mode-selection').classList.toggle('actif', mode === 'selection');
+  // La flèche plutôt que la main : un curseur qui dit « cliquer un point »
+  // plutôt que « glisser pour déplacer ». Une classe, pas un style en ligne —
+  // un style en ligne l'emporterait aussi sur `:active { cursor: grabbing }`
+  // pendant un glissé effectif, ce qui casserait le déplacement en sélection.
+  $('canvas-2d').classList.toggle('mode-selection', mode === 'selection');
+  $('canvas3d').classList.toggle('mode-selection', mode === 'selection');
+}
+$('mode-deplacement').addEventListener('click', () => definirModeInteraction('deplacement'));
+$('mode-selection').addEventListener('click', () => definirModeInteraction('selection'));
+
+// Coordonnées du point actuellement affiché — lues par les liens « Ouvrir
+// dans » au clic, pas mémorisées dans `etat` : rien d'autre n'en a besoin.
+let selectionActuelle = null;
+
+function afficherSelection(x, y, altitude) {
+  const { lon, lat } = PROJ.versWGS84(x, y);
+  selectionActuelle = { lon, lat, altitude };
+  $('selection-vide').hidden = true;
+  $('detail-selection').hidden = false;
+  $('detail-selection').innerHTML = ligneDetail('Longitude', `${lon.toFixed(6)}°`)
+    + ligneDetail('Latitude', `${lat.toFixed(6)}°`)
+    + ligneDetail('Altitude', altitude == null ? '—' : `${altitude.toFixed(1)} m`);
+  $('selection-liens').hidden = false;
+
+  // Même point dans les deux vues : sélectionner en 2D puis passer en 3D (ou
+  // l'inverse) doit retrouver le marqueur au même endroit, pas le perdre.
+  vue2d.definirPointSelectionne([x, y]);
+  vue3d?.definirPointSelectionne({ x, y, altitude });
+}
+
+function effacerSelection() {
+  selectionActuelle = null;
+  $('selection-vide').hidden = false;
+  $('detail-selection').hidden = true;
+  $('selection-liens').hidden = true;
+  vue2d.definirPointSelectionne(null);
+  vue3d?.definirPointSelectionne(null);
+}
+
+$('lien-gmaps').addEventListener('click', () => {
+  if (!selectionActuelle) return;
+  const { lon, lat } = selectionActuelle;
+  window.open(`https://www.google.com/maps?q=${lat},${lon}`, '_blank', 'noopener');
+});
+$('lien-osm').addEventListener('click', () => {
+  if (!selectionActuelle) return;
+  const { lon, lat } = selectionActuelle;
+  window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=18/${lat}/${lon}`, '_blank', 'noopener');
+});
+
+/**
+ * Recherche un point par ses coordonnées (GPS ou Lambert-93, mêmes formats
+ * que la recherche de dalle — `PROJ.depuisTexte`), depuis le champ de
+ * « Point sélectionné ». Même circuit qu'un clic en mode Sélection :
+ * `afficherSelection` pose le marqueur et remplit le panneau dans les deux
+ * vues à la fois, et les deux caméras se recentrent pour que le marqueur ne
+ * tombe pas hors champ.
+ */
+function chercherPoint() {
+  const texte = $('recherche-point').value.trim();
+  if (!texte) return;
+
+  const p = PROJ.depuisTexte(texte);
+  if (!p) { alerter('Coordonnées non reconnues — attendu « latitude, longitude ».'); return; }
+  if (!PROJ.dansEmpriseFrance(p.lon, p.lat)) { alerter('Ces coordonnées sont hors de France.'); return; }
+
+  const lambert = PROJ.versLambert93(p.lon, p.lat);
+  const t = etat.reliefGrille;
+  let altitude = null;
+  if (t) {
+    const cx = Math.floor((lambert.x - t.emprise.xmin) / t.pas);
+    const cy = Math.floor((lambert.y - t.emprise.ymin) / t.pas);
+    if (cx < 0 || cx >= t.W || cy < 0 || cy >= t.H) {
+      alerter('Ce point est en dehors de la dalle chargée.');
+      return;
+    }
+    if (t.valide[cy * t.W + cx]) altitude = t.mnt[cy * t.W + cx] + t.origine[2];
+  }
+
+  afficherSelection(lambert.x, lambert.y, altitude);
+  vue2d.viser(lambert.x, lambert.y);
+  if (altitude != null) vue3d?.centrerSur(lambert.x, lambert.y, altitude);
+}
+$('btn-recherche-point').addEventListener('click', chercherPoint);
+$('recherche-point').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); chercherPoint(); }
+});
+
+// La géométrie (marche du rayon contre le MNT) vit dans `terrain.js`, pure et
+// testée pour elle-même — ici, on ne fait que lui fournir les réglages du
+// moment (grille affichée, exagération, altitude de référence du nuage).
+if (vue3d) {
+  vue3d.onSelectionPoint = (rayon) => {
+    const pt = TERRAIN.pointDuTerrain(rayon, etat.reliefGrille, CONFIG.rendu.exagerationZ, vue3d.zmin);
+    if (!pt) { statut('Aucun terrain sous ce point — visez le nuage', 'erreur'); return; }
+    afficherSelection(pt.x, pt.y, pt.altitude);
+  };
+}
 
 // ── Lien partageable (#3) ────────────────────────────────────────────────────
 //
@@ -517,6 +633,8 @@ $('btn-charger').addEventListener('click', async () => {
     $('stats-detection').hidden = true;
     $('bloc-resultats').hidden = true;
     carte.afficherDetections([], selectionner_);
+    // Un point sélectionné sur l'ancienne dalle n'a plus de sens ici.
+    effacerSelection();
 
     // On bascule AVANT l'analyse, pas après : le voile se poserait sinon sur la
     // carte, qui n'a rien à voir avec ce qui se calcule et qui charge par
@@ -525,6 +643,7 @@ $('btn-charger').addEventListener('click', async () => {
     $('section-vide-3d').hidden = true;
     $('section-affichage').hidden = false;
     $('section-analyse').hidden = ANALYSE_MASQUEE && SENTIERS_MASQUES;
+    $('section-selection').hidden = false;
     // Le nuage est le résultat le plus spectaculaire, mais ce n'est pas celui
     // qu'on vient chercher : un objet de six mètres ne se voit pas dans un
     // kilomètre carré de points. La 2D est la vue d'arrivée.
@@ -656,6 +775,8 @@ function fermerNuage() {
   $('section-affichage').hidden = true;
   $('section-analyse').hidden = true;
   $('section-vide-3d').hidden = false;
+  $('section-selection').hidden = true;
+  effacerSelection();
   $('liste').innerHTML = '';
   $('liste-sentiers').innerHTML = '';
   $('compte').textContent = '';
@@ -1667,6 +1788,9 @@ function basculerVue(quoi) {
     $(onglet).classList.toggle('actif', nom === quoi);
     if (nom === quoi) $('aide-vue').textContent = aide;
   }
+  // Le mode sélection n'a de sens qu'en 2D et en 3D — « cliquer un point » sur
+  // la carte n'en est pas un.
+  $('barre-mode').hidden = quoi === 'carte';
 
   // Leaflet mesure son conteneur à l'initialisation ; masqué, il l'a mesuré à
   // zéro et n'affiche aucune tuile tant qu'on ne le lui redit pas.
