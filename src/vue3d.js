@@ -450,12 +450,18 @@ class Vue3D {
     // propre référence et son relâchement arrêtait tout le geste en cours,
     // ce qui rendait le déplacement erratique dès qu'un second contact
     // apparaissait — le mode courant sur un écran tactile.
+    //
+    // Les deux doigts portent aussi l'orientation : sur tactile, ni Maj ni
+    // clic droit n'existent pour distinguer orbite et déplacement, donc rien
+    // ne pouvait déclencher `glisse.orbite`. Le milieu des deux doigts qui
+    // glisse pivote la vue — écarter ou rapprocher les doigts zoome en même
+    // temps, les deux gestes se lisent indépendamment sur le même geste.
     const doigts = new Map();
     let pince = null;
 
     const milieu = () => {
       const [a, b] = [...doigts.values()];
-      return { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 };
+      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     };
     const ecart = () => {
       const [a, b] = [...doigts.values()];
@@ -469,7 +475,8 @@ class Vue3D {
 
       if (doigts.size >= 2) {
         glisse = null;
-        pince = { distance: ecart(), point: this._pointSousCurseur(milieu()) };
+        const m = milieu();
+        pince = { distance: ecart(), cx: m.x, cy: m.y };
         return;
       }
       glisse = {
@@ -485,18 +492,29 @@ class Vue3D {
       if (doigts.has(e.pointerId)) doigts.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       if (pince && doigts.size >= 2) {
+        const m = milieu();
         const d = ecart();
+
+        // Zoom sur l'écart, ancré au milieu courant — recalculé à chaque
+        // image, comme pour la molette, parce que ce milieu se déplace en
+        // même temps que la vue pivote.
         if (pince.distance > 0) {
+          const avant = this._pointSousCurseur({ clientX: m.x, clientY: m.y });
           const ancienne = this.cam.distance;
           this.cam.distance = Math.max(2, Math.min(6000, ancienne * (pince.distance / d)));
-          if (pince.point) {
+          if (avant) {
             const k = this.cam.distance / ancienne;
             for (const i of [0, 2]) {
-              this.cam.cible[i] = pince.point[i] + (this.cam.cible[i] - pince.point[i]) * k;
+              this.cam.cible[i] = avant[i] + (this.cam.cible[i] - avant[i]) * k;
             }
           }
         }
         pince.distance = d;
+
+        this.cam.azimut -= (m.x - pince.cx) * 0.006;
+        this.cam.elevation = Math.max(-1.553, Math.min(1.553, this.cam.elevation + (m.y - pince.cy) * 0.006));
+        pince.cx = m.x; pince.cy = m.y;
+
         this.invalider();
         return;
       }
