@@ -39,12 +39,15 @@ class Vue2D {
     this.selection = null;
     this.traceChoisie = null;
     this.pointSelectionne = null;   // [x, y] Lambert-93, voir definirPointSelectionne
+    this.mesureA = null;            // [x, y] Lambert-93, voir definirMesure
+    this.mesureB = null;
     this.montrerDetections = true;
     this.montrerSentiers = true;
-    // Mode sélection : un clic vise un point (coordonnées) plutôt que de
-    // choisir une détection — commutable depuis l'extérieur, partagé avec la
+    // Mode d'interaction du clic — 'deplacement' (défaut, choisit une
+    // détection), 'selection' (vise un point) ou 'mesure' (vise deux points,
+    // l'un après l'autre) — commutable depuis l'extérieur, partagé avec la
     // vue 3D.
-    this.modeSelection = false;
+    this.mode = 'deplacement';
 
     // Caméra : centre visé en Lambert-93, et mètres par pixel écran.
     this.centre = [0, 0];
@@ -141,6 +144,9 @@ class Vue2D {
 
   /** Marqueur du point choisi en mode Sélection. `p` : [x, y] Lambert-93, ou `null`. */
   definirPointSelectionne(p) { this.pointSelectionne = p; this.invalider(); }
+
+  /** Les deux points de la mesure en cours. `a`/`b` : [x, y] Lambert-93, ou `null`. */
+  definirMesure(a, b) { this.mesureA = a; this.mesureB = b; this.invalider(); }
 
   definirTraces(traces) {
     this.traces = (traces || []).map((s) => ({ id: s.id, points: s.points || [] }));
@@ -308,11 +314,16 @@ class Vue2D {
       const p = this._lambertSousCurseur(e);
       if (bouge || !p) return;
 
-      // Mode sélection : le clic vise un point plutôt que de choisir une
-      // détection. `lire` fait déjà tout le travail — c'est la même valeur
-      // que le survol affiche dans le HUD, simplement figée par le clic.
-      if (this.modeSelection) {
+      // Mode sélection ou mesure : le clic vise un point plutôt que de
+      // choisir une détection. `lire` fait déjà tout le travail — c'est la
+      // même valeur que le survol affiche dans le HUD, simplement figée par
+      // le clic.
+      if (this.mode === 'selection') {
         this.cb.surSelectionPoint?.(this.lire(p[0], p[1], this._coteSous(e)));
+        return;
+      }
+      if (this.mode === 'mesure') {
+        this.cb.surPointMesure?.(this.lire(p[0], p[1], this._coteSous(e)));
         return;
       }
       if (!this.cb.surClic) return;
@@ -459,6 +470,7 @@ class Vue2D {
     if (this.montrerSentiers) this._tracerSentiers(ctx, w, h);
     if (this.montrerDetections) this._tracerDetections(ctx, w, h);
     if (this.pointSelectionne) this._tracerPointSelectionne(ctx, w, h);
+    if (this.mesureA) this._tracerMesure(ctx, w, h);
     this._tracerEchelle(ctx, w, h, dpr);
     if (sg && sd) this._tracerEtiquettes(ctx, w, dpr, coupe, sg, sd);
     ctx.restore();
@@ -533,35 +545,82 @@ class Vue2D {
   }
 
   /**
+   * Marqueur d'un point cliqué (croix cerclée), en mode Sélection comme en
+   * mode Mesure — même forme, couleur au choix de l'appelant. Factorisé pour
+   * ne pas répéter ce dessin trois fois (sélection, point A, point B).
+   */
+  _tracerMarqueur(ctx, sx, sy, couleur) {
+    const r = 7;
+    const croix = () => {
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.moveTo(sx - r - 6, sy); ctx.lineTo(sx - r + 2, sy);
+      ctx.moveTo(sx + r - 2, sy); ctx.lineTo(sx + r + 6, sy);
+      ctx.moveTo(sx, sy - r - 6); ctx.lineTo(sx, sy - r + 2);
+      ctx.moveTo(sx, sy + r - 2); ctx.lineTo(sx, sy + r + 6);
+      ctx.stroke();
+    };
+    // Contour sombre d'abord : la couleur du marqueur reste lisible sur un
+    // fond clair comme sur un fond sombre.
+    ctx.strokeStyle = '#0b0e13';
+    ctx.lineWidth = 3;
+    croix();
+    ctx.strokeStyle = couleur;
+    ctx.lineWidth = 1.6;
+    croix();
+  }
+
+  /**
    * Marqueur du point choisi en mode Sélection — même couleur qu'en 3D
    * (`vue3d.js`, `definirPointSelectionne`), pour que ce soit lisiblement le
    * même point d'une vue à l'autre.
    */
   _tracerPointSelectionne(ctx, w, h) {
     const [sx, sy] = this._versEcran(this.pointSelectionne[0], this.pointSelectionne[1], w, h);
-    const r = 7;
     ctx.save();
-    // Contour sombre d'abord : la couleur du marqueur reste lisible sur un
-    // fond clair comme sur un fond sombre.
-    ctx.strokeStyle = '#0b0e13';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(sx - r - 6, sy); ctx.lineTo(sx - r + 2, sy);
-    ctx.moveTo(sx + r - 2, sy); ctx.lineTo(sx + r + 6, sy);
-    ctx.moveTo(sx, sy - r - 6); ctx.lineTo(sx, sy - r + 2);
-    ctx.moveTo(sx, sy + r - 2); ctx.lineTo(sx, sy + r + 6);
-    ctx.stroke();
+    this._tracerMarqueur(ctx, sx, sy, '#ff40d9');
+    ctx.restore();
+  }
 
-    ctx.strokeStyle = '#ff40d9';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(sx - r - 6, sy); ctx.lineTo(sx - r + 2, sy);
-    ctx.moveTo(sx + r - 2, sy); ctx.lineTo(sx + r + 6, sy);
-    ctx.moveTo(sx, sy - r - 6); ctx.lineTo(sx, sy - r + 2);
-    ctx.moveTo(sx, sy + r - 2); ctx.lineTo(sx, sy + r + 6);
-    ctx.stroke();
+  /**
+   * Les deux points de la mesure, reliés par une ligne — même couleur qu'en
+   * 3D. La distance horizontale s'affiche au milieu du trait : c'est la
+   * seule des trois valeurs (horizontale, dénivelé, totale) qui se lit
+   * directement sur un plan, les deux autres vont dans le panneau.
+   */
+  _tracerMesure(ctx, w, h) {
+    ctx.save();
+    const a = this._versEcran(this.mesureA[0], this.mesureA[1], w, h);
+    this._tracerMarqueur(ctx, a[0], a[1], '#4df2ff');
+
+    if (this.mesureB) {
+      const b = this._versEcran(this.mesureB[0], this.mesureB[1], w, h);
+      this._tracerMarqueur(ctx, b[0], b[1], '#4df2ff');
+
+      ctx.strokeStyle = '#4df2ff';
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const distance = Math.hypot(this.mesureB[0] - this.mesureA[0], this.mesureB[1] - this.mesureA[1]);
+      const texte = distance >= 1000 ? `${(distance / 1000).toFixed(2)} km` : `${distance.toFixed(1)} m`;
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      ctx.font = '12px system-ui, sans-serif';
+      const l = ctx.measureText(texte).width;
+      ctx.fillStyle = 'rgba(11, 14, 19, 0.82)';
+      ctx.beginPath();
+      ctx.roundRect(mx - l / 2 - 6, my - 19, l + 12, 18, 4);
+      ctx.fill();
+      ctx.fillStyle = '#4df2ff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(texte, mx, my - 10);
+      ctx.textAlign = 'start';
+    }
     ctx.restore();
   }
 

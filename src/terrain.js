@@ -14,12 +14,22 @@
 
 /**
  * Marche le rayon par pas grossiers puis affine par bissection, pour trouver
- * où il croise le MNT. Renvoie `{x, y, altitude}` en Lambert-93 absolu, ou
- * `null` si le rayon ne croise jamais le terrain dans l'emprise de la grille
- * (viser hors du nuage, au-dessus de l'horizon).
+ * où il croise le terrain. Renvoie `{x, y, sol, hauteur}` en Lambert-93
+ * absolu, ou `null` si le rayon ne croise jamais le terrain dans l'emprise de
+ * la grille (viser hors du nuage, au-dessus de l'horizon).
+ *
+ * Vise l'**enveloppe** `mnt + hauteur` (sol comblé, ou sommet d'un bâtiment
+ * là où il y en a un), pas le sol seul. Sans ça, un rayon qui traverse un
+ * bâtiment ne le voit pas — le sol sous un bâtiment est une surface
+ * interpolée, jamais rendue à l'écran — et repart taper le sol ailleurs,
+ * pas là où l'écran montrait quelque chose sous le curseur. Viser
+ * l'enveloppe fait toujours toucher ce qui est visuellement sous le clic,
+ * sol ou toit. `sol` et `hauteur` sont rendus séparément : la cellule
+ * touchée donne les deux sans coût de plus, et l'appelant choisit comment
+ * les afficher.
  *
  * @param {{oeil: number[], direction: number[]}} rayon repère monde, direction unitaire
- * @param {object} grille sortie de RELIEF.preparer (W, H, pas, emprise, origine, mnt)
+ * @param {object} grille sortie de RELIEF.preparer (W, H, pas, emprise, origine, mnt, hauteur)
  * @param {number} exagerationZ exagération verticale courante (CONFIG.rendu.exagerationZ)
  * @param {number} zmin altitude locale minimale du nuage (Vue3D.zmin)
  */
@@ -52,9 +62,10 @@ function pointDuTerrain(rayon, grille, exagerationZ, zmin) {
     const cy = Math.floor((ly - t.emprise.ymin) / t.pas);
     return cx >= 0 && cx < t.W && cy >= 0 && cy < t.H ? cy * t.W + cx : null;
   };
+  const enveloppe = (i) => t.mnt[i] + (t.hauteur[i] || 0);
   const ecart = (tau) => {
     const i = cellule(tau);
-    return i == null ? null : (oy + dy * tau) - (t.mnt[i] - zmin) * exagerationZ;
+    return i == null ? null : (oy + dy * tau) - (enveloppe(i) - zmin) * exagerationZ;
   };
 
   // Pas grossier pour trouver où le rayon passe sous le terrain, puis
@@ -79,7 +90,8 @@ function pointDuTerrain(rayon, grille, exagerationZ, zmin) {
       return {
         x: ox + dx * tau + t.origine[0],
         y: t.origine[1] - (oz + dz * tau),
-        altitude: t.mnt[c] + t.origine[2],
+        sol: t.mnt[c] + t.origine[2],
+        hauteur: t.hauteur[c] || 0,
       };
     }
     tauA = tauB; eA = eB;

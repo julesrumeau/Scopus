@@ -34,19 +34,25 @@ class Vue3D {
     this.vaoPointSel = null;
     this.bufPointSel = null;
     this.nbSommetsPointSel = 0;
+    this.vaoMesure = null;
+    this.bufMesure = null;
+    this.nbSommetsMesure = 0;
 
     // Caméra orbitale. Distance et cible en mètres, angles en radians.
     this.cam = { cible: [0, 0, 0], distance: 300, azimut: -Math.PI / 4, elevation: 0.6 };
     this.focus = null;
     this._animation = 0;
 
-    // Mode sélection : un clic vise un point (coordonnées) plutôt que de
-    // déplacer la vue — commutable depuis l'extérieur, partagé avec la vue 2D.
-    // `onSelectionPoint(rayon)` reçoit le rayon caméra du point cliqué ;
-    // trouver où il touche le terrain demande le MNT affiché, que cette classe
-    // ne connaît pas — c'est à l'appelant de faire la marche.
-    this.modeSelection = false;
+    // Mode d'interaction du clic — 'deplacement' (défaut), 'selection' (vise
+    // un point) ou 'mesure' (vise deux points, l'un après l'autre) —
+    // commutable depuis l'extérieur, partagé avec la vue 2D.
+    // `onSelectionPoint(rayon)` et `onPointMesure(rayon)` reçoivent le rayon
+    // caméra du point cliqué ; trouver où il touche le terrain demande le MNT
+    // affiché, que cette classe ne connaît pas — c'est à l'appelant de faire
+    // la marche (voir `TERRAIN.pointDuTerrain` dans app.js).
+    this.mode = 'deplacement';
     this.onSelectionPoint = null;
+    this.onPointMesure = null;
 
     this.boussole = elementBoussole
       ? new Boussole(elementBoussole, (v) => this.orienterVers(v))
@@ -178,6 +184,7 @@ class Vue3D {
     this.nbSommetsSentiers = 0;
     this.nbSommetsTraceSel = 0;
     this.nbSommetsPointSel = 0;
+    this.nbSommetsMesure = 0;
     this.focus = null;
     this._arreterAnimation();
     this.invalider();
@@ -264,10 +271,22 @@ class Vue3D {
   }
 
   /**
-   * Marqueur du point choisi en mode Sélection (voir app.js) : une croix
-   * posée au-dessus du point, reliée au sol par un montant. Une croix plutôt
-   * qu'un point seul — un point n'a pas d'étendue à l'écran et disparaîtrait
-   * de profil selon l'angle de vue.
+   * Sommets d'une croix posée au-dessus d'un point, reliée au sol par un
+   * montant — en repère local. Une croix plutôt qu'un point seul : un point
+   * n'a pas d'étendue à l'écran et disparaîtrait de profil selon l'angle de
+   * vue. Partagée par `definirPointSelectionne` et `definirMesure`.
+   */
+  _croix(lx, ly, lz) {
+    const h = 1.5, r = 0.5;
+    return [
+      lx, ly, lz, lx, ly, lz + h,                    // montant, du sol à la croix
+      lx - r, ly, lz + h, lx + r, ly, lz + h,         // croix, est-ouest
+      lx, ly - r, lz + h, lx, ly + r, lz + h,         // croix, nord-sud
+    ];
+  }
+
+  /**
+   * Marqueur du point choisi en mode Sélection (voir app.js).
    *
    * `p` est en Lambert-93 absolu, comme partout ailleurs dans l'API publique
    * (`viser`, `definirDetections`) ; la conversion vers le repère local du
@@ -283,14 +302,33 @@ class Vue3D {
       return;
     }
     const o = this.nuage.origine;
-    const lx = p.x - o[0], ly = p.y - o[1], lz = p.altitude - o[2];
-    const h = 1.5, r = 0.5;
-    const sommets = [
-      lx, ly, lz, lx, ly, lz + h,                    // montant, du sol à la croix
-      lx - r, ly, lz + h, lx + r, ly, lz + h,         // croix, est-ouest
-      lx, ly - r, lz + h, lx, ly + r, lz + h,         // croix, nord-sud
-    ];
+    const sommets = this._croix(p.x - o[0], p.y - o[1], p.altitude - o[2]);
     this.nbSommetsPointSel = this._televerserLignes(sommets, 'PointSel');
+    this.invalider();
+  }
+
+  /**
+   * Les deux points de la mesure en cours (voir app.js) : une croix sur
+   * chacun, reliées par un trait direct — la ligne d'air dont la longueur
+   * est la distance totale affichée dans le panneau.
+   *
+   * `a`/`b` en Lambert-93 absolu, `b` peut être `null` tant que le second
+   * point n'a pas encore été cliqué.
+   */
+  definirMesure(a, b) {
+    if (!a || !this.nuage || !Number.isFinite(a.altitude)) {
+      this.nbSommetsMesure = 0;
+      this.invalider();
+      return;
+    }
+    const o = this.nuage.origine;
+    const la = [a.x - o[0], a.y - o[1], a.altitude - o[2]];
+    let sommets = this._croix(...la);
+    if (b && Number.isFinite(b.altitude)) {
+      const lb = [b.x - o[0], b.y - o[1], b.altitude - o[2]];
+      sommets = sommets.concat(this._croix(...lb), la, lb);
+    }
+    this.nbSommetsMesure = this._televerserLignes(sommets, 'Mesure');
     this.invalider();
   }
 
@@ -668,9 +706,11 @@ class Vue3D {
         (depart && Math.hypot(e.clientX - depart[0], e.clientY - depart[1]) > 4);
       pinceUtilisee = false;
       depart = null;
-      if (bouge || !this.modeSelection) return;
+      if (bouge || this.mode === 'deplacement') return;
       const rayon = this.rayonEcran(e);
-      if (rayon) this.onSelectionPoint?.(rayon);
+      if (!rayon) return;
+      if (this.mode === 'selection') this.onSelectionPoint?.(rayon);
+      else if (this.mode === 'mesure') this.onPointMesure?.(rayon);
     });
 
     // Double-clic : amener sous les yeux ce qu'on vient de repérer.
@@ -855,7 +895,7 @@ class Vue3D {
     // spatiale.
     const l = this.progLignes;
     if (this.nbSommetsLignes || this.nbSommetsSel || this.nbSommetsSentiers
-      || this.nbSommetsTraceSel || this.nbSommetsPointSel) {
+      || this.nbSommetsTraceSel || this.nbSommetsPointSel || this.nbSommetsMesure) {
       gl.useProgram(l);
       gl.uniformMatrix4fv(l.u.u_vp, false, vp);
       gl.uniform1f(l.u.u_exagerationZ, CONFIG.rendu.exagerationZ);
@@ -889,6 +929,13 @@ class Vue3D {
       gl.uniform4f(l.u.u_couleur, 1.0, 0.25, 0.85, 1.0);
       gl.bindVertexArray(this.vaoPointSel);
       gl.drawArrays(gl.LINES, 0, this.nbSommetsPointSel);
+    }
+    // Cyan clair : distinct du magenta de la sélection, pour les cas — rares
+    // mais possibles — où les deux marqueurs sont posés en même temps.
+    if (this.nbSommetsMesure) {
+      gl.uniform4f(l.u.u_couleur, 0.3, 0.95, 1.0, 1.0);
+      gl.bindVertexArray(this.vaoMesure);
+      gl.drawArrays(gl.LINES, 0, this.nbSommetsMesure);
     }
     gl.bindVertexArray(null);
   }
