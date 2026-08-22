@@ -1923,7 +1923,7 @@ const VUES = [
   ['2d', 'vue-2d', 'onglet-2d',
     'Glisser la poignée du milieu pour comparer · glisser l’image : déplacer · molette : zoom sous le curseur'],
   ['3d', 'vue-3d', 'onglet-3d',
-    'Glisser : déplacer · molette : zoom sous le curseur · Maj+glisser : pivoter · double-clic : y aller'],
+    'Glisser : déplacer · molette : zoom sous le curseur · Maj+glisser : pivoter · double-clic : recentrer le pivot'],
 ];
 
 function basculerVue(quoi) {

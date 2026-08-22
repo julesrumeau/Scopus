@@ -159,14 +159,47 @@ layout(location = 0) in vec3 a_pos;
 uniform mat4 u_vp;
 uniform float u_exagerationZ;
 uniform float u_zmin;
+// Tout ce qui suit est ignoré pour un dessin en LINES — gl_PointSize n'a de
+// sens qu'en POINTS — mais partagé avec les marqueurs (sélection, mesure)
+// pour ne pas dupliquer tout un programme rien que pour un point coloré, et
+// surtout pour qu'ils réagissent à la distance **exactement** comme les
+// points du nuage (pointsVS) : sinon un marqueur à taille fixe en pixels
+// se met à grossir ou rapetisser par rapport au nuage qui l'entoure dès
+// qu'on zoome, ce qui brouille la lecture plutôt que de la clarifier.
+uniform vec3 u_camera;
+uniform float u_hauteurViewport;
+uniform float u_attenuation;
+uniform float u_taillePoint;
 
 void main() {
-  gl_Position = u_vp * vec4(a_pos.x, (a_pos.z - u_zmin) * u_exagerationZ, -a_pos.y, 1.0);
+  vec3 monde = vec3(a_pos.x, (a_pos.z - u_zmin) * u_exagerationZ, -a_pos.y);
+  gl_Position = u_vp * vec4(monde, 1.0);
+
+  float taille = u_taillePoint;
+  if (u_attenuation > 0.5) {
+    float dist = distance(u_camera, monde);
+    taille = u_taillePoint * u_hauteurViewport / max(dist, 1.0) * 0.02;
+  }
+  // Le plancher des points du nuage (pointsVS) descend volontairement bas —
+  // à peine 1 px au réglage par défaut, pour rester discret de loin. Un
+  // marqueur, lui, doit rester trouvable à n'importe quelle distance : 10 px
+  // plancher fixe, quoi qu'il arrive, pas une fraction de la taille demandée.
+  float plancher = max(10.0, u_taillePoint * 0.5);
+  gl_PointSize = clamp(taille, plancher, 96.0);
 }`,
 
   lignesFS: `#version 300 es
 precision highp float;
 uniform vec4 u_couleur;
+// 1 pour un dessin en POINTS qu'on veut rond (marqueurs) — sans objet pour un
+// dessin en LINES, où gl_PointCoord n'a pas de valeur définie.
+uniform float u_pointRond;
 out vec4 fragColor;
-void main() { fragColor = u_couleur; }`,
+void main() {
+  if (u_pointRond > 0.5) {
+    vec2 d = gl_PointCoord - vec2(0.5);
+    if (dot(d, d) > 0.25) discard;
+  }
+  fragColor = u_couleur;
+}`,
 };

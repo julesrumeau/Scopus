@@ -1,6 +1,12 @@
 // Vue 3D du nuage : caméra orbitale, rendu par points, surlignage des
 // détections.
 
+// Décalage vertical des marqueurs (sélection, mesure) au-dessus du point
+// visé — assez pour ne plus coïncider en profondeur avec le point réel du
+// nuage à cet endroit (sans quoi le test de profondeur peut le ronger),
+// assez peu pour rester imperceptible à l'échelle où on lit une mesure.
+const SURELEVATION_MARQUEUR = 0.15;
+
 class Vue3D {
   constructor(canvas, elementBoussole = null) {
     this.canvas = canvas;
@@ -36,12 +42,14 @@ class Vue3D {
     this.nbSommetsPointSel = 0;
     this.vaoMesure = null;
     this.bufMesure = null;
-    this.nbSommetsMesure = 0;
+    this.nbSommetsMesureLigne = 0;
+    this.nbSommetsMesurePoints = 0;
 
     // Caméra orbitale. Distance et cible en mètres, angles en radians.
     this.cam = { cible: [0, 0, 0], distance: 300, azimut: -Math.PI / 4, elevation: 0.6 };
     this.focus = null;
     this._animation = 0;
+    this._animationPivot = 0;
 
     // Mode d'interaction du clic — 'deplacement' (défaut), 'selection' (vise
     // un point) ou 'mesure' (vise deux points, l'un après l'autre) —
@@ -184,7 +192,8 @@ class Vue3D {
     this.nbSommetsSentiers = 0;
     this.nbSommetsTraceSel = 0;
     this.nbSommetsPointSel = 0;
-    this.nbSommetsMesure = 0;
+    this.nbSommetsMesureLigne = 0;
+    this.nbSommetsMesurePoints = 0;
     this.focus = null;
     this._arreterAnimation();
     this.invalider();
@@ -271,22 +280,12 @@ class Vue3D {
   }
 
   /**
-   * Sommets d'une croix posée au-dessus d'un point, reliée au sol par un
-   * montant — en repère local. Une croix plutôt qu'un point seul : un point
-   * n'a pas d'étendue à l'écran et disparaîtrait de profil selon l'angle de
-   * vue. Partagée par `definirPointSelectionne` et `definirMesure`.
-   */
-  _croix(lx, ly, lz) {
-    const h = 1.5, r = 0.5;
-    return [
-      lx, ly, lz, lx, ly, lz + h,                    // montant, du sol à la croix
-      lx - r, ly, lz + h, lx + r, ly, lz + h,         // croix, est-ouest
-      lx, ly - r, lz + h, lx, ly + r, lz + h,         // croix, nord-sud
-    ];
-  }
-
-  /**
-   * Marqueur du point choisi en mode Sélection (voir app.js).
+   * Marqueur du point choisi en mode Sélection (voir app.js) : un point
+   * agrandi avec un liseré sombre, dessiné en `gl.POINTS` plutôt qu'une croix
+   * reliée au sol — une croix se mélangeait avec les points du nuage en
+   * arrière-plan (retour utilisateur du 22/08/2026). La taille est fixe en
+   * pixels d'écran, pas en mètres : le marqueur reste lisible quel que soit
+   * le zoom, comme la sélection elle-même n'a pas d'échelle propre.
    *
    * `p` est en Lambert-93 absolu, comme partout ailleurs dans l'API publique
    * (`viser`, `definirDetections`) ; la conversion vers le repère local du
@@ -294,41 +293,51 @@ class Vue3D {
    */
   definirPointSelectionne(p) {
     // L'altitude peut manquer (sol inconnu, sélectionné depuis la 2D) : sans
-    // elle le montant n'a pas de hauteur à viser, donc pas de marqueur plutôt
-    // qu'un marqueur planté à une hauteur inventée.
+    // elle il n'y a pas de hauteur où planter le marqueur, donc pas de
+    // marqueur plutôt qu'un marqueur planté à une hauteur inventée.
     if (!p || !this.nuage || !Number.isFinite(p.altitude)) {
       this.nbSommetsPointSel = 0;
       this.invalider();
       return;
     }
     const o = this.nuage.origine;
-    const sommets = this._croix(p.x - o[0], p.y - o[1], p.altitude - o[2]);
+    // Légèrement surélevé (voir la constante en tête de fichier) : posé pile
+    // à l'altitude du point, il coïncide en profondeur avec le point réel du
+    // nuage qui l'a motivé, et le test de profondeur peut alors ronger le
+    // marqueur au lieu de le laisser par-dessus.
+    const sommets = [p.x - o[0], p.y - o[1], p.altitude - o[2] + SURELEVATION_MARQUEUR];
     this.nbSommetsPointSel = this._televerserLignes(sommets, 'PointSel');
     this.invalider();
   }
 
   /**
-   * Les deux points de la mesure en cours (voir app.js) : une croix sur
-   * chacun, reliées par un trait direct — la ligne d'air dont la longueur
-   * est la distance totale affichée dans le panneau.
+   * Les deux points de la mesure en cours (voir app.js) : même marqueur
+   * ponctuel que la sélection, reliés par un trait direct — la ligne d'air
+   * dont la longueur est la distance totale affichée dans le panneau.
+   *
+   * Un seul tampon, deux plages : les deux premiers sommets forment le trait
+   * (`gl.LINES`), les suivants les marqueurs (`gl.POINTS`) — `nbSommetsLigne`
+   * dit où l'un finit et l'autre commence au rendu.
    *
    * `a`/`b` en Lambert-93 absolu, `b` peut être `null` tant que le second
    * point n'a pas encore été cliqué.
    */
   definirMesure(a, b) {
     if (!a || !this.nuage || !Number.isFinite(a.altitude)) {
-      this.nbSommetsMesure = 0;
+      this.nbSommetsMesureLigne = 0;
+      this.nbSommetsMesurePoints = 0;
       this.invalider();
       return;
     }
     const o = this.nuage.origine;
-    const la = [a.x - o[0], a.y - o[1], a.altitude - o[2]];
-    let sommets = this._croix(...la);
-    if (b && Number.isFinite(b.altitude)) {
-      const lb = [b.x - o[0], b.y - o[1], b.altitude - o[2]];
-      sommets = sommets.concat(this._croix(...lb), la, lb);
-    }
-    this.nbSommetsMesure = this._televerserLignes(sommets, 'Mesure');
+    const la = [a.x - o[0], a.y - o[1], a.altitude - o[2] + SURELEVATION_MARQUEUR];
+    const aussiB = b && Number.isFinite(b.altitude);
+    const lb = aussiB ? [b.x - o[0], b.y - o[1], b.altitude - o[2] + SURELEVATION_MARQUEUR] : null;
+
+    const sommets = aussiB ? [...la, ...lb, ...la, ...lb] : [...la];
+    this.nbSommetsMesureLigne = aussiB ? 2 : 0;
+    this.nbSommetsMesurePoints = aussiB ? 2 : 1;
+    this._televerserLignes(sommets, 'Mesure');
     this.invalider();
   }
 
@@ -608,12 +617,13 @@ class Vue3D {
         return;
       }
       depart = [e.clientX, e.clientY];
+      const orbite = e.button === 1 || e.button === 2 || e.shiftKey;
       glisse = {
         x: e.clientX, y: e.clientY,
         // Bouton principal : déplacement. Clic droit, bouton du milieu ou
         // Maj+glissé : orbite. Trois voies parce que selon la souris ou le pavé
         // tactile, l'une des trois manque.
-        orbite: e.button === 1 || e.button === 2 || e.shiftKey,
+        orbite,
       };
     });
 
@@ -630,13 +640,7 @@ class Vue3D {
         if (pince.distance > 0) {
           const avant = this._pointSousCurseur({ clientX: m.x, clientY: m.y });
           const ancienne = this.cam.distance;
-          this.cam.distance = Math.max(2, Math.min(6000, ancienne * (pince.distance / d)));
-          if (avant) {
-            const k = this.cam.distance / ancienne;
-            for (const i of [0, 2]) {
-              this.cam.cible[i] = avant[i] + (this.cam.cible[i] - avant[i]) * k;
-            }
-          }
+          this._zoomVers(avant, ancienne, ancienne * (pince.distance / d));
         }
         pince.distance = d;
 
@@ -687,17 +691,7 @@ class Vue3D {
       e.preventDefault();
       const avant = this._pointSousCurseur(e);
       const ancienne = this.cam.distance;
-      this.cam.distance = Math.max(2, Math.min(6000, ancienne * Math.exp(e.deltaY * 0.0012)));
-
-      // Zoom sous le curseur : on rapproche la cible du point visé dans le même
-      // rapport que la distance. Ce point reste donc immobile à l'écran, et
-      // l'on plonge vers ce qu'on regarde au lieu de vers le centre.
-      if (avant) {
-        const k = this.cam.distance / ancienne;
-        for (const i of [0, 2]) {
-          this.cam.cible[i] = avant[i] + (this.cam.cible[i] - avant[i]) * k;
-        }
-      }
+      this._zoomVers(avant, ancienne, ancienne * Math.exp(e.deltaY * 0.0012));
       this.invalider();
     }, { passive: false });
 
@@ -713,15 +707,103 @@ class Vue3D {
       else if (this.mode === 'mesure') this.onPointMesure?.(rayon);
     });
 
-    // Double-clic : amener sous les yeux ce qu'on vient de repérer.
     c.addEventListener('dblclick', (e) => {
-      const p = this._pointSousCurseur(e);
-      if (!p) return;
-      this.cam.cible[0] = p[0];
-      this.cam.cible[2] = p[2];
-      this.cam.distance = Math.max(8, this.cam.distance * 0.45);
-      this.invalider();
+      if (this.mode !== 'deplacement') return;
+      this._recentrerPivot(e);
     });
+  }
+
+  /**
+   * Replace le pivot d'orbite sur le point visé, sans toucher au zoom.
+   * Déclenché par un double-clic explicite, pas au début de chaque geste
+   * d'orbite : recalculer automatiquement à chaque Maj+glissé revient à
+   * parier que le clic de départ tombe pile sur la cible. Retour utilisateur
+   * du 22/08/2026, sur un cas concret : viser un bâtiment, Maj+glisser pour
+   * en faire le tour, et perdre le bâtiment de vue parce que le clic de
+   * départ — pas forcément exact — devenait le nouveau pivot. Un double-clic
+   * délibéré, qu'on peut viser et refaire si raté, n'a pas ce défaut ; c'est
+   * aussi le fonctionnement par défaut de Potree et CloudCompare.
+   *
+   * Le trajet est animé (`_animerPivot`), pas instantané : décaler le pivot
+   * décale la caméra d'autant pour garder distance et angle inchangés (la
+   * technique standard pour ne pas faire pivoter la vue au passage), mais
+   * pour un point cliqué loin de l'ancien pivot, ce décalage reste un vrai
+   * déplacement de caméra — visible d'un coup, il se lisait comme un saut.
+   * Retour utilisateur du 22/08/2026.
+   *
+   * `_pointSousCurseur` intersecte un plan horizontal **infini** : en visée
+   * presque rasante — typiquement en cliquant juste à côté du nuage, vers le
+   * ciel ou le bord de la vue — le calcul reste valide mais rend un point à
+   * des kilomètres. Le pivot s'y envolait. Un point hors de l'emprise réelle
+   * de la dalle (marge de 50 m) est donc ignoré plutôt que suivi aveuglément
+   * — le pivot reste où il était, ce qui ne se voit même pas, plutôt que de
+   * sauter n'importe où. Retour utilisateur du 22/08/2026.
+   */
+  _recentrerPivot(ev) {
+    const p = this._pointSousCurseur(ev);
+    if (!p || !this.nuage) return;
+    const o = this.nuage.origine, e = this.nuage.emprise, marge = 50;
+    const x = p[0] + o[0], y = o[1] - p[2];
+    if (x < e.xmin - marge || x > e.xmax + marge || y < e.ymin - marge || y > e.ymax + marge) return;
+    this._animerPivot(p[0], p[2]);
+  }
+
+  /**
+   * Anime `cam.cible[0]`/`[2]` vers `(x, z)` sur `duree` ms — jamais les
+   * angles, à la différence de `_animerVers` : l'utilisateur est en train de
+   * faire tourner la vue par son propre geste au même moment (voir
+   * `pointermove`), les deux doivent progresser en même temps sans se
+   * marcher dessus, d'où une animation et un handle séparés.
+   */
+  _animerPivot(x, z, duree = 200) {
+    if (this._animationPivot) cancelAnimationFrame(this._animationPivot);
+    const x0 = this.cam.cible[0], z0 = this.cam.cible[2];
+    const dx = x - x0, dz = z - z0;
+    if (Math.abs(dx) < 1e-4 && Math.abs(dz) < 1e-4) return;
+    const t0 = performance.now();
+
+    const pas = () => {
+      const u = Math.min(1, (performance.now() - t0) / duree);
+      const k = u * u * (3 - 2 * u);   // départ et arrivée amortis
+      this.cam.cible[0] = x0 + dx * k;
+      this.cam.cible[2] = z0 + dz * k;
+      this.invalider();
+      this._animationPivot = u < 1 ? requestAnimationFrame(pas) : 0;
+    };
+    pas();
+  }
+
+  /**
+   * Applique un zoom vers `voulue` (distance visée, avant plancher/plafond),
+   * ancré sur `avant` (le point du plan visé avant le zoom, ou `null` en
+   * visée rasante). Partagé par la molette et le pincement à deux doigts.
+   *
+   * Sous le plancher, la distance ne se bloque plus : la cible elle-même
+   * avance dans l'axe de visée (« infinityDolly », le correctif documenté
+   * par `camera-controls`, la référence three.js, pour ce symptôme précis —
+   * sans lui, continuer à zoomer près d'un point donnait l'impression d'un
+   * mur plutôt que de continuer à s'en approcher). Retour utilisateur du
+   * 22/08/2026.
+   */
+  _zoomVers(avant, ancienne, voulue) {
+    const MIN = 2, MAX = 6000;
+    this.cam.distance = Math.max(MIN, Math.min(MAX, voulue));
+
+    // Zoom sous le curseur : on rapproche la cible du point visé dans le même
+    // rapport que la distance. Ce point reste donc immobile à l'écran, et
+    // l'on plonge vers ce qu'on regarde au lieu de vers le centre.
+    if (avant) {
+      const k = this.cam.distance / ancienne;
+      for (const i of [0, 2]) {
+        this.cam.cible[i] = avant[i] + (this.cam.cible[i] - avant[i]) * k;
+      }
+    }
+
+    if (voulue < MIN) {
+      const { avant: dev } = this._repere();
+      const deficit = MIN - voulue;
+      for (const i of [0, 1, 2]) this.cam.cible[i] += dev[i] * deficit;
+    }
   }
 
   /**
@@ -820,6 +902,8 @@ class Vue3D {
   _arreterAnimation() {
     if (this._animation) cancelAnimationFrame(this._animation);
     this._animation = 0;
+    if (this._animationPivot) cancelAnimationFrame(this._animationPivot);
+    this._animationPivot = 0;
   }
 
   /**
@@ -894,12 +978,22 @@ class Vue3D {
     // détection derrière une crête reste masquée, ce qui donne la bonne lecture
     // spatiale.
     const l = this.progLignes;
-    if (this.nbSommetsLignes || this.nbSommetsSel || this.nbSommetsSentiers
-      || this.nbSommetsTraceSel || this.nbSommetsPointSel || this.nbSommetsMesure) {
+    if (this.nbSommetsLignes || this.nbSommetsSel || this.nbSommetsSentiers || this.nbSommetsTraceSel
+      || this.nbSommetsPointSel || this.nbSommetsMesureLigne || this.nbSommetsMesurePoints) {
       gl.useProgram(l);
       gl.uniformMatrix4fv(l.u.u_vp, false, vp);
       gl.uniform1f(l.u.u_exagerationZ, CONFIG.rendu.exagerationZ);
       gl.uniform1f(l.u.u_zmin, this.zmin);
+      // Pour que les marqueurs (sélection, mesure) réagissent à la distance
+      // exactement comme les points du nuage — voir le commentaire de
+      // `lignesVS`. Sans objet pour les tracés en LINES qui suivent.
+      gl.uniform3fv(l.u.u_camera, oeil);
+      gl.uniform1f(l.u.u_hauteurViewport, h);
+      gl.uniform1f(l.u.u_attenuation, CONFIG.rendu.attenuation ? 1 : 0);
+      // À plat par défaut : sans ça, un `u_pointRond` resté à 1 d'un dessin de
+      // marqueur précédent ferait lire `gl_PointCoord` — non défini hors d'un
+      // dessin en POINTS — pendant les tracés en LINES qui suivent.
+      gl.uniform1f(l.u.u_pointRond, 0.0);
     }
     if (this.nbSommetsLignes) {
       gl.uniform4f(l.u.u_couleur, 0.30, 0.85, 1.0, 1.0);
@@ -923,19 +1017,54 @@ class Vue3D {
       gl.bindVertexArray(this.vaoTraceSel);
       gl.drawArrays(gl.LINES, 0, this.nbSommetsTraceSel);
     }
-    // Magenta : la seule couleur du lot qui ne sert à rien d'autre dans cette
-    // vue, pour rester lisible quel que soit ce qu'il y a dessous.
+    // Taille des marqueurs asservie au réglage « Taille des points » : sinon
+    // un gros réglage de points fait paraître les marqueurs petits par
+    // comparaison, alors qu'ils doivent toujours dominer visuellement le
+    // nuage. Plancher à 11 px pour rester visible même au minimum du curseur.
+    const tailleMarqueur = Math.max(11, CONFIG.rendu.taillePoint * 2);
+    const couleurMarqueur = [1.0, 0.25, 0.85, 1.0];   // rose — la seule couleur du lot qui ne sert à rien d'autre ici
+    const tracerMarqueurs = (premier, nb) => {
+      gl.uniform1f(l.u.u_pointRond, 1.0);
+      // Le liseré et le remplissage partagent le même sommet, donc la même
+      // profondeur exacte : au test par défaut (LESS), le second dessin n'est
+      // jamais strictement plus proche que le premier et perd systématiquement
+      // contre lui, quel que soit l'ordre — le remplissage rose ne s'affichait
+      // donc jamais, seul le liseré sombre restait visible. LEQUAL le temps des
+      // deux dessins laisse le second l'emporter à profondeur égale.
+      gl.depthFunc(gl.LEQUAL);
+      // Liseré fin (+4 px), pas épais : un liseré trop large à côté d'un
+      // remplissage sombre proche du fond noir donnait l'impression d'un
+      // marqueur entièrement noir plutôt que d'un point rose cerclé.
+      gl.uniform1f(l.u.u_taillePoint, tailleMarqueur + 4);
+      gl.uniform4f(l.u.u_couleur, 0.04, 0.05, 0.07, 1.0);
+      gl.drawArrays(gl.POINTS, premier, nb);
+      gl.uniform1f(l.u.u_taillePoint, tailleMarqueur);
+      gl.uniform4f(l.u.u_couleur, ...couleurMarqueur);
+      gl.drawArrays(gl.POINTS, premier, nb);
+      gl.uniform1f(l.u.u_pointRond, 0.0);
+      gl.depthFunc(gl.LESS);
+    };
+
+    // Marqueur ponctuel (croix retirée le 22/08/2026, retour utilisateur —
+    // elle se mélangeait avec les points du nuage) : un point agrandi, liseré
+    // sombre puis couleur par-dessus.
     if (this.nbSommetsPointSel) {
-      gl.uniform4f(l.u.u_couleur, 1.0, 0.25, 0.85, 1.0);
       gl.bindVertexArray(this.vaoPointSel);
-      gl.drawArrays(gl.LINES, 0, this.nbSommetsPointSel);
+      tracerMarqueurs(0, this.nbSommetsPointSel);
     }
-    // Cyan clair : distinct du magenta de la sélection, pour les cas — rares
-    // mais possibles — où les deux marqueurs sont posés en même temps.
-    if (this.nbSommetsMesure) {
-      gl.uniform4f(l.u.u_couleur, 0.3, 0.95, 1.0, 1.0);
+    // Mesure : le trait d'abord, puis les mêmes marqueurs ponctuels que la
+    // sélection sur ses deux bouts — même rose, pour lire d'un coup d'œil
+    // « un point qu'on a visé », qu'il vienne de la sélection ou de la
+    // mesure. Les deux plages vivent dans le même tampon, voir `definirMesure`.
+    if (this.nbSommetsMesureLigne || this.nbSommetsMesurePoints) {
       gl.bindVertexArray(this.vaoMesure);
-      gl.drawArrays(gl.LINES, 0, this.nbSommetsMesure);
+      if (this.nbSommetsMesureLigne) {
+        gl.uniform4f(l.u.u_couleur, 0.3, 0.95, 1.0, 1.0);
+        gl.drawArrays(gl.LINES, 0, this.nbSommetsMesureLigne);
+      }
+      if (this.nbSommetsMesurePoints) {
+        tracerMarqueurs(this.nbSommetsMesureLigne, this.nbSommetsMesurePoints);
+      }
     }
     gl.bindVertexArray(null);
   }
