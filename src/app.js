@@ -33,6 +33,11 @@ const etat = {
   reliefGrille: null,
   selection: null,
   abandon: null,
+  // Classes de sol qui ont servi à bâtir `grille` — un instantané, pas la
+  // sélection courante des cases à cocher, qui peut avoir bougé depuis. Sert
+  // uniquement à savoir si « Mettre à jour » (§ Classes du sol) a quelque
+  // chose à faire.
+  classesSolChargees: null,
 };
 
 /**
@@ -680,8 +685,13 @@ $('niveau').addEventListener('input', (e) => {
 });
 
 // ── Étape 1 → 2 : chargement du nuage ───────────────────────────────────────
+//
+// Fonction nommée plutôt qu'un gestionnaire anonyme : « Mettre à jour » (§
+// Classes du sol, plus bas) rejoue exactement cette même chaîne — même dalle,
+// même résolution, seule la sélection de classes change — plutôt que de la
+// dupliquer.
 
-$('btn-charger').addEventListener('click', async () => {
+async function chargerNuage() {
   if (!etat.entete || !etat.dalle) return;
   const dalle = etat.dalle;
 
@@ -698,6 +708,7 @@ $('btn-charger').addEventListener('click', async () => {
   const ctrl = new AbortController();
   etat.abandon = ctrl;
   $('btn-charger').disabled = true;
+  $('btn-classes-sol-appliquer').disabled = true;
   $('btn-annuler').hidden = false;
   $('progression').hidden = false;
   const debut = performance.now();
@@ -714,7 +725,8 @@ $('btn-charger').addEventListener('click', async () => {
     // annulation à mi-parcours laissait la grille à moitié remplie de la
     // nouvelle dalle pendant que la 3D montrait encore l'ancienne — et la
     // détection lisait alors ce mélange sans que rien ne le signale.
-    const grille = RASTER.creerGrilles(emprise, origine);
+    const grille = RASTER.creerGrilles(emprise, origine, undefined, classesSol);
+    etat.classesSolChargees = new Set(classesSol);   // instantané : `classesSol` peut encore bouger après ce point
     const niveauVue = NUAGE.niveauPourAffichage(etat.couts.slice(0, etat.niveau + 1));
 
     const nuage = await NUAGE.charger(etat.entete, noeuds, emprise, {
@@ -769,6 +781,7 @@ $('btn-charger').addEventListener('click', async () => {
     $('section-analyse').hidden = ANALYSE_MASQUEE && SENTIERS_MASQUES;
     $('section-selection').hidden = false;
     $('section-mesure').hidden = false;
+    $('section-sol').hidden = false;
     // Le nuage est le résultat le plus spectaculaire, mais ce n'est pas celui
     // qu'on vient chercher : un objet de six mètres ne se voit pas dans un
     // kilomètre carré de points. La 2D est la vue d'arrivée.
@@ -812,6 +825,7 @@ $('btn-charger').addEventListener('click', async () => {
     majBandeau();
 
     majLegende();
+    majListeClassesSol();
     majHUD();
 
     const secondes = ((performance.now() - debut) / 1000).toFixed(1);
@@ -836,10 +850,15 @@ $('btn-charger').addEventListener('click', async () => {
       $('barre-progression').style.width = '0';
       $('progression-pct').textContent = '0 %';
       $('progression-detail').textContent = '—';
+      // Sur un échec, `majListeClassesSol()` (appelée seulement en cas de
+      // succès, plus haut) n'aura pas tourné : sans ce rappel, un rechargement
+      // raté laisserait le bouton bloqué à « désactivé » pour toujours.
+      majBoutonClassesSol();
     }
     if (etat.abandon === ctrl) etat.abandon = null;
   }
-});
+}
+$('btn-charger').addEventListener('click', chargerNuage);
 
 $('btn-annuler').addEventListener('click', () => etat.abandon?.abort());
 
@@ -904,6 +923,7 @@ function fermerNuage() {
   effacerSelection();
   $('section-mesure').hidden = true;
   effacerMesure();
+  $('section-sol').hidden = true;
   $('liste').innerHTML = '';
   $('liste-sentiers').innerHTML = '';
   $('compte').textContent = '';
@@ -915,6 +935,7 @@ function fermerNuage() {
 
   majBandeau();
   majLegende();
+  majListeClassesSol();
   majHUD();
   basculerVue('carte');
   statut('Nuage fermé — mémoire libérée');
@@ -1474,6 +1495,63 @@ $('legende').addEventListener('click', (e) => {
   b.classList.toggle('off', classesMasquees.has(cls));
   vue3d?.definirClassesMasquees(classesMasquees);
 });
+
+// ── Classes du sol ────────────────────────────────────────────────────────
+//
+// Quelles classes ASPRS forment le sol (`RASTER.accumuler`, `g.solZ`) : sol +
+// eau par défaut (`CONFIG.raster.classesSolDefaut`), réglable une fois la
+// dalle chargée et ses classes connues — on ne les sait pas avant, un LAS
+// n'annonce pas d'avance ce qu'il contient. Persiste d'un nuage à l'autre,
+// comme `classesMasquees`.
+//
+// Redéfinir le sol change la surface elle-même — mnt, donc les couches de
+// relief ET le point visé au clic en 2D (`Vue2D.lire`) — jamais un simple
+// filtre d'affichage. D'où le bouton « Mettre à jour » plutôt qu'un recalcul
+// au clic sur une case : les points bruts ne sont pas gardés (voir
+// `RASTER.creerGrilles`), la seule façon de refaire `solZ` avec une autre
+// sélection est de retélécharger la dalle — `chargerNuage()` déjà écrit pour
+// « Charger le nuage » fait exactement ça.
+let classesSol = new Set(CONFIG.raster.classesSolDefaut);
+
+function majListeClassesSol() {
+  const l = $('liste-classes-sol');
+  if (!etat.nuage) { l.innerHTML = ''; majBoutonClassesSol(); return; }
+
+  const presentes = [...etat.nuage.parClasse.entries()].sort((a, b) => b[1] - a[1]);
+  l.innerHTML = presentes.map(([cls, n]) => {
+    const part = (100 * n / etat.nuage.n).toFixed(1);
+    const coche = classesSol.has(cls) ? ' checked' : '';
+    return `<label class="case">`
+      + `<input type="checkbox" data-cls="${cls}"${coche}>`
+      + `<span>${NOMS_CLASSES[cls] || `classe ${cls}`} <b>${part} %</b></span></label>`;
+  }).join('');
+  majBoutonClassesSol();
+}
+
+/**
+ * « Mettre à jour » n'a de raison d'être actif que si la sélection courante
+ * diffère de celle qui a servi à bâtir la grille en mémoire (`memeEnsemble`),
+ * et jamais pendant qu'un chargement tourne déjà (`btn-charger` porte ce
+ * second état, réutilisé plutôt que dupliqué). Appelée aussi bien après un
+ * chargement réussi qu'après un échec — sans quoi un rechargement raté
+ * laisserait le bouton bloqué à « désactivé » pour toujours.
+ */
+function majBoutonClassesSol() {
+  const memeEnsemble = etat.classesSolChargees
+    && classesSol.size === etat.classesSolChargees.size
+    && [...classesSol].every((c) => etat.classesSolChargees.has(c));
+  $('btn-classes-sol-appliquer').disabled = !etat.nuage || $('btn-charger').disabled || memeEnsemble;
+}
+
+$('liste-classes-sol').addEventListener('change', (e) => {
+  const cb = e.target.closest('input[data-cls]');
+  if (!cb) return;
+  const cls = Number(cb.dataset.cls);
+  if (cb.checked) classesSol.add(cls); else classesSol.delete(cls);
+  majBoutonClassesSol();
+});
+
+$('btn-classes-sol-appliquer').addEventListener('click', chargerNuage);
 
 function majHUD() {
   if (!etat.nuage) { $('hud').textContent = ''; return; }

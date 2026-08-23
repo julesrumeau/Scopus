@@ -688,6 +688,66 @@ chaque case cochée.
 Le point est **rejeté**, pas rendu transparent : un point transparent écrirait
 quand même dans le tampon de profondeur et masquerait ce qui est derrière.
 
+## Classes du sol
+
+Autre chose que le filtrage ci-dessus : là, on choisissait quels points **se
+voient** ; ici, on choisit quels points **sont** le sol. `RASTER.accumuler`
+versait toujours les classes ASPRS 2 (sol) et 9 (eau) dans `solZ`, en dur —
+retour utilisateur : « on fait que sol, il faut que ce soit choisissable,
+genre ça affiche toutes les classes du LAS, avec case à cocher ». `g.classesSol`
+(un `Set`, `CONFIG.raster.classesSolDefaut = [2, 9]` par défaut) remplace
+maintenant ce codage en dur, et le panneau « Classes du sol » liste — une fois
+la dalle chargée et ses classes connues, jamais avant — chaque classe
+réellement présente avec une case, sur le même modèle que la légende de
+filtrage (`etat.nuage.parClasse`, § ci-dessus).
+
+**Une classe choisie comme sol cesse de nourrir le signal de détection**,
+même s'il s'agit de « non classé » ou « bâtiment » — vérifié dans le code par
+un `if`/`else if` où le sol est testé en premier, pas un `switch` où les deux
+pourraient tomber indépendamment. Un même point comptant dans les deux
+créerait une contradiction silencieuse entre le sol et ce qui est censé s'en
+détacher.
+
+**Pas de recalcul au clic sur une case : un bouton « Mettre à jour » explicite,
+qui recharge la dalle.** La raison n'est pas ergonomique mais physique : les
+points bruts ne sont jamais gardés (§ « Chargement : pourquoi COPC change
+tout »), seulement les statistiques déjà accumulées avec l'**ancienne**
+sélection. Il n'y a donc rien à recalculer sur place — seulement à retélécharger
+et réaccumuler avec la nouvelle. `chargerNuage()`, déjà écrit pour le bouton
+« Charger le nuage », est réutilisé tel quel : même dalle, même résolution,
+seule `classesSol` change.
+
+Chiffré avant de trancher, plutôt que supposé : garder une statistique
+supplémentaire par classe (min Z + compte, pour se passer du rechargement)
+coûterait environ 80 Mo par classe suivie en plus sur une dalle entière à
+25 cm — vite plusieurs centaines de Mo pour une poignée de classes, à mettre
+en regard des 405 Mo déjà en mémoire.
+
+**Retélécharger, en revanche, n'est pas gratuit — contrairement à ce qui avait
+d'abord été supposé ici.** Le pari initial : le cache HTTP resservirait les
+mêmes plages d'octets sans repasser par le réseau, sur la foi d'un cas déjà
+observé (§ pièges connus, « Un 200 en réponse à un `Range`… ») où une requête
+retrouvait en cache une plage remplie **par un réessai dans la même série de
+téléchargement**. Retour utilisateur, quelques minutes après coup : « Mettre à
+jour » est systématiquement lent, à chaque clic — le cache ne joue pas comme
+espéré une fois la série de téléchargement terminée, très probablement parce
+que `data.geopf.fr` ne renvoie pas d'en-têtes qui autorisent le navigateur à
+garder ces réponses `206` d'une visite à l'autre. Non vérifié en-têtes à
+l'appui — aucun accès réseau depuis l'environnement où ce diagnostic a été
+posé — mais l'observation directe d'un ralentissement systématique pèse plus
+que la supposition qu'elle contredit. Le compromis reste préféré au coût
+mémoire malgré tout : la dépense reste bornée dans le temps (un rechargement),
+pas permanente comme le serait un tableau de plus par classe suivie.
+
+**Le bouton « Mettre à jour » suit un instantané, pas la sélection en
+cours.** `etat.classesSolChargees` retient la sélection qui a effectivement
+servi à bâtir la grille en mémoire ; le bouton n'est actif que si la
+sélection courante s'en écarte (`majBoutonClassesSol`), et jamais pendant
+qu'un chargement tourne déjà (`btn-charger.disabled`, réutilisé plutôt que
+dupliqué). Cette même fonction est rappelée aussi bien après un chargement
+réussi qu'après un échec — l'oubli du second cas laisserait le bouton
+bloqué à « désactivé » pour de bon après un rechargement raté.
+
 ---
 
 ## Détection de sentiers

@@ -227,6 +227,13 @@ const CONFIG = {
     // complète. À 21 octets par cellule cela fait ~336 Mo de grilles, ce qui
     // tient sur une machine de bureau ; au-delà le pas est relevé et annoncé.
     cellulesMax: 17_000_000,
+    // Classes ASPRS versées dans le sol (`solZ`, l'altitude minimale par
+    // cellule) — sol et eau, la convention MNT habituelle (voir CLAUDE.md,
+    // « L'eau est du terrain »). Réglable depuis le panneau (« Classes du
+    // sol ») une fois une dalle chargée, avec rechargement explicite : changer
+    // ce qui définit le sol change la surface elle-même, pas un filtre
+    // d'affichage, donc pas un recalcul silencieux.
+    classesSolDefaut: [2, 9],
   },
 
   // ── Visualisations de relief ──────────────────────────────────────────────

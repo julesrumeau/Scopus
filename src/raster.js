@@ -34,8 +34,14 @@ const CLASSE = {
  *
  * Le pas demandé est relevé si la zone est trop vaste pour le plafond de
  * cellules : mieux vaut une grille plus grossière annoncée qu'un plantage.
+ *
+ * @param {Set<number>|number[]} [classesSol] classes ASPRS versées dans le
+ *   sol (`solZ`) — `CONFIG.raster.classesSolDefaut` (sol + eau) si omis.
+ *   Réglable depuis le panneau une fois une dalle chargée ; changer cette
+ *   liste redéfinit la surface elle-même, d'où un rechargement plutôt qu'un
+ *   recalcul sur des points qui ne sont de toute façon plus en mémoire.
  */
-function creerGrilles(emprise, origine, pasDemande = CONFIG.raster.pasM) {
+function creerGrilles(emprise, origine, pasDemande = CONFIG.raster.pasM, classesSol = CONFIG.raster.classesSolDefaut) {
   const largeurM = emprise.xmax - emprise.xmin;
   const hauteurM = emprise.ymax - emprise.ymin;
 
@@ -55,6 +61,7 @@ function creerGrilles(emprise, origine, pasDemande = CONFIG.raster.pasM) {
   // atteint, et l'économie est de 64 Mo sur une dalle entière.
   return {
     W, H, pas, emprise, origine,
+    classesSol: classesSol instanceof Set ? classesSol : new Set(classesSol),
     solZ: new Float32Array(N).fill(NaN),   // Z minimal des points « sol »
     solN: new Uint8Array(N),
     ncSomme: new Float32Array(N),          // cumul des Z « non classé »
@@ -109,39 +116,34 @@ function accumuler(g, bloc) {
     if (g.totalN[c] < 255) g.totalN[c]++;
     if (z > g.sommetZ[c]) { g.sommetZ[c] = z; g.sommetCls[c] = bloc.cls[i]; }
 
-    switch (bloc.cls[i]) {
-      case CLASSE.SOL:
-      // L'eau **est** le terrain, et la traiter comme telle ne coûte pas un
-      // octet.
-      //
-      // Ignorée, une surface d'eau ne laisse aucun retour « sol » : le
-      // comblement propage alors les berges vers le milieu et fabrique un dôme
-      // ou un plan incliné là où il y a un plan d'eau horizontal. L'artefact est
-      // parfaitement lisible en ombrage et en Sky-View Factor, et il n'est pas
-      // du terrain. La convention des MNT est d'ailleurs celle-ci : la surface
-      // de l'eau est la surface du sol.
-      //
-      // Le minimum est plus discutable ici que pour le sol — un retour parasite
-      // sous la surface creuserait une fosse — mais les cellules d'eau en
-      // reçoivent plusieurs, et le comblement d'un dôme entier était un défaut
-      // autrement plus visible.
-      case CLASSE.EAU:
-        // Le minimum, pas la moyenne : un point de sol mal classé sur un muret
-        // tirerait la référence vers le haut et masquerait la structure.
-        if (!(g.solZ[c] <= z)) g.solZ[c] = z;
-        if (g.solN[c] < 255) g.solN[c]++;
-        break;
-      case CLASSE.NON_CLASSE:
-        g.ncSomme[c] += z;
-        if (g.ncN[c] < 255) g.ncN[c]++;
-        break;
-      case CLASSE.BATIMENT:
-        g.batSomme[c] += z;
-        if (g.batN[c] < 255) g.batN[c]++;
-        break;
-      default:
-        break;   // végétation, bruit, ponts : sans emploi dans la détection
+    const cls = bloc.cls[i];
+
+    // Le sol n'est plus figé sur SOL/EAU : `g.classesSol` (réglable depuis le
+    // panneau « Classes du sol », § CLAUDE.md) dit quelles classes en tiennent
+    // lieu. Sol et eau restent le réglage par défaut — la convention MNT
+    // habituelle, la surface de l'eau étant la surface du sol — mais une dalle
+    // où une structure est rangée en « non classé » ou en végétation basse
+    // peut vouloir l'y ajouter. Vérifiée en premier : une classe choisie comme
+    // sol ne doit pas *aussi* nourrir le signal de détection ci-dessous, sans
+    // quoi un même point compterait double.
+    if (g.classesSol.has(cls)) {
+      // Le minimum, pas la moyenne : un point de sol mal classé sur un muret
+      // tirerait la référence vers le haut et masquerait la structure. Pour
+      // l'eau, plus discutable — un retour parasite sous la surface creuserait
+      // une fosse — mais les cellules d'eau en reçoivent plusieurs, et le
+      // comblement d'un dôme entier était un défaut bien plus visible.
+      if (!(g.solZ[c] <= z)) g.solZ[c] = z;
+      if (g.solN[c] < 255) g.solN[c]++;
+    } else if (cls === CLASSE.NON_CLASSE) {
+      g.ncSomme[c] += z;
+      if (g.ncN[c] < 255) g.ncN[c]++;
+    } else if (cls === CLASSE.BATIMENT) {
+      g.batSomme[c] += z;
+      if (g.batN[c] < 255) g.batN[c]++;
     }
+    // Le reste (végétation, bruit, ponts…) n'a pas d'emploi dans la
+    // détection — hors sol, hors signal — mais reste vu par `sommetZ` /
+    // `sommetCls` ci-dessus, sans coût de plus.
   }
 }
 

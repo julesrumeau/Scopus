@@ -207,6 +207,27 @@
       </div>
     </section>
 
+    <!-- ─── Classes du sol : quelles classes ASPRS forment la surface ─────
+         Commune aux deux onglets : le sol est une seule surface partagée,
+         que ce soit pour le relief affiché en 2D ou pour le point visé au
+         clic (Sélection, Mesure). Sol + eau par défaut, comme aujourd'hui —
+         voir CONFIG.raster.classesSolDefaut. Changer la sélection redéfinit
+         la surface elle-même, pas un filtre d'affichage : d'où le bouton
+         « Mettre à jour », qui recharge la dalle plutôt que de recalculer en
+         silence sur des points qui, de toute façon, ne sont plus gardés. -->
+    <section class="etape" data-vue="2d 3d" id="section-sol" hidden>
+      <h2>Classes du sol</h2>
+      <p class="note">Quelles classes du LAS forment la surface du sol — le
+        relief affiché et le point visé au clic en dépendent tous les deux.</p>
+      <div id="liste-classes-sol" class="legende"></div>
+      <div class="rangee">
+        <button id="btn-classes-sol-appliquer" class="primaire" disabled
+                title="Retélécharge la dalle entière avec la nouvelle sélection">Mettre à jour</button>
+      </div>
+      <p class="note">Retélécharge la dalle en entier : les points bruts ne sont pas
+        gardés en mémoire, il n'y a rien à recalculer sur place.</p>
+    </section>
+
     <!-- ─── 3D : rendu du nuage ──────────────────────────────────────────── -->
     <section class="etape" data-vue="3d" id="section-affichage" hidden>
       <h2>Affichage</h2>
