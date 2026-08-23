@@ -185,6 +185,12 @@ const CONFIG = {
     // Colorisation : 'elevation' | 'classification' | 'intensite' | 'hauteur'
     coloration: 'classification',
     exagerationZ: 1.0,
+    // Rayon d'acceptation du pointé 3D (sélection, mesure), en pixels à
+    // l'écran — voir `TERRAIN.pointDuNuage`. Assez large pour ne pas
+    // demander une visée pixel-parfaite sur un nuage où les points affichés
+    // sont espacés de 85 cm à 1,7 m, assez étroit pour ne jamais capter un
+    // point clairement à côté du curseur.
+    toleragePointagePx: 8,
     // Palette des classifications LiDAR HD (norme ASPRS + usage IGN).
     couleursClasse: {
       1: '#e8c15a',   // non classé  — c'est le signal recherché

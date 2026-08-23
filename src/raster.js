@@ -62,6 +62,25 @@ function creerGrilles(emprise, origine, pasDemande = CONFIG.raster.pasM) {
     batSomme: new Float32Array(N),         // idem pour la classe « bâtiment »
     batN: new Uint8Array(N),
     totalN: new Uint8Array(N),
+    // Z maximal, toutes classes confondues — végétation et ponts compris, que
+    // le `switch` ci-dessous laisse autrement filer sans laisser de trace. Sert
+    // au pointé 3D (`terrain.js`, sélection et mesure) : un rayon doit pouvoir
+    // s'arrêter sur n'importe quel point affiché, pas seulement sur le signal
+    // que regarde la détection. Un `Float32Array` de plus coûte 64 Mo sur une
+    // dalle entière à 25 cm — assumé, parce que c'est le seul moyen de garder
+    // trace d'un point dont la classe n'est d'aucun autre usage ici.
+    sommetZ: new Float32Array(N).fill(-Infinity),
+    // Classe du point qui détient ce maximum. Sans elle, masquer une classe à
+    // l'affichage (§ « Filtrage des classes ») laisserait `sommetZ` pointer sur
+    // un point devenu invisible : le rayon s'arrêterait en l'air, à l'ancienne
+    // position d'un arbre qu'on vient de décocher. `terrain.js` l'ignore alors
+    // et retombe sur l'enveloppe de détection (`hauteur`, donc `ncSomme` /
+    // `batSomme` restés à part, jamais `sommetZ`). Un octet par cellule, pas un
+    // Float32Array par classe : le prix est qu'un second point plus bas à la
+    // même cellule, s'il n'appartient à aucun des trois canaux déjà suivis
+    // (sol, non classé, bâtiment), reste perdu — on ne garde qu'un seul
+    // maximum, pas un classement.
+    sommetCls: new Uint8Array(N),
   };
 }
 
@@ -88,6 +107,7 @@ function accumuler(g, bloc) {
     const z = bloc.z[i];
 
     if (g.totalN[c] < 255) g.totalN[c]++;
+    if (z > g.sommetZ[c]) { g.sommetZ[c] = z; g.sommetCls[c] = bloc.cls[i]; }
 
     switch (bloc.cls[i]) {
       case CLASSE.SOL:

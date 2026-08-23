@@ -289,9 +289,20 @@ $('recherche-point').addEventListener('keydown', (e) => {
 // La géométrie (marche du rayon contre le MNT) vit dans `terrain.js`, pure et
 // testée pour elle-même — ici, on ne fait que lui fournir les réglages du
 // moment (grille affichée, exagération, altitude de référence du nuage).
+//
+// Deux essais, dans l'ordre : le nuage réellement affiché d'abord — un point
+// trouvé là est exactement celui qu'on voit, jamais une moyenne de cellule
+// (voir CLAUDE.md, « Le pointé au clic ») — puis, s'il n'y en a aucun dans le
+// seuil (clic imprécis, ou zone du terrain sans point rendu tout près),
+// l'enveloppe du MNT en repli plutôt que de rendre la main bredouille.
+function viserPoint3D(rayon) {
+  return vue3d.pointDuNuage(rayon, classesMasquees)
+    || TERRAIN.pointDuTerrain(rayon, etat.reliefGrille, CONFIG.rendu.exagerationZ, vue3d.zmin, classesMasquees);
+}
+
 if (vue3d) {
   vue3d.onSelectionPoint = (rayon) => {
-    const pt = TERRAIN.pointDuTerrain(rayon, etat.reliefGrille, CONFIG.rendu.exagerationZ, vue3d.zmin);
+    const pt = viserPoint3D(rayon);
     if (!pt) { statut('Aucun terrain sous ce point — visez le nuage', 'erreur'); return; }
     afficherSelection(pt.x, pt.y, pt.sol, pt.hauteur);
   };
@@ -368,7 +379,7 @@ $('btn-mesure-effacer').addEventListener('click', effacerMesure);
 vue2d.cb.surPointMesure = (p) => { if (p) ajouterPointMesure(p.x, p.y, p.altitude, p.hauteur); };
 if (vue3d) {
   vue3d.onPointMesure = (rayon) => {
-    const pt = TERRAIN.pointDuTerrain(rayon, etat.reliefGrille, CONFIG.rendu.exagerationZ, vue3d.zmin);
+    const pt = viserPoint3D(rayon);
     if (!pt) { statut('Aucun terrain sous ce point — visez le nuage', 'erreur'); return; }
     ajouterPointMesure(pt.x, pt.y, pt.sol, pt.hauteur);
   };

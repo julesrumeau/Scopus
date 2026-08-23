@@ -39,6 +39,14 @@ const RELIEF = (() => {
  *  - `valide`   1 si le sol est connu — le comblement l'a atteinte ;
  *  - `hauteur`  hauteur de ce qui se dresse au-dessus du sol, en mètres ;
  *  - `trou`     part des cellules fines sans aucun retour sol, dans [0, 1].
+ *
+ * Deux de plus s'y ajoutent pour le pointé 3D (`terrain.js`) : `sommet`, le Z
+ * maximal relevé, toutes classes confondues (végétation, ponts compris), là
+ * où `hauteur` s'en tient au signal de détection ; et `sommetCls`, la classe
+ * qui le porte, pour qu'un point démasqué à l'affichage cesse d'y répondre.
+ * `sommet` vaut `-Infinity` là où `g` ne porte pas `sommetZ` (grilles de test)
+ * ou qu'aucun point n'y a été vu — jamais NaN, pour rester comparable sans
+ * propager de faux.
  */
 function preparer(g, options = {}) {
   const p = { ...CONFIG.relief, ...options };
@@ -63,10 +71,13 @@ function preparer(g, options = {}) {
   const valide = new Uint8Array(N);
   const hauteur = new Float32Array(N);
   const trou = new Float32Array(N);
+  const sommet = new Float32Array(N).fill(-Infinity);
+  const sommetCls = new Uint8Array(N);
 
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
-      let somme = 0, sommeSol = 0, connues = 0, fines = 0, sansSol = 0, hMax = 0, zMax = -Infinity, mesurees = 0;
+      let somme = 0, sommeSol = 0, connues = 0, fines = 0, sansSol = 0, hMax = 0, zMax = -Infinity, mesurees = 0,
+        sommetMax = -Infinity, sommetMaxCls = 0;
 
       for (let dy = 0; dy < f; dy++) {
         const yy = y * f + dy;
@@ -142,6 +153,13 @@ function preparer(g, options = {}) {
           // `trou` garde son sens strict : aucun retour **sol**. C'est l'indice
           // le plus physique de la détection, et le compléter ici le viderait.
           if (!g.solN[c]) sansSol++;
+
+          // Le sommet toutes classes, pour le pointé 3D — absent des grilles de
+          // test qui n'en ont pas l'usage, d'où la garde.
+          if (g.sommetZ && g.sommetZ[c] > sommetMax) {
+            sommetMax = g.sommetZ[c];
+            sommetMaxCls = g.sommetCls[c];
+          }
         }
       }
 
@@ -172,6 +190,8 @@ function preparer(g, options = {}) {
       }
       hauteur[i] = hMax;
       trou[i] = fines ? sansSol / fines : 1;
+      sommet[i] = sommetMax;
+      sommetCls[i] = sommetMaxCls;
     }
   }
 
@@ -184,7 +204,7 @@ function preparer(g, options = {}) {
   for (let i = 0; i < N; i++) if (!valide[i]) { mnt[i] = repli; analyse[i] = repli; }
 
   return {
-    W, H, N, pas: g.pas * f, mnt, analyse, valide, hauteur, trou,
+    W, H, N, pas: g.pas * f, mnt, analyse, valide, hauteur, trou, sommet, sommetCls,
     emprise: g.emprise, origine: g.origine,
   };
 }

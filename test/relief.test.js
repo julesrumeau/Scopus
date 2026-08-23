@@ -352,6 +352,48 @@ test('les retours non classés remplacent le sol inventé sous une structure', (
   assert.ok(Math.abs(ruine.mnt[0] - 10) < 1e-5);
 });
 
+test('`sommet` remonte le Z maximal toutes classes, pour le pointé 3D', () => {
+  // Sert au rayon de sélection/mesure (`terrain.js`) : il doit pouvoir viser
+  // un point de n'importe quelle classe, pas seulement le signal de
+  // détection que porte `hauteur`.
+  const { RELIEF } = charger();
+  const W = 40, H = 40, N = W * H;
+  const g = {
+    W, H, pas: 0.25,
+    emprise: { xmin: 0, ymin: 0, xmax: 10, ymax: 10 },
+    origine: [0, 0, 1500],
+    mnt: new Float32Array(N).fill(10),
+    solZ: new Float32Array(N).fill(10),
+    solConnu: new Uint8Array(N).fill(1),
+    solN: new Uint8Array(N).fill(3),
+    ncSomme: new Float32Array(N),
+    ncN: new Uint8Array(N),
+    batSomme: new Float32Array(N),
+    batN: new Uint8Array(N),
+    sommetZ: new Float32Array(N).fill(-Infinity),
+    sommetCls: new Uint8Array(N).fill(2),   // sol partout par défaut
+  };
+  const cellesFines = [20 * W + 20, 20 * W + 21, 21 * W + 20, 21 * W + 21];
+  for (const c of cellesFines) g.sommetZ[c] = 10;   // Z du sol, comme partout
+  g.sommetZ[20 * W + 20] = 28;   // sauf une cellule : la cime d'un arbre, classe végétation
+  g.sommetCls[20 * W + 20] = 5;
+
+  const t = RELIEF.preparer(g, { pasM: 0.5, inclureBati: false, inclureSursol: false });
+  const i = 10 * t.W + 10;
+  assert.equal(t.sommet[i], 28, 'le sommet retenu est le maximum toutes classes du bloc');
+  assert.equal(t.sommetCls[i], 5, 'la classe suit le maximum retenu, pas une valeur arbitraire du bloc');
+  assert.equal(t.hauteur[i], 0, '`hauteur` reste aveugle à la végétation — son rôle ne change pas');
+
+  // Ailleurs, aucun point n'a été vu par `sommetZ` (resté à -Infinity).
+  assert.equal(t.sommet[0], -Infinity);
+
+  // Sans `sommetZ` sur la grille d'entrée (grilles de test plus anciennes,
+  // ou détection seule) : `sommet` reste à -Infinity partout, sans planter.
+  delete g.sommetZ;
+  const sansSommet = RELIEF.preparer(g, { pasM: 0.5, inclureBati: false, inclureSursol: false });
+  assert.equal(sansSommet.sommet[i], -Infinity);
+});
+
 test('une cellule sans donnée ne fait pas obstacle : pas d’étoile à huit branches', () => {
   // L'artefact : autour d'un trou, le Sky-View Factor dessine une étoile à
   // autant de branches qu'il y a de directions balayées. La cause n'est pas le

@@ -7,6 +7,13 @@
 // assez peu pour rester imperceptible à l'échelle où on lit une mesure.
 const SURELEVATION_MARQUEUR = 0.15;
 
+// Champ de vision vertical, en degrés — partagé par le rendu (`_rendre`), le
+// rayon de clic (`_rayonBrut`, `pointDuNuage`) et l'échelle écran↔monde
+// (`_zoomVers`). Une seule constante plutôt que 52 recopié à chaque site : un
+// rayon de clic qui suivrait un FOV différent de celui du rendu viserait
+// systématiquement à côté de ce que l'écran montre.
+const FOV_Y_DEG = 52;
+
 class Vue3D {
   constructor(canvas, elementBoussole = null) {
     this.canvas = canvas;
@@ -515,7 +522,7 @@ class Vue3D {
     const ndcY = 1 - ((ev.clientY - r.top) / r.height) * 2;
 
     const { oeil, avant, droite, haut } = this._repere();
-    const tan = Math.tan((52 * Math.PI / 180) / 2);
+    const tan = Math.tan((FOV_Y_DEG * Math.PI / 180) / 2);
     const aspect = r.width / r.height;
 
     const dir = [0, 1, 2].map((i) =>
@@ -529,6 +536,28 @@ class Vue3D {
     if (!rayon) return null;
     const n = Math.hypot(...rayon.dir) || 1;
     return { oeil: rayon.oeil, direction: rayon.dir.map((v) => v / n) };
+  }
+
+  /**
+   * Point du nuage affiché le plus proche d'un rayon de clic — voir
+   * `TERRAIN.pointDuNuage`, où vit le calcul lui-même. Cette méthode ne fait
+   * que rassembler ce que cette classe est seule à connaître (le nuage, son
+   * `zmin`, le canevas) ; `TERRAIN` ne connaît ni WebGL ni le DOM.
+   *
+   * `null` sans nuage, canevas non dimensionné, ou aucun point dans le seuil
+   * — l'appelant retombe alors sur `TERRAIN.pointDuTerrain`.
+   */
+  pointDuNuage(rayon, classesMasquees = null) {
+    if (!this.nuage) return null;
+    const r = this.canvas.getBoundingClientRect();
+    return TERRAIN.pointDuNuage(rayon, this.nuage, {
+      zmin: this.zmin,
+      exagerationZ: CONFIG.rendu.exagerationZ,
+      fovYdeg: FOV_Y_DEG,
+      hauteurPx: r.height,
+      toleragePx: CONFIG.rendu.toleragePointagePx,
+      classesMasquees,
+    });
   }
 
   /**
@@ -825,7 +854,7 @@ class Vue3D {
     }
 
     const r = this.canvas.getBoundingClientRect();
-    const k = 2 * this.cam.distance * Math.tan((52 * Math.PI / 180) / 2) / Math.max(1, r.height);
+    const k = 2 * this.cam.distance * Math.tan((FOV_Y_DEG * Math.PI / 180) / 2) / Math.max(1, r.height);
     const { droite, avant: dev } = this._repere();
     // Composante horizontale de l'axe de visée : le déplacement vertical de la
     // souris avance ou recule au sol, il ne doit pas changer l'altitude visée.
@@ -948,7 +977,7 @@ class Vue3D {
 
     const { cible, distance } = this.cam;
     const { oeil } = this._repere();
-    const proj = GL.perspective(52, w / h, Math.max(0.5, distance * 0.002), distance * 12 + 3000);
+    const proj = GL.perspective(FOV_Y_DEG, w / h, Math.max(0.5, distance * 0.002), distance * 12 + 3000);
     const vp = GL.multiply(proj, GL.lookAt(oeil, cible, [0, 1, 0]));
 
     const p = this.progPoints;

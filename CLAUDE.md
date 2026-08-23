@@ -295,6 +295,97 @@ Le plan d'intersection est horizontal, à la hauteur de la cible. C'est une
 approximation du relief, largement suffisante à l'échelle où l'on inspecte une
 structure, et qui évite de relire le tampon de profondeur.
 
+### Le pointé au clic vise n'importe quel point, pas seulement le signal de détection
+
+Sélection et mesure en 3D marchent un rayon contre `mnt + hauteur`
+(`TERRAIN.pointDuTerrain`) — l'enveloppe du terrain, sol comblé ou toit d'un
+bâtiment. Mais `hauteur` (`RASTER.accumuler`, `RELIEF.preparer`) ne porte que
+le signal de détection : non classé, et bâtiment si l'option le demande. Un
+`switch` y jette silencieusement tout le reste — végétation, ponts, sursol
+pérenne — parce que la détection n'en a pas l'usage. Conséquence pour le clic :
+viser un arbre, un pont ou n'importe quel point qui n'est ni sol ni signal
+retombait sur le sol en dessous, sans rapport avec ce que l'écran montrait
+sous le curseur.
+
+D'où `sommetZ` (`raster.js`), un Z maximal accumulé sur **tous** les points
+sans filtre de classe — un `Float32Array` de plus, 64 Mo sur une dalle entière
+à 25 cm, assumé parce que c'est le seul moyen de garder trace d'un point dont
+la classe n'a par ailleurs aucun emploi. `RELIEF.preparer` l'agrège en
+`sommet`, `TERRAIN.pointDuTerrain` en prend le maximum avec l'enveloppe
+existante — pour la marche du rayon comme pour la hauteur renvoyée, sans quoi
+la mesure aurait affiché la distance au sol sous l'arbre plutôt qu'à sa cime
+visée. Absent d'une grille (les tests plus anciens n'en portent pas), il vaut
+`-Infinity` et le comportement retombe exactement sur l'ancien : rien à
+défaire côté détection, qui ne lit ni `sommetZ` ni `sommet`.
+
+Premier essai réel, corrigé le jour même : décocher une classe (§ « Filtrage
+des classes ») la retire du rendu, mais `sommet` continuait de pointer sur ce
+point devenu invisible — décocher les arbres faisait flotter le point mesuré
+à leur ancienne position, sur un point qu'on ne pouvait plus voir pour viser
+juste. Un point rejeté au rendu doit l'être aussi au pointé. D'où
+`sommetCls` (`raster.js`, un `Uint8Array` de 16 Mo), la classe qui détient
+le maximum de `sommetZ` à chaque cellule ; `TERRAIN.pointDuTerrain` reçoit
+désormais l'ensemble des classes décochées (`classesMasquees`, `app.js`) et
+ignore `sommet` là où sa classe en fait partie, retombant sur `hauteur` seule.
+Volontairement approximatif : un seul maximum est gardé par cellule, pas un
+classement. Masquer sa classe fait retomber la cellule sur `hauteur` seule
+— c'est-à-dire sur ce que `ncSomme` / `batSomme` y ont vu séparément, sol
+et signal de détection restés à part — jamais sur un éventuel second point
+plus bas d'une classe elle-même affichée : celui-là n'a jamais été gardé. Le
+compromis assumé est un octet par cellule (`sommetCls`), pas un `Float32Array`
+par classe présente.
+
+### Le pointé vise le nuage réel ; l'enveloppe du terrain n'est plus qu'un repli
+
+Retour utilisateur, malgré tout ce qui précède : « je clique sur un point et
+soit ça fait rien soit ça prend à côté ». La cause n'était pas l'un des cas
+déjà traités mais l'architecture même du pointé — `pointDuTerrain` vise une
+grille **lissée** (`mnt`, la moyenne du sol par cellule de détection, elle-même
+ré-agrégée dans une cellule d'affichage de 50 cm), alors que les points
+affichés viennent d'un niveau d'octree délibérément **plus grossier**
+(`NUAGE.niveauPourAffichage`, souvent 85 cm à 1,7 m d'espacement — le rendu n'a
+besoin que de se repérer à l'œil, pas de la pleine résolution). Un point réel
+peut donc s'écarter nettement de la moyenne de sa propre cellule : « à côté ».
+Et sur un rayon oblique, une bosse isolée d'une seule cellule (le cas même que
+`sommet` vient d'ajouter) peut être enjambée par le pas de marche grossier
+avant bissection : « rien ».
+
+Les deux symptômes venaient du même choix de fond : viser une **surface
+dérivée**, jamais les points eux-mêmes. `TERRAIN.pointDuNuage` inverse ça —
+il cherche, dans `etat.nuage` (déjà en mémoire pour le rendu, jamais
+redemandé), le point le plus proche du rayon de clic, et le renvoie tel quel.
+`app.js` l'essaie en premier (`viserPoint3D`) ; `pointDuTerrain` ne reste
+qu'un **repli** pour un clic trop imprécis pour tomber dans le seuil d'aucun
+point rendu — jamais « rien », plutôt une approximation.
+
+Trois décisions :
+
+- **Le seuil d'acceptation est en pixels à l'écran**, converti en unités du
+  monde à la profondeur de chaque candidat (`2 · t · tan(fovY/2) / hauteurPx`).
+  Un seuil fixe en mètres serait trop permissif de près (où même un point
+  clairement à côté tomberait dedans) et raterait tout au loin (où l'écart en
+  mètres d'un pixel grandit). `CONFIG.rendu.toleragePointagePx`, comme le reste
+  des réglages.
+- **Parmi les points dans le seuil, le plus proche de la caméra gagne** — pas
+  le plus proche du rayon en distance 3D pure. C'est celui qui occulterait les
+  autres à l'écran, donc celui que l'œil voit réellement au pixel visé.
+- **Un balayage linéaire du nuage, pas une structure spatiale.** Appelé une
+  fois par clic et non par image, le coût — quelques dizaines de ms sur
+  plusieurs millions de points — ne s'amortit pas assez souvent pour justifier
+  d'en construire une.
+
+`FOV_Y_DEG` (`vue3d.js`), auparavant recopié à trois endroits (`52` en dur dans
+le rendu, le rayon de clic, l'échelle écran↔monde du zoom), en devient une
+constante unique : un rayon de clic qui suivrait un champ de vision différent
+de celui du rendu viserait systématiquement à côté de ce que l'écran montre —
+exactement la classe de bogue que ce chapitre corrige, il ne fallait pas la
+réintroduire par un chiffre oublié.
+
+Le point rendu par `pointDuNuage` n'a pas de séparation sol/hauteur — c'est
+déjà, littéralement, le sommet visé — d'où `hauteur: 0` systématique ; seul le
+repli `pointDuTerrain` continue de distinguer les deux, pour la raison qui l'a
+motivé à l'origine (voir plus haut).
+
 ### La boussole
 
 Le nuage n'offre aucun repère : ni horizon, ni bâtiment reconnaissable, et une
