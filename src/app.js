@@ -965,6 +965,12 @@ $('btn-fermer-nuage').addEventListener('click', fermerNuage);
 
 const PHOTO = 'photo';
 const PLAN = 'plan';
+// Trois soleils à 120°, un par canal RGB, plutôt que moyennés en gris comme
+// « Ombrage » — voir `RELIEF.ombrageRGB`. Hors de `RELIEF.COUCHES` : cette
+// couche ne suit pas le contrat des autres (palette + étalement), elle
+// produit directement un RGBA, comme la photo aérienne — `sourceCouche`
+// la traite donc à part plutôt que via `RELIEF.calculer`.
+const OMBRAGE_RGB = 'ombrage-rgb';
 // Les deux valent 'ortho'/'plan' côté service IGN (`CONFIG.ign.fonds`) — les
 // clés ici sont celles du sélecteur, `ortho.js` fait la correspondance.
 const FONDS = { [PHOTO]: 'ortho', [PLAN]: 'plan' };
@@ -982,6 +988,11 @@ const CHOIX_2D = [
     aide: 'Carte IGN — routes, toponymes, courbes de niveau — redressée dans la grille comme la photo. Plus lisible pour se repérer que la photo aérienne là où le couvert végétal cache tout.',
   },
   ...RELIEF.COUCHES.map((c) => ({ cle: c.cle, libelle: c.libelle, aide: c.aide })),
+  {
+    cle: OMBRAGE_RGB,
+    libelle: 'Ombrage coloré',
+    aide: 'Trois soleils à 120°, un par canal — l’orientation d’un mur ou d’un talus se lit en teinte, là où « Ombrage » l’aplatit dans une moyenne grise.',
+  },
 ];
 
 const def2D = (cle) => CHOIX_2D.find((c) => c.cle === cle) || CHOIX_2D[0];
@@ -1199,6 +1210,14 @@ async function appliquerCote(cote) {
 }
 
 async function sourceCouche(cle) {
+  if (cle === OMBRAGE_RGB) {
+    // Hors du contrat des autres couches (pas de palette, pas d'étalement) :
+    // un RGBA tout fait, consommé comme la photo aérienne — voir la
+    // définition d'OMBRAGE_RGB.
+    if (!couches2DCalculees.has(cle)) couches2DCalculees.set(cle, RELIEF.ombrageRGB(etat.reliefGrille));
+    return { type: 'photo', rgba: couches2DCalculees.get(cle), libelle: def2D(cle).libelle };
+  }
+
   if (!couches2DCalculees.has(cle)) {
     const def = RELIEF.COUCHES.find((c) => c.cle === cle);
     const calcul = () => RELIEF.calculer(etat.reliefGrille, cle, {

@@ -81,6 +81,51 @@ test('l’ombrage distingue le nord du sud, et pas seulement l’est de l’oues
     `soleil au sud : ${au(t, sud, 30, 30)}`);
 });
 
+test('ombrageRGB — sur un plan horizontal, les trois canaux sont égaux et valent sin(hauteur)', () => {
+  const { RELIEF } = charger();
+  const t = terrain(20, 20, 1, () => 12);
+  const rgba = RELIEF.ombrageRGB(t);
+  assert.equal(rgba.length, t.N * 4);
+
+  const i = 10 * t.W + 10;
+  const attendu = Math.round(Math.sin(deg(45)) * 255);   // 45°, la hauteur par défaut d'ombrage()
+  for (const canal of [0, 1, 2]) {
+    assert.ok(Math.abs(rgba[i * 4 + canal] - attendu) <= 1,
+      `canal ${canal} : attendu ~${attendu}, obtenu ${rgba[i * 4 + canal]}`);
+  }
+  assert.equal(rgba[i * 4 + 3], 255, 'alpha plein sur une cellule valide');
+});
+
+test('ombrageRGB — chaque canal reprend l’azimut d’ombrage() correspondant, 120° à part', () => {
+  const { RELIEF } = charger();
+  // Versant qui descend vers l'est : les trois azimuts (315°, 75°, 195°) n'y
+  // donnent pas la même réponse, contrairement au plan horizontal ci-dessus —
+  // condition nécessaire pour distinguer un vrai calcul par canal d'une
+  // simple recopie du même ombrage trois fois.
+  const t = terrain(60, 60, 1, (x) => -Math.tan(deg(20)) * x);
+  const rgba = RELIEF.ombrageRGB(t);
+  const i = 30 * t.W + 30;
+
+  const [r, v, b] = [315, 75, 195].map((az) => au(t, RELIEF.ombrage(t, az, 45), 30, 30));
+  assert.ok(Math.abs(rgba[i * 4] - Math.round(r * 255)) <= 1, `rouge (315°) : ${rgba[i * 4]}`);
+  assert.ok(Math.abs(rgba[i * 4 + 1] - Math.round(v * 255)) <= 1, `vert (75°) : ${rgba[i * 4 + 1]}`);
+  assert.ok(Math.abs(rgba[i * 4 + 2] - Math.round(b * 255)) <= 1, `bleu (195°) : ${rgba[i * 4 + 2]}`);
+  // Sur un versant, les trois azimuts ne peuvent pas coïncider : sans ça, le
+  // test ci-dessus sur plan horizontal ne prouverait rien de plus qu'un
+  // ombrage() simple recopié trois fois.
+  assert.ok(rgba[i * 4] !== rgba[i * 4 + 1] || rgba[i * 4 + 1] !== rgba[i * 4 + 2],
+    'les trois canaux doivent différer sur un versant, sinon ce n’est pas un vrai calcul par direction');
+});
+
+test('ombrageRGB — alpha à 0 là où le sol est inconnu, jamais une couleur inventée', () => {
+  const { RELIEF } = charger();
+  const t = terrain(10, 10, 1, () => 5);
+  const i = 5 * t.W + 5;
+  t.valide[i] = 0;
+  const rgba = RELIEF.ombrageRGB(t);
+  assert.equal(rgba[i * 4 + 3], 0);
+});
+
 test('le micro-relief d’un plan est nul partout', () => {
   const { RELIEF } = charger();
   // C'est le contrôle décisif : un lissage faux, mal centré ou mal normalisé se

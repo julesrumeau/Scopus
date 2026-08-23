@@ -394,6 +394,42 @@ function ombrageMulti(t) {
   return out;
 }
 
+/**
+ * Ombrage multidirectionnel **coloré** : trois soleils à 120° l'un de
+ * l'autre, un par canal (rouge, vert, bleu) plutôt que moyennés en gris.
+ *
+ * `ombrageMulti` règle déjà la disparition d'un muret parallèle au rayon —
+ * mais en moyennant, elle efface aussi l'information de *quelle* direction
+ * l'éclairait. La conserver par canal fait ressortir en teinte l'orientation
+ * d'un talus ou d'un mur, un rendu proche de ce que d'autres visionneuses
+ * LiDAR appellent parfois « RGB hillshade ». 315° reprend l'azimut par
+ * défaut d'`ombrage()`, pour rester le point de repère familier.
+ *
+ * Ne passe pas par `calculer()` : contrairement aux autres couches, il n'y a
+ * ni palette ni étalement à choisir, la couleur est déjà le résultat.
+ * `Vue2D` la consomme donc comme la photo aérienne — un buffer RGBA tout
+ * fait — pas comme une couche à palette (voir `sourceCouche` dans app.js).
+ *
+ * @returns {Uint8ClampedArray} RGBA, `t.N × 4` octets ; alpha à 0 là où le
+ *   sol est inconnu (`!t.valide`), pour que `Vue2D` y pose le même gris
+ *   neutre que sur les autres couches plutôt qu'une couleur inventée.
+ */
+function ombrageRGB(t) {
+  const grads = gradients(t);
+  const AZIMUTS = [315, 75, 195];   // 315° (le défaut d'ombrage()), puis ±120°
+  const [r, v, b] = AZIMUTS.map((az) => ombrage(t, az, 45, grads));
+
+  const rgba = new Uint8ClampedArray(t.N * 4);
+  for (let i = 0; i < t.N; i++) {
+    const k = i * 4;
+    rgba[k] = r[i] * 255;
+    rgba[k + 1] = v[i] * 255;
+    rgba[k + 2] = b[i] * 255;
+    rgba[k + 3] = t.valide[i] ? 255 : 0;
+  }
+  return rgba;
+}
+
 // ── Balayage d'horizons : Sky-View Factor et ouverture ──────────────────────
 
 /**
@@ -791,5 +827,5 @@ function calculer(t, cle, options = {}) {
   };
 }
 
-return { preparer, calculer, etirer, valeurParPoint, COUCHES, ombrage, ombrageMulti, microRelief, svf, ouverture, balayerHorizons, flouBoite, gradients };
+return { preparer, calculer, etirer, valeurParPoint, COUCHES, ombrage, ombrageMulti, ombrageRGB, microRelief, svf, ouverture, balayerHorizons, flouBoite, gradients };
 })();

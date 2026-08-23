@@ -1068,6 +1068,38 @@ visible au micro-relief. Prises ensemble, les deux couvrent les deux cas.
 C'est ce déséquilibre que corrige la section suivante — depuis, la surface
 affichée montre les deux.
 
+### Ombrage coloré
+
+Retour utilisateur, sur une visualisation vue ailleurs : trois soleils à 120°
+l'un de l'autre, chacun sur un canal RGB plutôt que moyennés en gris.
+`ombrageMulti` (la couche « Ombrage » actuelle) réglait déjà la disparition
+d'un muret parallèle au rayon — quatre directions moyennées, comme le fait
+nativement MapLibre sous `hillshade-method=multidirectional` — mais la
+moyenne efface au passage *quelle* direction éclairait le mieux. La garder
+par canal fait ressortir en teinte l'orientation d'un talus ou d'un mur, là
+où le gris l'aplatit. À vérifier : MapLibre lui-même ne fait **pas** de
+version colorée nativement — leur `multidirectional` est la même moyenne
+grise qu'`ombrageMulti`, quatre directions, pas trois, jamais en couleur. Le
+rendu coloré est une technique distincte, apparentée, parfois appelée « RGB
+hillshade » dans la littérature de visualisation LiDAR.
+
+`ombrageRGB(t)` (`relief.js`) réutilise `ombrage()` trois fois — 315°, 75°,
+195°, un seul calcul de gradients partagé, comme `ombrageMulti` — et écrit
+directement un `Uint8ClampedArray` RGBA plutôt qu'un tableau de valeurs. Ce
+choix a une conséquence sur toute la chaîne d'affichage : **cette couche ne
+suit pas le contrat des autres**, qui passent par `RELIEF.calculer()`
+(palette + étalement + chronométrage). Elle est donc tenue hors de
+`RELIEF.COUCHES` — le test qui parcourt cette liste (`test/relief.test.js`,
+« une couche se calcule par sa clé… ») vérifie justement que chaque entrée
+suit ce contrat, et l'y ajouter l'aurait fait échouer pour de bonnes raisons.
+`app.js` la déclare à part (`OMBRAGE_RGB`) et la traite exactement comme la
+photo aérienne — un RGBA tout fait, `{ type: 'photo', rgba }` — ce qui lui
+donne gratuitement le même comportement partout où « c'est une image, pas un
+champ scalaire » compte déjà : `Vue2D` ne cherche pas de palette, le curseur
+de contraste n'a pas de prise dessus, et le drapage sur le nuage 3D (mode
+« Relief ») retombe sur l'autre côté du rideau — le même repli que pour la
+photo, déjà en place.
+
 ### Ce que la surface affichée retient, et ce qu'elle refusait
 
 Deux classes étaient jetées à la rastérisation (`default: break`) ou effacées par
