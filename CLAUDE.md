@@ -200,7 +200,7 @@ Les nœuds étant rangés bout à bout dans le fichier (0,00 Mo perdu sur 184,5 
 délibéré — une réponse unique de 185 Mo priverait de toute progression et
 retarderait le décodage jusqu'au dernier octet.
 
-### Octets compressés retenus — expérimental, branche `experiment/octets-compresses`
+### Octets compressés retenus
 
 Née d'un constat pénible : le panneau « Classes du sol » (plus bas) rejoue un
 chargement complet à chaque « Mettre à jour », et le pari initial — que le
@@ -245,8 +245,8 @@ optionnel dès le second chargement d'une même dalle.
 
 Branché : `chargerNuage()` affiche les octets resservis dans la progression et
 le message de fin, et `fermerNuage()` appelle `NUAGE.viderCacheOctets()` pour
-que « Fermer le nuage » libère aussi ce cache-là. Reste à décider si `main`
-l'adopte — cette branche existe pour ça.
+que « Fermer le nuage » libère aussi ce cache-là. Prototypé sur la branche
+`experiment/octets-compresses`, adopté sur `main` après ces mesures.
 
 ### Répartition du travail
 
