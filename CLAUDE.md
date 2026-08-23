@@ -200,6 +200,54 @@ Les nœuds étant rangés bout à bout dans le fichier (0,00 Mo perdu sur 184,5 
 délibéré — une réponse unique de 185 Mo priverait de toute progression et
 retarderait le décodage jusqu'au dernier octet.
 
+### Octets compressés retenus — expérimental, branche `experiment/octets-compresses`
+
+Née d'un constat pénible : le panneau « Classes du sol » (plus bas) rejoue un
+chargement complet à chaque « Mettre à jour », et le pari initial — que le
+cache HTTP du navigateur resservirait les mêmes plages sans repasser par le
+réseau — s'est révélé faux à l'usage (« ça retélécharge à chaque fois, c'est
+chelou »). Et derrière ce constat, une inquiétude plus large de l'utilisateur :
+dépendre d'un service tiers dont la lenteur est hors de son contrôle, et qui
+punit doublement quiconque a une mauvaise connexion.
+
+`nuage.js` retient donc les octets **compressés** (pas décompressés) de chaque
+plage groupée, pour une dalle à la fois — `cacheOctets = { url, plages: Map }`,
+remplacé dès qu'une dalle différente se charge, vidé explicitement par
+`fermerNuage()`. Un second `charger()` sur les mêmes plages (même dalle, même
+résolution — exactement ce que fait « Mettre à jour ») saute le réseau et
+repart directement de la décompression locale.
+
+**Rien à transférer en plus pour l'obtenir.** Dans la boucle de `charger()`,
+chaque nœud reçoit déjà une **copie** indépendante de son tronçon
+(`octets.slice(...)`) avant de la céder au worker, qui lui prend possession du
+tampon transféré — le tampon de la plage entière, `octets`, n'était jamais
+transféré, seulement laissé au ramasse-miettes une fois la tâche finie. Le
+garder est un changement de portée, pas une copie de plus : le coût mémoire
+est borné à ce que le curseur *Résolution* annonce déjà avant de charger
+(jusqu'à 185 Mo à pleine résolution) — pas un multiple caché, contrairement à
+l'option « tout garder » (+745 Mo de points décompressés, 3,5× le tas actuel)
+ou même l'option intermédiaire à une statistique par classe (+80 Mo par classe
+suivie).
+
+**Mesuré en conditions réelles, pas supposé** (`.tmp/test-cache-octets.html`,
+`.tmp/run-edge.js` — non versionnés), sur la dalle de Beille, une zone de
+100 × 100 m, niveau 2, 12 nœuds groupés en une seule plage de 12,65 Mo :
+
+| | Durée | Octets resservis |
+|---|---|---|
+| 1er chargement | 5 262 ms | 0 |
+| 2e chargement (même zone) | **841 ms** | **12 652 490 / 12 652 490** |
+
+Soit 6,3× plus rapide, et **100 % des octets resservis** — aucune plage
+manquante. C'est la réponse chiffrée à l'inquiétude qui a motivé cette
+branche : le coût qui restait — le réseau IGN, hors de tout contrôle — devient
+optionnel dès le second chargement d'une même dalle.
+
+Branché : `chargerNuage()` affiche les octets resservis dans la progression et
+le message de fin, et `fermerNuage()` appelle `NUAGE.viderCacheOctets()` pour
+que « Fermer le nuage » libère aussi ce cache-là. Reste à décider si `main`
+l'adopte — cette branche existe pour ça.
+
 ### Répartition du travail
 
 Le fil principal garde la main sur les requêtes HTTP (file bornée, réessais) et

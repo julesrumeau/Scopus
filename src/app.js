@@ -729,6 +729,11 @@ async function chargerNuage() {
     etat.classesSolChargees = new Set(classesSol);   // instantané : `classesSol` peut encore bouger après ce point
     const niveauVue = NUAGE.niveauPourAffichage(etat.couts.slice(0, etat.niveau + 1));
 
+    // Expérimental (branche `experiment/octets-compresses`) : capturé à
+    // chaque avancement, ne sert qu'au message de fin — le volume resservi
+    // depuis le cache local plutôt que redemandé au réseau.
+    let octetsResservisFinal = 0;
+
     const nuage = await NUAGE.charger(etat.entete, noeuds, emprise, {
       niveauAffichage: niveauVue,
       surBloc: (bloc) => RASTER.accumuler(grille, bloc),
@@ -740,8 +745,10 @@ async function chargerNuage() {
         const pct = totalOctets ? Math.min(100, (a.octets / totalOctets) * 100) : 0;
         $('barre-progression').style.width = `${pct}%`;
         $('progression-pct').textContent = `${pct.toFixed(0)} %`;
+        octetsResservisFinal = a.octetsResservis;
         $('progression-detail').textContent =
-          `${octets(a.octets)} / ${octets(totalOctets)} · ${milliers(a.points)} points`;
+          `${octets(a.octets)} / ${octets(totalOctets)} · ${milliers(a.points)} points`
+          + (a.octetsResservis ? ` · ${octets(a.octetsResservis)} resservis du cache local` : '');
         statut(`Téléchargement ${a.faits}/${a.total} — ${milliers(a.points)} points`, 'travail');
       },
       signal: ctrl.signal,
@@ -830,7 +837,8 @@ async function chargerNuage() {
 
     const secondes = ((performance.now() - debut) / 1000).toFixed(1);
     statut(`Dalle analysée en ${secondes} s — grille ${etat.grille.pas.toFixed(2)} m, `
-      + `aperçu ${milliers(etat.nuage.n)} points`);
+      + `aperçu ${milliers(etat.nuage.n)} points`
+      + (octetsResservisFinal ? ` (${octets(octetsResservisFinal)} resservis du cache local, sans réseau)` : ''));
 
     if (etat.grille.pas > CONFIG.raster.pasM + 1e-6) {
       alerter(`Grille relevée à ${etat.grille.pas.toFixed(2)} m : ${CONFIG.raster.pasM} m dépasserait le plafond de cellules.`);
@@ -905,6 +913,7 @@ function fermerNuage() {
   etat.dalleChargee = null;
   etat.reliefGrille = null;
   viderCache2D();
+  NUAGE.viderCacheOctets();
 
   vue3d?.vider();
   vue2d.definirGrille(null);

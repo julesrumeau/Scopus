@@ -109,6 +109,31 @@ class Grappe {
 
 const grappe = new Grappe();
 
+// ── Octets compressés retenus ────────────────────────────────────────────────
+//
+// Expérimental (branche `experiment/octets-compresses`) : garde les plages
+// d'octets COPC déjà téléchargées, pour qu'un second `charger()` sur la même
+// dalle — typiquement « Mettre à jour » après un changement de classes du sol
+// (§ CLAUDE.md, « Classes du sol ») — puisse sauter le réseau et repartir
+// directement de la décompression locale.
+//
+// Rien de neuf à transférer pour l'obtenir : dans la boucle plus bas,
+// `octets.slice(...)` fabrique déjà une copie indépendante par nœud avant de
+// la céder au worker (`grappe.decoder`, qui prend possession du tampon
+// transféré) — le tampon `octets` de la plage entière, lui, n'était jamais
+// transféré, seulement laissé au ramasse-miettes une fois la tâche finie. Le
+// garder est donc un simple changement de portée, pas une copie de plus.
+//
+// Une seule dalle à la fois, jamais un historique : le coût est borné à ce
+// que le curseur Résolution annonce déjà avant de charger (jusqu'à 185 Mo à
+// pleine résolution) — pas question d'accumuler plusieurs dalles.
+let cacheOctets = null;   // { url, plages: Map<string, Uint8Array> } | null
+
+/** Vide le cache d'octets compressés — à appeler à la fermeture du nuage. */
+function viderCacheOctets() {
+  cacheOctets = null;
+}
+
 /**
  * Télécharge et décode les nœuds sélectionnés.
  *
@@ -146,17 +171,34 @@ async function charger(entete, noeuds, emprise, opts = {}) {
   let faits = 0;
   let pointsRecus = 0;
   let octetsRecus = 0;
+  let octetsResservis = 0;
 
   const plages = grouperPlages(noeuds);
 
+  // Une dalle différente de la dernière connue : le cache de l'ancienne ne
+  // sert à rien ici, autant le remplacer plutôt que le laisser grossir avec
+  // une entrée qui ne sera jamais relue.
+  if (!cacheOctets || cacheOctets.url !== entete.url) cacheOctets = { url: entete.url, plages: new Map() };
+  const plagesEnCache = cacheOctets.plages;
+
   const taches = plages.map(async (plage) => {
-    const octets = await RESEAU.recuperer(entete.url, {
-      plage: [plage.debut, plage.fin - 1],
-      signal,
-    });
-    // Compté une fois par plage groupée (la requête réellement faite), pas par
-    // nœud : la boucle ci-dessous itère sur les nœuds d'une même plage, qui
-    // partagent tous les mêmes octets déjà reçus.
+    const cle = `${plage.debut}-${plage.fin}`;
+    let octets = plagesEnCache.get(cle);
+    if (octets) {
+      // Même dalle, même regroupement de plages qu'un chargement précédent —
+      // typiquement « Mettre à jour » après un changement de classes du sol,
+      // qui ne touche ni la dalle ni la résolution. Aucun octet à demander.
+      octetsResservis += octets.byteLength;
+    } else {
+      octets = await RESEAU.recuperer(entete.url, {
+        plage: [plage.debut, plage.fin - 1],
+        signal,
+      });
+      plagesEnCache.set(cle, octets);
+    }
+    // Compté une fois par plage groupée (la requête réellement faite ou
+    // resservie), pas par nœud : la boucle ci-dessous itère sur les nœuds
+    // d'une même plage, qui partagent tous les mêmes octets.
     octetsRecus += octets.byteLength;
 
     for (const noeud of plage.noeuds) {
@@ -196,7 +238,9 @@ async function charger(entete, noeuds, emprise, opts = {}) {
 
       faits++;
       pointsRecus += res.nbPoints;
-      surAvancement?.({ faits, total: noeuds.length, points: pointsRecus, octets: octetsRecus });
+      surAvancement?.({
+        faits, total: noeuds.length, points: pointsRecus, octets: octetsRecus, octetsResservis,
+      });
     }
   });
 
@@ -319,5 +363,6 @@ function niveauPourAffichage(couts, budget = CONFIG.rendu.budgetAffichage) {
 const NUAGE = {
   charger,
   niveauPourAffichage,
+  viderCacheOctets,
   get surFilPrincipal() { return grappe.surFilPrincipal; },
 };
