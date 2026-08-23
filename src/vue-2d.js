@@ -39,8 +39,7 @@ class Vue2D {
     this.selection = null;
     this.traceChoisie = null;
     this.pointSelectionne = null;   // [x, y] Lambert-93, voir definirPointSelectionne
-    this.mesureA = null;            // [x, y] Lambert-93, voir definirMesure
-    this.mesureB = null;
+    this.pointsMesure = [];         // [[x, y], ...] Lambert-93, voir definirMesure
     this.montrerDetections = true;
     this.montrerSentiers = true;
     // Mode d'interaction du clic — 'deplacement' (défaut, choisit une
@@ -145,8 +144,8 @@ class Vue2D {
   /** Marqueur du point choisi en mode Sélection. `p` : [x, y] Lambert-93, ou `null`. */
   definirPointSelectionne(p) { this.pointSelectionne = p; this.invalider(); }
 
-  /** Les deux points de la mesure en cours. `a`/`b` : [x, y] Lambert-93, ou `null`. */
-  definirMesure(a, b) { this.mesureA = a; this.mesureB = b; this.invalider(); }
+  /** La chaîne de points de la mesure en cours. `points` : [[x, y], ...] Lambert-93. */
+  definirMesure(points) { this.pointsMesure = points || []; this.invalider(); }
 
   definirTraces(traces) {
     this.traces = (traces || []).map((s) => ({ id: s.id, points: s.points || [] }));
@@ -470,7 +469,7 @@ class Vue2D {
     if (this.montrerSentiers) this._tracerSentiers(ctx, w, h);
     if (this.montrerDetections) this._tracerDetections(ctx, w, h);
     if (this.pointSelectionne) this._tracerPointSelectionne(ctx, w, h);
-    if (this.mesureA) this._tracerMesure(ctx, w, h);
+    if (this.pointsMesure.length) this._tracerMesure(ctx, w, h);
     this._tracerEchelle(ctx, w, h, dpr);
     if (sg && sd) this._tracerEtiquettes(ctx, w, dpr, coupe, sg, sd);
     ctx.restore();
@@ -583,33 +582,32 @@ class Vue2D {
   }
 
   /**
-   * Les deux points de la mesure, reliés par une ligne — même couleur qu'en
-   * 3D. La distance horizontale s'affiche au milieu du trait : c'est la
-   * seule des trois valeurs (horizontale, dénivelé, totale) qui se lit
-   * directement sur un plan, les deux autres vont dans le panneau.
+   * La chaîne de points de la mesure, reliés de proche en proche — même
+   * couleur qu'en 3D. La distance horizontale de chaque segment s'affiche à
+   * son milieu : c'est la seule des trois valeurs (horizontale, dénivelé,
+   * totale) qui se lit directement sur un plan, les deux autres vont dans le
+   * tableau du panneau.
    */
   _tracerMesure(ctx, w, h) {
     ctx.save();
-    const a = this._versEcran(this.mesureA[0], this.mesureA[1], w, h);
-    this._tracerMarqueur(ctx, a[0], a[1], '#4df2ff');
+    const ecran = this.pointsMesure.map(([x, y]) => this._versEcran(x, y, w, h));
+    for (const [sx, sy] of ecran) this._tracerMarqueur(ctx, sx, sy, '#4df2ff');
 
-    if (this.mesureB) {
-      const b = this._versEcran(this.mesureB[0], this.mesureB[1], w, h);
-      this._tracerMarqueur(ctx, b[0], b[1], '#4df2ff');
-
-      ctx.strokeStyle = '#4df2ff';
-      ctx.lineWidth = 1.6;
-      ctx.setLineDash([6, 5]);
+    ctx.strokeStyle = '#4df2ff';
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([6, 5]);
+    ctx.font = '12px system-ui, sans-serif';
+    for (let i = 0; i + 1 < ecran.length; i++) {
+      const [ax, ay] = ecran[i], [bx, by] = ecran[i + 1];
       ctx.beginPath();
-      ctx.moveTo(a[0], a[1]);
-      ctx.lineTo(b[0], b[1]);
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
       ctx.stroke();
-      ctx.setLineDash([]);
 
-      const distance = Math.hypot(this.mesureB[0] - this.mesureA[0], this.mesureB[1] - this.mesureA[1]);
+      const [mx0, my0] = this.pointsMesure[i], [mx1, my1] = this.pointsMesure[i + 1];
+      const distance = Math.hypot(mx1 - mx0, my1 - my0);
       const texte = distance >= 1000 ? `${(distance / 1000).toFixed(2)} km` : `${distance.toFixed(1)} m`;
-      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
-      ctx.font = '12px system-ui, sans-serif';
+      const mx = (ax + bx) / 2, my = (ay + by) / 2;
       const l = ctx.measureText(texte).width;
       ctx.fillStyle = 'rgba(11, 14, 19, 0.82)';
       ctx.beginPath();
@@ -621,6 +619,7 @@ class Vue2D {
       ctx.fillText(texte, mx, my - 10);
       ctx.textAlign = 'start';
     }
+    ctx.setLineDash([]);
     ctx.restore();
   }
 

@@ -318,33 +318,39 @@ class Vue3D {
   }
 
   /**
-   * Les deux points de la mesure en cours (voir app.js) : même marqueur
-   * ponctuel que la sélection, reliés par un trait direct — la ligne d'air
-   * dont la longueur est la distance totale affichée dans le panneau.
+   * La chaîne de points de la mesure en cours (voir app.js) : même marqueur
+   * ponctuel que la sélection sur chacun, reliés de proche en proche par des
+   * traits directs — chaque segment est la ligne d'air dont la longueur est
+   * une des distances totales affichées dans le panneau.
    *
-   * Un seul tampon, deux plages : les deux premiers sommets forment le trait
-   * (`gl.LINES`), les suivants les marqueurs (`gl.POINTS`) — `nbSommetsLigne`
-   * dit où l'un finit et l'autre commence au rendu.
+   * Un seul tampon, deux plages : les sommets des segments d'abord
+   * (`gl.LINES` — chaque paire consécutive de la chaîne redonne ses deux
+   * bouts, une bande n'existe pas en `LINES`), les marqueurs ensuite
+   * (`gl.POINTS`) — `nbSommetsMesureLigne` dit où l'une finit et l'autre
+   * commence au rendu.
    *
-   * `a`/`b` en Lambert-93 absolu, `b` peut être `null` tant que le second
-   * point n'a pas encore été cliqué.
+   * @param {Array<{x:number,y:number,altitude:number}>} points Lambert-93
+   *   absolu, dans l'ordre du clic ; un point sans altitude finie (sol
+   *   inconnu à cet endroit) est filtré plutôt que de planter un marqueur à
+   *   une hauteur inventée.
    */
-  definirMesure(a, b) {
-    if (!a || !this.nuage || !Number.isFinite(a.altitude)) {
+  definirMesure(points) {
+    const valides = (points || []).filter((p) => p && Number.isFinite(p.altitude));
+    if (!valides.length || !this.nuage) {
       this.nbSommetsMesureLigne = 0;
       this.nbSommetsMesurePoints = 0;
       this.invalider();
       return;
     }
     const o = this.nuage.origine;
-    const la = [a.x - o[0], a.y - o[1], a.altitude - o[2] + SURELEVATION_MARQUEUR];
-    const aussiB = b && Number.isFinite(b.altitude);
-    const lb = aussiB ? [b.x - o[0], b.y - o[1], b.altitude - o[2] + SURELEVATION_MARQUEUR] : null;
+    const locaux = valides.map((p) => [p.x - o[0], p.y - o[1], p.altitude - o[2] + SURELEVATION_MARQUEUR]);
 
-    const sommets = aussiB ? [...la, ...lb, ...la, ...lb] : [...la];
-    this.nbSommetsMesureLigne = aussiB ? 2 : 0;
-    this.nbSommetsMesurePoints = aussiB ? 2 : 1;
-    this._televerserLignes(sommets, 'Mesure');
+    const segments = [];
+    for (let i = 0; i + 1 < locaux.length; i++) segments.push(...locaux[i], ...locaux[i + 1]);
+
+    this.nbSommetsMesureLigne = segments.length / 3;
+    this.nbSommetsMesurePoints = locaux.length;
+    this._televerserLignes([...segments, ...locaux.flat()], 'Mesure');
     this.invalider();
   }
 

@@ -41,4 +41,38 @@ function distances(a, b) {
   return { horizontale, denivele, totale };
 }
 
-const MESURE = { sommet, distances };
+/**
+ * Segments d'une chaîne de points mesurés, dans l'ordre du clic — un par
+ * paire consécutive (A→B, B→C, …), chacun avec ses trois distances (voir
+ * `distances`). Une chaîne à un seul point ou vide rend un tableau vide :
+ * pas de segment sans deux extrémités.
+ *
+ * @param {Array<{x: number, y: number, sol: ?number, hauteur?: number}>} points
+ * @returns {Array<{a: object, b: object, horizontale: number, denivele: ?number, totale: ?number}>}
+ */
+function segments(points) {
+  const s = [];
+  for (let i = 0; i + 1 < points.length; i++) s.push({ a: points[i], b: points[i + 1], ...distances(points[i], points[i + 1]) });
+  return s;
+}
+
+/**
+ * Totaux d'une chaîne de segments (voir `segments`) : somme des distances
+ * horizontales, et somme des distances totales (ligne d'air, 3D).
+ *
+ * `totale3D` vaut `null` dès qu'un seul segment a une altitude inconnue à
+ * l'un de ses bouts — une somme partielle se lirait comme une vraie tout en
+ * la sous-évaluant, silencieusement. `totaleHorizontale`, elle, ne dépend
+ * d'aucune altitude et se somme donc toujours.
+ *
+ * @param {Array<{horizontale: number, totale: ?number}>} segs sortie de `segments`
+ */
+function totaux(segs) {
+  const totaleHorizontale = segs.reduce((s, seg) => s + seg.horizontale, 0);
+  const totale3D = segs.some((seg) => seg.totale == null)
+    ? null
+    : segs.reduce((s, seg) => s + seg.totale, 0);
+  return { totaleHorizontale, totale3D };
+}
+
+const MESURE = { sommet, distances, segments, totaux };

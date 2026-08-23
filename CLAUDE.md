@@ -414,6 +414,53 @@ Les conventions de signe sont vérifiées à froid (`test/boussole.test.js`) :
 elles ne cassent rien quand elles sont fausses, elles mettent juste le nord au
 mauvais endroit, et ça ne se verrait qu'à l'export.
 
+## Mesure en chaîne
+
+Retour utilisateur, une fois le pointé 3D fiabilisé (voir plus haut) : « ça
+serait bien que ce soit comme sur Maps, tu cliques A puis B puis C, et ça
+affiche AB et BC ». Le modèle à deux points (A/B fixes, un troisième clic
+recommençait à zéro) devient une **chaîne sans longueur limite** —
+l'inspiration citée était Google Maps, la mécanique de bord (retirer le
+dernier point, terminer sans geste dédié) vient de l'outil « Mesurer une
+ligne » de QGIS, regardé sur demande avant d'écrire quoi que ce soit :
+clic gauche pose un point, Retour arrière/Suppr retire le dernier, et rien ne
+« termine » formellement une mesure — QGIS clôt avec un clic droit, geste déjà
+pris ici par l'orbite de la caméra en 3D (`e.button === 2` dans
+`_brancherControles`), donc écarté sans même l'essayer.
+
+**`pointsMesure` (`app.js`) est un tableau, pas une paire.** `mesure.js` gagne deux
+fonctions pures, dans le même esprit que `sommet`/`distances` déjà là :
+`segments(points)` déplie la chaîne en paires consécutives (A→B, B→C…),
+chacune avec ses trois distances ; `totaux(segs)` somme l'horizontale et la
+3D sur l'ensemble. Le dénivelé, lui, **n'a pas de total** — volontaire, pas un
+oubli : sommer des dénivelés signés ne donnerait que l'écart net entre le
+premier et le dernier point (une montée de 50 m suivie d'une descente de 50 m
+totaliserait zéro), qui se lirait à tort comme « le dénivelé de la sortie »
+alors que le tableau, lui, montre bien les deux valeurs séparément par
+segment.
+
+**`totale3D` vaut `null` si un seul segment a une altitude inconnue à l'un de
+ses bouts** — jamais une somme partielle qui se lirait comme complète tout en
+sous-évaluant. `totaleHorizontale`, elle, ne dépend d'aucune altitude et se
+somme donc toujours, même sur une chaîne qui traverse une zone sans sol connu.
+
+**`Vue2D.definirMesure` et `Vue3D.definirMesure` prennent un tableau de
+points**, plus la ligne brisée qui les relie : en 3D un seul tampon porte les
+segments (`gl.LINES`, chaque paire consécutive redonne ses deux bouts — une
+bande n'existe pas dans ce mode) puis les marqueurs (`gl.POINTS`), la même
+disposition qu'avant, simplement générique en nombre de points désormais. En
+2D chaque segment garde son étiquette de distance horizontale au milieu du
+trait — c'est la seule des trois valeurs qui se lit directement sur un plan,
+comme avant ; dénivelé et 3D restent réservés au tableau du panneau, où il y
+a la place de les nommer.
+
+Pas de lettres sur les marqueurs eux-mêmes (ni sur le canevas 2D, ni en
+WebGL) : les points s'ajoutent dans l'ordre du clic, et le tableau les nomme
+déjà A→B, B→C… — dessiner des étiquettes de texte flottantes sur des
+marqueurs 3D aurait demandé un atlas de glyphes pour un gain marginal, le
+genre de coût que la boussole a délibérément évité pour la même raison (voir
+plus haut, « En SVG, pas en WebGL »).
+
 ## Rendu à la demande
 
 La boucle 3D **ne tourne pas en continu**. `invalider()` planifie une image, et

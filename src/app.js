@@ -308,23 +308,30 @@ if (vue3d) {
   };
 }
 
-// ── Mesure entre deux points ─────────────────────────────────────────────────
+// ── Mesure en chaîne ──────────────────────────────────────────────────────────
 //
-// Même mécanique que la sélection : un clic en mode Mesure vise un point, via
-// `lire()` en 2D et `TERRAIN.pointDuTerrain` en 3D. Le premier clic pose le
-// point A, le second pose B et calcule les distances ; un troisième clic
-// repart à zéro avec un nouveau point A plutôt que d'empiler un tracé — on
-// mesure entre deux points, pas un chemin.
+// Comme l'outil « Mesurer une ligne » de QGIS : chaque clic en mode Mesure
+// ajoute un point à la chaîne (A, B, C…) plutôt que de se limiter à une paire.
+// Chaque segment consécutif (A→B, B→C…) porte ses trois distances dans le
+// tableau du panneau, et le pied de tableau totalise l'horizontale et la 3D —
+// jamais le dénivelé total : signé et sommé sur la chaîne, il ne dirait que le
+// dénivelé net du premier au dernier point, pas ce qu'on a réellement monté et
+// descendu, et se lirait à tort comme une troisième distance.
+//
+// Retirer le dernier point (bouton, ou Retour arrière/Suppr — repris de
+// QGIS) corrige un clic sans tout recommencer ; Effacer repart de zéro. Pas
+// de geste « terminer la chaîne » séparé : rien n'est enregistré comme objet,
+// la mesure reste une lecture à l'écran, donc rien à clore formellement — on
+// clique tant qu'on veut, et on efface quand on a fini.
 
-let mesureA = null;   // { x, y, sol, hauteur } Lambert-93 absolu, ou null
-let mesureB = null;
+let pointsMesure = [];   // [{ x, y, sol, hauteur }, ...] Lambert-93 absolu, dans l'ordre du clic
 
 function afficherMesure() {
-  const versVue3D = (p) => (p && MESURE.sommet(p) != null ? { x: p.x, y: p.y, altitude: MESURE.sommet(p) } : null);
-  vue2d.definirMesure(mesureA ? [mesureA.x, mesureA.y] : null, mesureB ? [mesureB.x, mesureB.y] : null);
-  vue3d?.definirMesure(versVue3D(mesureA), versVue3D(mesureB));
+  const versVue3D = (p) => (MESURE.sommet(p) != null ? { x: p.x, y: p.y, altitude: MESURE.sommet(p) } : null);
+  vue2d.definirMesure(pointsMesure.map((p) => [p.x, p.y]));
+  vue3d?.definirMesure(pointsMesure.map(versVue3D));
 
-  if (!mesureA) {
+  if (!pointsMesure.length) {
     $('mesure-vide').hidden = false;
     $('detail-mesure').hidden = true;
     $('mesure-actions').hidden = true;
@@ -333,48 +340,61 @@ function afficherMesure() {
   $('mesure-vide').hidden = true;
   $('mesure-actions').hidden = false;
 
-  const ligne = (p) => {
-    const { lon, lat } = PROJ.versWGS84(p.x, p.y);
-    const s = MESURE.sommet(p);
-    return `${lat.toFixed(6)}°, ${lon.toFixed(6)}° · ${s == null ? 'sol inconnu' : `${s.toFixed(1)} m`}`
-      + (p.hauteur > 0.05 ? ` (dont +${p.hauteur.toFixed(2)} m de sursol)` : '');
-  };
-
-  let html = ligneDetail('Point A', ligne(mesureA));
-  if (!mesureB) {
-    html += ligneDetail('Point B', 'cliquez un second point');
-    $('detail-mesure').innerHTML = html;
+  if (pointsMesure.length < 2) {
+    $('detail-mesure').innerHTML = '<p class="vide">Point A posé — cliquez un second point pour mesurer.</p>';
     $('detail-mesure').hidden = false;
     return;
   }
 
-  const { horizontale, denivele, totale } = MESURE.distances(mesureA, mesureB);
+  const lettre = (i) => (i < 26 ? String.fromCharCode(65 + i) : String(i + 1));
+  const m = (v) => (v == null ? '—' : `${v.toFixed(1)} m`);
+  const signe = (v) => (v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(1)} m`);
 
-  html += ligneDetail('Point B', ligne(mesureB));
-  html += ligneDetail('Distance horizontale', `${horizontale.toFixed(1)} m`);
-  html += ligneDetail('Dénivelé', denivele == null
-    ? 'sol inconnu sur l’un des deux points'
-    : `${denivele >= 0 ? '+' : ''}${denivele.toFixed(1)} m`);
-  html += ligneDetail('Distance totale', totale == null ? '—' : `${totale.toFixed(1)} m`);
-  $('detail-mesure').innerHTML = html;
+  const segs = MESURE.segments(pointsMesure);
+  const { totaleHorizontale, totale3D } = MESURE.totaux(segs);
+
+  const rangees = segs.map((s, i) => `<tr>
+      <td>${lettre(i)}→${lettre(i + 1)}</td>
+      <td>${m(s.horizontale)}</td>
+      <td>${signe(s.denivele)}</td>
+      <td>${m(s.totale)}</td>
+    </tr>`).join('');
+
+  $('detail-mesure').innerHTML = `<div class="mesure-scroll"><table class="tableau-mesure">
+      <thead><tr><th>Segment</th><th>Horizontale</th><th>Dénivelé</th><th>3D</th></tr></thead>
+      <tbody>${rangees}</tbody>
+      <tfoot><tr><td>Total</td><td>${m(totaleHorizontale)}</td><td></td><td>${m(totale3D)}</td></tr></tfoot>
+    </table></div>`;
   $('detail-mesure').hidden = false;
 }
 
 function ajouterPointMesure(x, y, sol, hauteur = 0) {
-  // Les deux points déjà posés : le clic suivant en recommence une, plutôt
-  // que d'empiler un troisième point que rien n'afficherait.
-  if (mesureA && mesureB) { mesureA = null; mesureB = null; }
-  if (!mesureA) mesureA = { x, y, sol, hauteur }; else mesureB = { x, y, sol, hauteur };
+  pointsMesure.push({ x, y, sol, hauteur });
+  afficherMesure();
+}
+
+function retirerDernierPointMesure() {
+  if (!pointsMesure.length) return;
+  pointsMesure.pop();
   afficherMesure();
 }
 
 function effacerMesure() {
-  mesureA = null;
-  mesureB = null;
+  pointsMesure = [];
   afficherMesure();
 }
 
 $('btn-mesure-effacer').addEventListener('click', effacerMesure);
+$('btn-mesure-annuler').addEventListener('click', retirerDernierPointMesure);
+
+// Retour arrière / Suppr retire le dernier point posé, comme dans QGIS — mais
+// seulement en mode Mesure et hors saisie, sinon la touche reprendrait son
+// rôle habituel (revenir en arrière dans un champ de texte).
+window.addEventListener('keydown', (e) => {
+  if (vue2d.mode !== 'mesure' || !pointsMesure.length) return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); retirerDernierPointMesure(); }
+});
 
 vue2d.cb.surPointMesure = (p) => { if (p) ajouterPointMesure(p.x, p.y, p.altitude, p.hauteur); };
 if (vue3d) {

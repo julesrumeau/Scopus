@@ -56,3 +56,44 @@ test('altitude inconnue d’un côté : dénivelé et distance totale à null, j
   assert.equal(r.denivele, null);
   assert.equal(r.totale, null);
 });
+
+test('segments — une chaîne A→B→C rend un segment par paire consécutive', () => {
+  const a = { x: 0, y: 0, sol: 10, hauteur: 0 };
+  const b = { x: 3, y: 4, sol: 10, hauteur: 0 };     // AB : 3-4-5
+  const c = { x: 3, y: 4, sol: 22, hauteur: 0 };     // BC : que du dénivelé, +12
+  const segs = MESURE.segments([a, b, c]);
+  assert.equal(segs.length, 2);
+  assert.equal(segs[0].a, a); assert.equal(segs[0].b, b);
+  assert.equal(segs[0].horizontale, 5);
+  assert.equal(segs[1].a, b); assert.equal(segs[1].b, c);
+  assert.equal(segs[1].denivele, 12);
+});
+
+test('segments — un point seul ou une chaîne vide ne produit aucun segment', () => {
+  // `equal`, pas `deepEqual` : `mesure.js` tourne dans un contexte `vm` séparé
+  // (voir `charger.js`), et son `[]` n'a donc pas le même prototype `Array`
+  // que celui du test — une comparaison stricte des prototypes échouerait
+  // sur deux tableaux pourtant identiques en contenu.
+  assert.equal(MESURE.segments([]).length, 0);
+  assert.equal(MESURE.segments([{ x: 0, y: 0, sol: 10 }]).length, 0);
+});
+
+test('totaux — somme des distances horizontales et 3D sur la chaîne', () => {
+  // Triangle 3-4-5 puis un aller-retour vertical de 12 m : horizontale totale
+  // 5 (le vertical n'en ajoute aucune), 3D totale 5 + 12 = 17.
+  const a = { x: 0, y: 0, sol: 10, hauteur: 0 };
+  const b = { x: 3, y: 4, sol: 10, hauteur: 0 };
+  const c = { x: 3, y: 4, sol: 22, hauteur: 0 };
+  const { totaleHorizontale, totale3D } = MESURE.totaux(MESURE.segments([a, b, c]));
+  assert.equal(totaleHorizontale, 5);
+  assert.equal(totale3D, 17);
+});
+
+test('totaux — un seul segment à altitude inconnue met le total 3D à null, jamais partiel', () => {
+  const a = { x: 0, y: 0, sol: 10, hauteur: 0 };
+  const b = { x: 3, y: 4, sol: 10, hauteur: 0 };
+  const inconnu = { x: 3, y: 4, sol: null, hauteur: 0 };
+  const { totaleHorizontale, totale3D } = MESURE.totaux(MESURE.segments([a, b, inconnu]));
+  assert.equal(totaleHorizontale, 5);   // l'horizontale du segment inconnu (0 ici) compte toujours
+  assert.equal(totale3D, null);
+});

@@ -198,9 +198,11 @@
     <section class="etape" data-vue="2d 3d" id="section-mesure" hidden>
       <h2>Mesure</h2>
       <p class="vide" id="mesure-vide">Passez en mode <b>Mesure</b> ci-dessus,
-        puis cliquez deux points pour la distance entre eux.</p>
-      <dl class="detail" id="detail-mesure" hidden></dl>
+        puis cliquez des points de suite : chaque segment s'ajoute au tableau,
+        comme l'outil de mesure de QGIS.</p>
+      <div id="detail-mesure" hidden></div>
       <div class="rangee" id="mesure-actions" hidden>
+        <button id="btn-mesure-annuler" class="secondaire">Annuler le dernier point</button>
         <button id="btn-mesure-effacer" class="secondaire">Effacer</button>
       </div>
     </section>
