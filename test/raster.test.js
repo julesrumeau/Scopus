@@ -94,3 +94,18 @@ test('un tableau de classes (pas seulement un Set) est accepté', () => {
   RASTER.accumuler(g, bloc([{ x: 0.5, y: 0.5, z: 5, cls: 3 }]));
   assert.equal(g.solN[0], 1);
 });
+
+test('`sommetZ`/`sommetCls` restent toutes classes confondues même quand une classe devient sol', () => {
+  // Les deux mécanismes sont indépendants : router une classe vers le sol ne
+  // doit pas la retirer du sommet toutes classes que `terrain.js` utilise pour
+  // le pointé 3D (voir le test dédié dans le fichier plus haut).
+  const g = RASTER.creerGrilles({ xmin: 0, xmax: 4, ymin: 0, ymax: 4 }, [0, 0, 0], 1, new Set([2, 9, 1]));
+  RASTER.accumuler(g, bloc([
+    { x: 0.5, y: 0.5, z: 2, cls: 2 },    // sol, plus bas
+    { x: 0.5, y: 0.5, z: 9, cls: 1 },    // non classé, choisi comme sol ici, et le plus haut
+  ]));
+  assert.equal(g.solN[0], 2, 'les deux points, classe 2 et classe 1, vont au sol');
+  assert.ok(Math.abs(g.solZ[0] - 2) < 1e-6, 'solZ garde le minimum des deux');
+  assert.equal(g.sommetZ[0], 9, 'sommetZ, lui, garde le maximum toutes classes');
+  assert.equal(g.sommetCls[0], 1, 'et sa classe — même si cette classe est aussi devenue « sol »');
+});
