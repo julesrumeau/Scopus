@@ -734,6 +734,11 @@ input[type=range]::-moz-range-thumb {
   pointer-events: none;
 }
 
+/* Avis de panne du fond de carte : même gabarit que l'avis de zoom
+   ci-dessus, mais un liseré rouge alerte plutôt qu'or — celui-ci signale un
+   vrai problème externe (IGN indisponible), pas une simple explication. */
+.avis-panne { border-left-color: var(--alerte); }
+
 @media (max-width: 900px) {
   /* Sous 900 px, le panneau (380 px) ne laisse plus de place à la scène — un
      empilement 45 %/55 % essayé d'abord ne réglait rien, la carte comme le

@@ -169,6 +169,13 @@ const CONFIG = {
     // 600 000 « polémoformes » et 400 km de tranchées recensés sur la
     // forêt domaniale de Verdun (De Matos-Machado et al.).
     dalleExemple: { x: 877, y: 6904 },
+    // Tuiles de fond (Plan IGN / Photo aérienne) définitivement en échec — leurs
+    // 3 reprises épuisées, § `tileerror` — avant d'afficher l'avis « IGN
+    // indisponible ». Une seule tuile ratée est courante (le 400 fantôme de
+    // l'IGN, transitoire) ; plusieurs à la suite, sans qu'aucune ne réussisse
+    // entre-temps, indique une vraie panne du service plutôt qu'un accident
+    // isolé.
+    echecsTuilesPourAvis: 6,
   },
 
   // ── Rendu ─────────────────────────────────────────────────────────────────

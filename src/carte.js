@@ -88,12 +88,13 @@ class Carte {
     // Le `src` est vidé avant d'être réécrit : réaffecter la même chaîne ne
     // relance pas forcément le chargement.
     for (const couche of [plan, ortho]) {
+      couche.on('tileload', () => this._majAvisPanne(true));
       couche.on('tileerror', (e) => {
         const img = e.tile;
         const url = img.src;
         if (!url) return;
         const n = (img._reprises = (img._reprises || 0) + 1);
-        if (n > 3) return;
+        if (n > 3) { this._majAvisPanne(false); return; }
         img.src = '';
         setTimeout(() => { img.src = url; }, 350 * n * (0.7 + Math.random() * 0.6));
       });
@@ -138,12 +139,42 @@ class Carte {
     this.map.on('zoomend', () => this._majAvisZoom());
     this._majAvisZoom();
 
+    // Avis de panne du fond de carte — distinct de l'avis de zoom ci-dessus,
+    // et de la file bornée de `reseau.js` : les tuiles Plan IGN / Photo
+    // aérienne ne passent pas par elle, se chargent sans qu'on clique sur
+    // rien, et n'affichaient jusqu'ici aucun message quand `data.geopf.fr`
+    // reste indisponible — une tuile ratée devenait juste grise, en silence,
+    // et le rechargement à chaque déplacement de carte donnait l'impression
+    // d'un échec sans fin plutôt que d'un problème identifiable.
+    //
+    // Le compteur ne retient que les échecs **consécutifs** : une tuile isolée
+    // qui rate ses 3 reprises est courante (le 400 fantôme de l'IGN, § pièges
+    // connus) et n'importe rien ; il faut plusieurs tuiles en échec de suite,
+    // sans qu'aucune n'ait réussi entre-temps, pour distinguer une vraie panne
+    // d'un accident isolé.
+    this._echecsTuilesConsecutifs = 0;
+    this._avisPanne = L.control({ position: 'bottomleft' });
+    this._avisPanne.onAdd = () => {
+      const d = L.DomUtil.create('div', 'avis-zoom avis-panne');
+      d.textContent = 'Le fond de carte de l’IGN ne répond pas. Réessayez plus tard.';
+      d.hidden = true;
+      return d;
+    };
+    this._avisPanne.addTo(this.map);
+
     this.rafraichirBlocs();
   }
 
   _majAvisZoom() {
     const el = this._avisZoom.getContainer();
     if (el) el.hidden = this.map.getZoom() <= CONFIG.carte.zoomTuilesMax;
+  }
+
+  /** Suit les échecs consécutifs de tuiles de fond ; affiche l'avis au-delà du seuil. */
+  _majAvisPanne(succes) {
+    this._echecsTuilesConsecutifs = succes ? 0 : this._echecsTuilesConsecutifs + 1;
+    const el = this._avisPanne.getContainer();
+    if (el) el.hidden = this._echecsTuilesConsecutifs < CONFIG.carte.echecsTuilesPourAvis;
   }
 
   /** Charge les emprises de chantier couvrant la fenêtre courante. */
