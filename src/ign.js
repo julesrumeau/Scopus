@@ -73,19 +73,21 @@ async function dalles(sud, ouest, nord, est, signal) {
     let meta = {};
     try { meta = JSON.parse(p.metadata || '{}'); } catch { /* métadonnée absente ou malformée : sans conséquence */ }
 
-    // Le nom porte les coordonnées kilométriques du coin nord-ouest :
-    // LHD_FXX_0564_6196_… ⇒ X ∈ [564000, 565000], Y ∈ [6195000, 6196000].
-    const m = /_(\d{4})_(\d{4})_/.exec(p.name || '');
+    // Plus de champ `name` sur cette couche (voir CONFIG.ign.coucheDalles) :
+    // le nom de fichier vient de `url_npl`, et porte toujours les coordonnées
+    // kilométriques du coin nord-ouest : LHD_FXX_0564_6196_… ⇒
+    // X ∈ [564000, 565000], Y ∈ [6195000, 6196000].
+    const nom = (p.url_npl || '').split('/').pop()?.replace(/\.copc\.laz$/, '') || '';
+    const m = /_(\d{4})_(\d{4})_/.exec(nom);
     const emprise = m ? {
       xmin: +m[1] * 1000, xmax: (+m[1] + 1) * 1000,
       ymin: (+m[2] - 1) * 1000, ymax: +m[2] * 1000,
     } : null;
 
     return {
-      id: p.id,
-      nom: p.name,
-      url: p.url,
-      format: p.format,
+      id: f.id,
+      nom,
+      url: p.url_npl,
       emprise,
       anneau: anneauExterieur(f.geometry),
       nbPoints: meta.nombre_points ?? null,

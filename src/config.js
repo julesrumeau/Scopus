@@ -8,12 +8,26 @@ const CONFIG = {
 
   // ── Sources IGN ───────────────────────────────────────────────────────────
   ign: {
-    // Couche WFS de la grille de dalles LiDAR HD. C'est exactement la grille
-    // affichée par cartes.gouv.fr : chaque entité porte l'URL de son .copc.laz.
+    // Couche WFS de la grille de dalles LiDAR HD : chaque entité porte l'URL
+    // de son .copc.laz.
+    //
+    // `IGNF_NUAGES-DE-POINTS-LIDAR-HD:dalle` a disparu du WFS début septembre
+    // 2026 — mesuré (`GetCapabilities` ne la liste plus), pas supposé, et sans
+    // annonce : un agent IGN avait pourtant confirmé le 10 décembre 2025 sur
+    // GeoRezo qu'elle resterait valide. `IGNF_LIDAR-HD_METADONNEE:metadata`
+    // la remplace en pratique, vérifié en direct sur la même zone : un
+    // polygone par dalle de 1 km, et `url_npl` porte la même URL de
+    // téléchargement (CORS ouvert, `206` sur requête de plage). Elle n'est pas
+    // documentée comme le remplacement officiel — rien ne dit qu'elle le
+    // restera non plus.
     wfs: 'https://data.geopf.fr/wfs/ows',
-    coucheDalles: 'IGNF_NUAGES-DE-POINTS-LIDAR-HD:dalle',
+    coucheDalles: 'IGNF_LIDAR-HD_METADONNEE:metadata',
     // Emprises des chantiers d'acquisition : la couche « de loin », celle qui
     // montre la couverture LiDAR sur toute la France.
+    //
+    // Cassée par le même retrait, sans remplacement trouvé pour l'instant :
+    // `blocs()` échoue en silence (rattrapé par `surErreur`), la couche de
+    // couverture n'apparaît juste plus sur la carte de France.
     coucheBlocs: 'IGNF_NUAGES-DE-POINTS-LIDAR-HD:bloc',
     geocodage: 'https://data.geopf.fr/geocodage/search',
     // Bâti de la BD TOPO, utilisé pour écarter les détections déjà cartographiées.

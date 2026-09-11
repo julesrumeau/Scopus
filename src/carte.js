@@ -193,7 +193,11 @@ class Carte {
       this.grille.definirBlocs(liste);
       this.cb.surCouverture?.(liste.length, this.map.getZoom());
     } catch (e) {
-      if (e.name !== 'AbortError') this.cb.surErreur?.(`Couverture LiDAR : ${RESEAU.expliquer(e)}`);
+      // Pas d'alerte utilisateur ici : `coucheBlocs` (CONFIG.ign) est cassée côté
+      // IGN sans remplacement connu, l'erreur reviendrait à chaque déplacement
+      // de la carte sans rien que l'utilisateur puisse y faire — juste un
+      // repère silencieux pour qui développe.
+      if (e.name !== 'AbortError') console.warn('Couverture LiDAR indisponible :', e);
     }
   }
 
