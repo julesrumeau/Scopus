@@ -45,3 +45,13 @@ test('un stockage qui échoue rend le cache muet, jamais une erreur', async () =
   await c.ecrire('a', octets(3));
   assert.equal(await c.lire('a'), null);
 });
+
+test('des écritures simultanées respectent le quota et ne comptent pas deux fois la même clé', async () => {
+  // flux.js lance ses écritures sans les attendre : elles se chevauchent.
+  const s = CACHE_DISQUE.stockageMemoire();
+  const c = CACHE_DISQUE.creer(s, 30);
+  await Promise.all(['a', 'b', 'c', 'd', 'a'].map((k) => c.ecrire(k, octets(10))));
+  assert.ok(c.total() <= 30, `total ${c.total()}`);
+  const reel = (await s.meta()).reduce((t, [, v]) => t + v.taille, 0);
+  assert.equal(reel, c.total(), 'le compte tenu égale l’occupation réelle');
+});

@@ -43,13 +43,21 @@ const CACHE_DISQUE = (() => {
       }
     }
 
-    async function ecrire(cle, octets) {
+    // Les écritures passent l'une après l'autre : flux.js les lance sans les
+    // attendre, et deux évictions simultanées décomptaient deux fois le même
+    // bloc, ou deux écritures de la même clé passaient toutes deux — le quota
+    // dérivait sans que rien ne le montre.
+    let file = Promise.resolve();
+    const ecrire = (cle, octets) => (file = file.then(() => ecrireSeul(cle, octets)));
+
+    async function ecrireSeul(cle, octets) {
       await ouvrir();
       if (enPanne || octets.byteLength > quotaOctets || meta.has(cle)) return;
       try {
         const parAge = [...meta.entries()].sort((a, b) => a[1].acces - b[1].acces);
         while (total + octets.byteLength > quotaOctets && parAge.length) {
           const [vieux, v] = parAge.shift();
+          if (!meta.has(vieux)) continue;
           await stockage.del(vieux);
           meta.delete(vieux);
           total -= v.taille;
@@ -113,14 +121,30 @@ const CACHE_DISQUE = (() => {
         const v = await requete('octets', 'readonly', (s) => s.get(cle));
         return v ? new Uint8Array(v) : null;
       },
+      // Octets et méta dans une même transaction : une coupure entre deux
+      // transactions laissait des octets sans méta, hors quota, jamais effacés.
       put: async (cle, o, v) => {
-        await requete('octets', 'readwrite', (s) => s.put(o.slice().buffer, cle));
-        await requete('meta', 'readwrite', (s) => s.put(v, cle));
+        const db = await ouvrir();
+        await new Promise((ok, ko) => {
+          const tx = db.transaction(['octets', 'meta'], 'readwrite');
+          tx.objectStore('octets').put(o.slice().buffer, cle);
+          tx.objectStore('meta').put(v, cle);
+          tx.oncomplete = () => ok();
+          tx.onerror = () => ko(tx.error);
+          tx.onabort = () => ko(tx.error);
+        });
       },
       putMeta: (cle, v) => requete('meta', 'readwrite', (s) => s.put(v, cle)),
       del: async (cle) => {
-        await requete('octets', 'readwrite', (s) => s.delete(cle));
-        await requete('meta', 'readwrite', (s) => s.delete(cle));
+        const db = await ouvrir();
+        await new Promise((ok, ko) => {
+          const tx = db.transaction(['octets', 'meta'], 'readwrite');
+          tx.objectStore('octets').delete(cle);
+          tx.objectStore('meta').delete(cle);
+          tx.oncomplete = () => ok();
+          tx.onerror = () => ko(tx.error);
+          tx.onabort = () => ko(tx.error);
+        });
       },
     };
   }

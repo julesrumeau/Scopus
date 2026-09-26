@@ -36,15 +36,38 @@ const FLUX = (() => {
       });
     };
 
+    let derniereErreur = null;
+
     function publierEtat(tropLarge = false) {
       let attente = 0, charges = 0, points = 0;
       for (const b of blocs.values()) {
         if (b.etat === 'attente') attente++;
         else { charges++; points += b.nbPoints; }
       }
-      const dallesOuvertes = [...dalles.values()].filter((d) => d.etat === 'ouverte').length;
-      deps.surEtat?.({ attente, charges, points, dallesOuvertes, tropLarge });
+      let dallesOuvertes = 0, echecs = 0;
+      for (const d of dalles.values()) {
+        if (d.etat === 'ouverte') dallesOuvertes++;
+        else if (d.etat === 'echec') echecs++;
+      }
+      deps.surEtat?.({ attente, charges, points, dallesOuvertes, tropLarge, echecs, erreur: echecs ? derniereErreur : null });
     }
+
+    // Un échec n'est jamais définitif : la dalle est réessayée après un délai
+    // qui double à chaque fois (plafonné), et l'échec reste visible dans l'état
+    // en attendant. Une dalle vide en silence ressemble à « il n'y a rien ici »,
+    // le mode de panne le plus coûteux du projet.
+    const minuteurs = new Set();
+    function reessayerPlusTard(d) {
+      d.echecs = (d.echecs || 0) + 1;
+      const delai = Math.min(60_000, (config.delaiReessaiMs ?? 2000) * 2 ** (d.echecs - 1));
+      const m = setTimeout(() => {
+        minuteurs.delete(m);
+        if (d.etat === 'echec') { d.etat = 'inconnue'; planifier(); }
+      }, delai);
+      minuteurs.add(m);
+    }
+
+    const abandon = () => new DOMException('Chargement abandonné', 'AbortError');
 
     function entetePourLot(url) {
       const lot = COPC.lotDepuisUrl(url);
@@ -105,45 +128,77 @@ const FLUX = (() => {
         }
         const debut = lu ? lu.debutMorceau : null;
         if (!lu) throw new Error(`index introuvable dans la fin de ${d.dalle.nom || d.dalle.url}`);
+        // Sous-pages suivies à toute profondeur, comme COPC.lireHierarchie.
         const noeuds = new Map(lu.noeuds);
-        for (const [offset, taille] of lu.sousPages) {
+        const aVisiter = [...lu.sousPages];
+        const vues = new Set();
+        while (aVisiter.length) {
+          const [offset, taille] = aVisiter.shift();
+          if (taille <= 0 || vues.has(offset)) continue;
+          vues.add(offset);
           const page = await deps.recuperer(d.dalle.url, { plage: [offset, offset + taille - 1], signal });
           const sp = COPC.lireEntrees(page);
           for (const [k, v] of sp.noeuds) noeuds.set(k, v);
+          aVisiter.push(...sp.sousPages);
         }
         d.entete = await entete;
-        if (signal.aborted) return;
-        Object.assign(d, { index: noeuds, fin, debutFin: debut, etat: 'ouverte' });
+        if (signal.aborted) throw abandon();
+        Object.assign(d, { index: noeuds, fin, debutFin: debut, etat: 'ouverte', echecs: 0 });
         planifier();
       } catch (e) {
-        if (signal.aborted) { d.etat = 'inconnue'; return; }
+        // Une seule sortie pour l'abandon : la dalle redevient ouvrable. Sortie
+        // sans remettre l'état, elle restait « en ouverture » pour la session.
+        if (signal.aborted) {
+          d.etat = 'inconnue';
+          // Redevenue visible pendant l'abandon : la rouvrir tout de suite, sans
+          // attendre le prochain déplacement de la vue.
+          if (vue && coupe(d.dalle.emprise, vue)) planifier();
+          return;
+        }
         d.etat = 'echec';
+        derniereErreur = deps.expliquer ? deps.expliquer(e) : e.message;
         console.warn('Flux : dalle non ouverte —', e.message);
+        reessayerPlusTard(d);
+        publierEtat();
       }
     }
 
     const cleCache = (url, noeud) => `${url}#${noeud.offset}`;
 
+    /**
+     * Retire un bloc en attente. Sa plage réseau n'est abandonnée que si plus
+     * aucun de ses blocs n'est voulu : avec un seul contrôleur par dalle,
+     * abandonner un bloc sorti de la vue coupait aussi ses voisins encore
+     * visibles, qui n'étaient jamais redemandés.
+     */
+    function retirerBloc(cle) {
+      const b = blocs.get(cle);
+      blocs.delete(cle);
+      if (!b?.groupe) return;
+      b.groupe.cles.delete(cle);
+      if (!b.groupe.cles.size) b.groupe.ctrl.abort();
+    }
+
     async function telechargerDalle(d, lot) {
-      const ctrl = new AbortController();
-      for (const b of lot) blocs.set(b.cle, { etat: 'attente', ctrl, niveau: b.niveau, nbPoints: b.noeud.nbPoints, emprise: b.emprise });
-      const signal = ctrl.signal;
+      for (const b of lot) blocs.set(b.cle, { etat: 'attente', groupe: null, niveau: b.niveau, nbPoints: b.noeud.nbPoints, emprise: b.emprise });
       const origineCm = [Math.round(d.dalle.emprise.xmin * 100), Math.round(d.dalle.emprise.ymin * 100), 0];
+      let echec = null;
 
       // Un bloc est décodé dès que ses octets sont là : la fin de fichier déjà
       // reçue et le cache disque d'abord, puis chaque plage réseau à son
       // arrivée. Tout attendre avant de décoder faisait patienter le niveau 0
       // du centre derrière les 7 Mo du niveau 1 de sa dalle — ~11 s, mesuré.
       const emettre = async (b, octets) => {
-        if (signal.aborted || !blocs.has(b.cle)) return;
+        if (blocs.get(b.cle)?.etat !== 'attente') return;
         const points = await deps.decoder({
           type: 'decoder', octets: octets.slice().buffer, nbPoints: b.noeud.nbPoints,
           formatPoint: d.entete.formatPoint, longueurPoint: d.entete.longueurPoint,
           echelle: d.entete.echelle, decalage: d.entete.decalage, origine: [0, 0, 0], entiers: origineCm,
         });
         const suivi = blocs.get(b.cle);
-        if (signal.aborted || !suivi) return;
+        if (suivi?.etat !== 'attente') return;
         suivi.etat = 'charge';
+        suivi.groupe = null;
         deps.surBloc?.({ cle: b.cle, url: d.dalle.url, niveau: b.niveau, emprise: b.emprise, origineCm, points });
         publierEtat();
       };
@@ -151,6 +206,7 @@ const FLUX = (() => {
       try {
         const aDemander = [];
         for (const b of lot) {
+          if (!blocs.has(b.cle)) continue;
           const n = b.noeud;
           if (d.debutFin != null && n.offset >= d.debutFin && n.offset + n.taille <= d.debutFin + d.fin.length) {
             await emettre(b, d.fin.subarray(n.offset - d.debutFin, n.offset - d.debutFin + n.taille));
@@ -159,9 +215,19 @@ const FLUX = (() => {
           const o = await deps.cache?.lire(cleCache(d.dalle.url, n));
           if (o) await emettre(b, o); else aDemander.push(b);
         }
-        for (const plage of COPC.grouperPlages(aDemander.map((b) => ({ ...b.noeud, bloc: b })))) {
-          if (signal.aborted) break;
-          const o = await deps.recuperer(d.dalle.url, { plage: [plage.debut, plage.fin - 1], signal });
+        const restants = aDemander.filter((b) => blocs.has(b.cle));
+        for (const plage of COPC.grouperPlages(restants.map((b) => ({ ...b.noeud, bloc: b })))) {
+          const cles = new Set(plage.noeuds.map((n) => n.bloc.cle).filter((c) => blocs.has(c)));
+          if (!cles.size) continue;
+          const groupe = { ctrl: new AbortController(), cles };
+          for (const c of cles) blocs.get(c).groupe = groupe;
+          let o;
+          try {
+            o = await deps.recuperer(d.dalle.url, { plage: [plage.debut, plage.fin - 1], signal: groupe.ctrl.signal });
+          } catch (e) {
+            if (!groupe.ctrl.signal.aborted) echec = e;
+            continue;
+          }
           for (const n of plage.noeuds) {
             const tranche = o.subarray(n.offset - plage.debut, n.offset - plage.debut + n.taille);
             // Suivie comme le reste : une seconde visite juste après doit la trouver.
@@ -170,16 +236,24 @@ const FLUX = (() => {
           }
         }
       } catch (e) {
-        if (!signal.aborted) console.warn('Flux : blocs non chargés —', e.message);
+        echec = e;
       }
       for (const b of lot) if (blocs.get(b.cle)?.etat === 'attente') blocs.delete(b.cle);
+      if (echec) {
+        // Les blocs ratés sont redemandés plus tard, par une nouvelle
+        // planification, sans marteler l'IGN.
+        console.warn('Flux : blocs non chargés —', echec.message);
+        derniereErreur = deps.expliquer ? deps.expliquer(echec) : echec.message;
+        const m = setTimeout(() => { minuteurs.delete(m); planifier(); }, config.delaiReessaiMs ?? 2000);
+        minuteurs.add(m);
+      }
       liberer();
     }
 
     let voulues = new Set();
 
     function planifier() {
-      if (!vue) return;
+      if (!vue || vue.xmax - vue.xmin > config.largeurMaxPointsM) return;
       const marge = agrandi(vue, 1000);
       const visibles = [...dalles.values()].filter((d) => coupe(d.dalle.emprise, vue));
 
@@ -202,7 +276,7 @@ const FLUX = (() => {
 
       // Abandonner les blocs en attente qui ne sont plus voulus.
       for (const [cle, b] of blocs) {
-        if (b.etat === 'attente' && !voulues.has(cle)) { b.ctrl.abort(); blocs.delete(cle); }
+        if (b.etat === 'attente' && !voulues.has(cle)) retirerBloc(cle);
       }
       // Demander les nouveaux, un lot par dalle, dans l'ordre de `voulus`.
       const parDalle = new Map();
@@ -235,7 +309,7 @@ const FLUX = (() => {
       vue = v;
       if (v.xmax - v.xmin > config.largeurMaxPointsM) {
         for (const d of dalles.values()) if (d.etat === 'ouverture') d.ctrl.abort();
-        for (const [cle, b] of blocs) if (b.etat === 'attente') { b.ctrl.abort(); blocs.delete(cle); }
+        for (const [cle, b] of blocs) if (b.etat === 'attente') retirerBloc(cle);
         publierEtat(true);
         return;
       }
@@ -243,13 +317,16 @@ const FLUX = (() => {
       if (!zones.some((z) => contient(z, zone))) {
         zones.push(zone);
         const trouvees = await deps.chercherDalles(zone).catch((e) => {
-          zones.pop();
+          zones.splice(zones.indexOf(zone), 1);
           console.warn('Flux : dalles introuvables —', e.message);
           return [];
         });
         for (const dl of trouvees) if (!dalles.has(dl.url)) dalles.set(dl.url, { dalle: dl, etat: 'inconnue' });
       }
-      if (vue === v) planifier();
+      // Sans condition, et sur la vue **courante** : une vue arrivée pendant
+      // la réponse du WFS avait sauté la requête (zone déjà demandée) et
+      // planifié sur des dalles encore inconnues.
+      planifier();
     }
 
     function attendreCalme() {
@@ -259,8 +336,9 @@ const FLUX = (() => {
 
     function arreter() {
       for (const d of dalles.values()) d.ctrl?.abort();
-      for (const b of blocs.values()) b.ctrl?.abort();
-      blocs.clear();
+      for (const cle of [...blocs.keys()]) retirerBloc(cle);
+      for (const m of minuteurs) clearTimeout(m);
+      minuteurs.clear();
       vue = null;
     }
 

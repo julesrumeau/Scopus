@@ -2353,6 +2353,7 @@ if (new URLSearchParams(location.search).has('flux')) {
       return IGN.dalles(so.lat, so.lon, ne.lat, ne.lon);
     },
     recuperer: RESEAU.recuperer,
+    expliquer: RESEAU.expliquer,
     decoder: NUAGE.decoder,
     cache: CACHE_DISQUE.creer(CACHE_DISQUE.stockageIndexedDB(), CONFIG.flux.quotaDisqueOctets),
     config: { ...CONFIG.flux, budgetPoints: surAppareilPortatif ? CONFIG.flux.budgetPointsMobile : CONFIG.flux.budgetPoints },
@@ -2361,7 +2362,9 @@ if (new URLSearchParams(location.search).has('flux')) {
     surEtat: (e) => statut(e.tropLarge
       ? 'Flux : vue trop large pour les points — zoomez'
       : `Flux : ${e.dallesOuvertes} dalles · ${e.charges} blocs · ${milliers(e.points)} points`
-        + (e.attente ? ` · ${e.attente} en attente` : ''), e.attente ? 'travail' : undefined),
+        + (e.attente ? ` · ${e.attente} en attente` : '')
+        + (e.echecs ? ` · ${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}` : ''),
+      e.echecs ? 'erreur' : e.attente ? 'travail' : undefined),
   });
   const majVueFlux = () => {
     const b = carte.map.getBounds();

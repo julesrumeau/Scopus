@@ -50,7 +50,7 @@ function monter({ cache = CACHE_DISQUE.creer(CACHE_DISQUE.stockageMemoire(), 1e9
     },
     decoder: async (charge) => ({ nbPoints: charge.nbPoints, xc: new Int32Array(1), yc: new Int32Array(1), zc: new Int32Array(1), cls: new Uint8Array(1) }),
     cache,
-    config: { ...CONFIG.flux, budgetPoints: 1e9 },
+    config: { ...CONFIG.flux, budgetPoints: 1e9, delaiReessaiMs: 20 },
     surBloc: (b) => blocs.push(b),
     surLibere: (c) => liberes.push(c),
   });
@@ -156,4 +156,97 @@ test('le niveau 0, déjà dans la fin de fichier, est émis sans attendre les pl
   assert.ok(blocs.some((b) => b.niveau === 0), 'un niveau 0 émis pendant que les plages sont en vol');
   assert.ok(!blocs.some((b) => b.niveau === 1), 'aucune plage encore servie');
   await flux.attendreCalme();
+});
+
+// ── Défauts relevés par la relecture de la branche ──────────────────────────
+
+/** Entrées de hiérarchie brutes (32 octets chacune), pour une sous-page. */
+function entreesBrutes(entrees) {
+  const o = new Uint8Array(entrees.length * 32);
+  const dv = new DataView(o.buffer);
+  entrees.forEach((e, k) => {
+    const p = k * 32;
+    dv.setInt32(p, e.n, true); dv.setInt32(p + 4, e.x ?? 0, true); dv.setInt32(p + 8, e.y ?? 0, true);
+    dv.setBigUint64(p + 16, BigInt(e.offset), true); dv.setInt32(p + 24, e.taille, true); dv.setInt32(p + 28, e.nbPoints, true);
+  });
+  return o;
+}
+
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
+test('un léger déplacement n’abandonne pas les blocs encore voulus de la même plage', async () => {
+  const { flux, blocs } = monter({ delaiPlage: 80 });
+  flux.majVue(VUE);
+  await pause(20);   // fins de fichier servies, plages du niveau 1 en vol
+  // 600 m vers l'est : les blocs x=0 des dalles de gauche sortent de la vue,
+  // leurs voisins x=1 (même plage réseau) y restent.
+  await flux.majVue({ ...VUE, xmin: 600, xmax: 3600 });
+  await flux.attendreCalme();
+  const gauche = blocs.filter((b) => b.niveau === 1 && b.emprise.xmin === 500);
+  // Deux blocs x=1 (bas et haut) par dalle de gauche, trois dalles : 6.
+  assert.equal(gauche.length, 6, 'les blocs x=1 des trois dalles de gauche sont bien arrivés');
+});
+
+test('une dalle abandonnée pendant l’attente de l’en-tête se rouvre au retour', async () => {
+  const { flux, blocs } = monter();
+  const recup = flux._deps.recuperer;
+  flux._deps.recuperer = async (u, o) => {
+    if (o.plage && o.plage[0] === 0) await pause(80);   // en-tête du lot lent
+    return recup(u, o);
+  };
+  const ICI = { xmin: 1000, xmax: 2000, ymin: 1000, ymax: 2000, largeurPx: 1400 };
+  flux.majVue(ICI);
+  await pause(20);   // fin de fichier reçue, en-tête en attente
+  await flux.majVue({ xmin: 50_000, xmax: 51_000, ymin: 50_000, ymax: 51_000, largeurPx: 1400 });
+  await flux.majVue(ICI);
+  await flux.attendreCalme();
+  await pause(100);
+  await flux.attendreCalme();
+  assert.ok(blocs.some((b) => b.url === url(1, 1)), 'la dalle (1,1) a fini par livrer ses blocs');
+});
+
+test('une vue changée pendant la réponse du WFS est quand même planifiée', async () => {
+  const { flux, blocs } = monter();
+  const chercher = flux._deps.chercherDalles;
+  flux._deps.chercherDalles = async (z) => { await pause(50); return chercher(z); };
+  flux.majVue(VUE);
+  await pause(5);
+  await flux.majVue({ ...VUE, xmin: 1200, xmax: 1800, ymin: 1200, ymax: 1800 });   // contenue dans la zone déjà demandée
+  await flux.attendreCalme();
+  assert.ok(blocs.length > 0);
+});
+
+test('les sous-pages de l’index sont suivies sur plusieurs niveaux', async () => {
+  const { flux, blocs } = monter();
+  const P1 = 150_000_000, P2 = 151_000_000;
+  const page1 = entreesBrutes([{ n: 2, offset: 140_000_000, taille: 100, nbPoints: 230_000 }, { n: 1, offset: P2, taille: 64, nbPoints: -1 }]);
+  const page2 = entreesBrutes([{ n: 1, x: 1, y: 1, offset: 141_000_000, taille: 100, nbPoints: 225_000 }]);
+  flux._deps.recuperer = async (u, o) => {
+    if (o.fin) return { octets: fabriquerFin({ entrees: [{ n: 0, offset: TAILLE - 600_000, taille: 500_000, nbPoints: 60_000 }, { n: 1, offset: P1, taille: 64, nbPoints: -1 }] }), total: null };
+    if (o.plage[0] === 0) return fabriquerEntete();
+    if (o.plage[0] === P1) return page1;
+    if (o.plage[0] === P2) return page2;
+    return new Uint8Array(o.plage[1] - o.plage[0] + 1);
+  };
+  await flux.majVue({ xmin: 1000, xmax: 2000, ymin: 1000, ymax: 2000, largeurPx: 1400 });
+  await flux.attendreCalme();
+  assert.ok(blocs.some((b) => b.niveau === 1 && b.emprise.xmin === 1500 && b.emprise.ymin === 1500), 'le nœud de la sous-page de second niveau est chargé');
+});
+
+test('une dalle en échec est réessayée, et l’échec est signalé', async () => {
+  const etats = [];
+  const { flux, blocs } = monter();
+  let premier = true;
+  const recup = flux._deps.recuperer;
+  flux._deps.recuperer = async (u, o) => {
+    if (o.fin && premier) { premier = false; throw new Error('HTTP 503 sur ' + u); }
+    return recup(u, o);
+  };
+  flux._deps.surEtat = (e) => etats.push(e);
+  await flux.majVue({ xmin: 1000, xmax: 2000, ymin: 1000, ymax: 2000, largeurPx: 1400 });
+  await flux.attendreCalme();
+  assert.ok(etats.some((e) => e.echecs >= 1 && e.erreur), 'l’échec remonte dans l’état');
+  await pause(80);
+  await flux.attendreCalme();
+  assert.ok(blocs.some((b) => b.url === url(1, 1)), 'la dalle a été rouverte après le délai');
 });

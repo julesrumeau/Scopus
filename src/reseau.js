@@ -119,6 +119,10 @@ function recuperer(url, opts = {}) {
           // en-tête aux pages web (CORS), la taille du fichier est inconnue.
           // L'appelant la retrouve autrement (COPC.lireFin, table des blocs).
           if (rep.status === 206) return { octets: buf, total: null };
+          // Un 200 qui porte au plus les octets demandés : c'est le cache HTTP
+          // du navigateur qui a servi la plage (voir « Pièges connus »), pas le
+          // fichier entier — la taille reste inconnue.
+          if (buf.length <= fin) return { octets: buf, total: null };
           return { octets: buf.length > fin ? buf.subarray(buf.length - fin) : buf, total: buf.length };
         }
         if (!plage) return buf;

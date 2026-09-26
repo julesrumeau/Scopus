@@ -92,3 +92,12 @@ test('fin de fichier : un 206 sans Content-Range lisible (CORS) rend une taille 
   assert.equal(r.total, null);
   assert.equal(r.octets.length, 1000);
 });
+
+test('fin de fichier : un 200 servi par le cache HTTP avec juste les octets demandés n’est pas le fichier entier', async () => {
+  // Le cache du navigateur peut servir une plage en 200 sans Content-Range
+  // (voir « Pièges connus » dans CLAUDE.md) : la taille reste inconnue.
+  const ctx = chargerScripts(['config.js', 'reseau.js']);
+  ctx.fetch = async () => ({ ok: true, status: 200, headers: new Map(), arrayBuffer: async () => new Uint8Array(1000).buffer });
+  const r = await ctx.RESEAU.recuperer('https://x/f', { fin: 1000 });
+  assert.equal(r.total, null);
+});
