@@ -350,6 +350,85 @@ points), Chromium, depuis le chargement de la page : première visite, premier
 bloc à 4,4 s et tout chargé en ~35 s ; seconde visite, premier bloc à 1,8 s,
 aucune fin de fichier redemandée, 2 requêtes de plage au lieu de 27.
 
+## Le calcul de la vue
+
+`vue-relief.js` calcule le relief de ce qui est à l'écran à partir des blocs que
+`flux.js` livre : grille de la vue, rangement des points, terrain, surface
+affichée, puis la couche par `RELIEF.calculer`, inchangé. Derrière `?flux`, le
+résultat se pose sur la carte en image de contrôle (`CalqueReliefControle`) —
+provisoire : le plan 3 le remplace par un calque WebGL. Conception :
+`docs/superpowers/specs/2026-09-26-flux-vue-design.md`, section « 2. Le calcul ».
+
+**La grille est en centimètres entiers** (`VUE_GRILLE`) : son coin est un
+multiple du pas, les points arrivent en centimètres entiers, et la case d'un
+point est une division entière — la même au processeur (`RASTER.accumulerCm`)
+et sur la carte graphique, au point près, y compris pile sur une limite. Le
+pas suit le pixel au sol (jamais sous 50 cm), la grille couvre la vue plus la
+plus grande portée des couches (`VUE_GRILLE.marge`, ~40 m) ; comblement et
+lissage sont réglés **en mètres** (`comblementM`, `lissageM`) pour garder leur
+sens à tous les pas.
+
+**Deux chemins, une référence.** `VUE_RELIEF.surfaceCPU` enchaîne
+`RASTER.creerGrillesVue`, `accumuler`, `finaliser` et `RELIEF.preparer` au pas
+même de la grille (`garderRepli` : une case sans sol garde l'altitude que le
+terrain lui a donnée, ce que la carte graphique produit sans rien calculer de
+plus). `GPU_RELIEF.surfaceVue` fait la même chose sur la carte : six passes de
+points sans `EXT_float_blend` (profondeur pour le sol minimal, le minimum et le
+maximum de tous ; `RGBA8` additif pour les comptes ; `RGBA16F` additif pour les
+hauteurs au-dessus du minimum), puis le terrain et la surface, et **un seul
+rapatriement**, celui de la surface. À la taille d'un écran il coûte quelques
+millisecondes, et il laisse les couches existantes intactes.
+
+Rien ne sort de la carte sans **autocontrôle** (`VUE_RELIEF.controleGPU`) :
+des points d'essai pile sur les limites, deux dalles à 600 m d'écart
+d'altitude, un mur non classé sans sol dessous, un arbre au-dessus du plafond,
+du bâti, de l'eau, un grand trou. Tolérances mesurées sur la carte AMD
+intégrée : la profondeur rend l'altitude du sol au centième de millimètre,
+quelle que soit l'étendue ; les cases complétées par le non classé passent par
+des sommes sur 16 bits, à 2,4 mm au pire ; et une case dont la hauteur tombe
+pile au plafond de 3 m peut basculer d'un côté ou de l'autre (12 cases sur
+1,9 M) — tolérées si elles restent rares. Vérifié qu'il sait échouer : un
+plafond faussé ou un pas décalé d'un centimètre le font refuser.
+
+**La carte graphique n'est pas plus rapide pour ranger les points** — contre
+ce que la conception supposait. L'essai du 26 septembre annonçait 15 M de
+points en 0,23 s ; il était faux (maximum faux de 24,8 m, une erreur GL en
+fin de passe : les passes de profondeur ne faisaient pas leur travail). Mesuré
+depuis, dans le Chrome de Windows, carte AMD intégrée :
+
+| | Carte graphique | Processeur |
+|---|---|---|
+| vrais points de Verdun, 5,7 M, grille 2158² | 2,2 s | 2,2 s |
+| points synthétiques au hasard, 15 M | 5,3 à 6,8 s | 3,8 à 4,3 s |
+
+Le coût est dans les passes avec test de profondeur (~250 ms chacune pour
+5,7 M), et il dépend de l'**ordre** des points : triés spatialement, des points
+synthétiques passent 15 fois plus vite ; au hasard, 15 fois plus lentement.
+Les vrais points sont entre les deux, et un tri à l'arrivée ne leur fait rien
+gagner (mesuré). Écrire l'altitude par `gl_Position.z` plutôt que
+`gl_FragDepth`, une profondeur 24 bits ou un tampon de rendu : aucune
+différence. Le chemin de la carte est gardé — juste, aussi rapide, et il
+libère la mémoire JavaScript des points — mais la conception qui suppose des
+grilles « sur la carte pour la vitesse » est à revoir au plan 3.
+
+Dans l'application (`?flux`, même carte, Verdun) : un recalcul prend 0,5 s au
+premier bloc, puis 3 à 5 s une fois le budget de 20 M de points atteint — à
+97 % le rangement des points, **tous** refaits à chaque recalcul, y compris
+des blocs fins gardés d'une vue précédente et inutiles au pas courant. C'est
+la stratégie de recalcul, pas le moteur, qui est à reprendre.
+
+Sans carte graphique vérifiée, le processeur calcule, et le budget de points
+tombe à `budgetPointsProcesseur` (5 M).
+
+**Au-delà du seuil, le MNT de l'IGN** (`mnt-ign.js`) : une requête WMS
+`IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93` en
+`image/x-bil;bits=32` à la taille de la grille (au plus 5010 px de côté), puis
+les mêmes couches. Vérifié sur une vraie réponse : flottants
+**petit-boutistes**, ligne 0 au **nord** (ramenée au sud comme toutes les
+grilles du projet), `-9999` hors couverture. Mesuré : 548 km² en 2,4 s, réseau
+compris, sans aucune requête de points. `RESEAU.recuperer` rend un
+`Uint8Array`, parfois vue d'un tampon plus grand : la lecture en tient compte.
+
 ## La carte
 
 La grille des dalles n'est pas téléchargée, elle est **calculée**. Une dalle est
@@ -2122,6 +2201,7 @@ masquée ».
 | Borne de zoom de la carte | ✅ |
 | Vue d'ouverture sur la France entière | ✅ |
 | Lien partageable | ✅ — la vue, au format osm.org (`#map=zoom/lat/lon`, + angles en 3D) ; voir « Le lien partageable » |
+| Relief piloté par la vue | 🚧 derrière `?flux` : chargement (plan 1) et calcul (plan 2) faits ; affichage et interface (plan 3) à venir |
 
 ## Jalon de publication
 

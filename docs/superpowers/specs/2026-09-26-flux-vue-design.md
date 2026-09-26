@@ -44,7 +44,9 @@ dépôt) ; les chiffres qui comptent :
   `EXT_float_blend`** (absente sur ~51 % des iPhone) : tampon de profondeur
   pour les minimum et maximum, comptes additifs sur 8 bits, sommes additives
   sur 16 bits en hauteur relative. 15 M de points : 0,23 s (+ 0,13 s
-  d'envoi) contre 3,9 s au processeur ; moyennes justes à 2 mm. Les appels
+  d'envoi) contre 3,9 s au processeur — **mesure fausse**, corrigée au
+  plan 2 : la carte range les vrais points à la vitesse du processeur
+  (voir CLAUDE.md, « Le calcul de la vue ») ; moyennes justes à 2 mm. Les appels
   de dessin **doivent** être découpés (~1 M de points) : un appel de 15 M a
   fait réinitialiser la carte par Windows, tout relisant zéro sans erreur.
   Écart résiduel : 0,03 % des cases, points pile sur une limite de case
