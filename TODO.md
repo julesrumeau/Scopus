@@ -10,8 +10,10 @@ renvois `(#N)` ailleurs dans le document ont été mis à jour en conséquence.
 L'ordre reste celui d'origine ; seuls les *(prioritaire)* sont un jugement de
 priorité explicite, le reste est classé par ancienneté et non par urgence.
 
-**2 tâches restent**, et les deux sont marquées *(prioritaire)* : ce sont les
-seules dont l'issue est incertaine.
+**5 tâches restent.** Les deux premières sont marquées *(prioritaire)* : ce
+sont les seules dont l'issue est incertaine. Les trois suivantes (#3 à #5),
+ajoutées le 26 septembre 2026, sont ce que le relief piloté par la vue laisse
+hors de ses trois plans (spec `docs/superpowers/specs/2026-09-26-flux-vue-design.md`).
 
 ### #1 — Rallumer la détection, ou renoncer *(prioritaire)*
 
@@ -140,4 +142,27 @@ grand-chose de crédible est le pire des choix — ça se lit comme un défaut d
 compacité, le diagnostic à cinq couches et la piste de l'ouverture écartée
 restent acquis pour la prochaine tentative, qui demandera un vrai chemin
 connu pour se calibrer plutôt que d'autres essais à l'aveugle.
+
+### #3 — Mesure et pointé sur le relief de la vue
+
+Le relief piloté par la vue remplace la dalle chargée : la mesure en chaîne et
+la sélection d'un point (§ « Mesure en chaîne », « Le pointé au clic »)
+lisaient les grilles d'une dalle, qui n'existent plus dans ce mode. Il faut
+lire l'altitude dans la grille de la vue, que garde le worker du relief
+(`relief-travailleur.js`) — une question au worker par clic.
+
+### #4 — Le retour de la 3D
+
+Masquée pendant le chantier du relief piloté par la vue (plan 3). Elle doit
+revenir sur les points que garde le worker, avant toute fusion dans `main`.
+À garder en tête : la carte graphique employée par un worker fait geler la
+page (§ « Le calcul de la vue ») — la 3D dessine, elle, sur le fil principal.
+
+### #5 — Un relief de secours rapide, clairement signalé
+
+Au-delà du seuil de surface, rien ne s'affiche (côté relief noir, « zoomez »),
+et en attendant les points non plus. Le MNT de l'IGN en WMS a été essayé puis
+débranché le 26 septembre 2026 : on ne savait plus si ce qu'on voyait venait
+de lui ou des points. `mnt-ign.js` reste, testé. À reprendre seulement avec
+une distinction visible (flou, teinte, libellé) entre les deux sources.
 
