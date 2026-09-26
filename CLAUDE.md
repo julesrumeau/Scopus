@@ -420,7 +420,7 @@ la stratégie de recalcul, pas le moteur, qui est à reprendre.
 Sans carte graphique vérifiée, le processeur calcule, et le budget de points
 tombe à `budgetPointsProcesseur` (5 M).
 
-**Au-delà du seuil, le MNT de l'IGN** (`mnt-ign.js`) : une requête WMS
+**Le MNT de l'IGN, écrit puis débranché** (`mnt-ign.js`). Au-delà du seuil, il donnait le relief de toute la vue ; retiré à l'usage le jour même, parce qu'on ne savait plus si ce qu'on voyait venait de lui ou du calcul sur les points. Au-delà du seuil, le côté relief reste donc noir et le statut dit de zoomer. Le module reste, testé, pour un éventuel bouche-trou clairement signalé. Ce qu'il faisait : une requête WMS
 `IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93` en
 `image/x-bil;bits=32` à la taille de la grille (au plus 5010 px de côté), puis
 les mêmes couches. Vérifié sur une vraie réponse : flottants

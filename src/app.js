@@ -2368,35 +2368,17 @@ if (new URLSearchParams(location.search).has('flux')) {
     e.echecs ? 'erreur' : e.attente ? 'travail' : undefined);
   };
 
-  let ctrlMnt = null;
-  const reliefDuMnt = async () => {
-    ctrlMnt?.abort();
-    const ctrl = ctrlMnt = new AbortController();
-    const pas = Math.max(0.5, FLUX_CHOIX.pasPourVue(vueCourante.xmax - vueCourante.xmin, vueCourante.largeurPx, 0.5));
-    const geo = VUE_GRILLE.definir(vueCourante, pas, VUE_GRILLE.marge({ ...CONFIG.relief, ...CONFIG.flux }), CONFIG.flux.pixelsMaxMnt);
-    texteRelief = 'MNT de l’IGN…';
-    majStatut();
-    try {
-      const t0 = performance.now();
-      const t = await MNT_IGN.charger(geo, RESEAU.recuperer, ctrl.signal);
-      if (ctrl.signal.aborted) return;
-      const c = RELIEF.calculer(t, coucheFlux);
-      reliefCalque.afficher({ ...c, geo });
-      texteRelief = `relief du MNT de l’IGN, ${((performance.now() - t0) / 1000).toFixed(1)} s · ${geo.W}×${geo.H} cases de ${geo.pas.toFixed(1)} m`;
-    } catch (err) {
-      if (ctrl.signal.aborted) return;
-      reliefCalque.vider();
-      texteRelief = `MNT de l’IGN : ${RESEAU.expliquer(err)}`;
-    }
-    majStatut();
-  };
-
   const calculerRelief = () => {
-    if (!vueCourante) return;
-    // Au-delà du seuil, les points ne sont pas demandés : le MNT de l'IGN
-    // donne le relief de toute la vue en une image.
-    if (FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2) { reliefDuMnt(); return; }
-    ctrlMnt?.abort();
+    // Au-delà du seuil, aucun point n'est demandé, donc aucun relief : le côté
+    // droit reste noir et le statut dit de zoomer. Le MNT de l'IGN servait ici
+    // (mnt-ign.js), retiré à l'usage : on ne savait plus si ce qu'on voyait
+    // venait de lui ou du calcul sur les points.
+    if (!vueCourante || FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2) {
+      reliefCalque.vider();
+      texteRelief = '';
+      majStatut();
+      return;
+    }
     const pas = FLUX_CHOIX.pasPourVue(vueCourante.xmax - vueCourante.xmin, vueCourante.largeurPx, CONFIG.flux.pasMinM);
     const geo = VUE_GRILLE.definir(vueCourante, pas, VUE_GRILLE.marge({ ...CONFIG.relief, ...CONFIG.flux }), relief.coteMax);
     let r;
