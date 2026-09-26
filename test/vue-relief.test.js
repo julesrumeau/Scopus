@@ -171,3 +171,14 @@ test('classes présentes dans les blocs gardés', () => {
   m.retirer('a');
   assert.equal(m.classes().length, 0);
 });
+
+test('changer le contraste ne recalcule pas la couche', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  const c1 = m.calculer(geo, 'svf', { contraste: 1 });
+  const c2 = m.calculer(geo, 'svf', { contraste: 3 });
+  assert.equal(c1.recalcul, true);
+  assert.equal(c2.recalcul, false);
+  assert.equal(c2.valeurs, c1.valeurs);
+  assert.ok(c2.max - c2.min < c1.max - c1.min);
+});

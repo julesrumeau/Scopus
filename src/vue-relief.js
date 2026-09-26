@@ -40,6 +40,10 @@ function fabriqueVueRelief() {
 
   function creer({ moteur = 'auto' } = {}) {
     const gpu = moteur !== 'cpu' && gpuVerifie();
+    // Couches sur la carte graphique, surface au processeur (option à l'essai,
+    // « &gpusvf ») ; sinon tout au processeur quand la surface l'est.
+    const couchesGpu = false;
+    const calculCouches = gpu || couchesGpu ? {} : { moteur: 'cpu' };
     const blocs = new Map();   // cle → { emprise, origineCm, nbPoints, zminCm, zmaxCm, points, classes }
     let reglagesCourants = {};
     let version = 0;
@@ -197,13 +201,23 @@ function fabriqueVueRelief() {
       return [...classesPresentes].filter(([, n]) => n > 0).sort((a, b) => a[0] - b[0]);
     }
 
-    function calculer(geo, cle) {
+    // La couche calculée est gardée tant que la surface et la clé ne changent
+    // pas : un changement de contraste ne réétire que l'intervalle — refaire
+    // un SVF à chaque cran du curseur coûterait des secondes.
+    let memoCouche = null;   // { t, cle, c }
+    function calculer(geo, cle, options = {}) {
       const t0 = performance.now();
-      const t = surface(geo);
+      const t = surface(geo, options.actifs);
       if (!t) return null;
       const dureeSurface = performance.now() - t0;
-      const c = RELIEF.calculer(t, cle, gpu ? {} : { moteur: 'cpu' });
-      return { ...c, geo, t, moteurSurface: gpu ? 'gpu' : 'cpu', dureeSurface, duree: performance.now() - t0 };
+      const recalcul = !(memoCouche && memoCouche.t === t && memoCouche.cle === cle);
+      if (recalcul) memoCouche = { t, cle, c: RELIEF.calculer(t, cle, calculCouches) };
+      const c = memoCouche.c;
+      const [min, max] = RELIEF.etirer(c.base, c.ancrage, options.contraste ?? 1);
+      return {
+        ...c, min, max, geo, t, recalcul, moteurSurface: gpu ? 'gpu' : 'cpu',
+        dureeSurface, duree: performance.now() - t0,
+      };
     }
 
     return {
