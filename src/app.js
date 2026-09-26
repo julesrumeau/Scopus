@@ -2339,6 +2339,47 @@ $('btn-exemple').addEventListener('click', async () => {
 });
 $('btn-carte-directe').addEventListener('click', entrerDansLaCarte);
 
+// ── Chargement piloté par la vue (provisoire, « ?flux ») ────────────────────
+//
+// Le plan 1 de la spec docs/superpowers/specs/2026-09-26-flux-vue-design.md :
+// les blocs de la vue se chargent et se dessinent en contours, sans relief
+// encore. N'agit que si l'adresse porte « ?flux ».
+if (new URLSearchParams(location.search).has('flux')) {
+  const calque = new CalqueFlux().addTo(carte.map);
+  const surAppareilPortatif = surMobile();
+  const flux = FLUX.creer({
+    chercherDalles: (z) => {
+      const so = PROJ.versWGS84(z.xmin, z.ymin), ne = PROJ.versWGS84(z.xmax, z.ymax);
+      return IGN.dalles(so.lat, so.lon, ne.lat, ne.lon);
+    },
+    recuperer: RESEAU.recuperer,
+    decoder: NUAGE.decoder,
+    cache: CACHE_DISQUE.creer(CACHE_DISQUE.stockageIndexedDB(), CONFIG.flux.quotaDisqueOctets),
+    config: { ...CONFIG.flux, budgetPoints: surAppareilPortatif ? CONFIG.flux.budgetPointsMobile : CONFIG.flux.budgetPoints },
+    surBloc: (b) => calque.ajouter(b),
+    surLibere: (cle) => calque.retirer(cle),
+    surEtat: (e) => statut(e.tropLarge
+      ? 'Flux : vue trop large pour les points — zoomez'
+      : `Flux : ${e.dallesOuvertes} dalles · ${e.charges} blocs · ${milliers(e.points)} points`
+        + (e.attente ? ` · ${e.attente} en attente` : ''), e.attente ? 'travail' : undefined),
+  });
+  const majVueFlux = () => {
+    const b = carte.map.getBounds();
+    const so = PROJ.versLambert93(b.getWest(), b.getSouth());
+    const ne = PROJ.versLambert93(b.getEast(), b.getNorth());
+    const no = PROJ.versLambert93(b.getWest(), b.getNorth());
+    const se = PROJ.versLambert93(b.getEast(), b.getSouth());
+    flux.majVue({
+      xmin: Math.min(so.x, no.x), xmax: Math.max(ne.x, se.x),
+      ymin: Math.min(so.y, se.y), ymax: Math.max(ne.y, no.y),
+      largeurPx: carte.map.getSize().x,
+    });
+  };
+  carte.map.on('moveend', majVueFlux);
+  majVueFlux();
+  window.fluxDeControle = flux;   // pour la console et les harnais
+}
+
 // Un hash non vide veut dire qu'on arrive par un lien qui désigne déjà une
 // destination : s'interposer serait une gêne. Les anciens liens `#d=x,y`, qui
 // ne portaient que la dalle, restent lisibles ; la carte réécrit ensuite le

@@ -20,11 +20,13 @@ function finDeFichier() {
   const racine = TAILLE - 600_000;
   const entrees = [{ n: 0, offset: racine, taille: 500_000, nbPoints: 60_000 }];
   for (let k = 0; k < 4; k++) entrees.push({ n: 1, x: k >> 1, y: k & 1, offset: racine - 4_000_000 + k * 1_000_000, taille: 1_000_000, nbPoints: 225_000 });
-  const fin = fabriquerFin({ entrees, avant: 1_000_000 - 60 - entrees.length * 32 - 830 });
+  // Comme les vrais fichiers : la table des blocs LAZ juste après le dernier
+  // bloc (le niveau 0 finit à TAILLE - 100 000, soit 900 000 dans le morceau).
+  const fin = fabriquerFin({ entrees, avant: 1_000_000 - 60 - entrees.length * 32 - 830, tableBlocs: { position: 900_000, nombre: entrees.length } });
   return fin;
 }
 
-function monter({ cache = CACHE_DISQUE.creer(CACHE_DISQUE.stockageMemoire(), 1e9) } = {}) {
+function monter({ cache = CACHE_DISQUE.creer(CACHE_DISQUE.stockageMemoire(), 1e9), delaiPlage = 5 } = {}) {
   const appels = [];
   const blocs = [];
   const liberes = [];
@@ -36,12 +38,13 @@ function monter({ cache = CACHE_DISQUE.creer(CACHE_DISQUE.stockageMemoire(), 1e9
     },
     recuperer: async (u, opts) => {
       appels.push({ u, opts });
-      if (opts.fin) return { octets: finDeFichier(), total: TAILLE };
+      // Comme en navigateur : Content-Range masqué par CORS, taille inconnue.
+      if (opts.fin) return { octets: finDeFichier(), total: null };
       if (opts.plage && opts.plage[0] === 0) return fabriquerEntete();
       // Un vrai délai (tâche macro) : sans lui, tout se finirait en
       // microtâches avant que le test ne déplace la vue, et l'abandon ne
       // serait jamais éprouvé.
-      await new Promise((r) => setTimeout(r, 5));
+      await new Promise((r) => setTimeout(r, delaiPlage));
       if (opts.signal?.aborted) throw new DOMException('abandon', 'AbortError');
       return new Uint8Array(opts.plage[1] - opts.plage[0] + 1);
     },
@@ -112,10 +115,45 @@ test('un index plus gros que le dernier Mo : relecture avec la fin de secours', 
   let premier = true;
   const recup = flux._deps.recuperer;
   flux._deps.recuperer = async (u, opts) => {
-    if (opts.fin && premier) { premier = false; appels.push({ u, opts }); return { octets: new Uint8Array(1000), total: TAILLE }; }
+    if (opts.fin && premier) { premier = false; appels.push({ u, opts }); return { octets: new Uint8Array(1000), total: null }; }
     return recup(u, opts);
   };
   await flux.majVue({ ...VUE, xmin: 1000, xmax: 2000, ymin: 1000, ymax: 2000 });
   await flux.attendreCalme();
   assert.ok(appels.some((a) => a.opts.fin === CONFIG.flux.octetsFinSecours));
+});
+
+test('l’en-tête du lot part dès la première ouverture, pas derrière toutes les fins de fichier', async () => {
+  // Mesuré sur données réelles : demandé après la première réponse, il se
+  // retrouvait en queue de la file réseau derrière les 14 autres fins de
+  // fichier, et aucun bloc ne se décodait avant ~11 s.
+  const { flux, appels } = monter();
+  await flux.majVue(VUE);
+  await flux.attendreCalme();
+  const iEntete = appels.findIndex((a) => a.opts.plage?.[0] === 0);
+  const iFins = appels.map((a, i) => (a.opts.fin ? i : -1)).filter((i) => i >= 0);
+  assert.ok(iEntete < iFins[1], `en-tête demandé en position ${iEntete}, deuxième fin en ${iFins[1]}`);
+});
+
+test('une deuxième visite relit aussi les index du disque, sans aucune fin de fichier', async () => {
+  const cache = CACHE_DISQUE.creer(CACHE_DISQUE.stockageMemoire(), 1e9);
+  const a = monter({ cache });
+  await a.flux.majVue(VUE);
+  await a.flux.attendreCalme();
+  const b = monter({ cache });
+  await b.flux.majVue(VUE);
+  await b.flux.attendreCalme();
+  assert.equal(b.appels.filter((x) => x.opts.fin).length, 0);
+  assert.equal(b.blocs.length, a.blocs.length);
+});
+
+test('le niveau 0, déjà dans la fin de fichier, est émis sans attendre les plages plus fines', async () => {
+  // Mesuré sur données réelles : le niveau 0 du centre attendait les 7,4 Mo du
+  // niveau 1 de sa dalle, eux-mêmes en file derrière les autres dalles.
+  const { flux, blocs } = monter({ delaiPlage: 300 });
+  flux.majVue(VUE);
+  await new Promise((r) => setTimeout(r, 60));
+  assert.ok(blocs.some((b) => b.niveau === 0), 'un niveau 0 émis pendant que les plages sont en vol');
+  assert.ok(!blocs.some((b) => b.niveau === 1), 'aucune plage encore servie');
+  await flux.attendreCalme();
 });

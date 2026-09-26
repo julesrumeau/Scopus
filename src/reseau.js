@@ -115,6 +115,10 @@ function recuperer(url, opts = {}) {
         if (fin) {
           const m = /\/(\d+)\s*$/.exec(rep.headers.get('content-range') || '');
           if (m) return { octets: buf, total: Number(m[1]) };
+          // Un 206 dont Content-Range n'est pas lisible : l'IGN n'expose pas cet
+          // en-tête aux pages web (CORS), la taille du fichier est inconnue.
+          // L'appelant la retrouve autrement (COPC.lireFin, table des blocs).
+          if (rep.status === 206) return { octets: buf, total: null };
           return { octets: buf.length > fin ? buf.subarray(buf.length - fin) : buf, total: buf.length };
         }
         if (!plage) return buf;

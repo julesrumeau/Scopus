@@ -4,7 +4,7 @@
 // projection). Sert aux tests de lecture sans en-tête ; aucun fichier binaire
 // n'est versionné.
 
-export function fabriquerFin({ entrees, avant = 64, apres = 830, leurre = false }) {
+export function fabriquerFin({ entrees, avant = 64, apres = 830, leurre = false, tableBlocs = null }) {
   const tailleIndex = entrees.length * 32;
   const o = new Uint8Array(avant + 60 + tailleIndex + apres);
   const dv = new DataView(o.buffer);
@@ -13,6 +13,12 @@ export function fabriquerFin({ entrees, avant = 64, apres = 830, leurre = false 
     // ne doit pas être pris pour l'index.
     o.set([0x63, 0x6f, 0x70, 0x63, 0], 2);
     dv.setUint16(18, 1, true);
+  }
+  if (tableBlocs) {
+    // Table des blocs LAZ, juste après le dernier bloc : 4 octets nuls (version)
+    // puis le nombre de blocs.
+    dv.setUint32(tableBlocs.position, 0, true);
+    dv.setUint32(tableBlocs.position + 4, tableBlocs.nombre, true);
   }
   let p = avant;
   o.set([0x63, 0x6f, 0x70, 0x63], p + 2);

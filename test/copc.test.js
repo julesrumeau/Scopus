@@ -65,3 +65,29 @@ test('grouperPlages fusionne les nœuds contigus et coupe à tailleMax', () => {
   assert.equal(p.length, 2);
   assert.deepEqual([p[0].debut, p[0].fin, p[0].noeuds.length], [0, 20, 2]);
 });
+
+test('lireFin situe le morceau dans le fichier sans en connaître la taille (table des blocs)', () => {
+  // En navigateur, la taille du fichier (Content-Range) est masquée par CORS.
+  // Juste après le dernier bloc, la table des blocs LAZ commence par 4 octets
+  // nuls puis le nombre de blocs : vérifié sur 7 dalles réelles.
+  const entrees = [
+    { n: 0, offset: 5_300_000, taille: 600_000, nbPoints: 58_881 },   // finit à 5 900 000, le plus loin
+    { n: 1, offset: 4_000_000, taille: 1_300_000, nbPoints: 216_000 },
+  ];
+  // Morceau commençant à 5 000 000 : la table est à 900 000 dans le morceau.
+  const octets = fabriquerFin({ entrees, avant: 950_000, tableBlocs: { position: 900_000, nombre: 2 } });
+  const r = COPC.lireFin(octets, null);
+  assert.equal(r.debutMorceau, 5_000_000);
+});
+
+test('lireFin sans table des blocs reconnaissable : position inconnue, index quand même lu', () => {
+  const octets = fabriquerFin({ entrees: [{ n: 0, offset: 5_300_000, taille: 600_000, nbPoints: 3 }], avant: 2000 });
+  const r = COPC.lireFin(octets, null);
+  assert.equal(r.noeuds.size, 1);
+  assert.equal(r.debutMorceau, null);
+});
+
+test('lireFin garde la position fournie quand on la connaît', () => {
+  const octets = fabriquerFin({ entrees: [{ n: 0, offset: 10, taille: 5, nbPoints: 3 }] });
+  assert.equal(COPC.lireFin(octets, 1234).debutMorceau, 1234);
+});

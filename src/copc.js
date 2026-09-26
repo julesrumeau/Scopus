@@ -265,10 +265,20 @@ function lireEntrees(octets) {
  * fin. Le nom « copc » peut apparaître dans les données compressées ; seul un
  * enregistrement 1000 dont la longueur tient dans le morceau est retenu.
  *
+ * **Situer le morceau sans la taille du fichier.** En navigateur, la taille
+ * (`Content-Range`) est masquée : l'IGN n'expose pas cet en-tête aux pages
+ * web, et `debutMorceau` arrive alors `null`. Or juste après le dernier bloc
+ * de points, un LAZ range sa table des blocs : 4 octets nuls (version) puis le
+ * nombre de blocs — vérifié sur 7 dalles réelles, où ce nombre est exactement
+ * celui des nœuds de l'index. La fin absolue du dernier bloc se lit dans
+ * l'index ; retrouver cette signature dans le morceau donne sa position.
+ *
  * @param {Uint8Array} octets fin du fichier
- * @param {number} debutMorceau position de `octets[0]` dans le fichier
- * @returns {?{noeuds: Map, sousPages: Array<[number, number]>}} `null` si
- *   l'index n'est pas entièrement dans le morceau
+ * @param {?number} debutMorceau position de `octets[0]` dans le fichier, ou
+ *   `null` si inconnue
+ * @returns {?{noeuds: Map, sousPages: Array<[number, number]>, debutMorceau: ?number}}
+ *   `null` si l'index n'est pas entièrement dans le morceau ; `debutMorceau`
+ *   reste `null` si ni la taille ni la table des blocs ne permettent de le situer
  */
 function lireFin(octets, debutMorceau) {
   const dv = new DataView(octets.buffer, octets.byteOffset, octets.byteLength);
@@ -279,7 +289,24 @@ function lireFin(octets, debutMorceau) {
     const longueur = Number(dv.getBigUint64(p + 20, true));
     const debut = p + TAILLE_ENTETE_EVLR;
     if (debut + longueur > octets.length) return null;
-    return lireEntrees(octets.subarray(debut, debut + longueur));
+    const lu = lireEntrees(octets.subarray(debut, debut + longueur));
+    return { ...lu, debutMorceau: debutMorceau ?? situerParTableDesBlocs(octets, dv, p, lu) };
+  }
+  return null;
+}
+
+/** Position du morceau dans le fichier, par la table des blocs ; `null` sinon. */
+function situerParTableDesBlocs(octets, dv, finRecherche, lu) {
+  // Avec des sous-pages, l'index lu ici ne compte pas tous les blocs : la
+  // signature serait fausse.
+  if (lu.sousPages.length) return null;
+  let finMax = 0;
+  for (const n of lu.noeuds.values()) finMax = Math.max(finMax, n.offset + n.taille);
+  const nombre = lu.noeuds.size;
+  for (let q = finRecherche - 8; q >= 0; q--) {
+    if (dv.getUint32(q, true) !== 0 || dv.getUint32(q + 4, true) !== nombre) continue;
+    const debut = finMax - q;
+    return debut >= 0 ? debut : null;
   }
   return null;
 }

@@ -56,19 +56,54 @@ const FLUX = (() => {
       return lots.get(lot);
     }
 
+    // La fin de fichier (index + niveau 0) se garde sur le disque comme les
+    // blocs : une zone déjà vue s'ouvre alors sans une requête. Sa position
+    // dans le fichier (NaN si inconnue) est rangée devant les octets.
+    const cleFin = (url) => `${url}#fin`;
+    async function finDuCache(url) {
+      const o = await deps.cache?.lire(cleFin(url));
+      if (!o || o.length < 8) return null;
+      const debut = new DataView(o.buffer, o.byteOffset, 8).getFloat64(0, true);
+      return { octets: o.subarray(8), debut: Number.isFinite(debut) ? debut : null };
+    }
+    function finAuCache(url, octets, debut) {
+      if (!deps.cache) return;
+      const o = new Uint8Array(8 + octets.length);
+      new DataView(o.buffer).setFloat64(0, debut ?? NaN, true);
+      o.set(octets, 8);
+      suivre(deps.cache.ecrire(cleFin(url), o));
+    }
+
     async function ouvrir(d) {
       d.etat = 'ouverture';
       d.ctrl = new AbortController();
       const signal = d.ctrl.signal;
+      // L'en-tête du lot part **tout de suite** : le lot se lit dans l'adresse.
+      // Demandé après la première réponse, il passait derrière toutes les fins
+      // de fichier de la file réseau — aucun bloc décodé avant ~11 s, mesuré.
+      const entete = entetePourLot(d.dalle.url);
+      entete.catch(() => {});
       try {
-        let lu = null, fin = null, debut = 0;
-        for (const n of [config.octetsFin, config.octetsFinSecours]) {
-          const r = await deps.recuperer(d.dalle.url, { fin: n, signal });
-          fin = r.octets;
-          debut = r.total - r.octets.length;
-          lu = COPC.lireFin(fin, debut);
-          if (lu || r.octets.length >= r.total) break;
+        // La position du morceau dans le fichier : par la taille quand elle est
+        // lisible, sinon par la table des blocs (COPC.lireFin). En navigateur,
+        // l'IGN masque la taille (CORS) : c'est la table qui sert. Sans position,
+        // l'index reste bon, mais le niveau 0 repassera par le réseau.
+        let lu = null, fin = null;
+        const garde = await finDuCache(d.dalle.url);
+        if (garde) {
+          fin = garde.octets;
+          lu = COPC.lireFin(fin, garde.debut);
         }
+        if (!lu) {
+          for (const n of [config.octetsFin, config.octetsFinSecours]) {
+            const r = await deps.recuperer(d.dalle.url, { fin: n, signal });
+            fin = r.octets;
+            lu = COPC.lireFin(fin, r.total == null ? null : r.total - r.octets.length);
+            if (lu) finAuCache(d.dalle.url, fin, lu.debutMorceau);
+            if (lu || (r.total != null && r.octets.length >= r.total)) break;
+          }
+        }
+        const debut = lu ? lu.debutMorceau : null;
         if (!lu) throw new Error(`index introuvable dans la fin de ${d.dalle.nom || d.dalle.url}`);
         const noeuds = new Map(lu.noeuds);
         for (const [offset, taille] of lu.sousPages) {
@@ -76,7 +111,7 @@ const FLUX = (() => {
           const sp = COPC.lireEntrees(page);
           for (const [k, v] of sp.noeuds) noeuds.set(k, v);
         }
-        d.entete = await entetePourLot(d.dalle.url);
+        d.entete = await entete;
         if (signal.aborted) return;
         Object.assign(d, { index: noeuds, fin, debutFin: debut, etat: 'ouverte' });
         planifier();
@@ -93,47 +128,51 @@ const FLUX = (() => {
       const ctrl = new AbortController();
       for (const b of lot) blocs.set(b.cle, { etat: 'attente', ctrl, niveau: b.niveau, nbPoints: b.noeud.nbPoints, emprise: b.emprise });
       const signal = ctrl.signal;
+      const origineCm = [Math.round(d.dalle.emprise.xmin * 100), Math.round(d.dalle.emprise.ymin * 100), 0];
+
+      // Un bloc est décodé dès que ses octets sont là : la fin de fichier déjà
+      // reçue et le cache disque d'abord, puis chaque plage réseau à son
+      // arrivée. Tout attendre avant de décoder faisait patienter le niveau 0
+      // du centre derrière les 7 Mo du niveau 1 de sa dalle — ~11 s, mesuré.
+      const emettre = async (b, octets) => {
+        if (signal.aborted || !blocs.has(b.cle)) return;
+        const points = await deps.decoder({
+          type: 'decoder', octets: octets.slice().buffer, nbPoints: b.noeud.nbPoints,
+          formatPoint: d.entete.formatPoint, longueurPoint: d.entete.longueurPoint,
+          echelle: d.entete.echelle, decalage: d.entete.decalage, origine: [0, 0, 0], entiers: origineCm,
+        });
+        const suivi = blocs.get(b.cle);
+        if (signal.aborted || !suivi) return;
+        suivi.etat = 'charge';
+        deps.surBloc?.({ cle: b.cle, url: d.dalle.url, niveau: b.niveau, emprise: b.emprise, origineCm, points });
+        publierEtat();
+      };
+
       try {
-        // Du plus immédiat au plus lent : la fin de fichier déjà reçue, le
-        // cache disque, puis le réseau en plages contiguës.
-        const octetsDe = new Map();
         const aDemander = [];
         for (const b of lot) {
           const n = b.noeud;
-          if (n.offset >= d.debutFin && n.offset + n.taille <= d.debutFin + d.fin.length) {
-            octetsDe.set(b.cle, d.fin.subarray(n.offset - d.debutFin, n.offset - d.debutFin + n.taille));
+          if (d.debutFin != null && n.offset >= d.debutFin && n.offset + n.taille <= d.debutFin + d.fin.length) {
+            await emettre(b, d.fin.subarray(n.offset - d.debutFin, n.offset - d.debutFin + n.taille));
             continue;
           }
           const o = await deps.cache?.lire(cleCache(d.dalle.url, n));
-          if (o) octetsDe.set(b.cle, o); else aDemander.push(b);
+          if (o) await emettre(b, o); else aDemander.push(b);
         }
         for (const plage of COPC.grouperPlages(aDemander.map((b) => ({ ...b.noeud, bloc: b })))) {
+          if (signal.aborted) break;
           const o = await deps.recuperer(d.dalle.url, { plage: [plage.debut, plage.fin - 1], signal });
           for (const n of plage.noeuds) {
             const tranche = o.subarray(n.offset - plage.debut, n.offset - plage.debut + n.taille);
-            octetsDe.set(n.bloc.cle, tranche);
             // Suivie comme le reste : une seconde visite juste après doit la trouver.
             if (deps.cache) suivre(deps.cache.ecrire(cleCache(d.dalle.url, n), tranche.slice()));
+            await emettre(n.bloc, tranche);
           }
-        }
-        const origineCm = [Math.round(d.dalle.emprise.xmin * 100), Math.round(d.dalle.emprise.ymin * 100), 0];
-        for (const b of lot) {
-          if (signal.aborted || !blocs.has(b.cle)) continue;
-          const points = await deps.decoder({
-            type: 'decoder', octets: octetsDe.get(b.cle).slice().buffer, nbPoints: b.noeud.nbPoints,
-            formatPoint: d.entete.formatPoint, longueurPoint: d.entete.longueurPoint,
-            echelle: d.entete.echelle, decalage: d.entete.decalage, origine: [0, 0, 0], entiers: origineCm,
-          });
-          const suivi = blocs.get(b.cle);
-          if (signal.aborted || !suivi) continue;
-          suivi.etat = 'charge';
-          deps.surBloc?.({ cle: b.cle, url: d.dalle.url, niveau: b.niveau, emprise: b.emprise, origineCm, points });
-          publierEtat();
         }
       } catch (e) {
         if (!signal.aborted) console.warn('Flux : blocs non chargés —', e.message);
-        for (const b of lot) if (blocs.get(b.cle)?.etat === 'attente') blocs.delete(b.cle);
       }
+      for (const b of lot) if (blocs.get(b.cle)?.etat === 'attente') blocs.delete(b.cle);
       liberer();
     }
 
