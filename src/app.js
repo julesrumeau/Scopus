@@ -2362,6 +2362,7 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
     try { return f.apply(this, a); } finally { noter(nom, performance.now() - t0); }
   };
   const chronometrer = new URLSearchParams(location.search).has('chrono');
+  const activite = { relief: false, decodages: 0 };
   if (chronometrer) {
     console.info('Chrono du fil principal actif : un tableau toutes les 5 s dès que la carte travaille.');
     for (const [objet, nomObjet, noms] of [
@@ -2374,6 +2375,34 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
       new PerformanceObserver((l) => { for (const e of l.getEntries()) noter('TÂCHES LONGUES (> 50 ms, tout compris)', e.duration); })
         .observe({ type: 'longtask', buffered: true });
     } catch { /* navigateur sans longtask */ }
+    // Le détail de chaque gel de plus de 150 ms : quels scripts (fonction,
+    // fichier, qui l'a appelée) et combien de rendu (style, mise en page,
+    // dessin). Le temps qui n'est ni l'un ni l'autre est hors JavaScript —
+    // ramasse-miettes compris. API « long animation frames » de Chrome.
+    const gels = [];
+    try {
+      new PerformanceObserver((l) => {
+        for (const e of l.getEntries()) {
+          if (e.duration < 150) continue;
+          const scripts = [...(e.scripts || [])].sort((a, b) => b.duration - a.duration);
+          const js = scripts.reduce((t, x) => t + x.duration, 0);
+          const rendu = e.renderStart ? e.startTime + e.duration - e.renderStart : 0;
+          const styleMiseEnPage = e.styleAndLayoutStart ? e.startTime + e.duration - e.styleAndLayoutStart : 0;
+          gels.push({
+            gelMs: Math.round(e.duration),
+            // Ce qui tournait ailleurs au même moment : les workers ne
+            // bloquent pas la page, sauf à saturer les cœurs du processeur.
+            reliefEnCalcul: activite.relief ? 'oui' : 'non',
+            decompressions: activite.decodages,
+            scriptsMs: Math.round(js),
+            renduMs: Math.round(rendu),
+            dontStyleEtMiseEnPageMs: Math.round(styleMiseEnPage),
+            resteMs: Math.round(e.duration - js - rendu),
+            scriptsPrincipaux: scripts.slice(0, 3).map((x) => `${Math.round(x.duration)} ms ${x.invoker || '?'} → ${x.sourceFunctionName || '?'} @${(x.sourceURL || '').split('/').pop()}:${x.sourceCharPosition}`).join(' | '),
+          });
+        }
+      }).observe({ type: 'long-animation-frame', buffered: true });
+    } catch { /* navigateur sans long-animation-frame */ }
     setInterval(() => {
       if (!chrono.size) return;
       const lignes = [...chrono].sort((a, b) => b[1].totalMs - a[1].totalMs).map(([nom, c]) => ({
@@ -2381,6 +2410,7 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
       }));
       console.log(`Chrono du fil principal, 5 dernières secondes, ${new Date().toLocaleTimeString()}`);
       console.table(lignes);
+      if (gels.length) { console.log('Détail des gels de plus de 150 ms :'); console.table(gels.splice(0)); }
       chrono.clear();
     }, 5000);
   }
@@ -2390,9 +2420,14 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
   // Le calcul du relief tourne dans un worker (relief-travailleur.js) : sur le
   // fil principal, il figeait la carte une à plusieurs secondes à chaque
   // arrivée de blocs. S'il ne démarre pas, le même calcul se fait ici.
-  // « &cpu » : le relief calculé sans la carte graphique, pour vérifier si
-  // son partage avec l'affichage fait saccader la carte (provisoire).
-  const optionsRelief = new URLSearchParams(location.search).has('cpu') ? { moteur: 'cpu' } : {};
+  // Le relief se calcule au processeur, même dans le worker. Sur la carte
+  // graphique, la page gelait pendant chaque calcul : elle partage la carte
+  // (et le processus graphique de Chrome) avec le worker, et son affichage
+  // attendait que le calcul soit passé — gels de 0,5 à 1 s sur la carte AMD,
+  // jusqu'à 11 s sous émulation, sans une ligne de script (mesuré avec
+  // &chrono, API long-animation-frame). Au processeur : plus de gel au-delà
+  // de ~200 ms. « &gpu » la reprend, pour comparer (provisoire).
+  const optionsRelief = new URLSearchParams(location.search).has('gpu') ? {} : { moteur: 'cpu' };
   let relief = RELIEF_TRAVAILLEUR.creer(optionsRelief);
   let infoRelief = null;
   if (relief) {
@@ -2445,6 +2480,7 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
     const pas = FLUX_CHOIX.pasPourVue(vueCourante.xmax - vueCourante.xmin, vueCourante.largeurPx, CONFIG.flux.pasMinM);
     const geo = VUE_GRILLE.definir(vueCourante, pas, VUE_GRILLE.marge({ ...CONFIG.relief, ...CONFIG.flux }), infoRelief.coteMax);
     enCalcul = true;
+    activite.relief = true;
     try {
       const r = await relief.calculer(geo, coucheFlux);
       if (!r) { reliefCalque.vider(); texteRelief = ''; }
@@ -2458,6 +2494,7 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
       texteRelief = `relief en échec : ${err.message}`;
     } finally {
       enCalcul = false;
+      activite.relief = false;
     }
     majStatut();
     if (aRefaire) { aRefaire = false; calculerRelief(); }
@@ -2487,6 +2524,8 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
   if (chronometrer) {
     // Seule la part synchrone est comptée : ce qui bloque le fil principal.
     for (const n of ['surBloc', 'surLibere', 'surEtat', 'recuperer', 'decoder', 'chercherDalles']) depsFlux[n] = mesurer(`flux : ${n}`, depsFlux[n]);
+    const decoder = depsFlux.decoder;
+    depsFlux.decoder = (charge) => { activite.decodages++; return decoder(charge).finally(() => { activite.decodages--; }); };
     for (const n of ['lire', 'ecrire']) depsFlux.cache[n] = mesurer(`cache disque : ${n}`, depsFlux.cache[n]);
     for (const n of ['ajouter', 'retirer', 'calculer']) relief[n] = mesurer(`worker du relief : ${n} (envoi)`, relief[n]);
   }
