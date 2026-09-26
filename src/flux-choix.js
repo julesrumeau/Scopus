@@ -5,6 +5,16 @@
 // questions qui se testent, et `flux.js` n'a plus qu'à exécuter.
 
 const FLUX_CHOIX = (() => {
+  /**
+   * Surface affichée, en km², du rectangle Lambert-93 de la vue. C'est elle,
+   * et non le zoom ni la seule largeur, qui fixe le nombre de dalles, donc le
+   * temps de chargement : une même largeur couvre deux fois plus de terrain
+   * sur un écran deux fois plus haut.
+   */
+  function surfaceKm2(vue) {
+    return ((vue.xmax - vue.xmin) * (vue.ymax - vue.ymin)) / 1e6;
+  }
+
   /** Pas de grille : un pixel au sol, jamais plus fin que le plancher. */
   function pasPourVue(largeurM, largeurPx, pasMinM) {
     return Math.max(pasMinM, largeurM / Math.max(1, largeurPx));
@@ -103,5 +113,5 @@ const FLUX_CHOIX = (() => {
     return out;
   }
 
-  return { pasPourVue, empriseBloc, niveauVise, blocsPourVue, aLiberer };
+  return { surfaceKm2, pasPourVue, empriseBloc, niveauVise, blocsPourVue, aLiberer };
 })();

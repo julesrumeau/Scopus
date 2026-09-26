@@ -2360,8 +2360,8 @@ if (new URLSearchParams(location.search).has('flux')) {
     surBloc: (b) => calque.ajouter(b),
     surLibere: (cle) => calque.retirer(cle),
     surEtat: (e) => statut(e.tropLarge
-      ? 'Flux : vue trop large pour les points — zoomez'
-      : `Flux : ${e.dallesOuvertes} dalles · ${e.charges} blocs · ${milliers(e.points)} points`
+      ? `Flux : ${e.surfaceKm2.toFixed(0)} km² affichés, trop pour les points (seuil ${CONFIG.flux.surfaceMaxPointsKm2} km²) — zoomez`
+      : `Flux : ${e.surfaceKm2.toFixed(1)} km² · ${e.dallesOuvertes} dalles · ${e.charges} blocs · ${milliers(e.points)} points`
         + (e.attente ? ` · ${e.attente} en attente` : '')
         + (e.echecs ? ` · ${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}` : ''),
       e.echecs ? 'erreur' : e.attente ? 'travail' : undefined),

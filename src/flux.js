@@ -49,7 +49,8 @@ const FLUX = (() => {
         if (d.etat === 'ouverte') dallesOuvertes++;
         else if (d.etat === 'echec') echecs++;
       }
-      deps.surEtat?.({ attente, charges, points, dallesOuvertes, tropLarge, echecs, erreur: echecs ? derniereErreur : null });
+      const surfaceKm2 = vue ? FLUX_CHOIX.surfaceKm2(vue) : 0;
+      deps.surEtat?.({ attente, charges, points, dallesOuvertes, tropLarge, echecs, erreur: echecs ? derniereErreur : null, surfaceKm2 });
     }
 
     // Un échec n'est jamais définitif : la dalle est réessayée après un délai
@@ -253,7 +254,7 @@ const FLUX = (() => {
     let voulues = new Set();
 
     function planifier() {
-      if (!vue || vue.xmax - vue.xmin > config.largeurMaxPointsM) return;
+      if (!vue || FLUX_CHOIX.surfaceKm2(vue) > config.surfaceMaxPointsKm2) return;
       const marge = agrandi(vue, 1000);
       const visibles = [...dalles.values()].filter((d) => coupe(d.dalle.emprise, vue));
 
@@ -307,7 +308,7 @@ const FLUX = (() => {
 
     async function majVueInterne(v) {
       vue = v;
-      if (v.xmax - v.xmin > config.largeurMaxPointsM) {
+      if (FLUX_CHOIX.surfaceKm2(v) > config.surfaceMaxPointsKm2) {
         for (const d of dalles.values()) if (d.etat === 'ouverture') d.ctrl.abort();
         for (const [cle, b] of blocs) if (b.etat === 'attente') retirerBloc(cle);
         publierEtat(true);

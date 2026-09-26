@@ -250,3 +250,21 @@ test('une dalle en échec est réessayée, et l’échec est signalé', async ()
   await flux.attendreCalme();
   assert.ok(blocs.some((b) => b.url === url(1, 1)), 'la dalle a été rouverte après le délai');
 });
+
+test('le seuil porte sur la surface : une vue large et basse sous le seuil charge quand même', async () => {
+  // 12 km × 3 km = 36 km² : trop large pour l'ancien seuil de 10 km de large,
+  // sous le seuil de surface. Ce qui fixe le nombre de dalles, c'est la surface.
+  const { flux, appels } = monter();
+  await flux.majVue({ xmin: 0, xmax: 12_000, ymin: 0, ymax: 3000, largeurPx: 1400 });
+  await flux.attendreCalme();
+  assert.ok(appels.some((a) => a.opts.fin));
+});
+
+test('l’état dit la surface affichée', async () => {
+  const etats = [];
+  const { flux } = monter();
+  flux._deps.surEtat = (e) => etats.push(e);
+  await flux.majVue({ ...VUE, xmin: 0, xmax: 20_000, ymin: 0, ymax: 20_000 });
+  assert.equal(etats.at(-1).surfaceKm2, 400);
+  assert.equal(etats.at(-1).tropLarge, true);
+});

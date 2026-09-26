@@ -144,11 +144,13 @@ const CONFIG = {
   // Voir « Le chargement piloté par la vue » dans CLAUDE.md et la spec
   // docs/superpowers/specs/2026-09-26-flux-vue-design.md.
   flux: {
-    // Au-delà de cette largeur de vue, aucun point n'est demandé : le niveau 0
-    // de chaque dalle est un plancher (~0,6 Mo, une requête), et le temps croît
-    // alors avec le nombre de dalles, plus avec l'écran. Mesuré : ~60 dalles
-    // pour 10 km, ~13 s au quota de l'IGN.
-    largeurMaxPointsM: 10000,
+    // Au-delà de cette surface affichée, aucun point n'est demandé : le niveau
+    // 0 de chaque dalle est un plancher (~0,6 Mo, une requête), et le temps
+    // croît alors avec le nombre de dalles, plus avec l'écran. La surface et
+    // non la largeur : c'est elle qui fixe le nombre de dalles. 60 km² ≈ les
+    // 10 km de large d'avant sur un écran 16/10 ; à régler à l'usage (la
+    // surface courante s'affiche avec « ?flux »).
+    surfaceMaxPointsKm2: 60,
     // Plancher du pas de la grille, en mètres : jamais plus fin, quel que soit
     // le zoom. La densité de points sol (2 à 12 par m²) ne justifie pas mieux
     // tant qu'une mesure ne l'a pas montré.

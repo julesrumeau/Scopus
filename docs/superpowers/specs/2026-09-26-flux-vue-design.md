@@ -74,8 +74,10 @@ dépôt) ; les chiffres qui comptent :
 Nouveau module `src/flux.js`, script classique exposant `FLUX`.
 
 **Déclenchement.** À chaque vue stable (fin de déplacement ou de zoom, avec un
-court délai de regroupement) : si la largeur de la vue dépasse
-`CONFIG.flux.largeurMaxPointsM` (10 000 m), rien n'est demandé en points.
+court délai de regroupement) : si la **surface affichée** dépasse
+`CONFIG.flux.surfaceMaxPointsKm2` (60 km², environ 10 km de large en 16/10),
+rien n'est demandé en points. La surface plutôt que le zoom ou la largeur :
+c'est elle qui fixe le nombre de dalles.
 
 **Découverte des dalles.** Une requête WFS (`IGN.dalles`) pour le rectangle
 visible plus une marge d'une dalle ; les dalles déjà connues ne sont pas

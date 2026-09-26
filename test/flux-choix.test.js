@@ -69,3 +69,7 @@ test('libérer : hors des blocs voulus seulement, le plus fin et le plus loin d�
   assert.equal(FLUX_CHOIX.aLiberer(charges, new Set(['a']), 1000, vue).length, 0);
   assert.equal(FLUX_CHOIX.aLiberer(charges, new Set(['a', 'b', 'c', 'd']), 0, vue).length, 0);
 });
+
+test('surface de la vue, en km²', () => {
+  assert.equal(FLUX_CHOIX.surfaceKm2({ xmin: 0, xmax: 3000, ymin: 0, ymax: 2000 }), 6);
+});

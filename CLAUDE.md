@@ -295,10 +295,14 @@ vérification sur données réelles qui l'a montré (niveau 0 redemandé au rés
 premier bloc à 12–16 s).
 
 **Le quota.** L'API de téléchargement est limitée à 10 requêtes/s par IP ;
-mesuré ~4,5 dalles/s pour la fin de fichier. Au-delà de 10 km de large
-(`CONFIG.flux.largeurMaxPointsM`), rien n'est demandé : le niveau 0 est un
-plancher (~0,6 Mo, 25 000 à 80 000 points par dalle, un bloc LAZ ne se lit pas
-en partie) et le temps croîtrait avec le nombre de dalles, plus avec l'écran.
+mesuré ~4,5 dalles/s pour la fin de fichier. Au-delà d'une **surface affichée** de
+60 km² (`CONFIG.flux.surfaceMaxPointsKm2`, environ 10 km de large sur un écran
+16/10), rien n'est demandé : le niveau 0 est un plancher (~0,6 Mo, 25 000 à
+80 000 points par dalle, un bloc LAZ ne se lit pas en partie) et le temps
+croîtrait avec le nombre de dalles, plus avec l'écran. La surface et non le zoom
+ni la largeur : c'est elle qui fixe le nombre de dalles, et une même largeur
+couvre deux fois plus de terrain sur un écran deux fois plus haut. Elle
+s'affiche avec `?flux`, pour régler le seuil à l'usage.
 
 **Quels blocs, dans quel ordre.** Le pas suit le pixel au sol, jamais sous
 `pasMinM` ; le niveau visé est le plus grossier dont la densité cumulée atteint
