@@ -183,7 +183,7 @@ test('lireFin retrouve l’index et ses nœuds, offsets absolus', () => {
   assert.equal(r.noeuds.size, 2);
   assert.deepEqual({ ...r.noeuds.get('0-0-0-0') }, { cle: r.noeuds.get('0-0-0-0').cle, offset: 212_310_000, taille: 608_510, nbPoints: 58_881 });
   assert.equal(r.noeuds.get('1-1-0-0').cle.x, 1);
-  assert.deepEqual(r.sousPages, []);
+  assert.equal(r.sousPages.length, 0);
 });
 
 test('lireFin ignore un « copc » qui n’est pas l’index', () => {
@@ -200,7 +200,7 @@ test('lireFin signale les sous-pages et saute les nœuds vides', () => {
   ] });
   const r = COPC.lireFin(octets, 0);
   assert.equal(r.noeuds.size, 1);
-  assert.deepEqual(r.sousPages.map((p) => [...p]), [[900_000, 4096]]);
+  assert.deepEqual(Array.from(r.sousPages, (p) => [...p]), [[900_000, 4096]]);
 });
 
 test('lireFin rend null sans index, ou si l’index est tronqué', () => {

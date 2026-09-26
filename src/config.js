@@ -139,6 +139,37 @@ const CONFIG = {
     budgetOctetsMobile: 40 * 1024 * 1024,
   },
 
+  // ── Chargement piloté par la vue (flux.js) ────────────────────────────────
+  //
+  // Voir « Le chargement piloté par la vue » dans CLAUDE.md et la spec
+  // docs/superpowers/specs/2026-09-26-flux-vue-design.md.
+  flux: {
+    // Au-delà de cette largeur de vue, aucun point n'est demandé : le niveau 0
+    // de chaque dalle est un plancher (~0,6 Mo, une requête), et le temps croît
+    // alors avec le nombre de dalles, plus avec l'écran. Mesuré : ~60 dalles
+    // pour 10 km, ~13 s au quota de l'IGN.
+    largeurMaxPointsM: 10000,
+    // Plancher du pas de la grille, en mètres : jamais plus fin, quel que soit
+    // le zoom. La densité de points sol (2 à 12 par m²) ne justifie pas mieux
+    // tant qu'une mesure ne l'a pas montré.
+    pasMinM: 0.5,
+    // Points (toutes classes) visés par case de grille pour choisir le niveau :
+    // environ un point sol par case sur un sol à 25 %.
+    pointsParCase: 4,
+    // Points décompressés gardés à la fois. Sur appareil portatif, le navigateur
+    // ferme un onglet trop gourmand sans prévenir.
+    budgetPoints: 20_000_000,
+    budgetPointsMobile: 5_000_000,
+    // Octets compressés gardés sur le disque (IndexedDB), les moins récemment
+    // lus effacés d'abord.
+    quotaDisqueOctets: 1_500_000_000,
+    // Fin de fichier lue d'une requête : l'index et le niveau 0 y tiennent
+    // (0,86 Mo au plus sur 12 dalles mesurées). Le secours couvre un index
+    // exceptionnellement gros.
+    octetsFin: 1_000_000,
+    octetsFinSecours: 4_000_000,
+  },
+
   // ── Carte ─────────────────────────────────────────────────────────────────
   carte: {
     // Vue d'ouverture : **la France entière**, avec ses chantiers LiDAR.
