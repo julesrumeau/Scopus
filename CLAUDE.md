@@ -659,8 +659,12 @@ Quatre décisions :
   L'onglet 3D doit être affiché **avant** de placer la caméra : la distance se
   déduit de la hauteur du canevas, et masqué, le zoom repris dérivait d'un
   quart de cran (17 → 16,77, mesuré). Tant qu'elle attend, la vue du lien n'est
-  pas réécrite par celle de la carte ; le moindre geste sur la carte
-  l'abandonne.
+  pas réécrite par celle de la carte ; le moindre déplacement de la carte
+  après le cadrage l'abandonne — `movestart`, pas des évènements de pointeur :
+  la première version n'écoutait que les gestes, et une recherche de lieu, qui
+  déplace la carte sans qu'on la touche, laissait le lien figé sur l'ancienne
+  vue, copié tel quel par « Partager ». Un lien trop dézoomé pour sélectionner
+  une dalle n'attend rien du tout.
 
 Les conventions d'angle sont éprouvées contre le vrai `Vue3D._repere`, pas
 contre une formule recopiée dans le test : orientation 90 regarde vers l'est,

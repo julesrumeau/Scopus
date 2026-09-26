@@ -481,16 +481,32 @@ function majLien() {
  * que la dalle soit chargée — il n'y a rien à cadrer avant.
  */
 function ouvrirLien(lien) {
-  etat.vueDuLien = lien;
+  // Loin de tout, aucune dalle n'est sélectionnée : rien n'attendra de
+  // chargement, et retenir la vue bloquerait l'écriture du lien pour rien.
+  const selectionnable = lien.zoom >= CONFIG.carte.zoomGrille
+    && PROJ.dansEmpriseFrance(lien.lon, lien.lat);
+  etat.vueDuLien = selectionnable ? lien : null;
   requestAnimationFrame(async () => {
     // Fermer l'accueil rend au panneau sa colonne de 380 px, redimensionnement
     // purement CSS que Leaflet ne détecte pas tout seul.
     carte.invalider();
     carte.map.setView([lien.lat, lien.lon], lien.zoom);
-    if (lien.zoom >= CONFIG.carte.zoomGrille && PROJ.dansEmpriseFrance(lien.lon, lien.lat)) {
-      await carte.selectionnerAuPoint(lien.lon, lien.lat);
-    }
+    if (!selectionnable) return;
+    // Après ce cadrage, le moindre déplacement de la carte — geste, recherche,
+    // bouton, clavier — abandonne la vue du lien : qui est allé ailleurs ne
+    // veut plus y être ramené après le chargement, et le lien doit de nouveau
+    // suivre la vue. `movestart` et pas des évènements de pointeur : la
+    // recherche déplace la carte sans qu'on la touche. `setView` sans
+    // animation émet le sien avant de rendre la main, d'où `once` posé après.
+    carte.map.once('movestart', abandonnerVueDuLien);
+    await carte.selectionnerAuPoint(lien.lon, lien.lat);
   });
+}
+
+function abandonnerVueDuLien() {
+  if (!etat.vueDuLien) return;
+  etat.vueDuLien = null;
+  majLien();
 }
 
 /**
@@ -517,18 +533,6 @@ function appliquerVueDuLien(dalle) {
     vue3d.placerCamera(x, y, vue2d.lire(x, y)?.altitude ?? null, resolution, azimut, elevation);
   }
   majLien();
-}
-
-/**
- * Le moindre geste sur la carte abandonne un lien en attente : qui explore
- * ailleurs ne veut plus être ramené à la vue du lien après le chargement.
- */
-for (const evt of ['pointerdown', 'wheel', 'keydown']) {
-  $('vue-carte').addEventListener(evt, () => {
-    if (!etat.vueDuLien) return;
-    etat.vueDuLien = null;
-    majLien();
-  }, { passive: true });
 }
 
 /**
