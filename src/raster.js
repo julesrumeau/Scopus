@@ -56,12 +56,21 @@ function creerGrilles(emprise, origine, pasDemande = CONFIG.raster.pasM, classes
   const H = Math.max(1, Math.ceil(hauteurM / pas));
   const N = W * H;
 
+  return {
+    W, H, pas, emprise, origine,
+    classesSol: classesSol instanceof Set ? classesSol : new Set(classesSol),
+    ...tableaux(N),
+  };
+}
+
+/**
+ * Tableaux d'accumulation d'une grille de N cellules, vides.
+ */
+function tableaux(N) {
   // Compteurs en octets et non en mots de 16 bits : à 25 cm et ~10 points/m²,
   // une cellule en reçoit 0,6 en moyenne. Le plafond de 255 ne sera jamais
   // atteint, et l'économie est de 64 Mo sur une dalle entière.
   return {
-    W, H, pas, emprise, origine,
-    classesSol: classesSol instanceof Set ? classesSol : new Set(classesSol),
     solZ: new Float32Array(N).fill(NaN),   // Z minimal des points « sol »
     solN: new Uint8Array(N),
     ncSomme: new Float32Array(N),          // cumul des Z « non classé »
@@ -92,6 +101,21 @@ function creerGrilles(emprise, origine, pasDemande = CONFIG.raster.pasM, classes
 }
 
 /**
+ * Grilles de la vue (flux.js, vue-relief.js) : même contenu, géométrie en
+ * centimètres entiers donnée par VUE_GRILLE. Les altitudes sont relatives à
+ * `zRefCm`, pour rester fines en Float32.
+ */
+function creerGrillesVue(geo, zRefCm, classesSol = CONFIG.raster.classesSolDefaut) {
+  return {
+    W: geo.W, H: geo.H, pas: geo.pas, emprise: geo.emprise,
+    origine: [geo.emprise.xmin, geo.emprise.ymin, zRefCm / 100],
+    geoCm: { xminCm: geo.xminCm, yminCm: geo.yminCm, pasCm: geo.pasCm, zRefCm },
+    classesSol: classesSol instanceof Set ? classesSol : new Set(classesSol),
+    ...tableaux(geo.W * geo.H),
+  };
+}
+
+/**
  * Verse un bloc décodé dans les grilles. Le bloc peut être libéré ensuite.
  *
  * `bloc` porte des coordonnées relatives à `bloc.origine`, qui n'est pas
@@ -99,6 +123,7 @@ function creerGrilles(emprise, origine, pasDemande = CONFIG.raster.pasM, classes
  * que point par point.
  */
 function accumuler(g, bloc) {
+  if (bloc.xc && g.geoCm) { accumulerCm(g, bloc); return; }
   const { W, H } = g;
   const dx = (bloc.origine ? bloc.origine[0] : g.origine[0]) - g.origine[0];
   const dy = (bloc.origine ? bloc.origine[1] : g.origine[1]) - g.origine[1];
@@ -110,41 +135,59 @@ function accumuler(g, bloc) {
     const cx = ((bloc.x[i] + dx - x0) * inv) | 0;
     const cy = ((bloc.y[i] + dy - y0) * inv) | 0;
     if (cx < 0 || cx >= W || cy < 0 || cy >= H) continue;
-    const c = cy * W + cx;
-    const z = bloc.z[i];
-
-    if (g.totalN[c] < 255) g.totalN[c]++;
-    if (z > g.sommetZ[c]) { g.sommetZ[c] = z; g.sommetCls[c] = bloc.cls[i]; }
-
-    const cls = bloc.cls[i];
-
-    // Le sol n'est plus figé sur SOL/EAU : `g.classesSol` (réglable depuis le
-    // panneau « Classes du sol », § CLAUDE.md) dit quelles classes en tiennent
-    // lieu. Sol et eau restent le réglage par défaut — la convention MNT
-    // habituelle, la surface de l'eau étant la surface du sol — mais une dalle
-    // où une structure est rangée en « non classé » ou en végétation basse
-    // peut vouloir l'y ajouter. Vérifiée en premier : une classe choisie comme
-    // sol ne doit pas *aussi* nourrir le signal de détection ci-dessous, sans
-    // quoi un même point compterait double.
-    if (g.classesSol.has(cls)) {
-      // Le minimum, pas la moyenne : un point de sol mal classé sur un muret
-      // tirerait la référence vers le haut et masquerait la structure. Pour
-      // l'eau, plus discutable — un retour parasite sous la surface creuserait
-      // une fosse — mais les cellules d'eau en reçoivent plusieurs, et le
-      // comblement d'un dôme entier était un défaut bien plus visible.
-      if (!(g.solZ[c] <= z)) g.solZ[c] = z;
-      if (g.solN[c] < 255) g.solN[c]++;
-    } else if (cls === CLASSE.NON_CLASSE) {
-      g.ncSomme[c] += z;
-      if (g.ncN[c] < 255) g.ncN[c]++;
-    } else if (cls === CLASSE.BATIMENT) {
-      g.batSomme[c] += z;
-      if (g.batN[c] < 255) g.batN[c]++;
-    }
-    // Le reste (végétation, bruit, ponts…) n'a pas d'emploi dans la
-    // détection — hors sol, hors signal — mais reste vu par `sommetZ` /
-    // `sommetCls` ci-dessus, sans coût de plus.
+    verser(g, cy * W + cx, bloc.z[i], bloc.cls[i]);
   }
+}
+
+/**
+ * Rangement exact en centimètres entiers : la case est une division entière,
+ * celle que fait la carte graphique (gpu-relief.js). Un point pile sur une
+ * limite tombe dans la case suivante, des deux côtés.
+ */
+function accumulerCm(g, bloc) {
+  const { W, H } = g;
+  const { xminCm, yminCm, pasCm, zRefCm } = g.geoCm;
+  const ox = bloc.origineCm[0] - xminCm, oy = bloc.origineCm[1] - yminCm, oz = bloc.origineCm[2] - zRefCm;
+  for (let i = 0; i < bloc.nbPoints; i++) {
+    const x = bloc.xc[i] + ox, y = bloc.yc[i] + oy;
+    if (x < 0 || y < 0) continue;
+    const cx = Math.floor(x / pasCm), cy = Math.floor(y / pasCm);
+    if (cx >= W || cy >= H) continue;
+    verser(g, cy * W + cx, (bloc.zc[i] + oz) / 100, bloc.cls[i]);
+  }
+}
+
+/** Verse un point d'altitude `z` et de classe `cls` dans la case `c`. */
+function verser(g, c, z, cls) {
+  if (g.totalN[c] < 255) g.totalN[c]++;
+  if (z > g.sommetZ[c]) { g.sommetZ[c] = z; g.sommetCls[c] = cls; }
+
+  // Le sol n'est plus figé sur SOL/EAU : `g.classesSol` (réglable depuis le
+  // panneau « Classes du sol », § CLAUDE.md) dit quelles classes en tiennent
+  // lieu. Sol et eau restent le réglage par défaut — la convention MNT
+  // habituelle, la surface de l'eau étant la surface du sol — mais une dalle
+  // où une structure est rangée en « non classé » ou en végétation basse
+  // peut vouloir l'y ajouter. Vérifiée en premier : une classe choisie comme
+  // sol ne doit pas *aussi* nourrir le signal de détection ci-dessous, sans
+  // quoi un même point compterait double.
+  if (g.classesSol.has(cls)) {
+    // Le minimum, pas la moyenne : un point de sol mal classé sur un muret
+    // tirerait la référence vers le haut et masquerait la structure. Pour
+    // l'eau, plus discutable — un retour parasite sous la surface creuserait
+    // une fosse — mais les cellules d'eau en reçoivent plusieurs, et le
+    // comblement d'un dôme entier était un défaut bien plus visible.
+    if (!(g.solZ[c] <= z)) g.solZ[c] = z;
+    if (g.solN[c] < 255) g.solN[c]++;
+  } else if (cls === CLASSE.NON_CLASSE) {
+    g.ncSomme[c] += z;
+    if (g.ncN[c] < 255) g.ncN[c]++;
+  } else if (cls === CLASSE.BATIMENT) {
+    g.batSomme[c] += z;
+    if (g.batN[c] < 255) g.batN[c]++;
+  }
+  // Le reste (végétation, bruit, ponts…) n'a pas d'emploi dans la
+  // détection — hors sol, hors signal — mais reste vu par `sommetZ` /
+  // `sommetCls` ci-dessus, sans coût de plus.
 }
 
 /** Dérive le modèle de terrain et la pente. À appeler une fois tout accumulé. */
@@ -152,9 +195,13 @@ function finaliser(g, options = {}) {
   // Sur la carte graphique quand elle est là et vérifiée (gpu-relief.js), en
   // une seule aller-retour : comblement, repli, lissage et pente. Le calcul
   // ci-dessous reste la référence et le repli. `moteur: 'cpu'` le force.
+  // Passes de comblement et rayon de lissage en cellules : ceux de la grille
+  // de 25 cm par défaut, ceux que la grille de la vue déduit de son pas sinon.
   const p = { ...CONFIG.relief, ...options };
+  const passes = options.passes ?? CONFIG.raster.rayonComblementSol;
+  const rayon = options.rayonLissage ?? CONFIG.raster.rayonLissageSol;
   if (p.moteur !== 'cpu' && p.gpu !== false && typeof GPU_RELIEF !== 'undefined') {
-    const r = GPU_RELIEF.terrain(g, CONFIG.raster.rayonComblementSol, CONFIG.raster.rayonLissageSol);
+    const r = GPU_RELIEF.terrain(g, passes, rayon);
     if (r) {
       g.mnt = r.mnt;
       g.solConnu = r.solConnu;
@@ -162,7 +209,7 @@ function finaliser(g, options = {}) {
       return g;
     }
   }
-  g.mnt = modeleTerrain(g);
+  g.mnt = modeleTerrain(g, passes, rayon);
   g.pente = pente(g.mnt, g.W, g.H, g.pas);
   return g;
 }
@@ -214,7 +261,7 @@ function signal(g, inclureBati = false) {
  * trou se remplit par interpolation depuis son pourtour, ce qui donne bien
  * l'altitude qu'aurait le terrain sans la structure.
  */
-function modeleTerrain(g) {
+function modeleTerrain(g, passes = CONFIG.raster.rayonComblementSol, rayon = CONFIG.raster.rayonLissageSol) {
   const { W, H } = g;
   const N = W * H;
 
@@ -229,7 +276,7 @@ function modeleTerrain(g) {
   for (let i = 0; i < N; i++) if (g.solN[i] > 0) valide[i] = 1;
   let valideSuiv = new Uint8Array(N);
 
-  for (let passe = 0; passe < CONFIG.raster.rayonComblementSol; passe++) {
+  for (let passe = 0; passe < passes; passe++) {
     valideSuiv.set(valide);
     let comblees = 0;
 
@@ -275,7 +322,7 @@ function modeleTerrain(g) {
   for (let i = 0; i < N; i++) if (!valide[i] || !Number.isFinite(cour[i])) cour[i] = repli;
 
   g.solConnu = valide;
-  return flouBoite(cour, W, H, CONFIG.raster.rayonLissageSol);
+  return flouBoite(cour, W, H, rayon);
 }
 
 /**
@@ -360,4 +407,4 @@ function centreCellule(g, x, y) {
   };
 }
 
-const RASTER = { CLASSE, creerGrilles, accumuler, finaliser, rasteriser, signal, hauteurParPoint, centreCellule };
+const RASTER = { CLASSE, creerGrilles, creerGrillesVue, accumuler, finaliser, rasteriser, signal, hauteurParPoint, centreCellule };

@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { chargerScripts } from './charger.js';
 import { nuageSynthetique, rectangle, COTE } from './nuages.js';
 
-const { RASTER } = chargerScripts(['config.js', 'raster.js']);
+const { RASTER, VUE_GRILLE } = chargerScripts(['config.js', 'vue-grille.js', 'raster.js']);
 
 test('`sommetZ` voit un point de végétation, ignoré du reste des grilles', () => {
   // Classe 5 (végétation haute) : le `switch` de `accumuler` la laisse filer
@@ -108,4 +108,55 @@ test('`sommetZ`/`sommetCls` restent toutes classes confondues même quand une cl
   assert.ok(Math.abs(g.solZ[0] - 2) < 1e-6, 'solZ garde le minimum des deux');
   assert.equal(g.sommetZ[0], 9, 'sommetZ, lui, garde le maximum toutes classes');
   assert.equal(g.sommetCls[0], 1, 'et sa classe — même si cette classe est aussi devenue « sol »');
+});
+
+test('centimètres entiers : un point pile sur une limite de case tombe dans la case suivante', () => {
+  const geo = VUE_GRILLE.definir({ xmin: 1000, xmax: 1002, ymin: 2000, ymax: 2002 }, 0.5, 0, 4096);
+  const g = RASTER.creerGrillesVue(geo, 10000, [2]);
+  // Dalle au coin (1000 m, 2000 m) ; points à 50 cm, 99 cm, 100 cm du coin.
+  RASTER.accumuler(g, {
+    nbPoints: 3, origineCm: [100000, 200000, 0],
+    xc: Int32Array.from([50, 99, 100]), yc: Int32Array.from([0, 0, 0]),
+    zc: Int32Array.from([10123, 10200, 10300]), cls: Uint8Array.from([2, 2, 2]),
+  });
+  assert.equal(g.solN[1], 2);   // 50 et 99 cm : case 1
+  assert.equal(g.solN[2], 1);   // 100 cm : case 2
+  assert.ok(Math.abs(g.solZ[1] - 1.23) < 1e-6);   // minimum, relatif à 100 m
+  assert.deepEqual([g.geoCm.xminCm, g.geoCm.pasCm, g.geoCm.zRefCm], [100000, 50, 10000]);
+});
+
+test('centimètres entiers : hors de la grille, ignoré', () => {
+  const geo = VUE_GRILLE.definir({ xmin: 1000, xmax: 1001, ymin: 2000, ymax: 2001 }, 0.5, 0, 4096);
+  const g = RASTER.creerGrillesVue(geo, 0, [2]);
+  RASTER.accumuler(g, {
+    nbPoints: 2, origineCm: [99900, 200000, 0],
+    xc: Int32Array.from([50, 250]), yc: Int32Array.from([10, 10]), zc: Int32Array.from([100, 100]), cls: Uint8Array.from([2, 2]),
+  });
+  assert.equal(g.solN.reduce((s, v) => s + v, 0), 0);   // 99950 cm et 100150 cm : hors de [100000, 100100[
+});
+
+test('centimètres entiers : mêmes classes que le chemin flottant', () => {
+  const geo = VUE_GRILLE.definir({ xmin: 0, xmax: 4, ymin: 0, ymax: 4 }, 0.5, 0, 4096);
+  const g = RASTER.creerGrillesVue(geo, 0, [2, 9]);
+  RASTER.accumuler(g, {
+    nbPoints: 4, origineCm: [0, 0, 0],
+    xc: Int32Array.from([10, 10, 10, 10]), yc: Int32Array.from([10, 10, 10, 10]),
+    zc: Int32Array.from([100, 150, 300, 500]), cls: Uint8Array.from([9, 1, 6, 5]),
+  });
+  assert.equal(g.solN[0], 1);
+  assert.equal(g.ncN[0], 1);
+  assert.equal(g.batN[0], 1);
+  assert.equal(g.totalN[0], 4);
+  assert.ok(Math.abs(g.sommetZ[0] - 5) < 1e-6);
+  assert.equal(g.sommetCls[0], 5);
+});
+
+test('finaliser : passes et rayon réglables', () => {
+  const geo = VUE_GRILLE.definir({ xmin: 0, xmax: 10, ymin: 0, ymax: 1 }, 0.5, 0, 4096);
+  const g = RASTER.creerGrillesVue(geo, 0, [2]);
+  RASTER.accumuler(g, { nbPoints: 1, origineCm: [0, 0, 0], xc: Int32Array.from([10]), yc: Int32Array.from([10]), zc: Int32Array.from([100]), cls: Uint8Array.from([2]) });
+  RASTER.finaliser(g, { moteur: 'cpu', passes: 3, rayonLissage: 0 });
+  // Une passe gagne une case : trois passes atteignent la case 3, pas la 4.
+  assert.equal(g.solConnu[3], 1);
+  assert.equal(g.solConnu[4], 0);
 });
