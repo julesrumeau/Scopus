@@ -84,3 +84,16 @@ test('autocontrôle : des écarts nombreux, refusé', () => {
   const { ctx } = monter((t) => { for (let i = 0; i < t.N; i += 50) t.mnt[i] += 1; });
   assert.match(ctx.VUE_RELIEF.controleGPU(), /altitude/);
 });
+
+test('couches sur la carte graphique, surface au processeur', () => {
+  const { ctx } = monter(false);
+  ctx.GPU_RELIEF.horizons = (t) => ({ svf: new Float32Array(t.N).fill(0.42), ouverturePositive: new Float32Array(t.N), ouvertureNegative: new Float32Array(t.N) });
+  const m = ctx.VUE_RELIEF.creer({ moteur: 'cpu', couches: 'gpu' });
+  assert.equal(m.moteur, 'cpu');
+  m.ajouter(bloc('a'));
+  const geo = ctx.VUE_GRILLE.definir({ xmin: 0, xmax: 10, ymin: 0, ymax: 10 }, 0.5, 0, 4096);
+  const c = m.calculer(geo, 'svf');
+  assert.equal(c.moteurSurface, 'cpu');
+  assert.equal(c.moteurCouche, 'gpu');
+  assert.equal(c.valeurs[0], Math.fround(0.42));
+});

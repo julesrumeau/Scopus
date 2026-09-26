@@ -38,11 +38,11 @@ function fabriqueVueRelief() {
     });
   }
 
-  function creer({ moteur = 'auto' } = {}) {
+  function creer({ moteur = 'auto', couches } = {}) {
     const gpu = moteur !== 'cpu' && gpuVerifie();
     // Couches sur la carte graphique, surface au processeur (option à l'essai,
     // « &gpusvf ») ; sinon tout au processeur quand la surface l'est.
-    const couchesGpu = false;
+    const couchesGpu = couches === 'gpu';
     const calculCouches = gpu || couchesGpu ? {} : { moteur: 'cpu' };
     const blocs = new Map();   // cle → { emprise, origineCm, nbPoints, zminCm, zmaxCm, points, classes }
     let reglagesCourants = {};
@@ -215,7 +215,7 @@ function fabriqueVueRelief() {
       const c = memoCouche.c;
       const [min, max] = RELIEF.etirer(c.base, c.ancrage, options.contraste ?? 1);
       return {
-        ...c, min, max, geo, t, recalcul, moteurSurface: gpu ? 'gpu' : 'cpu',
+        ...c, min, max, geo, t, recalcul, moteurSurface: gpu ? 'gpu' : 'cpu', moteurCouche: c.moteur,
         dureeSurface, duree: performance.now() - t0,
       };
     }
