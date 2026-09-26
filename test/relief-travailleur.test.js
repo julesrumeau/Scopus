@@ -160,3 +160,42 @@ test('le worker rend aussi l’ombrage coloré', () => {
   for (let i = 0; i < r.rgba.length; i += 4) if (r.rgba[i] !== r.rgba[i + 1] || r.rgba[i + 1] !== r.rgba[i + 2]) couleur++;
   assert.ok(couleur > 64 * 48 * 0.5, `${couleur} pixels en couleur seulement`);
 });
+
+test('encodage refusé : l’image arrive quand même, en pixels', async () => {
+  const ctx = chargerScripts(FICHIERS);
+  const recus = [];
+  const self = { postMessage: (m) => recus.push(m) };
+  const bac = vm.createContext({ self, console, performance, Math, Float32Array, Float64Array, Int32Array, Uint8Array, Uint32Array, Uint8ClampedArray, Map, Set, Array, Object, JSON, Number, String, Error, Infinity, NaN, Promise,
+    OffscreenCanvas: class { getContext() { return { putImageData() {} }; } convertToBlob() { return Promise.reject(new Error('refusé')); } },
+    ImageData: class { constructor(d) { this.data = d; } } });
+  vm.runInContext(ctx.RELIEF_TRAVAILLEUR.source(), bac);
+  const envoyer = (m) => self.onmessage({ data: m });
+  envoyer({ type: 'demarrer' });
+  const geo = ctx.VUE_GRILLE.definir({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 0.5, 0, 4096);
+  envoyer({ type: 'ajouter', bloc: bloc('a', 1000, 2000) });
+  envoyer({ type: 'image', id: 5, geo, couche: 'svf', ecran: { x0: 0, y0: 0, W: 8, H: 6, z: 0 }, lut: new Uint8Array(768), contraste: 1, lisser: true });
+  await new Promise((ok) => setTimeout(ok, 20));
+  const r = recus.at(-1);
+  assert.equal(r.type, 'image', r.message);
+  assert.equal(r.rgba.length, 8 * 6 * 4);
+});
+
+test('une carte de taille nulle : réponse vide, pas d’erreur', () => {
+  const ctx = chargerScripts(FICHIERS);
+  const w = travailleur(ctx.RELIEF_TRAVAILLEUR.source());
+  w.envoyer({ type: 'demarrer' });
+  const geo = ctx.VUE_GRILLE.definir({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 0.5, 0, 4096);
+  w.envoyer({ type: 'ajouter', bloc: bloc('a', 1000, 2000) });
+  w.envoyer({ type: 'image', id: 6, geo, couche: 'svf', ecran: { x0: 0, y0: 0, W: 0, H: 0, z: 0 }, lut: new Uint8Array(768), contraste: 1, lisser: true });
+  assert.equal(w.recus.at(-1).type, 'image');
+  assert.equal(w.recus.at(-1).vide, true);
+});
+
+test('sur le fil principal, l’image porte ses durées', async () => {
+  const ctx = chargerScripts(FICHIERS);
+  const m = ctx.RELIEF_TRAVAILLEUR.surFilPrincipal({ moteur: 'cpu' });
+  const geo = ctx.VUE_GRILLE.definir({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 0.5, 0, 4096);
+  m.ajouter(bloc('a', 1000, 2000));
+  const r = await m.image(geo, 'svf', { x0: 0, y0: 0, W: 4, H: 4, z: 0 }, new Uint8Array(768), {});
+  assert.ok(Number.isFinite(r.dureeCouche) && Number.isFinite(r.dureeImage));
+});

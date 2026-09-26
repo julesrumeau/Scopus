@@ -92,9 +92,14 @@ function fabriqueVueRelief() {
       version++;
     }
 
+    // Seules les classes du sol changent le rangement : les autres réglages
+    // (non classés, bâti, plafond de hauteur) ne touchent que la surface, et se
+    // rejouent sur la grille gardée sans reranger un seul point.
+    let versionSurface = 0;
     function reglages(r) {
+      if ('classesSol' in r) versionReglages++;
       reglagesCourants = { ...reglagesCourants, ...r };
-      versionReglages++;
+      versionSurface++;
       version++;
     }
 
@@ -120,7 +125,12 @@ function fabriqueVueRelief() {
       const dy = memeForme ? (geo.yminCm - grille.geo.yminCm) / geo.pasCm : 0;
       const recouvre = memeForme && Math.abs(dx) < geo.W && Math.abs(dy) < geo.H;
 
+      // L'ancienne surface et sa couche ne serviront plus si la grille change :
+      // les lâcher avant d'en bâtir une autre, sans quoi la mémoire du worker
+      // tiendrait trois grilles à la fois au moment d'un décalage.
+      const lacher = () => { memoCouche = null; if (grille) { grille.gFin = null; grille.t = null; } };
       if (!recouvre) {
+        lacher();
         const choisis = [...blocs].filter(([cle, b]) => estActif(cle) && coupe(b));
         retiresRanges = false;
         if (!choisis.length) { grille = null; return null; }
@@ -133,6 +143,7 @@ function fabriqueVueRelief() {
         grille = { geo, g, ranges: new Set(choisis.map(([cle]) => cle)), versionReglages };
         stats.reconstructions++;
       } else if (dx !== 0 || dy !== 0) {
+        lacher();
         const ancienne = grille.g;
         const g = RASTER.creerGrillesVue(geo, ancienne.geoCm.zRefCm, r.classesSol);
         const debut = Math.max(0, -dx), fin = Math.min(geo.W, geo.W - dx);
@@ -156,27 +167,39 @@ function fabriqueVueRelief() {
         if (grille.ranges.has(cle) || !estActif(cle) || !coupe(b)) continue;
         RASTER.accumuler(grille.g, { ...b.points, origineCm: b.origineCm });
         grille.ranges.add(cle);
+        grille.gFin = null;
         stats.ajouts++;
       }
-      // Terrain et surface sur une copie superficielle : finaliser ajoute mnt,
-      // solConnu et pente, et ne modifie pas les tableaux de rangement, qui
-      // doivent rester intacts pour les rangements suivants.
-      const g = { ...grille.g };
-      RASTER.finaliser(g, { moteur: 'cpu', passes: r.passes, rayonLissage: r.rayonLissage });
-      return RELIEF.preparer(g, {
-        moteur: 'cpu', pasM: geo.pas, garderRepli: true,
-        inclureBati: r.inclureBati, inclureSursol: r.inclureSursol, hauteurSursolMaxM: r.hauteurSursolMaxM,
-      });
+      // Terrain gardé tant que rien n'est rangé ; surface gardée tant que ses
+      // réglages ne changent pas. Rendre le même objet `t` garde aussi la
+      // couche (mémo de `calculer`) : un bloc arrivé hors de la vue, ou un
+      // changement de contraste, ne refait ni terrain, ni surface, ni SVF.
+      if (!grille.gFin) {
+        // Copie superficielle : finaliser ajoute mnt, solConnu et pente, sans
+        // toucher aux tableaux de rangement, qui doivent rester intacts pour
+        // les rangements suivants.
+        grille.gFin = { ...grille.g };
+        RASTER.finaliser(grille.gFin, { moteur: 'cpu', passes: r.passes, rayonLissage: r.rayonLissage });
+        grille.t = null;
+      }
+      if (!grille.t || grille.versionSurface !== versionSurface) {
+        grille.t = RELIEF.preparer(grille.gFin, {
+          moteur: 'cpu', pasM: geo.pas, garderRepli: true,
+          inclureBati: r.inclureBati, inclureSursol: r.inclureSursol, hauteurSursolMaxM: r.hauteurSursolMaxM,
+        });
+        grille.versionSurface = versionSurface;
+      }
+      return grille.t;
     }
 
     function surface(geo, actifs) {
+      // Au processeur, la grille gardée sait elle-même ce qui a changé.
+      if (!gpu) return surfaceCPUIncrementale(geo, actifs);
       const cleMemo = `${version}|${geo.xminCm}|${geo.yminCm}|${geo.pasCm}|${geo.W}|${geo.H}|${actifs ? [...actifs].sort().join(',') : '*'}`;
       if (memo && memo.cle === cleMemo) return memo.t;
       let t = null;
-      if (!gpu) {
-        t = surfaceCPUIncrementale(geo, actifs);
-      } else {
-        const choisis = [...blocs].filter(([, b]) => VUE_GRILLE.coupe(b.emprise, geo));
+      {
+        const choisis = [...blocs].filter(([cle, b]) => (!actifs || actifs.has(cle)) && VUE_GRILLE.coupe(b.emprise, geo));
         if (choisis.length) {
           let zmin = Infinity, zmax = -Infinity;
           for (const [, b] of choisis) { zmin = Math.min(zmin, b.zminCm); zmax = Math.max(zmax, b.zmaxCm); }

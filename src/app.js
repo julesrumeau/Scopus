@@ -2365,12 +2365,14 @@ $('btn-exemple').addEventListener('click', async () => {
 });
 $('btn-carte-directe').addEventListener('click', entrerDansLaCarte);
 
-// ── Chargement piloté par la vue (provisoire, « ?flux ») ────────────────────
+// ── Le relief de la vue (mode par défaut) ───────────────────────────────────
 //
-// Plans 1 et 2 de la spec docs/superpowers/specs/2026-09-26-flux-vue-design.md :
-// les blocs de la vue se chargent, se dessinent en contours, et le relief de
-// la vue se calcule et se pose en image de contrôle. N'agit que si l'adresse
-// porte « ?flux ».
+// Spec docs/superpowers/specs/2026-09-26-flux-vue-design.md : les blocs de la
+// vue se chargent (flux.js), le relief se calcule dans un worker
+// (relief-travailleur.js) et se pose sur la carte derrière un rideau
+// (CalqueRelief). « ?dalle » dans l'adresse rend l'ancien parcours à la place.
+// Diagnostic : « &debug » (contours des blocs, statut chiffré), « &chrono »
+// (temps du fil principal, gels détaillés).
 if (MODE_VUE) (async () => {
   // Pas de dalle à sélectionner au clic ; la 2D et la 3D attendent leur
   // retour sur le relief de la vue (TODO #3, #4) — désactivées, y compris aux
@@ -2454,13 +2456,12 @@ if (MODE_VUE) (async () => {
   // Le calcul du relief tourne dans un worker (relief-travailleur.js) : sur le
   // fil principal, il figeait la carte une à plusieurs secondes à chaque
   // arrivée de blocs. S'il ne démarre pas, le même calcul se fait ici.
-  // Le relief se calcule au processeur, même dans le worker. Sur la carte
-  // graphique, la page gelait pendant chaque calcul : elle partage la carte
-  // (et le processus graphique de Chrome) avec le worker, et son affichage
-  // attendait que le calcul soit passé — gels de 0,5 à 1 s sur la carte AMD,
-  // jusqu'à 11 s sous émulation, sans une ligne de script (mesuré avec
-  // &chrono, API long-animation-frame). Au processeur : plus de gel au-delà
-  // de ~200 ms. « &gpu » la reprend, pour comparer (provisoire).
+  // Le rangement des points se fait au processeur, même dans le worker : sur
+  // la carte graphique, la page gelait pendant chaque calcul — elle partage
+  // la carte (et le processus graphique de Chrome) avec le worker, et son
+  // affichage attendait que le calcul soit passé : gels de 0,5 à 1 s sur la
+  // carte AMD, jusqu'à 11 s sous émulation, sans une ligne de script (mesuré
+  // avec &chrono, API long-animation-frame).
   // Surface au processeur, couches (SVF…) sur la carte graphique : un calcul
   // court, qui ne fait pas geler la page à l'usage (essayé sous « &gpusvf »,
   // aucun ralentissement ressenti), là où le rangement des points sur la carte
@@ -2620,7 +2621,7 @@ if (MODE_VUE) (async () => {
     const decoder = depsFlux.decoder;
     depsFlux.decoder = (charge) => { activite.decodages++; return decoder(charge).finally(() => { activite.decodages--; }); };
     for (const n of ['lire', 'ecrire']) depsFlux.cache[n] = mesurer(`cache disque : ${n}`, depsFlux.cache[n]);
-    for (const n of ['ajouter', 'retirer', 'calculer']) relief[n] = mesurer(`worker du relief : ${n} (envoi)`, relief[n]);
+    for (const n of ['ajouter', 'retirer', 'reglages', 'image']) relief[n] = mesurer(`worker du relief : ${n} (envoi)`, relief[n]);
   }
   const flux = FLUX.creer(depsFlux);
   if (chronometrer) for (const n of ['majVue']) flux[n] = mesurer(`flux : ${n}`, flux[n]);
@@ -2677,8 +2678,11 @@ if (MODE_VUE) (async () => {
 
   carte.map.on('moveend', majVueFlux);
   majVueFlux();
-  window.fluxDeControle = flux;     // pour la console et les harnais
-  window.reliefDeControle = relief;
+  // Pour la console et les harnais, en diagnostic seulement.
+  if (diagnostic) {
+    window.fluxDeControle = flux;
+    window.reliefDeControle = relief;
+  }
 })();
 
 // Un hash non vide veut dire qu'on arrive par un lien qui désigne déjà une

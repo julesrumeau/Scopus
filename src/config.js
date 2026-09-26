@@ -149,7 +149,7 @@ const CONFIG = {
     // croît alors avec le nombre de dalles, plus avec l'écran. La surface et
     // non la largeur : c'est elle qui fixe le nombre de dalles. 60 km² ≈ les
     // 10 km de large d'avant sur un écran 16/10 ; à régler à l'usage (la
-    // surface courante s'affiche avec « ?flux »).
+    // surface courante s'affiche avec « &debug »).
     surfaceMaxPointsKm2: 60,
     // Plancher du pas de la grille, en mètres : jamais plus fin, quel que soit
     // le zoom. La densité de points sol (2 à 12 par m²) ne justifie pas mieux

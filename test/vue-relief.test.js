@@ -192,3 +192,39 @@ test('ombrage coloré : une couche en couleurs, que le contraste ne touche pas',
   const c2 = m.calculer(geo, 'ombrage-rgb', { contraste: 1 });
   assert.equal(c2.recalcul, false);
 });
+
+test('un bloc hors de la grille ne jette ni la surface ni la couche gardées', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  m.calculer(geo, 'svf');
+  m.ajouter(bloc('loin', 5000, 5000));
+  m.retirer('loin');
+  const c = m.calculer(geo, 'svf', { contraste: 2 });
+  assert.equal(c.recalcul, false);
+});
+
+test('« compléter par les non classés » ne range pas les points de nouveau', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  m.surface(geo);
+  m.statistiques(true);
+  m.reglages({ inclureSursol: false });
+  const t = m.surface(geo);
+  assert.deepEqual({ ...m.statistiques() }, { reconstructions: 0, decalages: 0, ajouts: 0 });
+  const ref = VUE_RELIEF.creer({ moteur: 'cpu' });
+  ref.ajouter(bloc('a', 1000, 2000));
+  ref.reglages({ inclureSursol: false });
+  memeSurface(t, ref.surface(geo));
+});
+
+test('rangement incrémental : décalage dans l’autre sens (x négatif, y positif)', () => {
+  const b1 = bloc('a', 1000, 2000);
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(b1);
+  m.surface(VUE_GRILLE.definir({ xmin: 1010, xmax: 1050, ymin: 2002, ymax: 2042 }, 0.5, 0, 4096));
+  m.statistiques(true);
+  const g2 = VUE_GRILLE.definir({ xmin: 1006.2, xmax: 1046.2, ymin: 2006.9, ymax: 2046.9 }, 0.5, 0, 4096);
+  const t = m.surface(g2);
+  assert.equal(m.statistiques().decalages, 1);
+  memeSurface(t, reference([b1], g2));
+});

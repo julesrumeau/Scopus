@@ -35,6 +35,8 @@ function corpsTravailleurRelief() {
         moteur.reglages(m.reglages);
       } else if (m.type === 'image') {
         const t0 = performance.now();
+        // Une carte de taille nulle (masquée, pas encore mesurée) : rien à peindre.
+        if (!(m.ecran.W > 0 && m.ecran.H > 0)) { self.postMessage({ type: 'image', id: m.id, vide: true, classes: moteur.classes() }); return; }
         const r = moteur.calculer(m.geo, m.couche, { contraste: m.contraste, actifs: m.actifs ? new Set(m.actifs) : undefined });
         if (!r) { self.postMessage({ type: 'image', id: m.id, vide: true, classes: moteur.classes() }); return; }
         const t1 = performance.now();
@@ -49,15 +51,20 @@ function corpsTravailleurRelief() {
         };
         // Encodée ici quand le navigateur le permet : le fil principal n'a
         // plus qu'à poser l'image.
-        if (typeof OffscreenCanvas !== 'undefined' && typeof ImageData !== 'undefined') {
-          const toile = new OffscreenCanvas(m.ecran.W, m.ecran.H);
-          toile.getContext('2d').putImageData(new ImageData(rgba, m.ecran.W, m.ecran.H), 0, 0);
-          toile.convertToBlob({ type: 'image/png' }).then(
+        // Si l'encodage échoue (pas de contexte 2D, refus du navigateur), les
+        // pixels partent tels quels : le fil principal sait les encoder.
+        const pixels = () => self.postMessage({ ...infos, rgba, duree: performance.now() - t0 }, [rgba.buffer]);
+        const ctx2d = typeof OffscreenCanvas !== 'undefined' && typeof ImageData !== 'undefined'
+          ? new OffscreenCanvas(m.ecran.W, m.ecran.H) : null;
+        const contexte2d = ctx2d && ctx2d.getContext('2d');
+        if (contexte2d) {
+          contexte2d.putImageData(new ImageData(rgba, m.ecran.W, m.ecran.H), 0, 0);
+          ctx2d.convertToBlob({ type: 'image/png' }).then(
             (blob) => self.postMessage({ ...infos, blob, duree: performance.now() - t0 }),
-            (err) => self.postMessage({ type: 'erreur', id: m.id, message: String((err && err.message) || err) }),
+            pixels,
           );
         } else {
-          self.postMessage({ ...infos, rgba, duree: performance.now() - t0 }, [rgba.buffer]);
+          pixels();
         }
       } else if (m.type === 'calculer') {
         const r = moteur.calculer(m.geo, m.couche);
@@ -196,13 +203,19 @@ const RELIEF_TRAVAILLEUR = (() => {
       reglages: (r) => moteur.reglages(r),
       calculer: async (geo, couche) => moteur.calculer(geo, couche),
       image: async (geo, couche, ecran, lut, reglages = {}) => {
+        if (!(ecran.W > 0 && ecran.H > 0)) return null;
+        const t0 = performance.now();
         const r = moteur.calculer(geo, couche, { contraste: reglages.contraste ?? 1, actifs: reglages.actifs ? new Set(reglages.actifs) : undefined });
         if (!r) return null;
+        const t1 = performance.now();
         const uv = VUE_IMAGE.cases(geo, ecran, PROJ.versLambert93);
         const rgba = r.rgba
           ? VUE_IMAGE.peindreRGBA(r.rgba, geo, uv, reglages.lisser ?? true)
           : VUE_IMAGE.peindre(r.valeurs, geo, uv, r.min, r.max, lut, reglages.lisser ?? true);
-        return { ...r, W: ecran.W, H: ecran.H, classes: moteur.classes(), rgba };
+        return {
+          ...r, W: ecran.W, H: ecran.H, classes: moteur.classes(), rgba,
+          dureeCouche: t1 - t0 - r.dureeSurface, dureeImage: performance.now() - t1, duree: performance.now() - t0,
+        };
       },
       arreter() {},
     };

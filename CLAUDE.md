@@ -265,9 +265,9 @@ résout qu'à ~0,5 m.
 
 `flux.js` charge les points **de la vue**, sans dalle à choisir : les dalles du
 rectangle affiché, ouvertes d'une requête chacune, puis les blocs plus fins que
-le zoom demande. Il remplacera « Charger la dalle » ; pour l'instant il ne
-tourne que derrière `?flux` dans l'adresse, avec un calque de contrôle
-(`flux-calque.js`) qui dessine les blocs chargés. Conception complète :
+le zoom demande. Il a remplacé « Charger la dalle » : c'est la vue par défaut
+(l'ancien parcours reste derrière `?dalle`) ; `&debug` ajoute un calque
+(`flux-calque.js`) qui dessine les contours des blocs chargés. Conception complète :
 `docs/superpowers/specs/2026-09-26-flux-vue-design.md` ; ce qui suit est ce que
 le code en a appris.
 
@@ -302,7 +302,7 @@ mesuré ~4,5 dalles/s pour la fin de fichier. Au-delà d'une **surface affichée
 croîtrait avec le nombre de dalles, plus avec l'écran. La surface et non le zoom
 ni la largeur : c'est elle qui fixe le nombre de dalles, et une même largeur
 couvre deux fois plus de terrain sur un écran deux fois plus haut. Elle
-s'affiche avec `?flux`, pour régler le seuil à l'usage.
+s'affiche avec `&debug`, pour régler le seuil à l'usage.
 
 **Quels blocs, dans quel ordre.** Le pas suit le pixel au sol, jamais sous
 `pasMinM` ; le niveau visé est le plus grossier dont la densité cumulée atteint
@@ -354,9 +354,9 @@ aucune fin de fichier redemandée, 2 requêtes de plage au lieu de 27.
 
 `vue-relief.js` calcule le relief de ce qui est à l'écran à partir des blocs que
 `flux.js` livre : grille de la vue, rangement des points, terrain, surface
-affichée, puis la couche par `RELIEF.calculer`, inchangé. Derrière `?flux`, le
-résultat se pose sur la carte en image de contrôle (`CalqueReliefControle`) —
-provisoire : le plan 3 le remplace par un calque WebGL. Conception :
+affichée, puis la couche par `RELIEF.calculer`, inchangé. Le résultat se pose
+sur la carte derrière un rideau (`CalqueRelief`), en image déjà reprojetée
+par le worker (voir plus bas). Conception :
 `docs/superpowers/specs/2026-09-26-flux-vue-design.md`, section « 2. Le calcul ».
 
 **La grille est en centimètres entiers** (`VUE_GRILLE`) : son coin est un
@@ -411,7 +411,7 @@ différence. Le chemin de la carte est gardé — juste, aussi rapide, et il
 libère la mémoire JavaScript des points — mais la conception qui suppose des
 grilles « sur la carte pour la vitesse » est à revoir au plan 3.
 
-Dans l'application (`?flux`, même carte, Verdun) : un recalcul prend 0,5 s au
+Dans l'application (même carte, Verdun) : un recalcul prend 0,5 s au
 premier bloc, puis 3 à 5 s une fois le budget de 20 M de points atteint — à
 97 % le rangement des points, **tous** refaits à chaque recalcul, y compris
 des blocs fins gardés d'une vue précédente et inutiles au pas courant. C'est
@@ -467,7 +467,12 @@ se défait pas. Une grille neuve ne prend que les blocs que la vue demande
 le décalage serve, **la taille d'une grille ne dépend que de celle de la
 vue**, jamais de sa position : sans ça, un déplacement d'une fraction de case
 changeait `W` et forçait tout à se refaire. Les tests comparent chaque cas à
-un rangement complet, champ par champ.
+un rangement complet, champ par champ — avec une nuance voulue : un bloc déjà
+rangé reste dans une grille décalée même s'il n'est plus demandé par la vue ;
+un rangement complet ne le prendrait pas. Le terrain et la surface sont
+gardés avec la grille : un bloc arrivé hors de la vue, un changement de
+contraste ou de « non classés » ne reprennent que ce qui en dépend (seules
+les classes du sol obligent à tout ranger de nouveau).
 
 **La couche est gardée** tant que la surface ne change pas : le contraste ne
 réétire que l'intervalle, sans refaire le SVF. Mesuré à Verdun (WSL, 4,8 M de

@@ -1,7 +1,6 @@
-// Calque de contrôle du chargement piloté par la vue : le contour de chaque
-// bloc chargé, coloré par niveau. Provisoire — il rend visible le plan 1
-// (chargement) avant que le relief (plan 2) n'existe. Activé par « ?flux »
-// dans l'adresse.
+// Calque de diagnostic du chargement piloté par la vue : le contour de chaque
+// bloc chargé, coloré par niveau, pour voir ce qui arrive et dans quel ordre.
+// Activé par « &debug » dans l'adresse.
 
 const CalqueFlux = L.LayerGroup.extend({
   initialize() {

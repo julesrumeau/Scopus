@@ -97,3 +97,13 @@ test('couches sur la carte graphique, surface au processeur', () => {
   assert.equal(c.moteurCouche, 'gpu');
   assert.equal(c.valeurs[0], Math.fround(0.42));
 });
+
+test('tout sur la carte graphique : seuls les blocs actifs sont rangés', () => {
+  const { ctx, appels } = monter(false);
+  const m = ctx.VUE_RELIEF.creer({ moteur: 'gpu' });
+  m.ajouter(bloc('a'));
+  m.ajouter({ ...bloc('b'), cle: 'b' });
+  const geo = ctx.VUE_GRILLE.definir({ xmin: 0, xmax: 10, ymin: 0, ymax: 10 }, 0.5, 0, 4096);
+  m.surface(geo, new Set(['a']));
+  assert.equal(appels.at(-1), 1);
+});
