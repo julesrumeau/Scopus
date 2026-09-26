@@ -2346,6 +2346,44 @@ $('btn-carte-directe').addEventListener('click', entrerDansLaCarte);
 // la vue se calcule et se pose en image de contrôle. N'agit que si l'adresse
 // porte « ?flux ».
 if (new URLSearchParams(location.search).has('flux')) (async () => {
+  // Chronométrage du fil principal, avec « &chrono » dans l'adresse : où part
+  // le temps quand la carte ralentit. Chaque morceau de travail mesuré est
+  // compté (appels, total, pire) ; les « tâches longues » sont celles que le
+  // navigateur voit bloquer plus de 50 ms, mesurées ou non. Un tableau dans la
+  // console toutes les 5 s. Provisoire, comme tout ce bloc.
+  const chrono = new Map();
+  const noter = (nom, ms) => {
+    const c = chrono.get(nom) || { appels: 0, totalMs: 0, pireMs: 0 };
+    c.appels++; c.totalMs += ms; c.pireMs = Math.max(c.pireMs, ms);
+    chrono.set(nom, c);
+  };
+  const mesurer = (nom, f) => function (...a) {
+    const t0 = performance.now();
+    try { return f.apply(this, a); } finally { noter(nom, performance.now() - t0); }
+  };
+  const chronometrer = new URLSearchParams(location.search).has('chrono');
+  if (chronometrer) {
+    for (const [objet, nomObjet, noms] of [
+      [FLUX_CHOIX, 'FLUX_CHOIX', ['blocsPourVue', 'aLiberer']],
+      [COPC, 'COPC', ['lireFin', 'lireEntrees', 'grouperPlages']],
+    ]) for (const n of noms) objet[n] = mesurer(`${nomObjet}.${n}`, objet[n]);
+    for (const n of ['afficher', 'vider']) CalqueReliefControle.prototype[n] = mesurer(`image du relief : ${n}`, CalqueReliefControle.prototype[n]);
+    for (const n of ['ajouter', 'retirer']) CalqueFlux.prototype[n] = mesurer(`contours des blocs : ${n}`, CalqueFlux.prototype[n]);
+    try {
+      new PerformanceObserver((l) => { for (const e of l.getEntries()) noter('TÂCHES LONGUES (> 50 ms, tout compris)', e.duration); })
+        .observe({ type: 'longtask', buffered: true });
+    } catch { /* navigateur sans longtask */ }
+    setInterval(() => {
+      if (!chrono.size) return;
+      const lignes = [...chrono].sort((a, b) => b[1].totalMs - a[1].totalMs).map(([nom, c]) => ({
+        travail: nom, appels: c.appels, totalMs: Math.round(c.totalMs), pireMs: Math.round(c.pireMs),
+      }));
+      console.log(`Chrono du fil principal, 5 dernières secondes, ${new Date().toLocaleTimeString()}`);
+      console.table(lignes);
+      chrono.clear();
+    }, 5000);
+  }
+
   const calque = new CalqueFlux().addTo(carte.map);
   const reliefCalque = new CalqueReliefControle().addTo(carte.map);
   // Le calcul du relief tourne dans un worker (relief-travailleur.js) : sur le
@@ -2428,7 +2466,7 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
     minuteur = setTimeout(() => { minuteur = null; calculerRelief(); }, delai);
   };
 
-  const flux = FLUX.creer({
+  const depsFlux = {
     chercherDalles: (z) => {
       const so = PROJ.versWGS84(z.xmin, z.ymin), ne = PROJ.versWGS84(z.xmax, z.ymax);
       return IGN.dalles(so.lat, so.lon, ne.lat, ne.lon);
@@ -2441,7 +2479,15 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
     surBloc: (b) => { calque.ajouter(b); relief.ajouter(b); planifierRelief(1500); },
     surLibere: (cle) => { calque.retirer(cle); relief.retirer(cle); },
     surEtat: (e) => { dernierEtat = e; majStatut(); },
-  });
+  };
+  if (chronometrer) {
+    // Seule la part synchrone est comptée : ce qui bloque le fil principal.
+    for (const n of ['surBloc', 'surLibere', 'surEtat', 'recuperer', 'decoder', 'chercherDalles']) depsFlux[n] = mesurer(`flux : ${n}`, depsFlux[n]);
+    for (const n of ['lire', 'ecrire']) depsFlux.cache[n] = mesurer(`cache disque : ${n}`, depsFlux.cache[n]);
+    for (const n of ['ajouter', 'retirer', 'calculer']) relief[n] = mesurer(`worker du relief : ${n} (envoi)`, relief[n]);
+  }
+  const flux = FLUX.creer(depsFlux);
+  if (chronometrer) for (const n of ['majVue']) flux[n] = mesurer(`flux : ${n}`, flux[n]);
 
   const majVueFlux = () => {
     const b = carte.map.getBounds();
