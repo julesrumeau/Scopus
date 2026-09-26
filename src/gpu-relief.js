@@ -39,7 +39,9 @@ const GPU_RELIEF = (() => {
 
     const programmes = {};
     for (const [nom, fs] of [['horizons', SHADERS.horizonsFS], ['ombrages', SHADERS.ombragesFS],
-      ['microPrep', SHADERS.microPrepFS], ['boite', SHADERS.boiteFS], ['microFin', SHADERS.microFinFS]]) {
+      ['microPrep', SHADERS.microPrepFS], ['boite', SHADERS.boiteFS], ['microFin', SHADERS.microFinFS],
+      ['comblement', SHADERS.comblementFS], ['echantillon', SHADERS.echantillonFS],
+      ['lissage', SHADERS.lissageFS], ['pente', SHADERS.penteFS]]) {
       programmes[nom] = GL.program(gl, SHADERS.reliefVS, fs);
     }
     const tri = gl.createBuffer();
@@ -89,8 +91,8 @@ const GPU_RELIEF = (() => {
     return texture(gl, t.W, t.H, gl.RG32F, gl.RG, rg);
   }
 
-  function cible(gl, W, H) {
-    const tex = texture(gl, W, H, gl.RGBA32F, gl.RGBA, null);
+  function cible(gl, W, H, interne = gl.RGBA32F, format = gl.RGBA) {
+    const tex = texture(gl, W, H, interne, format, null);
     const fb = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
@@ -294,6 +296,100 @@ const GPU_RELIEF = (() => {
     }
   }
 
+  /**
+   * Modèle de terrain et pente d'une grille de points, mêmes sorties que
+   * `RASTER.finaliser` : `mnt` (comblé puis lissé), `solConnu` (cellules qui
+   * avaient ou ont reçu une altitude), `pente` en degrés entiers.
+   *
+   * Tout reste sur la carte graphique d'un bout à l'autre — comblement,
+   * repli, lissage, pente — pour un seul envoi et un seul rapatriement : sur
+   * 16 M de cellules, chaque aller-retour pèse plusieurs centaines de Mo.
+   * @returns {?{mnt: Float32Array, solConnu: Uint8Array, pente: Uint8Array}}
+   */
+  function terrain(g, passes, rayonLissage, e = contexte()) {
+    if (!e || tropGrande(e, g)) return null;
+    const { gl } = e;
+    const P = e.programmes;
+    const { W, H } = g;
+    const N = W * H;
+
+    const rg = new Float32Array(N * 2);
+    for (let i = 0; i < N; i++) {
+      const connu = g.solN[i] > 0;
+      rg[2 * i] = connu ? g.solZ[i] : 0;
+      rg[2 * i + 1] = connu ? 1 : 0;
+    }
+    const entree = texture(gl, W, H, gl.RG32F, gl.RG, rg);
+    let a = cible(gl, W, H, gl.RG32F, gl.RG), b = cible(gl, W, H, gl.RG32F, gl.RG);
+    const fin = cible(gl, W, H);
+    let ech = null;
+    try {
+      // Comblement : autant de passes que le processeur au plus. Il s'arrête
+      // plus tôt quand une passe ne comble plus rien ; ici on les fait
+      // toutes, ce qui ne change rien — une passe sans effet laisse la
+      // grille telle quelle.
+      gl.useProgram(P.comblement);
+      gl.uniform1i(P.comblement.u.u_W, W);
+      gl.uniform1i(P.comblement.u.u_H, H);
+      let src = entree;
+      for (let p = 0; p < passes; p++) {
+        passe(e, P.comblement, a, W, H, { u_src: src.tex || src });
+        src = a; [a, b] = [b, a];
+      }
+      const comble = src;   // RG = (altitude, validité)
+
+      // Médiane de repli sur le même échantillon que le processeur.
+      const CIBLE = 200_000;
+      const saut = Math.max(1, Math.floor(N / CIBLE));
+      const nb = Math.ceil(N / saut);
+      const largeur = 1024, hauteur = Math.ceil(nb / largeur);
+      ech = cible(gl, largeur, hauteur);
+      gl.useProgram(P.echantillon);
+      gl.uniform1i(P.echantillon.u.u_W, W);
+      gl.uniform1i(P.echantillon.u.u_saut, saut);
+      gl.uniform1i(P.echantillon.u.u_largeur, largeur);
+      gl.uniform1i(P.echantillon.u.u_nb, nb);
+      passe(e, P.echantillon, ech, largeur, hauteur, { u_src: comble.tex });
+      const px = lire(gl, ech, largeur, hauteur);
+      const valeurs = [];
+      for (let k = 0; k < nb; k++) if (px[k * 4 + 1] > 0.5) valeurs.push(px[k * 4]);
+      const repli = valeurs.length ? valeurs.sort((u, v) => u - v)[valeurs.length >> 1] : 0;
+
+      // Lissage horizontal (avec le repli) puis vertical, puis la pente.
+      const lisse = comble === a ? b : a;   // la cible libre
+      gl.useProgram(P.lissage);
+      gl.uniform1i(P.lissage.u.u_W, W);
+      gl.uniform1i(P.lissage.u.u_H, H);
+      gl.uniform1i(P.lissage.u.u_r, rayonLissage);
+      gl.uniform1i(P.lissage.u.u_horizontal, 1);
+      gl.uniform1i(P.lissage.u.u_repli, 1);
+      gl.uniform1f(P.lissage.u.u_valeurRepli, repli);
+      passe(e, P.lissage, lisse, W, H, { u_src: comble.tex, u_valide: comble.tex });
+      gl.useProgram(P.lissage);
+      gl.uniform1i(P.lissage.u.u_horizontal, 0);
+      gl.uniform1i(P.lissage.u.u_repli, 0);
+      passe(e, P.lissage, comble, W, H, { u_src: lisse.tex, u_valide: lisse.tex });
+
+      gl.useProgram(P.pente);
+      gl.uniform1i(P.pente.u.u_W, W);
+      gl.uniform1i(P.pente.u.u_H, H);
+      gl.uniform1f(P.pente.u.u_pas, g.pas);
+      passe(e, P.pente, fin, W, H, { u_src: comble.tex });
+      const res = lire(gl, fin, W, H);
+
+      const mnt = new Float32Array(N), solConnu = new Uint8Array(N), pente = new Uint8Array(N);
+      for (let i = 0; i < N; i++) {
+        const k = i * 4;
+        mnt[i] = res[k];
+        solConnu[i] = res[k + 1] > 0.5 ? 1 : 0;
+        pente[i] = res[k + 2];
+      }
+      return { mnt, solConnu, pente };
+    } finally {
+      liberer(gl, entree, a, b, fin, ech);
+    }
+  }
+
   // ── Autocontrôle ──────────────────────────────────────────────────────────
 
   /**
@@ -343,7 +439,8 @@ const GPU_RELIEF = (() => {
     const g = RELIEF.gradients(t);
     const m = microRelief(t, 4, e);
     const mc = RELIEF.microRelief(t, 2, cpu);
-    return compare('SVF', h.svf, hc.svf, 1e-4, 0.03)
+    return controleTerrain(e)
+      || compare('SVF', h.svf, hc.svf, 1e-4, 0.03)
       || compare('ouverture positive', h.ouverturePositive, hc.ouverturePositive, 1e-2, 2)
       || compare('ouverture négative', h.ouvertureNegative, hc.ouvertureNegative, 1e-2, 2)
       || [315, 45, 135, 225].map((az, s) => compare(`ombrage ${az}°`, o[s], RELIEF.ombrage(t, az, 45, g), 1e-5, 1e-4)).find(Boolean)
@@ -351,8 +448,47 @@ const GPU_RELIEF = (() => {
       || '';
   }
 
+  /**
+   * Terrain d'une grille de points d'essai : du sol sur une pente avec une
+   * bosse, des trous petits (comblés en quelques passes) et un grand (qui
+   * reste en partie sans valeur et prend la médiane de repli), comparé à
+   * RASTER.finaliser. La pente est arrondie à l'entier supérieur : un écart de
+   * simple précision peut la faire basculer d'un degré sur de rares cellules,
+   * jamais plus.
+   */
+  function controleTerrain(e) {
+    const W = 90, H = 80, N = W * H;
+    const g = { W, H, pas: 0.25, solZ: new Float32Array(N).fill(NaN), solN: new Uint8Array(N) };
+    let graine = 7;
+    const alea = () => ((graine = (graine * 1664525 + 1013904223) >>> 0) / 4294967296);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const dansGrandTrou = (x - 60) ** 2 + (y - 45) ** 2 < 15 ** 2;
+        if (dansGrandTrou || alea() < 0.45) continue;   // 45 % de cellules sans point, comme à 25 cm
+        const i = y * W + x;
+        g.solZ[i] = 250 + 0.3 * x * 0.25 + 0.8 * Math.exp(-((x - 25) ** 2 + (y - 30) ** 2) / 60) + alea() * 0.05;
+        g.solN[i] = 1;
+      }
+    }
+    const gpu = terrain(g, CONFIG.raster.rayonComblementSol, CONFIG.raster.rayonLissageSol, e);
+    const ref = RASTER.finaliser({ ...g }, { moteur: 'cpu' });
+    let mMax = 0, conn = 0, pMax = 0, pDiff = 0;
+    for (let i = 0; i < N; i++) {
+      mMax = Math.max(mMax, Math.abs(gpu.mnt[i] - ref.mnt[i]));
+      if (gpu.solConnu[i] !== ref.solConnu[i]) conn++;
+      const d = Math.abs(gpu.pente[i] - ref.pente[i]);
+      if (d) pDiff++;
+      pMax = Math.max(pMax, d);
+    }
+    if (mMax > 1e-3 || conn || pMax > 1 || pDiff > N * 0.01) {
+      return `terrain : écart d'altitude ${mMax.toExponential(1)} m, ${conn} validités différentes, pente jusqu'à ${pMax}° sur ${pDiff} cellules`;
+    }
+    return '';
+  }
+
   return {
     horizons: (t, n, R) => horizons(t, n, R),
+    terrain: (g, passes, rayonLissage) => terrain(g, passes, rayonLissage),
     ombrages: (t, soleils) => ombrages(t, soleils),
     microRelief: (t, r) => microRelief(t, r),
     /** `true` si la carte graphique est prête et vérifiée. */

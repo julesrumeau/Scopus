@@ -85,3 +85,26 @@ test('le mémo du balayage ne resert pas un résultat processeur à qui veut la 
   assert.notEqual(cpu, gpu);
   assert.equal(gpu.svf[0], Math.fround(0.42));
 });
+
+test('RASTER.finaliser prend le terrain de la carte graphique, ou retombe sur le processeur', () => {
+  const nouvelleGrille = () => {
+    const W = 40, H = 30, N = W * H;
+    const g = { W, H, pas: 0.25, solZ: new Float32Array(N).fill(NaN), solN: new Uint8Array(N) };
+    for (let i = 0; i < N; i += 2) { g.solZ[i] = 100 + (i % W) * 0.1; g.solN[i] = 1; }
+    return g;
+  };
+  const ctx = chargerScripts(['config.js', 'raster.js']);
+  const N = 40 * 30;
+  ctx.GPU_RELIEF = { terrain: () => ({ mnt: new Float32Array(N).fill(7), solConnu: new Uint8Array(N).fill(1), pente: new Uint8Array(N).fill(3) }) };
+  const g = ctx.RASTER.finaliser(nouvelleGrille());
+  assert.equal(g.mnt[5], 7);
+  assert.equal(g.pente[5], 3);
+  assert.equal(g.solConnu[5], 1);
+
+  // Indisponible, ou processeur forcé : le calcul de référence.
+  const ref = chargerScripts(['config.js', 'raster.js']).RASTER.finaliser(nouvelleGrille());
+  ctx.GPU_RELIEF = { terrain: () => null };
+  assert.deepEqual([...ctx.RASTER.finaliser(nouvelleGrille()).mnt], [...ref.mnt]);
+  ctx.GPU_RELIEF = { terrain: () => { throw new Error('ne doit pas être appelé'); } };
+  assert.deepEqual([...ctx.RASTER.finaliser(nouvelleGrille(), { moteur: 'cpu' }).mnt], [...ref.mnt]);
+});

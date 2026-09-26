@@ -315,6 +315,87 @@ void main() {
   o = r;
 }`,
 
+  // Modèle de terrain, comblement : une passe de RASTER.modeleTerrain. Une
+  // cellule sans sol prend la moyenne de ses voisines valides (3 × 3, dans la
+  // grille), et devient valide ; les autres ne bougent pas. Entrée et sortie
+  // RG = (altitude, validité). Même ordre de sommation que le processeur.
+  comblementFS: `#version 300 es
+precision highp float; precision highp int;
+uniform highp sampler2D u_src;
+uniform int u_W; uniform int u_H;
+out vec4 o;
+void main() {
+  int x = int(gl_FragCoord.x), y = int(gl_FragCoord.y);
+  vec2 c = texelFetch(u_src, ivec2(x, y), 0).rg;
+  if (c.g > 0.5) { o = vec4(c, 0.0, 0.0); return; }
+  float somme = 0.0, nb = 0.0;
+  for (int dy = -1; dy <= 1; dy++) {
+    int yy = y + dy;
+    if (yy < 0 || yy >= u_H) continue;
+    for (int dx = -1; dx <= 1; dx++) {
+      int xx = x + dx;
+      if (xx < 0 || xx >= u_W) continue;
+      vec2 v = texelFetch(u_src, ivec2(xx, yy), 0).rg;
+      if (v.g > 0.5) { somme += v.r; nb += 1.0; }
+    }
+  }
+  o = nb > 0.0 ? vec4(somme / nb, 1.0, 0.0, 0.0) : vec4(c, 0.0, 0.0);
+}`,
+
+  // Modèle de terrain, échantillon : la cellule d'indice k × u_saut, pour
+  // calculer côté JavaScript la médiane de repli sans rapatrier la grille.
+  echantillonFS: `#version 300 es
+precision highp float; precision highp int;
+uniform highp sampler2D u_src;
+uniform int u_W; uniform int u_saut; uniform int u_largeur; uniform int u_nb;
+out vec4 o;
+void main() {
+  int k = int(gl_FragCoord.y) * u_largeur + int(gl_FragCoord.x);
+  if (k >= u_nb) { o = vec4(0.0); return; }
+  int i = k * u_saut;
+  o = vec4(texelFetch(u_src, ivec2(i % u_W, i / u_W), 0).rg, 0.0, 1.0);
+}`,
+
+  // Modèle de terrain, lissage : boîte de 2r+1 à indices bornés au bord, comme
+  // RASTER.flouBoite, sur l'altitude comblée où les cellules restées sans
+  // valeur prennent la médiane de repli. Horizontal puis vertical. En sortie
+  // R = altitude, G = validité (recopiée de u_valide).
+  lissageFS: `#version 300 es
+precision highp float; precision highp int;
+uniform highp sampler2D u_src;
+uniform highp sampler2D u_valide;
+uniform int u_W; uniform int u_H; uniform int u_r; uniform bool u_horizontal; uniform bool u_repli; uniform float u_valeurRepli;
+out vec4 o;
+float lire(int x, int y) {
+  vec2 v = texelFetch(u_src, ivec2(clamp(x, 0, u_W - 1), clamp(y, 0, u_H - 1)), 0).rg;
+  return (u_repli && v.g < 0.5) ? u_valeurRepli : v.r;
+}
+void main() {
+  int x = int(gl_FragCoord.x), y = int(gl_FragCoord.y);
+  float somme = 0.0;
+  for (int k = -u_r; k <= u_r; k++) somme += u_horizontal ? lire(x + k, y) : lire(x, y + k);
+  o = vec4(somme / float(2 * u_r + 1), texelFetch(u_valide, ivec2(x, y), 0).g, 0.0, 0.0);
+}`,
+
+  // Modèle de terrain, pente : gradient de Sobel à lectures bornées, en degrés
+  // arrondis à l'entier supérieur, comme RASTER.pente. Sortie RGBA =
+  // (altitude, validité, pente, 0), pour un seul rapatriement.
+  penteFS: `#version 300 es
+precision highp float; precision highp int;
+uniform highp sampler2D u_src;
+uniform int u_W; uniform int u_H; uniform float u_pas;
+out vec4 o;
+float z(int x, int y) { return texelFetch(u_src, ivec2(clamp(x, 0, u_W - 1), clamp(y, 0, u_H - 1)), 0).r; }
+void main() {
+  int x = int(gl_FragCoord.x), y = int(gl_FragCoord.y);
+  float dzdx = ((z(x + 1, y - 1) + 2.0 * z(x + 1, y) + z(x + 1, y + 1))
+              - (z(x - 1, y - 1) + 2.0 * z(x - 1, y) + z(x - 1, y + 1))) / (8.0 * u_pas);
+  float dzdy = ((z(x - 1, y + 1) + 2.0 * z(x, y + 1) + z(x + 1, y + 1))
+              - (z(x - 1, y - 1) + 2.0 * z(x, y - 1) + z(x + 1, y - 1))) / (8.0 * u_pas);
+  vec2 c = texelFetch(u_src, ivec2(x, y), 0).rg;
+  o = vec4(c.r, c.g, ceil(atan(length(vec2(dzdx, dzdy))) * 57.29577951308232), 0.0);
+}`,
+
   // Micro-relief, étape 1 : altitude pondérée et poids (R, G), comme la boucle
   // qui prépare la convolution normalisée de RELIEF.microRelief. Les
   // altitudes sont centrées sur u_ref pour que la somme de la boîte garde sa

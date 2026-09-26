@@ -148,7 +148,20 @@ function accumuler(g, bloc) {
 }
 
 /** Dérive le modèle de terrain et la pente. À appeler une fois tout accumulé. */
-function finaliser(g) {
+function finaliser(g, options = {}) {
+  // Sur la carte graphique quand elle est là et vérifiée (gpu-relief.js), en
+  // une seule aller-retour : comblement, repli, lissage et pente. Le calcul
+  // ci-dessous reste la référence et le repli. `moteur: 'cpu'` le force.
+  const p = { ...CONFIG.relief, ...options };
+  if (p.moteur !== 'cpu' && p.gpu !== false && typeof GPU_RELIEF !== 'undefined') {
+    const r = GPU_RELIEF.terrain(g, CONFIG.raster.rayonComblementSol, CONFIG.raster.rayonLissageSol);
+    if (r) {
+      g.mnt = r.mnt;
+      g.solConnu = r.solConnu;
+      g.pente = r.pente;
+      return g;
+    }
+  }
   g.mnt = modeleTerrain(g);
   g.pente = pente(g.mnt, g.W, g.H, g.pas);
   return g;
