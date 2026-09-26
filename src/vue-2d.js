@@ -45,8 +45,8 @@ class Vue2D {
     // Interpolation bilinéaire entre cellules, au lieu d'un carré plein par
     // cellule. N'invente rien de plus que la grille : les valeurs affichées
     // entre deux centres sont un mélange pondéré de leurs voisines. Voir
-    // `_rendre`.
-    this.lisser = false;
+    // `_rendre`. Actif par défaut, comme la case qui le pilote dans index.html.
+    this.lisser = true;
     // Mode d'interaction du clic — 'deplacement' (défaut, choisit une
     // détection), 'selection' (vise un point) ou 'mesure' (vise deux points,
     // l'un après l'autre) — commutable depuis l'extérieur, partagé avec la

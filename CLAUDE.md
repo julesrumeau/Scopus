@@ -1042,8 +1042,8 @@ noir : l'ombrage ne dépend ni du réseau ni d'un calcul long.
 
 Une case à cocher, « Lisser l'affichage », remplace le carré plein par cellule
 par une interpolation bilinéaire entre les centres des quatre cellules
-voisines (`Vue2D._rendreLisse`). Désactivée par défaut, le temps de juger à
-l'usage.
+voisines (`Vue2D._rendreLisse`). Cochée par défaut, après essai sur de vraies
+dalles.
 
 Ce qu'elle fait et ne fait pas : elle retire l'effet d'escalier qui se voit dès
 qu'une cellule de 50 cm couvre plusieurs pixels, **sans rien ajouter à la
