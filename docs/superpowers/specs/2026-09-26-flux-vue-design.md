@@ -240,6 +240,37 @@ dans `main`.
 **Hors champ** : la détection automatique, toujours masquée. Son chemin
 (grilles de 25 cm par dalle, `chargerNuage`) reste dans le code, inutilisé.
 
+### Révision après le plan 2 (26 septembre 2026)
+
+Le plan 2 a démenti deux hypothèses de cette section, et l'usage en a
+tranché d'autres. Ce qui suit remplace ce qui précède là où ils diffèrent.
+
+- **Pas de contexte WebGL partagé pour l'affichage.** Le calcul tourne dans
+  un worker, au processeur : sur la carte graphique, même depuis un worker,
+  la page gelait pendant chaque calcul (voir CLAUDE.md, « Le calcul de la
+  vue »). Le worker rend une **image déjà reprojetée** dans le repère de la
+  carte (Web Mercator, au pixel de l'écran), que la carte pose telle quelle ;
+  le fil principal ne fait que l'afficher. La carte graphique n'est
+  réessayée que pour le SVF seul, découpé en bandes, et gardée seulement si
+  `&chrono` ne montre aucun gel.
+- **Le rideau existe déjà** (carte Leaflet à gauche, relief à droite, noir
+  tant que rien n'est calculé) ; il est à vérifier et compléter, pas à
+  refaire.
+- **Le relief arrive plus vite par un rangement incrémental** : chaque bloc
+  n'est rangé qu'une fois dans la grille de la vue ; un déplacement ne range
+  que la bande entrante ; seuls les blocs que la vue demande (niveau visé)
+  entrent dans une grille neuve.
+- **Pas de MNT de l'IGN** : ni bouche-trou ni vue large pour l'instant — on
+  ne savait plus quelle source on regardait. Au-delà du seuil, le côté
+  relief reste noir et un message dit de zoomer (TODO #5).
+- **Le SVF par défaut, sans ombrage** : sur une grille au pixel, l'ombrage
+  sortait pâle et peu lisible.
+- **L'ancienne interface par dalle reste accessible** par `?dalle` dans
+  l'adresse, le temps de la transition ; la vue par défaut est le relief
+  piloté par la vue, sans `?flux`.
+- **Hors de ce chantier, dans TODO.md** : mesure et pointé (#3), retour de la
+  3D (#4), relief de secours signalé (#5).
+
 ## Erreurs
 
 - Refus ou lenteur de l'IGN : réessais de `RESEAU` ; un bloc qui échoue
