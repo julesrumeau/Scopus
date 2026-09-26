@@ -26,7 +26,7 @@ function finDeFichier() {
   return fin;
 }
 
-function monter({ cache = CACHE_DISQUE.creer(CACHE_DISQUE.stockageMemoire(), 1e9), delaiPlage = 5 } = {}) {
+function monter({ cache = CACHE_DISQUE.creer(CACHE_DISQUE.stockageMemoire(), 1e9), delaiPlage = 5, config = {} } = {}) {
   const appels = [];
   const blocs = [];
   const liberes = [];
@@ -50,7 +50,7 @@ function monter({ cache = CACHE_DISQUE.creer(CACHE_DISQUE.stockageMemoire(), 1e9
     },
     decoder: async (charge) => ({ nbPoints: charge.nbPoints, xc: new Int32Array(1), yc: new Int32Array(1), zc: new Int32Array(1), cls: new Uint8Array(1) }),
     cache,
-    config: { ...CONFIG.flux, budgetPoints: 1e9, delaiReessaiMs: 20 },
+    config: { ...CONFIG.flux, budgetPoints: 1e9, delaiReessaiMs: 20, ...config },
     surBloc: (b) => blocs.push(b),
     surLibere: (c) => liberes.push(c),
   });
@@ -82,8 +82,11 @@ test('le niveau 0 sort de la fin de fichier, sans autre requête ; le niveau 1 e
   await flux.majVue(VUE);
   await flux.attendreCalme();
   assert.equal(blocs.filter((b) => b.niveau === 0).length, 9);
+  // Les blocs contigus se groupent, mais une requête ne dépasse pas
+  // plageMaxOctets : les blocs arrivent un à un, du centre vers les bords.
   const plages = appels.filter((a) => a.opts.plage && a.opts.plage[0] !== 0);
-  assert.equal(plages.length, 9, 'les 4 blocs contigus du niveau 1 fusionnés en une requête par dalle');
+  assert.ok(plages.every((a) => a.opts.plage[1] - a.opts.plage[0] + 1 <= CONFIG.flux.plageMaxOctets));
+  assert.ok(plages.length < 36, 'des blocs contigus sont groupés');
   assert.equal(blocs.filter((b) => b.niveau === 1).length, 36);
   assert.deepEqual([...blocs[0].origineCm], [100_000, 100_000, 0], 'centimètres de la dalle du centre');
 });
@@ -267,4 +270,18 @@ test('l’état dit la surface affichée', async () => {
   await flux.majVue({ ...VUE, xmin: 0, xmax: 20_000, ymin: 0, ymax: 20_000 });
   assert.equal(etats.at(-1).surfaceKm2, 400);
   assert.equal(etats.at(-1).tropLarge, true);
+});
+
+test('les blocs fins se téléchargent du centre vers les bords, un à un', async () => {
+  // Retour d'usage : l'arrivée semblait aléatoire, sous-bloc par sous-bloc.
+  // Les quatre quarts d'une dalle partaient en une seule plage, et les
+  // dalles dans l'ordre où elles s'ouvraient, pas selon le centre de l'écran.
+  // Faux blocs d'1 Mo : borne à 1 Mo pour qu'ils partent un par un, comme les
+  // vrais quarts de dalle (~1,7 Mo) sous la borne de 2 Mo.
+  const { flux, appels } = monter({ delaiPlage: 10, config: { plageMaxOctets: 1_000_000 } });
+  await flux.majVue(VUE);
+  await flux.attendreCalme();
+  const plages = appels.filter((a) => a.opts.plage && a.opts.plage[0] !== 0);
+  const premieres = plages.slice(0, 4).map((a) => a.u);
+  assert.deepEqual(premieres, [url(1, 1), url(1, 1), url(1, 1), url(1, 1)], 'les quatre quarts de la dalle du centre d’abord, chacun sa requête');
 });

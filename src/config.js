@@ -170,6 +170,13 @@ const CONFIG = {
     // exceptionnellement gros.
     octetsFin: 1_000_000,
     octetsFinSecours: 4_000_000,
+    // File de priorité du réseau : plages en vol à la fois, et taille maximale
+    // d'une plage. Plus de requêtes en vol n'accélère rien — le débit que
+    // l'IGN accorde à un client (~3–4 Mo/s, mesuré) se partage entre elles ;
+    // la borne de taille fait arriver les quarts de dalle (~1,7 Mo) un à un,
+    // du centre vers les bords.
+    plagesEnVol: 3,
+    plageMaxOctets: 2 * 1024 * 1024,
   },
 
   // ── Carte ─────────────────────────────────────────────────────────────────

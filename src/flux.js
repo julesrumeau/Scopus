@@ -166,6 +166,10 @@ const FLUX = (() => {
 
     const cleCache = (url, noeud) => `${url}#${noeud.offset}`;
 
+    // Blocs dont les octets doivent venir du réseau, en attente d'une place.
+    const enAttenteReseau = new Set();
+    let plagesEnVol = 0;
+
     /**
      * Retire un bloc en attente. Sa plage réseau n'est abandonnée que si plus
      * aucun de ses blocs n'est voulu : avec un seul contrôleur par dalle,
@@ -175,80 +179,112 @@ const FLUX = (() => {
     function retirerBloc(cle) {
       const b = blocs.get(cle);
       blocs.delete(cle);
+      enAttenteReseau.delete(cle);
       if (!b?.groupe) return;
       b.groupe.cles.delete(cle);
       if (!b.groupe.cles.size) b.groupe.ctrl.abort();
     }
 
-    async function telechargerDalle(d, lot) {
-      for (const b of lot) blocs.set(b.cle, { etat: 'attente', groupe: null, niveau: b.niveau, nbPoints: b.noeud.nbPoints, emprise: b.emprise });
+    /** Décode un bloc dont les octets sont là, et l'émet s'il est encore voulu. */
+    async function emettre(d, b, octets) {
+      if (blocs.get(b.cle)?.etat !== 'attente') return;
       const origineCm = [Math.round(d.dalle.emprise.xmin * 100), Math.round(d.dalle.emprise.ymin * 100), 0];
-      let echec = null;
+      const points = await deps.decoder({
+        type: 'decoder', octets: octets.slice().buffer, nbPoints: b.noeud.nbPoints,
+        formatPoint: d.entete.formatPoint, longueurPoint: d.entete.longueurPoint,
+        echelle: d.entete.echelle, decalage: d.entete.decalage, origine: [0, 0, 0], entiers: origineCm,
+      });
+      const suivi = blocs.get(b.cle);
+      if (suivi?.etat !== 'attente') return;
+      suivi.etat = 'charge';
+      suivi.groupe = null;
+      deps.surBloc?.({ cle: b.cle, url: d.dalle.url, niveau: b.niveau, emprise: b.emprise, origineCm, points });
+      publierEtat();
+      liberer();
+    }
 
-      // Un bloc est décodé dès que ses octets sont là : la fin de fichier déjà
-      // reçue et le cache disque d'abord, puis chaque plage réseau à son
-      // arrivée. Tout attendre avant de décoder faisait patienter le niveau 0
-      // du centre derrière les 7 Mo du niveau 1 de sa dalle — ~11 s, mesuré.
-      const emettre = async (b, octets) => {
-        if (blocs.get(b.cle)?.etat !== 'attente') return;
-        const points = await deps.decoder({
-          type: 'decoder', octets: octets.slice().buffer, nbPoints: b.noeud.nbPoints,
-          formatPoint: d.entete.formatPoint, longueurPoint: d.entete.longueurPoint,
-          echelle: d.entete.echelle, decalage: d.entete.decalage, origine: [0, 0, 0], entiers: origineCm,
-        });
-        const suivi = blocs.get(b.cle);
-        if (suivi?.etat !== 'attente') return;
-        suivi.etat = 'charge';
-        suivi.groupe = null;
-        deps.surBloc?.({ cle: b.cle, url: d.dalle.url, niveau: b.niveau, emprise: b.emprise, origineCm, points });
-        publierEtat();
-      };
-
-      try {
-        const aDemander = [];
-        for (const b of lot) {
-          if (!blocs.has(b.cle)) continue;
-          const n = b.noeud;
-          if (d.debutFin != null && n.offset >= d.debutFin && n.offset + n.taille <= d.debutFin + d.fin.length) {
-            await emettre(b, d.fin.subarray(n.offset - d.debutFin, n.offset - d.debutFin + n.taille));
-            continue;
-          }
-          const o = await deps.cache?.lire(cleCache(d.dalle.url, n));
-          if (o) await emettre(b, o); else aDemander.push(b);
+    /**
+     * Les blocs nouvellement voulus d'une dalle : décodés tout de suite quand
+     * leurs octets sont déjà là (fin de fichier reçue, cache disque), confiés
+     * sinon à la file de priorité du réseau. Tout attendre avant de décoder
+     * faisait patienter le niveau 0 du centre derrière les 7 Mo du niveau 1 de
+     * sa dalle — ~11 s, mesuré.
+     */
+    async function preparer(d, lot) {
+      const reseau = [];
+      for (const b of lot) {
+        if (!blocs.has(b.cle)) continue;
+        const n = b.noeud;
+        if (d.debutFin != null && n.offset >= d.debutFin && n.offset + n.taille <= d.debutFin + d.fin.length) {
+          await emettre(d, b, d.fin.subarray(n.offset - d.debutFin, n.offset - d.debutFin + n.taille));
+          continue;
         }
-        const restants = aDemander.filter((b) => blocs.has(b.cle));
-        for (const plage of COPC.grouperPlages(restants.map((b) => ({ ...b.noeud, bloc: b })))) {
-          const cles = new Set(plage.noeuds.map((n) => n.bloc.cle).filter((c) => blocs.has(c)));
-          if (!cles.size) continue;
-          const groupe = { ctrl: new AbortController(), cles };
-          for (const c of cles) blocs.get(c).groupe = groupe;
-          let o;
-          try {
-            o = await deps.recuperer(d.dalle.url, { plage: [plage.debut, plage.fin - 1], signal: groupe.ctrl.signal });
-          } catch (e) {
-            if (!groupe.ctrl.signal.aborted) echec = e;
-            continue;
-          }
-          for (const n of plage.noeuds) {
-            const tranche = o.subarray(n.offset - plage.debut, n.offset - plage.debut + n.taille);
-            // Suivie comme le reste : une seconde visite juste après doit la trouver.
-            if (deps.cache) suivre(deps.cache.ecrire(cleCache(d.dalle.url, n), tranche.slice()));
-            await emettre(n.bloc, tranche);
-          }
-        }
-      } catch (e) {
-        echec = e;
+        const o = await deps.cache?.lire(cleCache(d.dalle.url, n));
+        if (!blocs.has(b.cle)) continue;
+        if (o) await emettre(d, b, o); else reseau.push(b);
       }
-      for (const b of lot) if (blocs.get(b.cle)?.etat === 'attente') blocs.delete(b.cle);
-      if (echec) {
+      // Tous ensemble dans la file, une fois le cache consulté : ajoutés un à
+      // un, la file partait sur le premier avant de connaître ses voisins plus
+      // prioritaires.
+      for (const b of reseau) if (blocs.has(b.cle)) enAttenteReseau.add(b.cle);
+      pomper();
+    }
+
+    /**
+     * File de priorité du réseau : au plus `plagesEnVol` plages à la fois,
+     * toujours celle du bloc voulu le plus prioritaire (niveau, puis distance
+     * au centre de la vue **courante** — le rang est recalculé à chaque vue).
+     * Les plages sont bornées à `plageMaxOctets` : les quarts d'une dalle
+     * arrivent un à un, du centre vers les bords. Partir par dalle entière, dans
+     * l'ordre où les dalles s'ouvraient, donnait une arrivée qui paraissait
+     * aléatoire. Plus de requêtes en vol ne servirait à rien : le débit que
+     * l'IGN accorde à un client (~3–4 Mo/s, mesuré) se partage entre elles.
+     */
+    function pomper() {
+      while (plagesEnVol < (config.plagesEnVol ?? 3)) {
+        let meilleur = null;
+        for (const cle of enAttenteReseau) {
+          const b = blocs.get(cle);
+          if (!b) { enAttenteReseau.delete(cle); continue; }
+          if (!meilleur || b.rang < meilleur.rang) meilleur = b;
+        }
+        if (!meilleur) return;
+        const d = dalles.get(meilleur.url);
+        const memeDalle = [...enAttenteReseau].map((c) => blocs.get(c)).filter((b) => b && b.url === meilleur.url);
+        const plages = COPC.grouperPlages(memeDalle.map((b) => ({ ...b.bloc.noeud, bloc: b.bloc })), 0, config.plageMaxOctets ?? (2 << 20));
+        const plage = plages.find((p) => p.noeuds.some((n) => n.bloc.cle === meilleur.bloc.cle));
+        for (const n of plage.noeuds) enAttenteReseau.delete(n.bloc.cle);
+        plagesEnVol++;
+        suivre(servirPlage(d, plage)).finally(() => { plagesEnVol--; pomper(); });
+      }
+    }
+
+    async function servirPlage(d, plage) {
+      const cles = new Set(plage.noeuds.map((n) => n.bloc.cle).filter((c) => blocs.has(c)));
+      if (!cles.size) return;
+      const groupe = { ctrl: new AbortController(), cles };
+      for (const c of cles) blocs.get(c).groupe = groupe;
+      let o;
+      try {
+        o = await deps.recuperer(d.dalle.url, { plage: [plage.debut, plage.fin - 1], signal: groupe.ctrl.signal });
+      } catch (e) {
+        for (const c of cles) if (blocs.get(c)?.etat === 'attente') blocs.delete(c);
+        if (groupe.ctrl.signal.aborted) return;
         // Les blocs ratés sont redemandés plus tard, par une nouvelle
         // planification, sans marteler l'IGN.
-        console.warn('Flux : blocs non chargés —', echec.message);
-        derniereErreur = deps.expliquer ? deps.expliquer(echec) : echec.message;
+        console.warn('Flux : blocs non chargés —', e.message);
+        derniereErreur = deps.expliquer ? deps.expliquer(e) : e.message;
         const m = setTimeout(() => { minuteurs.delete(m); planifier(); }, config.delaiReessaiMs ?? 2000);
         minuteurs.add(m);
+        return;
       }
-      liberer();
+      for (const n of plage.noeuds) {
+        const tranche = o.subarray(n.offset - plage.debut, n.offset - plage.debut + n.taille);
+        // Suivie comme le reste : une seconde visite juste après doit la trouver.
+        if (deps.cache) suivre(deps.cache.ecrire(cleCache(d.dalle.url, n), tranche.slice()));
+        await emettre(d, n.bloc, tranche);
+      }
+      for (const c of cles) if (blocs.get(c)?.etat === 'attente') blocs.delete(c);
     }
 
     let voulues = new Set();
@@ -279,14 +315,19 @@ const FLUX = (() => {
       for (const [cle, b] of blocs) {
         if (b.etat === 'attente' && !voulues.has(cle)) retirerBloc(cle);
       }
-      // Demander les nouveaux, un lot par dalle, dans l'ordre de `voulus`.
+      // Rang de priorité de chaque bloc voulu, pour la vue courante ; les
+      // nouveaux, un lot par dalle, passent d'abord par la fin de fichier et
+      // le cache, puis par la file de priorité du réseau.
       const parDalle = new Map();
-      for (const b of voulus) {
-        if (blocs.has(b.cle)) continue;
+      voulus.forEach((b, rang) => {
+        const deja = blocs.get(b.cle);
+        if (deja) { deja.rang = rang; return; }
+        blocs.set(b.cle, { etat: 'attente', groupe: null, niveau: b.niveau, nbPoints: b.noeud.nbPoints, emprise: b.emprise, rang, url: b.url, bloc: b });
         if (!parDalle.has(b.url)) parDalle.set(b.url, []);
         parDalle.get(b.url).push(b);
-      }
-      for (const [u, lot] of parDalle) suivre(telechargerDalle(dalles.get(u), lot));
+      });
+      for (const [u, lot] of parDalle) suivre(preparer(dalles.get(u), lot));
+      pomper();
       liberer();
       publierEtat();
     }

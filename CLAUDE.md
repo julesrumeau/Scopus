@@ -311,7 +311,19 @@ centre** — tout l'écran atteint un niveau avant que le suivant ne commence
 (l'ordre de Potree), et la liste est **tronquée au budget** de points : un bloc
 au-delà n'est pas demandé, ce qui évite de le libérer puis de le redemander.
 Au-dessus du budget, on libère d'abord les blocs non voulus les plus fins et les
-plus loin. Un bloc se décode **dès que ses octets sont là** — la fin de fichier
+plus loin.
+
+**Une file de priorité, pas une file d'arrivée.** Les blocs à télécharger
+passent par une file unique, triée par ce rang et recalculée à chaque vue : au
+plus `plagesEnVol` plages à la fois (3), toujours celle du bloc le plus
+prioritaire, bornées à `plageMaxOctets` (2 Mo). Avant, les blocs partaient par
+dalle entière (les quatre quarts en une plage de ~7 Mo), dans l'ordre où les
+dalles s'ouvraient : l'arrivée paraissait aléatoire (retour d'usage). Mesuré
+après : les quarts arrivent à 354 m du centre, puis 791, 1 061, 1 275 m. Plus de
+requêtes en vol n'accélère rien : l'IGN accorde à un client ~3–4 Mo/s au total,
+qui se partagent (mesuré : 0,54 plage de 8 Mo/s à 2 ou 3 en vol, 0,32 à 10).
+C'est le débit, pas le quota de requêtes, qui fixe la durée — ~30 s pour les
+~105 Mo de niveau 1 d'une vue de 3 km. Un bloc se décode **dès que ses octets sont là** — la fin de fichier
 et le cache d'abord, chaque plage réseau à son arrivée : tout attendre faisait
 patienter le niveau 0 du centre derrière les 7 Mo du niveau 1 de sa dalle.
 
