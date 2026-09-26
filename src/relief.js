@@ -276,6 +276,27 @@ function boiteV(src, dst, W, H, r) {
   }
 }
 
+// ── Carte graphique ou processeur ───────────────────────────────────────────
+
+/**
+ * Les couches coûteuses passent par la carte graphique quand elle est là et
+ * vérifiée (gpu-relief.js), et retombent sinon sur le calcul ci-dessous, qui
+ * reste la référence. `moteur: 'cpu'` force le processeur — pour comparer, et
+ * pour l'autocontrôle de gpu-relief.js, qui s'y compare. `CONFIG.relief.gpu`
+ * à `false` fait de même partout.
+ */
+let dernierMoteur = 'cpu';
+
+function viaGPU(p) {
+  return p.moteur !== 'cpu' && p.gpu !== false && typeof GPU_RELIEF !== 'undefined';
+}
+
+/** Rend le résultat de la carte graphique s'il existe, et note le moteur. */
+function surGPU(resultat) {
+  dernierMoteur = resultat ? 'gpu' : 'cpu';
+  return resultat;
+}
+
 // ── Micro-relief (Local Relief Model, Hesse 2010) ───────────────────────────
 
 /**
@@ -289,8 +310,11 @@ function boiteV(src, dst, W, H, r) {
  * ne contribuent donc pas du tout, au lieu d'y injecter une altitude de repli
  * que le lissage étalerait sur tout le voisinage.
  */
-function microRelief(t, rayonM) {
+function microRelief(t, rayonM, options = {}) {
   const r = Math.max(1, Math.round(rayonM / t.pas));
+  const p = { ...CONFIG.relief, ...options };
+  const gpu = viaGPU(p) ? surGPU(GPU_RELIEF.microRelief(t, r)) : surGPU(null);
+  if (gpu) return gpu;
   const pondere = new Float32Array(t.N);
   const poids = new Float32Array(t.N);
 
@@ -382,10 +406,19 @@ function ombrage(t, azimut = 315, hauteur = 45, grads = null) {
  * quatre directions supprime ce biais d'orientation, au prix d'un rendu plus
  * plat — c'est le compromis retenu partout, de l'USGS au RVT.
  */
-function ombrageMulti(t) {
+function ombrageMulti(t, options = {}) {
+  const azimuts = [315, 45, 135, 225];
+  const p = { ...CONFIG.relief, ...options };
+  const gpu = viaGPU(p) ? surGPU(GPU_RELIEF.ombrages(t, azimuts.map((az) => [az, 45]))) : surGPU(null);
+  if (gpu) {
+    // Même somme puis même division que ci-dessous, dans le même ordre.
+    const out = new Float32Array(t.N);
+    for (const o of gpu) for (let i = 0; i < t.N; i++) out[i] += o[i];
+    for (let i = 0; i < t.N; i++) out[i] /= azimuts.length;
+    return out;
+  }
   const grads = gradients(t);
   const out = new Float32Array(t.N);
-  const azimuts = [315, 45, 135, 225];
   for (const az of azimuts) {
     const o = ombrage(t, az, 45, grads);
     for (let i = 0; i < t.N; i++) out[i] += o[i];
@@ -414,10 +447,14 @@ function ombrageMulti(t) {
  *   sol est inconnu (`!t.valide`), pour que `Vue2D` y pose le même gris
  *   neutre que sur les autres couches plutôt qu'une couleur inventée.
  */
-function ombrageRGB(t) {
-  const grads = gradients(t);
+function ombrageRGB(t, options = {}) {
   const AZIMUTS = [315, 75, 195];   // 315° (le défaut d'ombrage()), puis ±120°
-  const [r, v, b] = AZIMUTS.map((az) => ombrage(t, az, 45, grads));
+  const p = { ...CONFIG.relief, ...options };
+  const gpu = viaGPU(p) ? surGPU(GPU_RELIEF.ombrages(t, AZIMUTS.map((az) => [az, 45]))) : surGPU(null);
+  const [r, v, b] = gpu || (() => {
+    const grads = gradients(t);
+    return AZIMUTS.map((az) => ombrage(t, az, 45, grads));
+  })();
 
   const rgba = new Uint8ClampedArray(t.N * 4);
   for (let i = 0; i < t.N; i++) {
@@ -479,9 +516,17 @@ function balayerHorizons(t, options = {}) {
   // Mémo à une entrée : trois couches sortent du même balayage, et l'interface
   // les affiche l'une après l'autre. Sans lui, passer de l'ouverture positive à
   // la négative repaierait plusieurs secondes pour un résultat déjà calculé.
+  const moteur = viaGPU(p) ? 'gpu' : 'cpu';
   if (dernierBalayage && dernierBalayage.t === t
-      && dernierBalayage.n === n && dernierBalayage.R === R) {
+      && dernierBalayage.n === n && dernierBalayage.R === R && dernierBalayage.moteur === moteur) {
+    dernierMoteur = dernierBalayage.moteurReel;
     return dernierBalayage.res;
+  }
+
+  const gpu = moteur === 'gpu' ? surGPU(GPU_RELIEF.horizons(t, n, R)) : surGPU(null);
+  if (gpu) {
+    dernierBalayage = { t, n, R, moteur, moteurReel: 'gpu', res: gpu };
+    return gpu;
   }
 
   const { W, H, mnt } = t;
@@ -623,7 +668,7 @@ function balayerHorizons(t, options = {}) {
   }
 
   const res = { svf, ouverturePositive: ouvPos, ouvertureNegative: ouvNeg };
-  dernierBalayage = { t, n, R, res };
+  dernierBalayage = { t, n, R, moteur, moteurReel: 'cpu', res };
   return res;
 }
 
@@ -664,7 +709,7 @@ const COUCHES = [
     ancrage: 'centre',
     libelle: 'Ombrage',
     aide: 'Quatre soleils combinés. La lecture la plus familière du terrain.',
-    calculer: (t) => ombrageMulti(t),
+    calculer: (t, p) => ombrageMulti(t, p),
     etendue: () => [0, 1],
     palette: 'gris',
   },
@@ -693,7 +738,7 @@ const COUCHES = [
     ancrage: 'centre',
     libelle: 'Micro-relief',
     aide: 'MNT moins MNT lissé. Efface le versant, garde ce qui dépasse ou creuse — talus, terrasses, chemins creux.',
-    calculer: (t, p) => microRelief(t, p.rayonMicroReliefM),
+    calculer: (t, p) => microRelief(t, p.rayonMicroReliefM, p),
     etendue: (v) => { const e = dispersion(v) * 3; return [-e, e]; },
     palette: 'divergent',
   },
@@ -815,6 +860,7 @@ function calculer(t, cle, options = {}) {
   const p = { ...CONFIG.relief, ...options };
   const def = COUCHES.find((c) => c.cle === cle) || COUCHES[0];
   const t0 = performance.now();
+  dernierMoteur = 'cpu';
   const valeurs = def.calculer(t, p);
   // L'intervalle brut est conservé : le contraste se rejoue à l'affichage, sans
   // refaire le calcul. Sur le Sky-View Factor, le refaire à chaque mouvement du
@@ -823,9 +869,14 @@ function calculer(t, cle, options = {}) {
   const [min, max] = etirer(base, def.ancrage, p.contraste);
   return {
     cle: def.cle, valeurs, base, ancrage: def.ancrage, min, max,
-    palette: def.palette, duree: performance.now() - t0,
+    palette: def.palette, duree: performance.now() - t0, moteur: dernierMoteur,
   };
 }
 
-return { preparer, calculer, etirer, valeurParPoint, COUCHES, ombrage, ombrageMulti, ombrageRGB, microRelief, svf, ouverture, balayerHorizons, flouBoite, gradients };
+return {
+  preparer, calculer, etirer, valeurParPoint, COUCHES, ombrage, ombrageMulti, ombrageRGB, microRelief, svf, ouverture,
+  balayerHorizons, flouBoite, gradients,
+  /** Moteur du dernier calcul coûteux : 'gpu' ou 'cpu'. */
+  moteur: () => dernierMoteur,
+};
 })();
