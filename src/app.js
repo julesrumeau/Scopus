@@ -611,6 +611,9 @@ const carte = new Carte($('vue-carte'), {
   },
   surCouverture: (nb, zoom) => {
     if (etat.dalle) return;   // ne pas écraser l'état d'une dalle déjà choisie
+    // Vue normale : le statut appartient au relief de la vue, et « cliquez une
+    // dalle » y serait faux. Seule l'absence de LiDAR mérite d'être dite.
+    if (MODE_VUE && nb > 0) return;
     // Le message dit **quoi faire**, et pas seulement ce qu'il y a : à l'échelle
     // de la France, « 208 chantiers » ne mène nulle part si l'on ne sait pas que
     // le champ de recherche accepte un nom de commune.
@@ -667,7 +670,7 @@ async function rechercher() {
 function allerAu(lieu) {
   $('resultats-recherche').hidden = true;
   carte.allerA(lieu.lon, lieu.lat);
-  statut(`${lieu.label} — cliquez une dalle`);
+  statut(MODE_VUE ? lieu.label : `${lieu.label} — cliquez une dalle`);
 }
 
 $('btn-recherche').addEventListener('click', rechercher);
@@ -2482,11 +2485,24 @@ if (MODE_VUE) (async () => {
   if (infoRelief.moteur === 'cpu') budget = Math.min(budget, CONFIG.flux.budgetPointsProcesseur);
 
   let dernierEtat = null, texteRelief = '', vueCourante = null, coucheFlux = 'svf', minuteur = null;
+  // Le statut dit à l'utilisateur où en est son relief ; le détail chiffré
+  // (surface, dalles, blocs, points, durées) ne sert qu'au diagnostic, avec
+  // « &debug » ou « &chrono ».
+  const diagnostic = params.has('debug') || params.has('chrono');
   const majStatut = () => {
     const e = dernierEtat;
     if (!e) return;
     $('vue-etat').textContent = e.attente && !e.tropLarge
       ? `Affinage… ${e.attente} bloc${e.attente > 1 ? 's' : ''} attendu${e.attente > 1 ? 's' : ''}` : '';
+    if (!diagnostic) {
+      statut(e.tropLarge ? 'Zoomez pour voir le relief'
+        : e.echecs ? `${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}`
+          : erreurRelief ? `Le relief n’a pas pu être calculé — ${erreurRelief}`
+            : e.attente ? 'Relief en cours d’affinage…'
+              : texteRelief ? 'Relief à jour' : 'Relief en calcul…',
+      e.echecs || erreurRelief ? 'erreur' : e.attente ? 'travail' : undefined);
+      return;
+    }
     statut((e.tropLarge
       ? `Flux : ${e.surfaceKm2.toFixed(0)} km² affichés, trop pour les points (seuil ${CONFIG.flux.surfaceMaxPointsKm2} km²) — zoomez`
       : `Flux : ${e.surfaceKm2.toFixed(1)} km² · ${e.dallesOuvertes} dalles · ${e.charges} blocs · ${milliers(e.points)} points`
@@ -2501,7 +2517,7 @@ if (MODE_VUE) (async () => {
   // qui compte. Une demande pendant un calcul est retenue, et relancée à la
   // fin avec la vue du moment.
   let enCalcul = false, aRefaire = false;
-  let contrasteFlux = 1, dernieresClasses = [];
+  let contrasteFlux = 1, dernieresClasses = [], erreurRelief = '';
   let classesSolFlux = new Set(CONFIG.raster.classesSolDefaut), classesAffichees = '';
   // Une case par classe présente dans les points reçus, cochée si elle compte
   // comme sol. Reconstruite seulement quand la liste change.
@@ -2547,6 +2563,7 @@ if (MODE_VUE) (async () => {
       const r = await relief.image(geo, coucheFlux, ecran, lutCouche(coucheFlux), {
         contraste: contrasteFlux, lisser: true, actifs: [...flux.voulues()],
       });
+      erreurRelief = '';
       if (!r) { reliefCalque.vider(); texteRelief = ''; }
       else {
         reliefCalque.afficher(r, bornes);
@@ -2560,6 +2577,7 @@ if (MODE_VUE) (async () => {
     } catch (err) {
       console.error(err);
       texteRelief = `relief en échec : ${err.message}`;
+      erreurRelief = err.message;
     } finally {
       enCalcul = false;
       activite.relief = false;
