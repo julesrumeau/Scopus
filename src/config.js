@@ -21,14 +21,13 @@ const CONFIG = {
     // documentée comme le remplacement officiel — rien ne dit qu'elle le
     // restera non plus.
     wfs: 'https://data.geopf.fr/wfs/ows',
+    // Les emprises de chantier (`IGNF_NUAGES-DE-POINTS-LIDAR-HD:bloc`, les
+    // « zones bleues ») ont disparu du WFS avec le même retrait : la couche
+    // répond 400, et `GetCapabilities` ne liste plus que `metadata` comme
+    // couche LiDAR (vérifié le 26 septembre 2026). Retirées de la carte plutôt
+    // que remplacées : la notion de dalle est appelée à quitter l'interface
+    // (spec docs/superpowers/specs/2026-09-26-flux-vue-design.md).
     coucheDalles: 'IGNF_LIDAR-HD_METADONNEE:metadata',
-    // Emprises des chantiers d'acquisition : la couche « de loin », celle qui
-    // montre la couverture LiDAR sur toute la France.
-    //
-    // Cassée par le même retrait, sans remplacement trouvé pour l'instant :
-    // `blocs()` échoue en silence (rattrapé par `surErreur`), la couche de
-    // couverture n'apparaît juste plus sur la carte de France.
-    coucheBlocs: 'IGNF_NUAGES-DE-POINTS-LIDAR-HD:bloc',
     geocodage: 'https://data.geopf.fr/geocodage/search',
     // Bâti de la BD TOPO, utilisé pour écarter les détections déjà cartographiées.
     coucheBati: 'BDTOPO_V3:batiment',

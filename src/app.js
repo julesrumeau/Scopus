@@ -593,18 +593,6 @@ const carte = new Carte($('vue-carte'), {
     // place, sans dupliquer cette lecture.
     etat.promesseIndex = ouvrirDalle(d);
   },
-  surCouverture: (nb, zoom) => {
-    if (etat.dalle) return;   // ne pas écraser l'état d'une dalle déjà choisie
-    // Le message dit **quoi faire**, et pas seulement ce qu'il y a : à l'échelle
-    // de la France, « 208 chantiers » ne mène nulle part si l'on ne sait pas que
-    // le champ de recherche accepte un nom de commune.
-    const n = (mot) => `${milliers(nb)} chantier${nb > 1 ? 's' : ''} ${mot}`;
-    statut(nb === 0
-      ? 'Aucune couverture LiDAR dans cette vue — déplacez-vous ou dézoomez'
-      : zoom < CONFIG.carte.zoomGrille
-        ? `${n('LiDAR')} en vue — zoomez sur une zone bleue, ou cherchez une commune`
-        : `${n('LiDAR')} — cliquez une dalle`);
-  },
   surRecherche: (m) => statut(m, 'travail'),
   surErreur: alerter,
 });
@@ -2187,7 +2175,7 @@ $('exp-csv').addEventListener('click', () =>
 
 const VUES = [
   ['carte', 'vue-carte', 'onglet-carte',
-    'Cliquez dans une zone bleue · vert : dalle chargée · jaune : sélection'],
+    'Cliquez pour choisir une dalle · vert : dalle chargée · jaune : sélection'],
   ['2d', 'vue-2d', 'onglet-2d',
     'Glisser la poignée du milieu pour comparer · glisser l’image : déplacer · molette : zoom sous le curseur'],
   ['3d', 'vue-3d', 'onglet-3d',

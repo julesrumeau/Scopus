@@ -276,17 +276,15 @@ Et il y a 505 294 dalles en France : aucun préchargement n'est envisageable.
 Le WFS reste interrogé, mais **au point** lors du clic : une requête, une
 entité, jamais de troncature possible.
 
-Deux échelles, calquées sur cartes.gouv.fr et sur ce que la couche annonce
-elle-même (`zoom_start` / `zoom_stop`) :
-
-| Zoom | Affiché |
-|---|---|
-| tous | emprises de chantier — 210 polygones pour la France, jamais tronquées |
-| ≥ 11 | quadrillage kilométrique local, découpé sur ces emprises |
-
-Le découpage est légitime : mesuré sur cinq régions, **100 % des dalles tombent
-dans un bloc**. Sans lui, un quadrillage s'afficherait là où il n'y a pas de
-LiDAR.
+À partir du zoom 11, un **quadrillage kilométrique** local est tracé. Il était
+découpé sur les **emprises de chantier** (`IGNF_NUAGES-DE-POINTS-LIDAR-HD:bloc`,
+210 polygones pour la France, les « zones bleues » visibles à toutes les
+échelles). Cette couche a **disparu du WFS** fin septembre 2026 — elle répond
+400, et `GetCapabilities` ne liste plus que `IGNF_LIDAR-HD_METADONNEE:metadata`
+comme couche LiDAR. Les zones bleues ont été retirées plutôt que remplacées : la
+notion de dalle est appelée à quitter l'interface (« Le chargement piloté par
+la vue »). Le quadrillage est désormais tracé partout, et un clic hors LiDAR le
+dit (« pas encore volée »).
 
 Enfin, **un carré Lambert-93 n'est pas aligné sur les axes en WGS84** : il
 apparaît légèrement tourné. Toute emprise doit donc être tracée en polygone de
@@ -297,11 +295,7 @@ zone d'intérêt de travers dans sa dalle.
 emprise et non par un centre plus un zoom fixe — le zoom qui va bien dépend de
 la taille de la fenêtre, vérifié en 1400 × 900 comme en 1000 × 700. Un repli au
 zoom 5 couvre le cas où le conteneur n'a pas encore de taille, `fitBounds` y
-calculant n'importe quoi. La couche des chantiers tient l'échelle et c'est
-mesuré : 208 entités pour la France entière, avec `numberMatched = 208` — le
-service dit lui-même qu'il n'y a rien de plus, donc aucune troncature au
-plafond de 300, contrairement au quadrillage kilométrique qui plafonne à 600 en
-silence. Le prix, à connaître : 1,1 Mo de GeoJSON en 570 ms au démarrage.
+calculant n'importe quoi.
 
 **Le zoom de la carte est borné à 19**, et ce n'est pas une limite pyrénéenne :
 mesuré sur les deux fonds en trois lieux (Ariège, Paris, Vanoise), le niveau 19
@@ -571,7 +565,7 @@ Factor y montre un fortin bastionné cerné de centaines d'impacts d'obus.
 **Le fond est la carte elle-même, pas une image.** Un premier jet dessinait la
 comparaison promise en SVG — photo aérienne d'un côté, Sky-View Factor de
 l'autre. Remplacé : la carte Leaflet est déjà construite et déjà en train de
-charger les 208 chantiers LiDAR de la France (voir « La carte ») au moment où l'accueil
+afficher ses tuiles au moment où l'accueil
 s'affiche par-dessus elle, donc un dessin statique en refaisait moins bien une
 donnée déjà là. `.accueil` n'est plus un aplat mais un voile — un dégradé sombre
 posé sur `#vue-carte` —, et la carte de texte flotte dessus avec son propre fond
