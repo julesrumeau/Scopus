@@ -129,13 +129,6 @@
       <div id="info-dalle" class="vide">Les zones bleues portent du LiDAR HD.<br>
         Cliquez dedans pour choisir une dalle.</div>
       <dl id="detail-dalle" class="detail" hidden></dl>
-      <!-- Le lien ne porte que la dalle (#3, comprimis retenu) : pas les seuils,
-           trop nombreux et changeants, pas la résolution ni l'onglet — ouvrir un
-           lien sélectionne la dalle, exactement comme un clic sur la carte, et
-           laisse le choix de charger à qui l'ouvre. -->
-      <div class="rangee" id="rangee-partager" hidden>
-        <button id="btn-partager" class="secondaire">Copier le lien de cette dalle</button>
-      </div>
 
       <!-- Résolution et chargement : révélés d'un bloc dès qu'une dalle est
            choisie, l'index COPC étant lu sans qu'on ait à le demander. -->
@@ -438,6 +431,18 @@
       <button id="onglet-2d">2D</button>
       <button id="onglet-3d">3D</button>
       <span class="aide" id="aide-vue">Cliquez dans une zone bleue pour choisir une dalle</span>
+      <!-- Partager vit ici et non dans le panneau : c'est une action sur la vue
+           affichée, dans les trois onglets, et le panneau est un tiroir fermé
+           sous 900 px. Deux actions seulement, et pas une par outil : osm.org
+           est la porte d'entrée vers iD, JOSM et le reste (voir « Le lien
+           partageable » dans CLAUDE.md). -->
+      <div class="partage">
+        <button id="btn-partager" class="btn-partager" aria-haspopup="true" aria-expanded="false">Partager</button>
+        <div id="menu-partager" class="menu-partager" role="menu" hidden>
+          <button id="btn-copier-lien" role="menuitem">Copier le lien de cette vue</button>
+          <button id="btn-ouvrir-osm" role="menuitem">Ouvrir cette vue dans OpenStreetMap</button>
+        </div>
+      </div>
     </nav>
     <!-- Sous-barre commune à la 2D et à la 3D : masquée sur la carte, où « cliquer
          un point » n'a pas de sens. Déplacement par défaut ; en sélection ou en

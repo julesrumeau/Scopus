@@ -678,6 +678,23 @@ Un fragment modifié à la main dans la barre d'adresse, ou par un greffon, est
 suivi (`hashchange`) ; nos propres `replaceState` ne déclenchent pas cet
 évènement et n'y repassent donc pas.
 
+**Un bouton « Partager », deux actions, et pas une de plus** : copier le lien
+de la vue, ou ouvrir la même vue sur osm.org. Pas un lien par outil — iD, JOSM,
+Overpass… —, qui ferait une rangée intenable et une demande d'ajout tous les
+six mois : osm.org est la porte d'entrée vers tout le reste, son bouton
+« Modifier » mène à iD comme à JOSM avec la position (vérifié : il pointe sur
+`/edit#map=…` à la même vue). Les extensions qui passent d'une carte à l'autre
+(OSM Smart Menu, OpenSwitchMaps) ne remplacent pas ce bouton : elles
+reconnaissent chaque site par son domaine, une règle écrite à la main par site,
+et Scopus n'est dans aucune liste — OpenSwitchMaps annonce d'ailleurs ne plus
+pouvoir être mis à jour.
+
+Le bouton vit dans la barre des onglets, pas dans le panneau : c'est une action
+sur la vue affichée, valable dans les trois onglets, alors que le panneau change
+avec l'onglet et devient un tiroir fermé sous 900 px. Le menu se pose au-dessus
+des contrôles de Leaflet (z-index 1000) mais sous le tiroir (1400, 1500) — à
+1000 pile, le bouton des couches de la carte passait par-dessus, vu au cliché.
+
 Le lien se copie par `navigator.clipboard.writeText`, avec repli sur
 `prompt()` : l'API refuse parfois en silence — mesuré, `NotAllowedError`, y
 compris hors `file://` — et l'échec ne doit pas priver du lien. `prompt()` ne
@@ -697,7 +714,10 @@ la carte glissée réécrit le fragment sans empiler d'historique ; un lien
 `#map=` sélectionne la dalle sous le centre ; un ancien `#d=` retombe sur la
 même dalle et se réécrit ; un lien 3D chargé arrive en 3D avec son zoom, son
 centre et ses angles, puis suit la molette ; l'onglet 2D réécrit un lien sans
-angles.
+angles ; « Ouvrir dans OpenStreetMap » ouvre osm.org à la même vue, et
+« Copier le lien » met la bonne adresse dans le presse-papiers, à 1400 comme à
+380 px de large. Côté osm.org, testé sur le vrai site : un lien Scopus de carte,
+de 3D (angles ignorés) ou à zoom décimal (tronqué) y ouvre la même position.
 
 ## Le panneau suit la vue
 

@@ -154,6 +154,36 @@ html, body {
 .onglets button.actif { background: var(--fond-3); color: var(--texte); border-color: var(--bord); }
 .aide { margin-left: auto; color: var(--texte-2); font-size: 11px; }
 
+/* Partager : un bouton, un menu de deux actions posé dessous. */
+.partage { position: relative; margin-left: 10px; flex-shrink: 0; }
+.onglets button.btn-partager { border-color: var(--bord); color: var(--texte); }
+.onglets button.btn-partager:hover,
+.onglets button.btn-partager[aria-expanded="true"] { background: var(--fond-3); }
+.menu-partager {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  /* Au-dessus des contrôles de Leaflet (1000), sous le tiroir du panneau et
+     son rideau (1400, 1500) : un menu ouvert ne doit pas masquer le tiroir. */
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  min-width: 250px;
+  padding: 4px;
+  background: var(--fond-2);
+  border: 1px solid var(--bord);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.onglets .menu-partager button {
+  text-align: left;
+  color: var(--texte);
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+.onglets .menu-partager button:hover,
+.onglets .menu-partager button:focus-visible { background: var(--fond-3); }
+
 /* Boutons à icône seule (sous-barre Déplacement/Sélection) : le nom passe en
    infobulle (`title`) plutôt qu'en texte visible, deux mots étant de trop pour
    une barre déjà partagée avec les onglets. `.onglets button` en spécificité

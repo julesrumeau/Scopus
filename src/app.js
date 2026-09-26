@@ -546,7 +546,31 @@ async function copierLien() {
     prompt('Copiez ce lien :', location.href);
   }
 }
-$('btn-partager').addEventListener('click', copierLien);
+
+/**
+ * Ouvre la même vue sur osm.org — le seul lien sortant, délibérément : osm.org
+ * mène à iD, JOSM et au reste de l'écosystème par son propre bouton
+ * « Modifier ». Zoom entier et sans angles, ce qu'osm.org sait afficher.
+ */
+function ouvrirDansOSM() {
+  const v = vueCourante();
+  if (!v) return;
+  const fragment = LIEN.ecrire({ zoom: Math.round(v.zoom), lat: v.lat, lon: v.lon });
+  window.open(`https://www.openstreetmap.org/#${fragment}`, '_blank', 'noopener');
+}
+
+function basculerMenuPartage(ouvrir = $('menu-partager').hidden) {
+  $('menu-partager').hidden = !ouvrir;
+  $('btn-partager').setAttribute('aria-expanded', String(ouvrir));
+}
+$('btn-partager').addEventListener('click', () => basculerMenuPartage());
+$('btn-copier-lien').addEventListener('click', () => { basculerMenuPartage(false); copierLien(); });
+$('btn-ouvrir-osm').addEventListener('click', () => { basculerMenuPartage(false); ouvrirDansOSM(); });
+// Un clic ailleurs ou Échap referme le menu, comme tout menu.
+document.addEventListener('pointerdown', (e) => {
+  if (!e.target.closest('.partage')) basculerMenuPartage(false);
+});
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') basculerMenuPartage(false); });
 
 // ── Carte ───────────────────────────────────────────────────────────────────
 
@@ -560,7 +584,6 @@ const carte = new Carte($('vue-carte'), {
       + ligneDetail('Altimétrie', d.systemeAltimetrique || '—')
       + ligneDetail('Emprise', `X ${d.emprise.xmin}–${d.emprise.xmax}\nY ${d.emprise.ymin}–${d.emprise.ymax}`);
     $('info-dalle').hidden = true;
-    $('rangee-partager').hidden = false;
     // Publiée sur `etat` : c'est ce que le bouton « Voir un exemple » attend
     // pour savoir quand l'index COPC est lu et déclencher le chargement à sa
     // place, sans dupliquer cette lecture.
