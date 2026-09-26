@@ -2390,7 +2390,10 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
   // Le calcul du relief tourne dans un worker (relief-travailleur.js) : sur le
   // fil principal, il figeait la carte une à plusieurs secondes à chaque
   // arrivée de blocs. S'il ne démarre pas, le même calcul se fait ici.
-  let relief = RELIEF_TRAVAILLEUR.creer();
+  // « &cpu » : le relief calculé sans la carte graphique, pour vérifier si
+  // son partage avec l'affichage fait saccader la carte (provisoire).
+  const optionsRelief = new URLSearchParams(location.search).has('cpu') ? { moteur: 'cpu' } : {};
+  let relief = RELIEF_TRAVAILLEUR.creer(optionsRelief);
   let infoRelief = null;
   if (relief) {
     try { infoRelief = await relief.pret; } catch (err) {
@@ -2400,7 +2403,7 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
     }
   }
   if (!relief) {
-    relief = RELIEF_TRAVAILLEUR.surFilPrincipal();
+    relief = RELIEF_TRAVAILLEUR.surFilPrincipal(optionsRelief);
     infoRelief = { ...(await relief.pret), filPrincipal: true };
   }
   const surAppareilPortatif = surMobile();
