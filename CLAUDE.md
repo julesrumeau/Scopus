@@ -1097,8 +1097,24 @@ décoratif : au-delà, la Géoplateforme répond 404 — mesuré en Ariège, à 
 en Vanoise, c'est le plafond de la couche et non une limite régionale (voir
 « La carte »).
 
-Les tuiles passent par `RESEAU.recuperer` comme tout le reste — file bornée,
-réessais, 400 fantôme traité comme transitoire. Une tuile qui manque après ses
+Les tuiles passent par `RESEAU.recuperer` — réessais, 400 fantôme traité comme
+transitoire — mais dans **leur propre file**, `tuiles`, à 16 requêtes en vol
+(`CONFIG.reseau.requetesParallelesTuiles`). Elles partageaient d'abord celle
+des COPC, bornée à 3 pour l'API de téléchargement (10 requêtes/s par IP) :
+une photo de dalle mettait 8,3 à 8,6 s, contre 1,5 à 2,1 s dans sa file —
+mesuré dans Chrome sur quatre dalles distinctes, pour que le cache ne serve
+rien. Le service des tuiles n'a pas la même limite : aucun refus mesuré
+jusqu'à ~145 tuiles/s, rafales comprises (aucun chiffre publié). 16 reste
+loin du nombre de flux qu'une connexion HTTP/2 accepte, tout l'hôte passant
+par une seule — voir « Pièges connus ».
+
+À garder pour plusieurs dalles : la photo coûte ~100 tuiles par km² au zoom
+18, donc croît avec la surface. Le WMS de l'IGN (`HR.ORTHOIMAGERY.ORTHOPHOTOS`
+sur `wms-r`) rend une image de la taille demandée — jusqu'à 5010 × 5010 px —
+**directement en Lambert-93** : une dalle entière en ~4,3 s d'une seule
+requête, sans maillage de redressement. Plus lent que les tuiles en parallèle
+pour une dalle, mais c'est la bonne forme pour une photo à la taille de
+l'écran. Une tuile qui manque après ses
 réessais laisse un trou gris, elle ne fait pas échouer la photo entière : une
 zone sans orthophoto est un cas normal, et le relief, lui, est là.
 

@@ -109,6 +109,12 @@ const CONFIG = {
     // le facteur limitant du chargement est la décompression, pas le débit,
     // donc rien n'est perdu à rester poli.
     requetesParallèles: 3,
+    // Tuiles WMTS (photo aérienne, plan), dans leur propre file : leur service
+    // n'a pas la limite du téléchargement. Mesuré sans refus jusqu'à ~145
+    // tuiles/s. 16 en vol laissent de la marge sous le nombre de flux qu'une
+    // connexion HTTP/2 accepte (au-delà, `REFUSED_STREAM`, voir CLAUDE.md), tout
+    // l'hôte data.geopf.fr passant par une seule connexion.
+    requetesParallelesTuiles: 16,
     tentatives: 6,
     reculInitialMs: 700,
     // Délai maximal par tentative. `fetch` n'en a pas : sans lui, une requête
