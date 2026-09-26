@@ -123,6 +123,7 @@ class Carte {
       // trois requêtes WFS en vol au moment précis où les tuiles repartent.
       minuteur = setTimeout(() => this.rafraichirBlocs(), 500);
     });
+    this.selectionAuClic = true;
     this.map.on('click', (e) => this._surClic(e));
 
     // Dire qu'on est au maximum, plutôt que de laisser croire à une image
@@ -202,6 +203,9 @@ class Carte {
   }
 
   async _surClic(e) {
+    // Vue normale (app.js, MODE_VUE) : le relief suit la vue, un clic ne
+    // sélectionne plus de dalle.
+    if (!this.selectionAuClic) return;
     const { lat, lng } = e.latlng;
     await this.selectionnerAuPoint(lng, lat);
   }

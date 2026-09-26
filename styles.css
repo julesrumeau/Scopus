@@ -1071,3 +1071,31 @@ select:focus { outline: 1px solid var(--accent); }
 @media (max-height: 760px) {
   .accueil-boite { gap: 10px; padding: 20px 24px; }
 }
+
+/* ── Mode vue (par défaut) ──────────────────────────────────────────────────
+   Le relief se calcule pour la vue affichée : l'ancien parcours par dalle se
+   retire. « ?dalle » dans l'adresse le rend, le temps de la transition. */
+body[data-mode="vue"] #bandeau-nuage,
+body[data-mode="vue"] #info-dalle,
+body[data-mode="vue"] #detail-dalle,
+body[data-mode="vue"] #bloc-resolution,
+body[data-mode="vue"] #onglet-2d,
+body[data-mode="vue"] #onglet-3d,
+body[data-mode="vue"] #section-analyse { display: none !important; }
+body[data-mode="dalle"] #section-vue { display: none !important; }
+.classes-sol { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; margin-top: 4px; }
+.classes-sol .case { margin: 0; }
+/* Au-dessus du relief (450) et du rideau (700), sous les contrôles de Leaflet. */
+.avis-zoom {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 750;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: rgba(11, 14, 19, 0.85);
+  color: #dbe1ea;
+  font-size: 14px;
+  pointer-events: none;
+}
+

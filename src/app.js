@@ -481,6 +481,12 @@ function majLien() {
  * que la dalle soit chargée — il n'y a rien à cadrer avant.
  */
 function ouvrirLien(lien) {
+  // Vue normale : le lien cadre la carte, et le relief de la vue suit. Plus de
+  // dalle à sélectionner, ni rien à charger d'un bloc.
+  if (MODE_VUE) {
+    requestAnimationFrame(() => { carte.invalider(); carte.map.setView([lien.lat, lien.lon], lien.zoom); });
+    return;
+  }
   // Loin de tout, aucune dalle n'est sélectionnée : rien n'attendra de
   // chargement, et retenir la vue bloquerait l'écriture du lien pour rien.
   const selectionnable = lien.zoom >= CONFIG.carte.zoomGrille
@@ -575,6 +581,16 @@ document.addEventListener('pointerdown', (e) => {
   if (!e.target.closest('.partage')) basculerMenuPartage(false);
 });
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') basculerMenuPartage(false); });
+
+// ── Mode ────────────────────────────────────────────────────────────────────
+//
+// Par défaut, le relief se calcule pour la vue affichée, sans dalle à choisir
+// (spec docs/superpowers/specs/2026-09-26-flux-vue-design.md). « ?dalle » dans
+// l'adresse rend l'ancien parcours — choisir une dalle, la charger, la lire en
+// 2D ou en 3D — le temps de la transition. La feuille de style retire ce qui
+// n'a pas cours dans le mode (`body[data-mode]`).
+const MODE_VUE = !new URLSearchParams(location.search).has('dalle');
+document.body.dataset.mode = MODE_VUE ? 'vue' : 'dalle';
 
 // ── Carte ───────────────────────────────────────────────────────────────────
 
@@ -2328,6 +2344,13 @@ function selectionnerDalleParIndices(x, y, zoom = 16) {
 $('btn-exemple').addEventListener('click', async () => {
   masquerAccueil();
   basculerVue('carte');
+  if (MODE_VUE) {
+    // Le Bois des Caures cadré : le relief de la vue arrive seul.
+    const { x, y } = CONFIG.carte.dalleExemple;
+    const c = PROJ.versWGS84(x * 1000 + 500, y * 1000 + 500);
+    requestAnimationFrame(() => { carte.invalider(); carte.allerA(c.lon, c.lat, 16); });
+    return;
+  }
   const { x, y } = CONFIG.carte.dalleExemple;
   await selectionnerDalleParIndices(x, y);
   // `surDalle` publie `etat.promesseIndex` de façon synchrone avant que
@@ -2345,7 +2368,14 @@ $('btn-carte-directe').addEventListener('click', entrerDansLaCarte);
 // les blocs de la vue se chargent, se dessinent en contours, et le relief de
 // la vue se calcule et se pose en image de contrôle. N'agit que si l'adresse
 // porte « ?flux ».
-if (new URLSearchParams(location.search).has('flux')) (async () => {
+if (MODE_VUE) (async () => {
+  // Pas de dalle à sélectionner au clic ; la 2D et la 3D attendent leur
+  // retour sur le relief de la vue (TODO #3, #4) — désactivées, y compris aux
+  // raccourcis clavier, que basculerVue refuse pour un onglet désactivé.
+  carte.selectionAuClic = false;
+  $('onglet-2d').disabled = true;
+  $('onglet-3d').disabled = true;
+
   // Chronométrage du fil principal, avec « &chrono » dans l'adresse : où part
   // le temps quand la carte ralentit. Chaque morceau de travail mesuré est
   // compté (appels, total, pire) ; les « tâches longues » sont celles que le
@@ -2415,7 +2445,8 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
     }, 5000);
   }
 
-  const calque = new CalqueFlux().addTo(carte.map);
+  // Les contours des blocs chargés, pour voir le chargement : « &debug ».
+  const calque = new URLSearchParams(location.search).has('debug') ? new CalqueFlux().addTo(carte.map) : null;
   const reliefCalque = new CalqueRelief().addTo(carte.map);
   // Le calcul du relief tourne dans un worker (relief-travailleur.js) : sur le
   // fil principal, il figeait la carte une à plusieurs secondes à chaque
@@ -2454,6 +2485,8 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
   const majStatut = () => {
     const e = dernierEtat;
     if (!e) return;
+    $('vue-etat').textContent = e.attente && !e.tropLarge
+      ? `Affinage… ${e.attente} bloc${e.attente > 1 ? 's' : ''} attendu${e.attente > 1 ? 's' : ''}` : '';
     statut((e.tropLarge
       ? `Flux : ${e.surfaceKm2.toFixed(0)} km² affichés, trop pour les points (seuil ${CONFIG.flux.surfaceMaxPointsKm2} km²) — zoomez`
       : `Flux : ${e.surfaceKm2.toFixed(1)} km² · ${e.dallesOuvertes} dalles · ${e.charges} blocs · ${milliers(e.points)} points`
@@ -2469,6 +2502,16 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
   // fin avec la vue du moment.
   let enCalcul = false, aRefaire = false;
   let contrasteFlux = 1, dernieresClasses = [];
+  let classesSolFlux = new Set(CONFIG.raster.classesSolDefaut), classesAffichees = '';
+  // Une case par classe présente dans les points reçus, cochée si elle compte
+  // comme sol. Reconstruite seulement quand la liste change.
+  const majClassesSol = () => {
+    const cle = dernieresClasses.map(([c]) => c).join(',');
+    if (cle === classesAffichees) return;
+    classesAffichees = cle;
+    $('vue-classes-sol').innerHTML = dernieresClasses.map(([c]) => `<label class="case"><input type="checkbox" value="${c}"`
+      + `${classesSolFlux.has(c) ? ' checked' : ''}><span>${NOMS_CLASSES[c] || `classe ${c}`}</span></label>`).join('');
+  };
   // Palettes de 256 couleurs, une par couche, calculées une fois.
   const luts = new Map();
   const lutCouche = (cle) => {
@@ -2481,7 +2524,9 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
     // droit reste noir et le statut dit de zoomer. Le MNT de l'IGN servait ici
     // (mnt-ign.js), retiré à l'usage : on ne savait plus si ce qu'on voyait
     // venait de lui ou du calcul sur les points.
-    if (!vueCourante || FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2) {
+    const tropLarge = vueCourante && FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2;
+    $('avis-zoom').hidden = !tropLarge;
+    if (!vueCourante || tropLarge) {
       reliefCalque.vider();
       texteRelief = '';
       majStatut();
@@ -2510,6 +2555,7 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
           + `, couche ${r.recalcul ? (r.dureeCouche / 1000).toFixed(2) + ' s' : 'gardée'}, image ${((r.dureeImage || 0) / 1000).toFixed(2)} s)`
           + ` · ${geo.W}×${geo.H} cases de ${geo.pas.toFixed(2)} m`;
         dernieresClasses = r.classes || [];
+        majClassesSol();
       }
     } catch (err) {
       console.error(err);
@@ -2539,8 +2585,8 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
     decoder: NUAGE.decoder,
     cache: CACHE_DISQUE.creer(CACHE_DISQUE.stockageIndexedDB(), CONFIG.flux.quotaDisqueOctets),
     config: { ...CONFIG.flux, budgetPoints: budget },
-    surBloc: (b) => { calque.ajouter(b); relief.ajouter(b); planifierRelief(1500); },
-    surLibere: (cle) => { calque.retirer(cle); relief.retirer(cle); },
+    surBloc: (b) => { calque?.ajouter(b); relief.ajouter(b); planifierRelief(1500); },
+    surLibere: (cle) => { calque?.retirer(cle); relief.retirer(cle); },
     surEtat: (e) => { dernierEtat = e; majStatut(); },
   };
   if (chronometrer) {
@@ -2569,26 +2615,40 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
     planifierRelief(0);
   };
 
-  // Choix de la couche, provisoire comme le calque.
-  const choix = L.control({ position: 'topright' });
-  choix.onAdd = () => {
-    const s = L.DomUtil.create('select');
-    // Sans l'ombrage : sur une grille au pixel, il sortait pâle et peu lisible.
-    // Le Sky-View Factor par défaut, comme la vue que montre l'accueil.
-    for (const c of RELIEF.COUCHES) {
-      if (c.cle === 'ombrage') continue;
-      s.add(new Option(c.libelle, c.cle, c.cle === coucheFlux, c.cle === coucheFlux));
-    }
-    L.DomEvent.disableClickPropagation(s);
-    s.addEventListener('change', () => {
-      coucheFlux = s.value;
-      reliefCalque.definirLibelle(s.selectedOptions[0].text);
-      planifierRelief(0);
-    });
-    return s;
+  // ── Le panneau du relief ──
+  // Sans l'ombrage : sur une grille au pixel, il sortait pâle et peu lisible.
+  // Le Sky-View Factor par défaut, comme la vue que montre l'accueil.
+  const selCouche = $('vue-couche');
+  for (const c of RELIEF.COUCHES) {
+    if (c.cle === 'ombrage') continue;
+    selCouche.add(new Option(c.libelle, c.cle, c.cle === coucheFlux, c.cle === coucheFlux));
+  }
+  const majCouche = () => {
+    const c = RELIEF.COUCHES.find((x) => x.cle === coucheFlux);
+    $('vue-aide').textContent = c.aide;
+    reliefCalque.definirLibelle(c.libelle);
   };
-  choix.addTo(carte.map);
-  reliefCalque.definirLibelle(RELIEF.COUCHES.find((c) => c.cle === coucheFlux).libelle);
+  selCouche.addEventListener('change', () => { coucheFlux = selCouche.value; majCouche(); planifierRelief(0); });
+  majCouche();
+  // Le contraste ne recalcule pas la couche (gardée dans le worker) : seule
+  // l'image est refaite.
+  $('vue-contraste').addEventListener('input', (e) => {
+    contrasteFlux = Number(e.target.value);
+    $('val-vue-contraste').textContent = `×${contrasteFlux.toFixed(1)}`;
+    planifierRelief(0);
+  });
+  $('vue-sursol').addEventListener('change', (e) => { relief.reglages({ inclureSursol: e.target.checked }); planifierRelief(0); });
+  // Les classes du sol s'appliquent tout de suite : les points sont dans le
+  // worker, il n'y a rien à retélécharger — contrairement à l'ancien parcours
+  // par dalle, qui ne gardait que ses grilles.
+  $('vue-classes-sol').addEventListener('change', () => {
+    classesSolFlux = new Set([...$('vue-classes-sol').querySelectorAll('input:checked')].map((i) => Number(i.value)));
+    relief.reglages({ classesSol: classesSolFlux });
+    planifierRelief(0);
+  });
+  $('recherche').closest('section').querySelector('h2').textContent = 'Lieu';
+  VUES[0][3] = 'Zoomez sur une zone : le relief se calcule tout seul · glisser le rideau pour comparer';
+  $('aide-vue').textContent = VUES[0][3];
 
   carte.map.on('moveend', majVueFlux);
   majVueFlux();
@@ -2602,7 +2662,11 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
 // fragment au format courant dès qu'elle bouge.
 function suivreLien() {
   const lien = LIEN.lire(location.hash);
-  if (lien?.dalle) selectionnerDalleParIndices(lien.dalle.x, lien.dalle.y);
+  if (lien?.dalle && MODE_VUE) {
+    // Un ancien lien « #d=x,y » : le centre de la dalle, au zoom où l'on lit.
+    const c = PROJ.versWGS84(lien.dalle.x * 1000 + 500, lien.dalle.y * 1000 + 500);
+    ouvrirLien({ lon: c.lon, lat: c.lat, zoom: 16 });
+  } else if (lien?.dalle) selectionnerDalleParIndices(lien.dalle.x, lien.dalle.y);
   else if (lien) ouvrirLien(lien);
 }
 if (location.hash.length > 1) {

@@ -154,6 +154,24 @@
       </div>
     </section>
 
+    <!-- ─── Relief de la vue : la vue normale (sans « ?dalle ») ──────────── -->
+    <section class="etape" data-vue="carte" id="section-vue">
+      <h2>Relief</h2>
+      <label class="champ"><span>Couche</span><select id="vue-couche"></select></label>
+      <p class="note" id="vue-aide"></p>
+      <label class="champ">
+        <span>Contraste <b id="val-vue-contraste">×1.0</b></span>
+        <input type="range" id="vue-contraste" min="0.4" max="5" step="0.1" value="1">
+      </label>
+      <label class="case">
+        <input type="checkbox" id="vue-sursol" checked>
+        <span>Compléter le sol par les retours non classés
+          <small>(ruines et tas de pierres, sous 3 m)</small></span>
+      </label>
+      <div class="champ"><span>Classes du sol</span><div id="vue-classes-sol" class="classes-sol"></div></div>
+      <p class="note" id="vue-etat"></p>
+    </section>
+
     <!-- ─── 3D : tant que rien n'est chargé ──────────────────────────────── -->
     <section class="etape" data-vue="3d" id="section-vide-3d">
       <h2>Nuage</h2>
@@ -481,7 +499,11 @@
         </svg>
       </button>
     </nav>
-    <div id="vue-carte" class="vue"></div>
+    <div id="vue-carte" class="vue">
+      <!-- Au-delà du seuil de surface, aucun point n'est demandé : le côté
+           relief reste noir, et ceci dit pourquoi. -->
+      <div id="avis-zoom" class="avis-zoom" hidden>Zoomez pour voir le relief</div>
+    </div>
     <div id="vue-2d" class="vue" hidden>
       <canvas id="canvas-2d"></canvas>
       <!-- Rideau de comparaison. La ligne et la poignée sont en DOM, pas dans le
