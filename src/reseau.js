@@ -50,10 +50,12 @@ const recul = (essai) =>
 /**
  * GET avec réessai. `signal` permet d'abandonner tout un chargement.
  * @param {string} url
- * @param {{plage?:[number,number], signal?:AbortSignal, type?:'buffer'|'json'|'texte', file?:'defaut'|'tuiles'}} opts
+ * @param {{plage?:[number,number], fin?:number, signal?:AbortSignal, type?:'buffer'|'json'|'texte', file?:'defaut'|'tuiles'}} opts
+ *   `fin` : les `fin` derniers octets du fichier ; la promesse rend alors
+ *   `{ octets, total }`, `total` étant la taille du fichier.
  */
 function recuperer(url, opts = {}) {
-  const { plage, signal, type = 'buffer', file = 'defaut' } = opts;
+  const { plage, fin, signal, type = 'buffer', file = 'defaut' } = opts;
 
   return enfiler(async () => {
     let dernierEchec;
@@ -62,7 +64,8 @@ function recuperer(url, opts = {}) {
       if (signal?.aborted) throw new DOMException('Chargement abandonné', 'AbortError');
 
       try {
-        const entetes = plage ? { Range: `bytes=${plage[0]}-${plage[1]}` } : undefined;
+        const entetes = plage ? { Range: `bytes=${plage[0]}-${plage[1]}` }
+          : fin ? { Range: `bytes=-${fin}` } : undefined;
 
         // Délai maximal **par tentative**, en plus du signal de l'appelant.
         //
@@ -105,6 +108,15 @@ function recuperer(url, opts = {}) {
         if (type === 'texte') return await rep.text();
 
         const buf = new Uint8Array(await rep.arrayBuffer());
+
+        // Fin de fichier : la taille totale est dans « Content-Range » (bytes
+        // a-b/total). Sans lui, le serveur a ignoré la plage et le fichier
+        // entier est là : on n'en garde que la fin demandée.
+        if (fin) {
+          const m = /\/(\d+)\s*$/.exec(rep.headers.get('content-range') || '');
+          if (m) return { octets: buf, total: Number(m[1]) };
+          return { octets: buf.length > fin ? buf.subarray(buf.length - fin) : buf, total: buf.length };
+        }
         if (!plage) return buf;
 
         // Le verdict se prend sur la **taille reçue**, jamais sur le statut.
