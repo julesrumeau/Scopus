@@ -1038,6 +1038,36 @@ un sélecteur.
 Et une couche qui échoue **retombe sur l'ombrage** plutôt que de laisser un côté
 noir : l'ombrage ne dépend ni du réseau ni d'un calcul long.
 
+### Lissage de l'affichage
+
+Une case à cocher, « Lisser l'affichage », remplace le carré plein par cellule
+par une interpolation bilinéaire entre les centres des quatre cellules
+voisines (`Vue2D._rendreLisse`). Cochée par défaut, après essai sur de vraies
+dalles.
+
+Ce qu'elle fait et ne fait pas : elle retire l'effet d'escalier qui se voit dès
+qu'une cellule de 50 cm couvre plusieurs pixels, **sans rien ajouter à la
+donnée** — la finesse réelle reste bornée par la densité de points sol, de
+l'ordre de 2 à 12 pts/m² selon les dalles (30 à 70 cm entre deux points). Le
+gain de précision, s'il existe, viendra de la façon de construire la surface
+(triangulation plutôt que minimum par cellule puis comblement), pas de
+l'affichage.
+
+Trois points à ne pas défaire :
+
+- **L'interpolation se fait entre centres de cellules**, d'où le décalage d'une
+  demi-cellule (`fx - 0.5`). Sans lui l'image lissée glisserait d'une
+  demi-cellule par rapport au rendu direct, et tracés comme rideau cesseraient
+  de tomber juste en cochant la case.
+- **Une voisine sans valeur fait retomber le pixel sur la cellule la plus
+  proche** : un trou reste un gris net, jamais une valeur mélangée à du vide.
+  Le test coûte zéro ligne de plus — une seule voisine NaN rend la somme NaN.
+- **Seulement agrandi** (`parCellule < 1`) : réduit, un pixel résume déjà
+  plusieurs cellules, et quatre lectures par pixel n'apporteraient rien.
+
+Mesuré en navigateur sur une dalle chargée : environ 19 ms par image lissée, la
+navigation reste fluide.
+
 ### La photo aérienne déformée dans la grille
 
 Le point technique qui décidait de tout : les tuiles arrivent en **Web

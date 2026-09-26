@@ -1452,6 +1452,7 @@ function majStats2D() {
  * change, et la vue se contente de redessiner. Sur le Sky-View Factor, refaire
  * le calcul à chaque cran coûterait des secondes par mouvement du curseur.
  */
+$('lisser-2d').addEventListener('change', (e) => vue2d.definirLissage(e.target.checked));
 $('contraste-relief').addEventListener('input', (e) => {
   contrasteRelief = Number(e.target.value);
   $('val-contraste').textContent = `×${contrasteRelief.toFixed(1)}`;
