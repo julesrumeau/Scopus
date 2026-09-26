@@ -198,10 +198,19 @@ function preparer(g, options = {}) {
   // Les cellules sans sol connu reçoivent la médiane approchée du reste : les
   // gradients et les flous ont besoin d'un nombre, la carte de validité dira
   // qu'il ne faut pas y croire.
-  let somme = 0, nb = 0;
-  for (let i = 0; i < N; i++) if (valide[i]) { somme += mnt[i]; nb++; }
-  const repli = nb ? somme / nb : 0;
-  for (let i = 0; i < N; i++) if (!valide[i]) { mnt[i] = repli; analyse[i] = repli; }
+  //
+  // `garderRepli`, au pas même de la grille (f = 1) : elles gardent l'altitude
+  // que le terrain leur a déjà donnée — la médiane de repli, lissée. C'est ce
+  // que la carte graphique produit sans rien calculer de plus (vue-relief.js),
+  // et les deux chemins doivent rendre la même surface.
+  if (p.garderRepli && f === 1) {
+    for (let i = 0; i < N; i++) if (!valide[i]) { mnt[i] = g.mnt[i]; analyse[i] = g.mnt[i]; }
+  } else {
+    let somme = 0, nb = 0;
+    for (let i = 0; i < N; i++) if (valide[i]) { somme += mnt[i]; nb++; }
+    const repli = nb ? somme / nb : 0;
+    for (let i = 0; i < N; i++) if (!valide[i]) { mnt[i] = repli; analyse[i] = repli; }
+  }
 
   return {
     W, H, N, pas: g.pas * f, mnt, analyse, valide, hauteur, trou, sommet, sommetCls,
