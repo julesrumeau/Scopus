@@ -324,7 +324,14 @@ function niveauPourAffichage(couts, budget = CONFIG.rendu.budgetAffichage) {
   return choisi;
 }
 
+/** Décompresse un bloc dans un worker de la grappe, démarrée au besoin. */
+async function decoder(charge) {
+  await grappe.demarrer();
+  return grappe.decoder(charge);
+}
+
 const NUAGE = {
+  decoder,
   charger,
   niveauPourAffichage,
   viderCacheOctets,
