@@ -22,6 +22,9 @@ const etat = {
   niveau: 0,
   abandonIndex: null,
   promesseIndex: null,
+  // Vue d'un lien ouvert (`LIEN.lire`), en attente du chargement de sa dalle
+  // pour s'appliquer en 2D et en 3D — voir `appliquerVueDuLien`.
+  vueDuLien: null,
   nuage: null,
   grille: null,
   resultat: null,
@@ -141,6 +144,7 @@ const surMobile = () => (navigator.maxTouchPoints || 0) > 0
 let vue3d = null;
 try {
   vue3d = new Vue3D($('canvas3d'), $('boussole'));
+  vue3d.onVue = () => majLien();
   vue3d.demarrer();
 } catch (e) {
   $('onglet-3d').disabled = true;
@@ -172,6 +176,7 @@ const vue2d = new Vue2D($('canvas-2d'), {
   // Mode sélection : `p` est déjà résolu par `lire()`, la même valeur que le
   // survol affiche dans le HUD.
   surSelectionPoint: (p) => { if (p) afficherSelection(p.x, p.y, p.altitude, p.hauteur); },
+  surVue: () => majLien(),
 });
 vue2d.demarrer();
 
@@ -410,21 +415,120 @@ if (vue3d) {
   };
 }
 
-// ── Lien partageable (#3) ────────────────────────────────────────────────────
+// ── Lien partageable ────────────────────────────────────────────────────────
 //
-// Le lien ne porte que la dalle : ses deux indices kilométriques Lambert-93,
-// dont la grille se déduit exactement — voir « La carte » dans CLAUDE.md. Pas
-// les seuils (trop nombreux, changeants, illisibles en URL), pas la résolution,
-// pas l'onglet : ouvrir un lien sélectionne la dalle, exactement comme un clic
-// sur la carte, et laisse le choix de charger le nuage à qui l'ouvre.
+// Le lien porte la **vue**, au format d'osm.org (`#map=zoom/lat/lon`) complété
+// comme MapLibre en 3D (`/orientation/inclinaison`) — voir `lien.js`. Il suit
+// l'onglet affiché : la carte, le centre et l'échelle de la 2D, ou le point
+// visé et les angles de la caméra 3D. Pas les seuils ni les couches : ouvrir un
+// lien cadre la carte et sélectionne la dalle sous le centre, exactement comme
+// un clic, et laisse le choix de charger le nuage à qui l'ouvre.
 
-function hashDeDalle(d) {
-  return `d=${Math.round(d.emprise.xmin / 1000)},${Math.round(d.emprise.ymin / 1000)}`;
+/** La vue de l'onglet affiché, dans les termes du lien. `null` si rien à dire. */
+function vueCourante() {
+  const onglet = $('panneau').dataset.vue;
+  if (onglet === '2d' && vue2d.grille) {
+    const v = vue2d.vue();
+    const { lon, lat } = PROJ.versWGS84(v.x, v.y);
+    return { lat, lon, zoom: LIEN.zoomDepuisResolution(v.metresParPixelCss, lat) };
+  }
+  if (onglet === '3d') {
+    const c = vue3d?.camera();
+    if (!c) return null;
+    const { lon, lat } = PROJ.versWGS84(c.x, c.y);
+    return {
+      lat, lon, zoom: LIEN.zoomDepuisResolution(c.metresParPixelCss, lat),
+      ...LIEN.orientationDepuisCamera(c.azimut, c.elevation),
+    };
+  }
+  const centre = carte.map.getCenter();
+  return { lat: centre.lat, lon: centre.lng, zoom: carte.map.getZoom() };
 }
 
-function dalleDepuisHash(hash) {
-  const m = /^#d=(-?\d+),(-?\d+)$/.exec(hash);
-  return m ? { x: Number(m[1]), y: Number(m[2]) } : null;
+/**
+ * Réécrit le fragment d'après la vue affichée. `replaceState`, jamais
+ * `location.hash =` : le second empile une entrée d'historique à chaque
+ * déplacement, et le bouton Retour deviendrait inutilisable.
+ */
+function ecrireLien() {
+  clearTimeout(minuteurLien);
+  // L'accueil ouvert, la carte bouge toute seule (cadrage initial) : écrire un
+  // fragment ferait sauter l'accueil au prochain rechargement.
+  if (!$('accueil').hidden) return;
+  // Un lien qui vient d'être ouvert attend le chargement de sa dalle pour
+  // s'appliquer en 2D et en 3D (`appliquerVueDuLien`) : ne pas l'écraser
+  // d'ici là par la vue de carte, qui n'en garde ni l'échelle fine ni les angles.
+  if (etat.vueDuLien) return;
+  const v = vueCourante();
+  if (!v) return;
+  const fragment = '#' + LIEN.ecrire(v);
+  if (fragment !== location.hash) history.replaceState(null, '', fragment);
+}
+
+/**
+ * Regroupe les demandes : la 3D en émet une par image pendant une animation,
+ * et Safari refuse plus de 100 `replaceState` par 30 secondes.
+ */
+let minuteurLien = 0;
+function majLien() {
+  clearTimeout(minuteurLien);
+  minuteurLien = setTimeout(ecrireLien, 300);
+}
+
+/**
+ * Ouvre un lien : cadre la carte et, assez près pour qu'une dalle ait un sens,
+ * sélectionne celle sous le centre. La vue fine (échelle 2D, angles 3D) attend
+ * que la dalle soit chargée — il n'y a rien à cadrer avant.
+ */
+function ouvrirLien(lien) {
+  etat.vueDuLien = lien;
+  requestAnimationFrame(async () => {
+    // Fermer l'accueil rend au panneau sa colonne de 380 px, redimensionnement
+    // purement CSS que Leaflet ne détecte pas tout seul.
+    carte.invalider();
+    carte.map.setView([lien.lat, lien.lon], lien.zoom);
+    if (lien.zoom >= CONFIG.carte.zoomGrille && PROJ.dansEmpriseFrance(lien.lon, lien.lat)) {
+      await carte.selectionnerAuPoint(lien.lon, lien.lat);
+    }
+  });
+}
+
+/**
+ * Après le chargement d'une dalle : si un lien ouvert attendait, et que son
+ * centre est dans cette dalle, la 2D et la 3D reprennent sa vue. Un lien
+ * écrit depuis la 3D — donc incliné ou tourné — y ramène directement.
+ */
+function appliquerVueDuLien(dalle) {
+  const v = etat.vueDuLien;
+  if (!v) return;
+  etat.vueDuLien = null;
+  const { x, y } = PROJ.versLambert93(v.lon, v.lat);
+  const e = dalle.emprise;
+  if (x < e.xmin || x > e.xmax || y < e.ymin || y > e.ymax) return;
+
+  const resolution = LIEN.resolutionDepuisZoom(v.zoom, v.lat);
+  vue2d.placer(x, y, resolution);
+  if (vue3d && (v.orientation || v.inclinaison)) {
+    // L'onglet d'abord : la distance se déduit de la hauteur du canevas, qui
+    // ne se mesure qu'une fois affiché — masqué, le zoom repris dérivait d'un
+    // quart de cran.
+    basculerVue('3d');
+    const { azimut, elevation } = LIEN.cameraDepuisOrientation(v.orientation, v.inclinaison);
+    vue3d.placerCamera(x, y, vue2d.lire(x, y)?.altitude ?? null, resolution, azimut, elevation);
+  }
+  majLien();
+}
+
+/**
+ * Le moindre geste sur la carte abandonne un lien en attente : qui explore
+ * ailleurs ne veut plus être ramené à la vue du lien après le chargement.
+ */
+for (const evt of ['pointerdown', 'wheel', 'keydown']) {
+  $('vue-carte').addEventListener(evt, () => {
+    if (!etat.vueDuLien) return;
+    etat.vueDuLien = null;
+    majLien();
+  }, { passive: true });
 }
 
 /**
@@ -434,6 +538,7 @@ function dalleDepuisHash(hash) {
  * et marche partout, texte déjà sélectionné pour un Ctrl+C manuel.
  */
 async function copierLien() {
+  ecrireLien();   // la dernière demande peut encore attendre son minuteur
   try {
     await navigator.clipboard.writeText(location.href);
     statut('Lien copié dans le presse-papiers');
@@ -456,10 +561,6 @@ const carte = new Carte($('vue-carte'), {
       + ligneDetail('Emprise', `X ${d.emprise.xmin}–${d.emprise.xmax}\nY ${d.emprise.ymin}–${d.emprise.ymax}`);
     $('info-dalle').hidden = true;
     $('rangee-partager').hidden = false;
-    // `replaceState`, jamais `location.hash =` : la seconde empile une entrée
-    // d'historique à chaque dalle choisie, et le bouton Retour du navigateur
-    // deviendrait inutilisable après quelques clics d'exploration.
-    history.replaceState(null, '', '#' + hashDeDalle(d));
     // Publiée sur `etat` : c'est ce que le bouton « Voir un exemple » attend
     // pour savoir quand l'index COPC est lu et déclencher le chargement à sa
     // place, sans dupliquer cette lecture.
@@ -480,6 +581,7 @@ const carte = new Carte($('vue-carte'), {
   surRecherche: (m) => statut(m, 'travail'),
   surErreur: alerter,
 });
+carte.map.on('moveend', majLien);
 
 // ── Recherche de lieu ───────────────────────────────────────────────────────
 
@@ -821,6 +923,7 @@ async function chargerNuage() {
     // Puis les deux couches, hors du voile d'analyse : la photo demande une
     // centaine de tuiles, et `preparer2D` pose son propre voile pour chacune.
     await preparer2D();
+    appliquerVueDuLien(dalle);
 
     // Si l'utilisateur regardait le nuage en mode relief, la nouvelle dalle doit
     // s'afficher pareil : sans ça elle reviendrait en hauteurs, sous un bouton
@@ -2090,6 +2193,7 @@ function basculerVue(quoi) {
   if (quoi === 'carte') requestAnimationFrame(() => carte.invalider());
   else if (quoi === '3d') vue3d?.invalider();
   else preparer2D();
+  majLien();   // le lien décrit l'onglet affiché
 }
 
 $('onglet-carte').addEventListener('click', () => basculerVue('carte'));
@@ -2208,11 +2312,25 @@ $('btn-exemple').addEventListener('click', async () => {
 $('btn-carte-directe').addEventListener('click', entrerDansLaCarte);
 
 // Un hash non vide veut dire qu'on arrive par un lien qui désigne déjà une
-// destination : s'interposer serait une gêne.
+// destination : s'interposer serait une gêne. Les anciens liens `#d=x,y`, qui
+// ne portaient que la dalle, restent lisibles ; la carte réécrit ensuite le
+// fragment au format courant dès qu'elle bouge.
+function suivreLien() {
+  const lien = LIEN.lire(location.hash);
+  if (lien?.dalle) selectionnerDalleParIndices(lien.dalle.x, lien.dalle.y);
+  else if (lien) ouvrirLien(lien);
+}
 if (location.hash.length > 1) {
   masquerAccueil();
-  const cible = dalleDepuisHash(location.hash);
-  if (cible) selectionnerDalleParIndices(cible.x, cible.y);
+  suivreLien();
 }
+// Un fragment modifié à la main dans la barre d'adresse — ou par un greffon —
+// ne recharge pas la page : on le suit quand même. `replaceState` ne déclenche
+// pas cet évènement, nos propres écritures n'y repassent donc pas.
+window.addEventListener('hashchange', () => {
+  masquerAccueil();
+  basculerVue('carte');
+  suivreLien();
+});
 
 })();

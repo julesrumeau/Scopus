@@ -591,10 +591,10 @@ réellement : calculer le relief, sans rien repérer à la place de qui regarde.
 
 Trois points de mise en œuvre à ne pas défaire :
 
-- **Un `location.hash` non vide saute l'accueil.** Il désigne maintenant une
-  dalle précise plutôt qu'une simple présence — voir « Le lien partageable ».
-  Sans cela, un lien partagé ouvrirait une page de présentation au lieu de la
-  dalle qu'il désigne.
+- **Un `location.hash` non vide saute l'accueil.** Il désigne une vue précise
+  plutôt qu'une simple présence — voir « Le lien partageable ». Sans cela, un
+  lien partagé ouvrirait une page de présentation au lieu de l'endroit qu'il
+  désigne.
 - **Les raccourcis clavier sont neutralisés tant que l'accueil est là.** Ils
   piloteraient sinon un outil que l'écran recouvre entièrement.
 - **La colonne du panneau se réduit à zéro, elle ne devient pas seulement
@@ -612,22 +612,71 @@ cadre. Mesuré ainsi à 380 px, la page tient.
 
 ## Le lien partageable
 
-Comprimis retenu avec l'utilisateur, plus étroit que ce que #3 envisageait au
-départ : le hash ne porte que la **dalle**, deux indices kilométriques
-Lambert-93 (`#d=592,6183`) — pas la résolution, pas l'onglet, pas les seuils.
-Ouvrir un lien **sélectionne** la dalle, exactement l'état obtenu par un clic
-sur la carte, et laisse le choix de charger le nuage à qui l'ouvre : le
-téléchargement engage jusqu'à 190 Mo, personne ne doit le subir en ouvrant un
-lien.
+**Le lien porte la vue, au format que tout le monde lit** : `#map=zoom/lat/lon`,
+celui d'osm.org, complété en 3D comme le fait MapLibre —
+`#map=zoom/lat/lon/orientation/inclinaison`, les deux derniers champs n'étant
+écrits que s'ils ne sont pas nuls. Premier jet (`#d=592,6183`) : la dalle seule,
+deux indices kilométriques Lambert-93. Remplacé en septembre 2026 à la demande
+de contributeurs OSM : un lien Scopus doit s'ouvrir tel quel dans osm.org, iD
+ou JOSM, ou passer d'une carte à l'autre par un greffon du genre OSMSmartMenu —
+repérer un endroit dans Scopus, et deux clics plus tard l'éditer.
 
-`Carte.selectionnerAuPoint(lon, lat)` est le point de convergence : un clic sur
-la carte (`_surClic`) et un lien partagé y passent tous les deux, jusqu'à la
-requête WFS qui donne l'URL du COPC — aucune divergence possible sur ce qui
-compte. Au clic, le hash est réécrit par `history.replaceState`, jamais
-`location.hash =` : la seconde empile une entrée d'historique à chaque dalle
-désignée, et le bouton Retour du navigateur deviendrait inutilisable après
-quelques clics d'exploration — vérifié en navigateur, deux sélections
-successives ne laissent qu'une entrée.
+Pourquoi ce format et pas un autre, vérifié dans les sources plutôt que
+supposé : `OSM.parseHash` (openstreetmap-website) ne lit que les trois premiers
+champs de `map=`, zoom par `parseInt`, et ignore tout le reste, `&` compris ;
+`Hash.getHashString` (maplibre-gl-js) écrit orientation et inclinaison à la
+suite, et seulement si elles sont non nulles. Un lien de carte ou de 2D reste
+donc exactement un lien osm.org, et un lien 3D en est un aussi pour qui ne sait
+pas lire la suite. `test/lien.test.js` rejoue la lecture d'osm.org sur ce que
+Scopus écrit.
+
+Quatre décisions :
+
+- **Le zoom est celui de Leaflet et d'osm.org** (256 px au zoom 0), pas celui de
+  MapLibre, décalé d'un cran. En 2D et en 3D, il se déduit de la résolution au
+  sol (`LIEN.zoomDepuisResolution`) : l'échelle de la vue 2D, ou en 3D la
+  distance de la caméra ramenée au pixel au point visé, par le même
+  `FOV_Y_DEG` que le rendu. Deux décimales, parce que la 2D et la 3D zooment en
+  continu ; osm.org les tronque sans broncher.
+- **Le lien suit l'onglet affiché**, à chaque déplacement : la carte, la 2D ou
+  la caméra 3D. `replaceState`, jamais `location.hash =` — le second empilerait
+  une entrée d'historique par geste — et regroupé à 300 ms (`majLien`), parce
+  que la 3D rend une image par trame pendant une animation et que Safari
+  refuse plus de 100 `replaceState` par 30 secondes. Rien n'est écrit tant que
+  l'accueil est ouvert : le cadrage initial de la carte ferait sinon sauter
+  l'accueil au rechargement suivant.
+- **Ouvrir un lien sélectionne la dalle sous le centre**, et rien de plus —
+  choix de l'utilisateur, plutôt que d'ajouter la dalle au lien. La
+  contrepartie est connue : un lien écrit après s'être éloigné de la dalle
+  choisie ouvre la dalle voisine. Accepté, parce que la dalle est vouée à
+  s'effacer de l'interface si le chargement devient instantané. Loin de tout
+  (zoom < `zoomGrille`), le lien cadre la carte sans rien sélectionner. Le
+  téléchargement, lui, n'est jamais lancé par un lien : jusqu'à 190 Mo,
+  personne ne doit le subir en cliquant.
+- **L'échelle fine et les angles attendent la dalle.** `etat.vueDuLien` garde la
+  vue du lien jusqu'au chargement ; `appliquerVueDuLien` la reporte sur la 2D
+  et, si le lien est incliné ou tourné, sur la caméra 3D, en y basculant.
+  L'onglet 3D doit être affiché **avant** de placer la caméra : la distance se
+  déduit de la hauteur du canevas, et masqué, le zoom repris dérivait d'un
+  quart de cran (17 → 16,77, mesuré). Tant qu'elle attend, la vue du lien n'est
+  pas réécrite par celle de la carte ; le moindre geste sur la carte
+  l'abandonne.
+
+Les conventions d'angle sont éprouvées contre le vrai `Vue3D._repere`, pas
+contre une formule recopiée dans le test : orientation 90 regarde vers l'est,
+inclinaison 0 regarde à la verticale. La vue de dessus de Scopus s'arrête à
+89°, et ce degré-là n'est pas écrit — ce serait « /1 » au bout de chaque lien
+de vue de dessus.
+
+**Les anciens liens `#d=x,y` restent lisibles**, et sont réécrits au format
+courant dès que la carte bouge. Attention à leur sens : `x, y` y sont les
+indices du coin **sud-ouest** (`xmin/1000`, `ymin/1000`), si bien que `#d=877,6904`
+désigne la dalle nommée `0877_6905` — le nom IGN porte le Y du bord nord. Ne pas
+« corriger » : ce sont des liens déjà publiés.
+
+Un fragment modifié à la main dans la barre d'adresse, ou par un greffon, est
+suivi (`hashchange`) ; nos propres `replaceState` ne déclenchent pas cet
+évènement et n'y repassent donc pas.
 
 Le lien se copie par `navigator.clipboard.writeText`, avec repli sur
 `prompt()` : l'API refuse parfois en silence — mesuré, `NotAllowedError`, y
@@ -642,10 +691,13 @@ avant d'être recentrée : un redimensionnement purement CSS, sans évènement
 `resize`, que Leaflet ne détecte jamais tout seul. Même piège que le retour sur
 l'onglet Carte.
 
-Parcours vérifié de bout en bout en navigateur réel (`.tmp/lien-dalle.html`,
-non versionné) : sélection sur la carte → hash écrit → rechargement à froid sur
-ce hash → même dalle resélectionnée sans le moindre clic, aucune entrée
-d'historique en trop.
+Parcours vérifié en Chromium réel, en `file://` et en temps réel (harnais
+Playwright hors dépôt) : sans fragment, l'accueil reste et rien n'est écrit ;
+la carte glissée réécrit le fragment sans empiler d'historique ; un lien
+`#map=` sélectionne la dalle sous le centre ; un ancien `#d=` retombe sur la
+même dalle et se réécrit ; un lien 3D chargé arrive en 3D avec son zoom, son
+centre et ses angles, puis suit la molette ; l'onglet 2D réécrit un lien sans
+angles.
 
 ## Le panneau suit la vue
 
@@ -1838,7 +1890,7 @@ masquée ».
 | États vides et messages utiles | ✅ |
 | Borne de zoom de la carte | ✅ |
 | Vue d'ouverture sur la France entière | ✅ |
-| Lien partageable | ✅ — la dalle seule ; voir « Le lien partageable » |
+| Lien partageable | ✅ — la vue, au format osm.org (`#map=zoom/lat/lon`, + angles en 3D) ; voir « Le lien partageable » |
 
 ## Jalon de publication
 

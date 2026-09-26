@@ -68,6 +68,9 @@ class Vue3D {
     this.mode = 'deplacement';
     this.onSelectionPoint = null;
     this.onPointMesure = null;
+    // Appelé à chaque image rendue, nuage en place : le lien partageable suit
+    // la caméra (voir `majLien` dans app.js, qui regroupe les appels).
+    this.onVue = null;
 
     this.boussole = elementBoussole
       ? new Boussole(elementBoussole, (v) => this.orienterVers(v))
@@ -241,6 +244,48 @@ class Vue3D {
   }
 
   effacerFocus() { this.focus = null; this.invalider(); }
+
+  /**
+   * Caméra en coordonnées vraies : point visé en Lambert-93, distance en
+   * mètres, angles de `cam`, et la résolution au sol au point visé — mètres
+   * par pixel CSS, ce que le lien partageable convertit en zoom de carte.
+   * `null` sans nuage, ou tant que le canevas n'a pas de taille.
+   */
+  camera() {
+    if (!this.nuage) return null;
+    const hauteur = this.canvas.clientHeight;
+    if (!(hauteur > 0)) return null;
+    const o = this.nuage.origine;
+    const { cible, distance, azimut, elevation } = this.cam;
+    return {
+      x: cible[0] + o[0], y: -cible[2] + o[1], distance, azimut, elevation,
+      metresParPixelCss: 2 * distance * Math.tan((FOV_Y_DEG * Math.PI / 180) / 2) / hauteur,
+    };
+  }
+
+  /**
+   * Place la caméra sur un point Lambert-93 à une résolution au sol donnée
+   * (mètres par pixel CSS), sous les angles demandés — l'inverse de `camera`.
+   * `altitude` absolue, ou `null` pour garder celle de la cible actuelle.
+   */
+  placerCamera(x, y, altitude, metresParPixelCss, azimut, elevation) {
+    if (!this.nuage) return;
+    this._arreterAnimation();
+    const o = this.nuage.origine;
+    // Canevas masqué : la hauteur de la fenêtre est la meilleure estimation de
+    // celle qu'il aura, l'onglet 3D occupant toute la scène.
+    const hauteur = this.canvas.clientHeight || window.innerHeight;
+    const distance = metresParPixelCss * hauteur / (2 * Math.tan((FOV_Y_DEG * Math.PI / 180) / 2));
+    const cy = altitude == null
+      ? this.cam.cible[1]
+      : (altitude - o[2] - this.zmin) * CONFIG.rendu.exagerationZ;
+    this.cam.cible = [x - o[0], cy, -(y - o[1])];
+    this.cam.distance = Math.max(2, Math.min(6000, distance));
+    this.cam.azimut = azimut;
+    this.cam.elevation = elevation;
+    this.focus = null;
+    this.invalider();
+  }
 
   /**
    * Recentre la caméra sur un point donné, sans toucher à sa distance ni à
@@ -968,6 +1013,7 @@ class Vue3D {
     const h = Math.max(1, Math.round(c.clientHeight * dpr));
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     gl.viewport(0, 0, w, h);
+    if (this.nuage) this.onVue?.();
 
     const [fr, fg, fb] = GL.hexToRgb(CONFIG.rendu.fond);
     gl.clearColor(fr, fg, fb, 1);
