@@ -12,7 +12,9 @@
 // tels quels ; le chemin de la carte graphique (GPU_RELIEF.surfaceVue) n'est
 // employé qu'après avoir rendu la même surface sur des points d'essai.
 
-const VUE_RELIEF = (() => {
+// Une fonction nommée plutôt qu'une expression appelée sur place : son texte
+// part tel quel dans le worker du relief (relief-travailleur.js).
+function fabriqueVueRelief() {
   /** Réglages de la surface pour un pas donné, depuis la configuration. */
   function reglagesDefaut(pasM) {
     return {
@@ -198,4 +200,5 @@ const VUE_RELIEF = (() => {
   }
 
   return { creer, surfaceCPU, reglagesDefaut, controleGPU };
-})();
+}
+const VUE_RELIEF = fabriqueVueRelief();

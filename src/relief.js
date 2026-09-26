@@ -20,7 +20,9 @@
 // entreraient en collision dans l'environnement lexical partagé par les scripts
 // classiques. Seul `RELIEF` en sort.
 
-const RELIEF = (() => {
+// Une fonction nommée plutôt qu'une expression appelée sur place : son texte
+// part tel quel dans le worker du relief (relief-travailleur.js).
+function fabriqueRelief() {
 'use strict';
 
 // ── Grille de travail ───────────────────────────────────────────────────────
@@ -888,4 +890,5 @@ return {
   /** Moteur du dernier calcul coûteux : 'gpu' ou 'cpu'. */
   moteur: () => dernierMoteur,
 };
-})();
+}
+const RELIEF = fabriqueRelief();

@@ -13,7 +13,9 @@
 // l'autre au même zoom : un déplacement décale la grille d'un nombre entier de
 // cases.
 
-const VUE_GRILLE = (() => {
+// Une fonction nommée plutôt qu'une expression appelée sur place : son texte
+// part tel quel dans le worker du relief (relief-travailleur.js).
+function fabriqueVueGrille() {
   function definir(vue, pasM, margeM, coteMax) {
     let pasCm = Math.max(1, Math.round(pasM * 100));
     for (;;) {
@@ -56,4 +58,5 @@ const VUE_GRILLE = (() => {
   }
 
   return { definir, passes, rayon, marge, coupe };
-})();
+}
+const VUE_GRILLE = fabriqueVueGrille();

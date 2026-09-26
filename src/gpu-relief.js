@@ -17,7 +17,9 @@
 // Un contexte WebGL à part, jamais celui de la vue 3D : les deux ne partagent
 // ni état ni programme, et la perte de l'un ne touche pas l'autre.
 
-const GPU_RELIEF = (() => {
+// Une fonction nommée plutôt qu'une expression appelée sur place : son texte
+// part tel quel dans le worker du relief (relief-travailleur.js).
+function fabriqueGpuRelief() {
   // Bande de lignes traitée par appel de dessin. Un seul appel sur une dalle
   // entière peut dépasser le délai au-delà duquel Windows réinitialise la carte
   // graphique (environ 2 s) sur une machine lente ; par bandes, chaque appel
@@ -28,9 +30,17 @@ const GPU_RELIEF = (() => {
   let raison = '';
 
   function creer() {
-    if (typeof document === 'undefined') return false;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 1;
+    // Dans le worker du relief (relief-travailleur.js), pas de document : un
+    // OffscreenCanvas porte le contexte, avec les mêmes noyaux.
+    let canvas;
+    if (typeof document !== 'undefined') {
+      canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+    } else if (typeof OffscreenCanvas !== 'undefined') {
+      canvas = new OffscreenCanvas(1, 1);
+    } else {
+      return false;
+    }
     const gl = canvas.getContext('webgl2', { antialias: false, depth: false, preserveDrawingBuffer: false });
     if (!gl) { raison = 'WebGL2 absent'; return false; }
     // Rendre dans une texture flottante n'est pas garanti par WebGL2 seul.
@@ -712,4 +722,5 @@ const GPU_RELIEF = (() => {
     disponible: () => !!contexte(),
     raison: () => raison,
   };
-})();
+}
+const GPU_RELIEF = fabriqueGpuRelief();

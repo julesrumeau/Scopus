@@ -108,3 +108,12 @@ test('RASTER.finaliser prend le terrain de la carte graphique, ou retombe sur le
   ctx.GPU_RELIEF = { terrain: () => { throw new Error('ne doit pas être appelé'); } };
   assert.deepEqual([...ctx.RASTER.finaliser(nouvelleGrille(), { moteur: 'cpu' }).mnt], [...ref.mnt]);
 });
+
+test('sans document (dans un worker), la carte graphique est cherchée sur un OffscreenCanvas', () => {
+  const ctx = chargerScripts(['config.js', 'relief.js', 'gl.js', 'shaders.js', 'gpu-relief.js']);
+  const demandes = [];
+  ctx.OffscreenCanvas = class { constructor(w, h) { demandes.push([w, h]); } getContext() { return null; } addEventListener() {} };
+  assert.equal(ctx.GPU_RELIEF.disponible(), false);
+  assert.deepEqual(demandes.map((d) => d.join('×')), ['1×1']);
+  assert.equal(ctx.GPU_RELIEF.raison(), 'WebGL2 absent');
+});

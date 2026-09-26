@@ -2345,15 +2345,30 @@ $('btn-carte-directe').addEventListener('click', entrerDansLaCarte);
 // les blocs de la vue se chargent, se dessinent en contours, et le relief de
 // la vue se calcule et se pose en image de contrôle. N'agit que si l'adresse
 // porte « ?flux ».
-if (new URLSearchParams(location.search).has('flux')) {
+if (new URLSearchParams(location.search).has('flux')) (async () => {
   const calque = new CalqueFlux().addTo(carte.map);
   const reliefCalque = new CalqueReliefControle().addTo(carte.map);
-  const relief = VUE_RELIEF.creer();
+  // Le calcul du relief tourne dans un worker (relief-travailleur.js) : sur le
+  // fil principal, il figeait la carte une à plusieurs secondes à chaque
+  // arrivée de blocs. S'il ne démarre pas, le même calcul se fait ici.
+  let relief = RELIEF_TRAVAILLEUR.creer();
+  let infoRelief = null;
+  if (relief) {
+    try { infoRelief = await relief.pret; } catch (err) {
+      console.warn(`Relief calculé sur le fil principal : ${err.message}`);
+      relief.arreter();
+      relief = null;
+    }
+  }
+  if (!relief) {
+    relief = RELIEF_TRAVAILLEUR.surFilPrincipal();
+    infoRelief = { ...(await relief.pret), filPrincipal: true };
+  }
   const surAppareilPortatif = surMobile();
   let budget = surAppareilPortatif ? CONFIG.flux.budgetPointsMobile : CONFIG.flux.budgetPoints;
   // Sans carte graphique vérifiée, chaque recalcul range tous les points au
   // processeur (3,9 s pour 15 M, mesuré) : on en garde moins.
-  if (relief.moteur === 'cpu') budget = Math.min(budget, CONFIG.flux.budgetPointsProcesseur);
+  if (infoRelief.moteur === 'cpu') budget = Math.min(budget, CONFIG.flux.budgetPointsProcesseur);
 
   let dernierEtat = null, texteRelief = '', vueCourante = null, coucheFlux = 'svf', minuteur = null;
   const majStatut = () => {
@@ -2368,7 +2383,13 @@ if (new URLSearchParams(location.search).has('flux')) {
     e.echecs ? 'erreur' : e.attente ? 'travail' : undefined);
   };
 
-  const calculerRelief = () => {
+  // Un seul calcul à la fois : le worker les traite dans l'ordre, et en
+  // empiler pendant un déplacement ne ferait que retarder le dernier, le seul
+  // qui compte. Une demande pendant un calcul est retenue, et relancée à la
+  // fin avec la vue du moment.
+  let enCalcul = false, aRefaire = false;
+  const calculerRelief = async () => {
+    if (enCalcul) { aRefaire = true; return; }
     // Au-delà du seuil, aucun point n'est demandé, donc aucun relief : le côté
     // droit reste noir et le statut dit de zoomer. Le MNT de l'IGN servait ici
     // (mnt-ign.js), retiré à l'usage : on ne savait plus si ce qu'on voyait
@@ -2380,20 +2401,24 @@ if (new URLSearchParams(location.search).has('flux')) {
       return;
     }
     const pas = FLUX_CHOIX.pasPourVue(vueCourante.xmax - vueCourante.xmin, vueCourante.largeurPx, CONFIG.flux.pasMinM);
-    const geo = VUE_GRILLE.definir(vueCourante, pas, VUE_GRILLE.marge({ ...CONFIG.relief, ...CONFIG.flux }), relief.coteMax);
-    let r;
+    const geo = VUE_GRILLE.definir(vueCourante, pas, VUE_GRILLE.marge({ ...CONFIG.relief, ...CONFIG.flux }), infoRelief.coteMax);
+    enCalcul = true;
     try {
-      r = relief.calculer(geo, coucheFlux);
+      const r = await relief.calculer(geo, coucheFlux);
+      if (!r) { reliefCalque.vider(); texteRelief = ''; }
+      else {
+        reliefCalque.afficher(r);
+        texteRelief = `relief ${(r.duree / 1000).toFixed(2)} s (${r.moteurSurface}${infoRelief.filPrincipal ? ', fil principal' : ''}, `
+          + `surface ${(r.dureeSurface / 1000).toFixed(2)} s) · ${geo.W}×${geo.H} cases de ${geo.pas.toFixed(2)} m`;
+      }
     } catch (err) {
       console.error(err);
       texteRelief = `relief en échec : ${err.message}`;
-      majStatut();
-      return;
+    } finally {
+      enCalcul = false;
     }
-    if (!r) { reliefCalque.vider(); texteRelief = ''; majStatut(); return; }
-    reliefCalque.afficher(r);
-    texteRelief = `relief ${(r.duree / 1000).toFixed(2)} s (${r.moteurSurface}, surface ${(r.dureeSurface / 1000).toFixed(2)} s) · ${geo.W}×${geo.H} cases de ${geo.pas.toFixed(2)} m`;
     majStatut();
+    if (aRefaire) { aRefaire = false; calculerRelief(); }
   };
   // Pendant l'arrivée des blocs, un recalcul au plus toutes les 1,5 s ; au
   // déplacement, tout de suite — la vue d'avant n'a plus de sens.
@@ -2458,7 +2483,7 @@ if (new URLSearchParams(location.search).has('flux')) {
   majVueFlux();
   window.fluxDeControle = flux;     // pour la console et les harnais
   window.reliefDeControle = relief;
-}
+})();
 
 // Un hash non vide veut dire qu'on arrive par un lien qui désigne déjà une
 // destination : s'interposer serait une gêne. Les anciens liens `#d=x,y`, qui
