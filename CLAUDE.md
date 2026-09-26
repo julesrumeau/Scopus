@@ -446,6 +446,38 @@ Un seul calcul à la fois : une demande pendant un calcul est retenue, et
 relancée à la fin avec la vue du moment. Les points sont cédés au worker, le
 fil principal ne les garde pas.
 
+**L'image arrive du worker déjà reprojetée** au pixel de la carte (Web
+Mercator), et se pose sur les bornes de la carte **au moment de la demande** :
+si la carte a bougé entre-temps, l'image tombe quand même à sa place.
+`VUE_IMAGE` reprend la technique de la photo aérienne dans l'autre sens — un
+nœud de maillage tous les 32 pixels projeté exactement, l'intérieur
+interpolé, à moins d'un dixième de case de la projection exacte (vérifié
+contre `PROJ` et `RASTER.centreCellule`). Une image Lambert-93 posée sur un
+rectangle WGS84 glissait de plusieurs mètres vers les bords. Le worker
+l'encode en PNG (`OffscreenCanvas.convertToBlob`) ; le fil principal ne fait
+que la poser.
+
+**Chaque bloc n'est rangé qu'une fois.** La grille de la vue est gardée dans
+le worker : un bloc arrivé est rangé seul ; un déplacement recopie la partie
+commune et ne range que la bande entrante (`RASTER.accumuler` et son
+rectangle exclu) ; tout est rangé de nouveau seulement si le pas, la taille
+ou les réglages changent, ou si un bloc déjà rangé est retiré — un minimum ne
+se défait pas. Une grille neuve ne prend que les blocs que la vue demande
+(`flux.voulues()`), pas les blocs fins gardés d'une vue précédente. Pour que
+le décalage serve, **la taille d'une grille ne dépend que de celle de la
+vue**, jamais de sa position : sans ça, un déplacement d'une fraction de case
+changeait `W` et forçait tout à se refaire. Les tests comparent chaque cas à
+un rangement complet, champ par champ.
+
+**La couche est gardée** tant que la surface ne change pas : le contraste ne
+réétire que l'intervalle, sans refaire le SVF. Mesuré à Verdun (WSL, 4,8 M de
+points, grille de 1072 × 871) : premier calcul 2,6 s — surface 0,8 s, SVF
+1,6 s, image 0,1 s ; un recalcul sans nouveauté ne coûte que l'image.
+
+`&gpusvf` calcule les couches (SVF…) sur la carte graphique et la surface au
+processeur — à l'essai. À garder seulement si `&chrono` ne montre aucun gel :
+verdict à rendre à l'usage.
+
 **Le MNT de l'IGN, écrit puis débranché** (`mnt-ign.js`). Au-delà du seuil, il donnait le relief de toute la vue ; retiré à l'usage le jour même, parce qu'on ne savait plus si ce qu'on voyait venait de lui ou du calcul sur les points. Au-delà du seuil, le côté relief reste donc noir et le statut dit de zoomer. Le module reste, testé, pour un éventuel bouche-trou clairement signalé. Ce qu'il faisait : une requête WMS
 `IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93` en
 `image/x-bil;bits=32` à la taille de la grille (au plus 5010 px de côté), puis
@@ -738,6 +770,11 @@ curseur la survolait.
 
 ## La page d'accueil
 
+> **Depuis le plan 3 du relief piloté par la vue**, « Voir un exemple » cadre
+> le Bois des Caures au zoom 16, sans rien charger : le relief de la vue
+> arrive seul. L'ancien comportement (sélection et chargement de la dalle)
+> reste derrière `?dalle`.
+
 Sans elle, qui ouvre Scopus tombe sur une carte de France et doit deviner où
 cliquer — et tout le reste de l'outil est derrière ce clic. C'est une **section
 plein écran d'`index.html`**, pas un second fichier : le double-clic et la
@@ -805,6 +842,11 @@ téléphone demande un **iframe** — `position: fixed` s'y résout sur la taill
 cadre. Mesuré ainsi à 380 px, la page tient.
 
 ## Le lien partageable
+
+> **Depuis le plan 3 du relief piloté par la vue**, ouvrir un lien ne fait
+> que cadrer la carte — plus de dalle sélectionnée, rien d'attendu ; un ancien
+> `#d=x,y` cadre le centre de sa dalle au zoom 16. Ce qui suit décrit le
+> parcours par dalle, toujours actif derrière `?dalle`.
 
 **Le lien porte la vue, au format que tout le monde lit** : `#map=zoom/lat/lon`,
 celui d'osm.org, complété en 3D comme le fait MapLibre —
@@ -1172,6 +1214,11 @@ et le compte de tracés seul (147 puis 133) ne dit rien de leur forme.
 ---
 
 ## Trois onglets : Carte, 2D, 3D
+
+> **Depuis le plan 3 du relief piloté par la vue**, la vue normale n'a plus
+> qu'un onglet, « Carte », qui porte le relief derrière un rideau ; la 2D et
+> la 3D sont masquées et désactivées (TODO #3, #4). Un clic sur la carte ne
+> sélectionne plus de dalle. Tout ce qui suit vaut pour `?dalle`.
 
 Le nom dit le **mode d'affichage**, pas le contenu — la question « où je vois
 quoi » doit avoir une réponse évidente. Carte pour explorer et choisir une dalle,
@@ -2227,7 +2274,7 @@ masquée ».
 | Borne de zoom de la carte | ✅ |
 | Vue d'ouverture sur la France entière | ✅ |
 | Lien partageable | ✅ — la vue, au format osm.org (`#map=zoom/lat/lon`, + angles en 3D) ; voir « Le lien partageable » |
-| Relief piloté par la vue | 🚧 derrière `?flux` : chargement (plan 1) et calcul (plan 2) faits ; affichage et interface (plan 3) à venir |
+| Relief piloté par la vue | ✅ vue normale (plans 1 à 3) : relief de ce qui est à l'écran, rideau carte / relief, panneau « Relief » ; ancienne interface derrière `?dalle` ; mesure, 3D et relief de secours dans TODO (#3 à #5) |
 
 ## Jalon de publication
 
