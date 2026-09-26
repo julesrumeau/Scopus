@@ -21,8 +21,14 @@ function fabriqueVueGrille() {
     for (;;) {
       const xminCm = Math.floor(((vue.xmin - margeM) * 100) / pasCm) * pasCm;
       const yminCm = Math.floor(((vue.ymin - margeM) * 100) / pasCm) * pasCm;
-      const W = Math.max(1, Math.ceil(((vue.xmax + margeM) * 100 - xminCm) / pasCm));
-      const H = Math.max(1, Math.ceil(((vue.ymax + margeM) * 100 - yminCm) / pasCm));
+      // La taille ne dépend que de celle de la vue, jamais de sa position : une
+      // case de plus que le strict nécessaire couvre tout décalage du coin.
+      // Sans ça, un déplacement d'une fraction de case changeait W, et
+      // vue-relief.js devait tout ranger de nouveau au lieu de la seule bande
+      // entrante. Largeur arrondie au centimètre d'abord : 1048,3 − 1008,3
+      // vaut 40,00000000000009 en flottants, et le plafond sauterait d'une case.
+      const W = Math.max(1, Math.ceil((Math.round((vue.xmax - vue.xmin) * 100) + 2 * Math.round(margeM * 100)) / pasCm) + 1);
+      const H = Math.max(1, Math.ceil((Math.round((vue.ymax - vue.ymin) * 100) + 2 * Math.round(margeM * 100)) / pasCm) + 1);
       if (W <= coteMax && H <= coteMax) {
         return {
           xminCm, yminCm, pasCm, W, H, pas: pasCm / 100,

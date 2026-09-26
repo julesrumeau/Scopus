@@ -95,3 +95,79 @@ test('deux dalles d’altitudes très différentes tiennent dans la même grille
   const i = 10 * t.W + 5, j = 10 * t.W + 100;
   assert.ok(t.mnt[j] - t.mnt[i] > 590, `${t.mnt[i]} → ${t.mnt[j]}`);
 });
+
+/** Même surface, champ par champ. */
+function memeSurface(a, b) {
+  assert.equal(a.N, b.N);
+  for (const champ of ['mnt', 'valide', 'hauteur', 'trou']) {
+    for (let i = 0; i < a.N; i++) {
+      const x = a[champ][i], y = b[champ][i];
+      assert.ok(x === y || (Number.isNaN(x) && Number.isNaN(y)), `${champ}[${i}] : ${x} ≠ ${y}`);
+    }
+  }
+}
+
+function reference(blocs, geo) {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  for (const b of blocs) m.ajouter(b);
+  return m.surface(geo);
+}
+
+test('rangement incrémental : ajouter un bloc à une grille gardée, comme tout ranger', () => {
+  const b1 = bloc('a', 1000, 2000, { cote: 30 }), b2 = bloc('b', 1030, 2000, { cote: 30 });
+  const g = VUE_GRILLE.definir({ xmin: 1000, xmax: 1060, ymin: 2000, ymax: 2030 }, 0.5, 0, 4096);
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(b1);
+  m.surface(g);
+  m.ajouter(b2);
+  m.statistiques(true);
+  const t = m.surface(g);
+  assert.deepEqual({ ...m.statistiques() }, { reconstructions: 0, decalages: 0, ajouts: 1 });
+  memeSurface(t, reference([b1, b2], g));
+});
+
+test('rangement incrémental : une vue décalée de quelques cases, comme tout ranger', () => {
+  const b1 = bloc('a', 1000, 2000);
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(b1);
+  m.surface(VUE_GRILLE.definir({ xmin: 1005, xmax: 1045, ymin: 2005, ymax: 2045 }, 0.5, 0, 4096));
+  m.statistiques(true);
+  const g2 = VUE_GRILLE.definir({ xmin: 1008.3, xmax: 1048.3, ymin: 2003.1, ymax: 2043.1 }, 0.5, 0, 4096);
+  const t = m.surface(g2);
+  assert.equal(m.statistiques().decalages, 1);
+  assert.equal(m.statistiques().reconstructions, 0);
+  memeSurface(t, reference([b1], g2));
+});
+
+test('un bloc rangé puis retiré : reconstruction, ses points ne restent pas dans le minimum', () => {
+  const b1 = bloc('a', 1000, 2000, { cote: 30 }), b2 = bloc('b', 1030, 2000, { cote: 30 });
+  const g = VUE_GRILLE.definir({ xmin: 1000, xmax: 1060, ymin: 2000, ymax: 2030 }, 0.5, 0, 4096);
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(b1); m.ajouter(b2);
+  m.surface(g);
+  m.retirer('b');
+  m.statistiques(true);
+  const t = m.surface(g);
+  assert.equal(m.statistiques().reconstructions, 1);
+  memeSurface(t, reference([b1], g));
+});
+
+test('une grille neuve ne prend que les blocs actifs ; un bloc déjà rangé y reste', () => {
+  const b1 = bloc('a', 1000, 2000, { cote: 30 }), b2 = bloc('b', 1030, 2000, { cote: 30 });
+  const g = VUE_GRILLE.definir({ xmin: 1000, xmax: 1060, ymin: 2000, ymax: 2030 }, 0.5, 0, 4096);
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(b1); m.ajouter(b2);
+  memeSurface(m.surface(g, new Set(['a'])), reference([b1], g));
+  const g1 = VUE_GRILLE.definir({ xmin: 1000, xmax: 1060, ymin: 2000, ymax: 2030 }, 1, 0, 4096);   // autre pas : grille neuve
+  memeSurface(m.surface(g1, new Set(['a'])), reference([b1], g1));
+});
+
+test('classes présentes dans les blocs gardés', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  const b = bloc('a', 1000, 2000, { cote: 10 });
+  b.points.cls[0] = 6; b.points.cls[1] = 6; b.points.cls[2] = 1;
+  m.ajouter(b);
+  assert.equal(JSON.stringify(m.classes()), JSON.stringify([[1, 1], [2, b.points.nbPoints - 3], [6, 2]]));
+  m.retirer('a');
+  assert.equal(m.classes().length, 0);
+});

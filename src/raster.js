@@ -122,8 +122,8 @@ function creerGrillesVue(geo, zRefCm, classesSol = CONFIG.raster.classesSolDefau
  * forcément celle des grilles : on ramène l'écart une fois pour toutes plutôt
  * que point par point.
  */
-function accumuler(g, bloc) {
-  if (bloc.xc && g.geoCm) { accumulerCm(g, bloc); return; }
+function accumuler(g, bloc, exclure = null) {
+  if (bloc.xc && g.geoCm) { accumulerCm(g, bloc, exclure); return; }
   const { W, H } = g;
   const dx = (bloc.origine ? bloc.origine[0] : g.origine[0]) - g.origine[0];
   const dy = (bloc.origine ? bloc.origine[1] : g.origine[1]) - g.origine[1];
@@ -144,7 +144,7 @@ function accumuler(g, bloc) {
  * celle que fait la carte graphique (gpu-relief.js). Un point pile sur une
  * limite tombe dans la case suivante, des deux côtés.
  */
-function accumulerCm(g, bloc) {
+function accumulerCm(g, bloc, exclure = null) {
   const { W, H } = g;
   const { xminCm, yminCm, pasCm, zRefCm } = g.geoCm;
   const ox = bloc.origineCm[0] - xminCm, oy = bloc.origineCm[1] - yminCm, oz = bloc.origineCm[2] - zRefCm;
@@ -153,6 +153,9 @@ function accumulerCm(g, bloc) {
     if (x < 0 || y < 0) continue;
     const cx = Math.floor(x / pasCm), cy = Math.floor(y / pasCm);
     if (cx >= W || cy >= H) continue;
+    // Un déplacement ne range que la bande entrante : la partie commune avec
+    // l'ancienne grille est déjà là, recopiée (vue-relief.js).
+    if (exclure && cx >= exclure.x0 && cx < exclure.x1 && cy >= exclure.y0 && cy < exclure.y1) continue;
     verser(g, cy * W + cx, (bloc.zc[i] + oz) / 100, bloc.cls[i]);
   }
 }

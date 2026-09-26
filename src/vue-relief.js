@@ -40,55 +40,161 @@ function fabriqueVueRelief() {
 
   function creer({ moteur = 'auto' } = {}) {
     const gpu = moteur !== 'cpu' && gpuVerifie();
-    const blocs = new Map();   // cle → { emprise, origineCm, nbPoints, zminCm, zmaxCm, points }
+    const blocs = new Map();   // cle → { emprise, origineCm, nbPoints, zminCm, zmaxCm, points, classes }
     let reglagesCourants = {};
     let version = 0;
     let memo = null;           // { cle, t }
+
+    // La grille de la vue, gardée d'un calcul à l'autre (chemin processeur) :
+    // chaque bloc n'y est rangé qu'une fois. Refaire tout le rangement à chaque
+    // arrivée de blocs coûtait 3 à 5 s à 20 M de points (mesuré) — l'essentiel
+    // du recalcul.
+    let grille = null;         // { geo, g, ranges: Set<cle>, versionReglages }
+    let versionReglages = 0;
+    let retiresRanges = false; // un bloc rangé dans la grille a été retiré
+    const stats = { reconstructions: 0, decalages: 0, ajouts: 0 };
+    const classesPresentes = new Map();
 
     function ajouter(b) {
       const p = b.points;
       const n = p.nbPoints;
       let zmin = Infinity, zmax = -Infinity;
-      for (let i = 0; i < n; i++) { const z = p.zc[i]; if (z < zmin) zmin = z; if (z > zmax) zmax = z; }
+      const classes = new Map();
+      for (let i = 0; i < n; i++) {
+        const z = p.zc[i]; if (z < zmin) zmin = z; if (z > zmax) zmax = z;
+        classes.set(p.cls[i], (classes.get(p.cls[i]) || 0) + 1);
+      }
+      // Un bloc déjà gardé sous cette clé est remplacé, pas compté deux fois.
+      retirer(b.cle);
       if (gpu && !GPU_RELIEF.ajouterBloc(b.cle, p)) return;
       blocs.set(b.cle, {
         emprise: b.emprise, origineCm: b.origineCm, nbPoints: n,
         zminCm: zmin + b.origineCm[2], zmaxCm: zmax + b.origineCm[2],
         // Sur la carte graphique, les points n'ont plus à rester en mémoire.
         points: gpu ? null : p,
+        classes,
       });
+      for (const [c, k] of classes) classesPresentes.set(c, (classesPresentes.get(c) || 0) + k);
       version++;
     }
 
     function retirer(cle) {
-      if (!blocs.delete(cle)) return;
+      const b = blocs.get(cle);
+      if (!b) return;
+      blocs.delete(cle);
+      for (const [c, k] of b.classes) classesPresentes.set(c, classesPresentes.get(c) - k);
+      if (grille && grille.ranges.has(cle)) retiresRanges = true;
       if (gpu) GPU_RELIEF.retirerBloc(cle);
       version++;
     }
 
     function reglages(r) {
       reglagesCourants = { ...reglagesCourants, ...r };
+      versionReglages++;
       version++;
     }
 
-    function surface(geo) {
-      const cleMemo = `${version}|${geo.xminCm}|${geo.yminCm}|${geo.pasCm}|${geo.W}|${geo.H}`;
+    const CHAMPS_RANGEMENT = ['solZ', 'solN', 'ncSomme', 'ncN', 'batSomme', 'batN', 'totalN', 'sommetZ', 'sommetCls'];
+
+    /**
+     * Surface au processeur, grille gardée. Trois cas :
+     * - même pas, même taille, grille décalée d'un nombre entier de cases
+     *   (VUE_GRILLE aligne sur le pas) : la partie commune est recopiée, et les
+     *   blocs ne sont rangés que dans la bande entrante ;
+     * - autre pas ou taille, réglages changés, pas de recouvrement, ou bloc
+     *   rangé puis retiré (un minimum ne se défait pas) : tout est rangé à
+     *   neuf, avec les seuls blocs actifs ;
+     * - sinon : seuls les blocs actifs arrivés depuis sont rangés.
+     */
+    function surfaceCPUIncrementale(geo, actifs) {
+      const r = { ...reglagesDefaut(geo.pas), ...reglagesCourants };
+      const estActif = (cle) => !actifs || actifs.has(cle);
+      const coupe = (b) => VUE_GRILLE.coupe(b.emprise, geo);
+      const memeForme = grille && grille.geo.pasCm === geo.pasCm && grille.geo.W === geo.W && grille.geo.H === geo.H
+        && grille.versionReglages === versionReglages && !retiresRanges;
+      const dx = memeForme ? (geo.xminCm - grille.geo.xminCm) / geo.pasCm : 0;
+      const dy = memeForme ? (geo.yminCm - grille.geo.yminCm) / geo.pasCm : 0;
+      const recouvre = memeForme && Math.abs(dx) < geo.W && Math.abs(dy) < geo.H;
+
+      if (!recouvre) {
+        const choisis = [...blocs].filter(([cle, b]) => estActif(cle) && coupe(b));
+        retiresRanges = false;
+        if (!choisis.length) { grille = null; return null; }
+        // Altitude de référence fixée à la création de la grille et gardée
+        // tant qu'elle vit : les altitudes rangées y sont relatives. Un bloc
+        // arrivé plus bas reste juste, les tableaux sont en Float32.
+        const zRefCm = Math.min(...choisis.map(([, b]) => b.zminCm)) - 100;
+        const g = RASTER.creerGrillesVue(geo, zRefCm, r.classesSol);
+        for (const [, b] of choisis) RASTER.accumuler(g, { ...b.points, origineCm: b.origineCm });
+        grille = { geo, g, ranges: new Set(choisis.map(([cle]) => cle)), versionReglages };
+        stats.reconstructions++;
+      } else if (dx !== 0 || dy !== 0) {
+        const ancienne = grille.g;
+        const g = RASTER.creerGrillesVue(geo, ancienne.geoCm.zRefCm, r.classesSol);
+        const debut = Math.max(0, -dx), fin = Math.min(geo.W, geo.W - dx);
+        for (const champ of CHAMPS_RANGEMENT) {
+          const src = ancienne[champ], dst = g[champ];
+          for (let y = Math.max(0, -dy); y < Math.min(geo.H, geo.H - dy); y++) {
+            dst.set(src.subarray((y + dy) * geo.W + debut + dx, (y + dy) * geo.W + fin + dx), y * geo.W + debut);
+          }
+        }
+        const commune = { x0: debut, y0: Math.max(0, -dy), x1: fin, y1: Math.min(geo.H, geo.H - dy) };
+        const ranges = new Set();
+        for (const [cle, b] of blocs) {
+          if (!coupe(b)) continue;
+          if (grille.ranges.has(cle)) { RASTER.accumuler(g, { ...b.points, origineCm: b.origineCm }, commune); ranges.add(cle); }
+          else if (estActif(cle)) { RASTER.accumuler(g, { ...b.points, origineCm: b.origineCm }); ranges.add(cle); }
+        }
+        grille = { geo, g, ranges, versionReglages };
+        stats.decalages++;
+      }
+      for (const [cle, b] of blocs) {
+        if (grille.ranges.has(cle) || !estActif(cle) || !coupe(b)) continue;
+        RASTER.accumuler(grille.g, { ...b.points, origineCm: b.origineCm });
+        grille.ranges.add(cle);
+        stats.ajouts++;
+      }
+      // Terrain et surface sur une copie superficielle : finaliser ajoute mnt,
+      // solConnu et pente, et ne modifie pas les tableaux de rangement, qui
+      // doivent rester intacts pour les rangements suivants.
+      const g = { ...grille.g };
+      RASTER.finaliser(g, { moteur: 'cpu', passes: r.passes, rayonLissage: r.rayonLissage });
+      return RELIEF.preparer(g, {
+        moteur: 'cpu', pasM: geo.pas, garderRepli: true,
+        inclureBati: r.inclureBati, inclureSursol: r.inclureSursol, hauteurSursolMaxM: r.hauteurSursolMaxM,
+      });
+    }
+
+    function surface(geo, actifs) {
+      const cleMemo = `${version}|${geo.xminCm}|${geo.yminCm}|${geo.pasCm}|${geo.W}|${geo.H}|${actifs ? [...actifs].sort().join(',') : '*'}`;
       if (memo && memo.cle === cleMemo) return memo.t;
-      const choisis = [...blocs].filter(([, b]) => VUE_GRILLE.coupe(b.emprise, geo));
       let t = null;
-      if (choisis.length) {
-        let zmin = Infinity, zmax = -Infinity;
-        for (const [, b] of choisis) { zmin = Math.min(zmin, b.zminCm); zmax = Math.max(zmax, b.zmaxCm); }
-        // Un mètre de marge de part et d'autre : la profondeur de la carte
-        // graphique est bornée à [0, 1], un point à la limite serait écrêté.
-        const zRefCm = zmin - 100, spanCm = zmax - zRefCm + 100;
-        const r = { ...reglagesDefaut(geo.pas), ...reglagesCourants };
-        t = gpu
-          ? GPU_RELIEF.surfaceVue(geo, choisis.map(([cle, b]) => ({ cle, origineCm: b.origineCm })), zRefCm, spanCm, r)
-          : surfaceCPU(geo, choisis.map(([, b]) => ({ ...b.points, origineCm: b.origineCm })), zRefCm, r);
+      if (!gpu) {
+        t = surfaceCPUIncrementale(geo, actifs);
+      } else {
+        const choisis = [...blocs].filter(([, b]) => VUE_GRILLE.coupe(b.emprise, geo));
+        if (choisis.length) {
+          let zmin = Infinity, zmax = -Infinity;
+          for (const [, b] of choisis) { zmin = Math.min(zmin, b.zminCm); zmax = Math.max(zmax, b.zmaxCm); }
+          // Un mètre de marge de part et d'autre : la profondeur de la carte
+          // graphique est bornée à [0, 1], un point à la limite serait écrêté.
+          const zRefCm = zmin - 100, spanCm = zmax - zRefCm + 100;
+          const r = { ...reglagesDefaut(geo.pas), ...reglagesCourants };
+          t = GPU_RELIEF.surfaceVue(geo, choisis.map(([cle, b]) => ({ cle, origineCm: b.origineCm })), zRefCm, spanCm, r);
+        }
       }
       memo = { cle: cleMemo, t };
       return t;
+    }
+
+    function statistiques(remettre = false) {
+      const s = { ...stats };
+      if (remettre) { stats.reconstructions = 0; stats.decalages = 0; stats.ajouts = 0; }
+      return s;
+    }
+
+    function classes() {
+      return [...classesPresentes].filter(([, n]) => n > 0).sort((a, b) => a[0] - b[0]);
     }
 
     function calculer(geo, cle) {
@@ -101,7 +207,7 @@ function fabriqueVueRelief() {
     }
 
     return {
-      ajouter, retirer, reglages, surface, calculer,
+      ajouter, retirer, reglages, surface, calculer, statistiques, classes,
       taille: () => blocs.size,
       moteur: gpu ? 'gpu' : 'cpu',
       coteMax: gpu ? Math.min(CONFIG.flux.coteMaxGrille, GPU_RELIEF.coteMax()) : CONFIG.flux.coteMaxGrille,

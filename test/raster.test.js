@@ -160,3 +160,13 @@ test('finaliser : passes et rayon réglables', () => {
   assert.equal(g.solConnu[3], 1);
   assert.equal(g.solConnu[4], 0);
 });
+
+test('centimètres entiers : un rectangle de cases exclu n’est pas rangé', () => {
+  const geo = VUE_GRILLE.definir({ xmin: 0, xmax: 2, ymin: 0, ymax: 1 }, 0.5, 0, 4096);
+  const g = RASTER.creerGrillesVue(geo, 0, [2]);
+  RASTER.accumuler(g, {
+    nbPoints: 4, origineCm: [0, 0, 0], xc: Int32Array.from([10, 60, 110, 160]), yc: Int32Array.from([10, 10, 10, 10]),
+    zc: Int32Array.from([100, 100, 100, 100]), cls: Uint8Array.from([2, 2, 2, 2]),
+  }, { x0: 1, y0: 0, x1: 3, y1: 2 });
+  assert.deepEqual([g.solN[0], g.solN[1], g.solN[2], g.solN[3]], [1, 0, 0, 1]);
+});
