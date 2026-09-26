@@ -103,7 +103,18 @@ L'index de chaque dalle ouverte reste en mémoire (quelques dizaines de Ko).
   `CONFIG.flux.pointsParCase` points par case (4 par défaut : environ un
   point sol par case sur un sol à 25 %) ;
 - blocs retenus : ceux des niveaux `≤ n` qui intersectent la vue ;
-- ordre : distance au centre de la vue, puis niveau croissant.
+- ordre : niveau croissant, puis distance au centre de la vue — tout l'écran
+  atteint un niveau avant que le suivant ne commence, en partant du centre
+  (l'ordre de Potree : jamais un centre net entouré de bords vides) ;
+- sous le budget de points : les blocs au-delà du budget, dans cet ordre, ne
+  sont pas demandés, ce qui empêche de libérer puis redemander le même bloc.
+
+**Emprise d'un bloc sans l'en-tête.** Le cube de l'octree est dans l'en-tête,
+qu'on ne lit plus. Sur les 7 dalles mesurées il coïncide avec la dalle
+(demi-côté 500 m, centré) : l'emprise d'un bloc `n-x-y` est donc
+`[xmin + x·c, xmin + (x+1)·c] × [ymin + y·c, ymin + (y+1)·c]`, `c = 1000 / 2ⁿ`.
+Hypothèse vérifiée en navigateur sur données réelles (points décodés contre
+emprise calculée) avant d'être considérée acquise.
 
 **Téléchargement.** Par la file `defaut` de `RESEAU` (sous le quota de
 10 requêtes/s), les blocs contigus d'un même fichier fusionnés en une plage
