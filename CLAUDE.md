@@ -420,6 +420,32 @@ la stratégie de recalcul, pas le moteur, qui est à reprendre.
 Sans carte graphique vérifiée, le processeur calcule, et le budget de points
 tombe à `budgetPointsProcesseur` (5 M).
 
+**Le calcul tourne dans un worker, et au processeur** (`relief-travailleur.js`).
+Sur le fil principal, chaque recalcul figeait la carte une à plusieurs
+secondes. Dans un worker, ça ne suffisait pas tant que le calcul passait par
+la carte graphique : la page gelait encore, de 0,5 à 1 s sur la carte AMD,
+sans une ligne de script. La page et le worker partagent la carte (et le
+processus graphique de Chrome), et l'affichage attend que le calcul du worker
+soit passé. Mesuré avec `&chrono` (API « long animation frames ») : presque
+tous les gels tombaient pendant un calcul du relief, jusqu'à 11 s sous
+émulation. Au processeur, plus aucun gel au-delà de ~200 ms, et plus aucun
+ralentissement ressenti à l'usage. `&gpu` reprend la carte graphique pour
+comparer. La leçon : **un calcul sur la carte graphique n'est jamais « en
+arrière-plan »**, même lancé depuis un worker.
+
+En `file://`, un worker ne peut rien charger : son source est composé du
+texte des fonctions (comme la décompression), d'où les modules écrits en
+`function fabriqueX()` puis `const X = fabriqueX()` — `vue-grille.js`,
+`relief.js`, `gpu-relief.js`, `vue-relief.js` — et `raster.js` repris
+fonction par fonction. Une fonction ajoutée à `raster.js` sans être listée
+dans `relief-travailleur.js` n'échouerait que dans le worker :
+`test/relief-travailleur.test.js` compare les deux listes et fait tourner le
+source composé dans un contexte nu.
+
+Un seul calcul à la fois : une demande pendant un calcul est retenue, et
+relancée à la fin avec la vue du moment. Les points sont cédés au worker, le
+fil principal ne les garde pas.
+
 **Le MNT de l'IGN, écrit puis débranché** (`mnt-ign.js`). Au-delà du seuil, il donnait le relief de toute la vue ; retiré à l'usage le jour même, parce qu'on ne savait plus si ce qu'on voyait venait de lui ou du calcul sur les points. Au-delà du seuil, le côté relief reste donc noir et le statut dit de zoomer. Le module reste, testé, pour un éventuel bouche-trou clairement signalé. Ce qu'il faisait : une requête WMS
 `IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93` en
 `image/x-bil;bits=32` à la taille de la grille (au plus 5010 px de côté), puis
