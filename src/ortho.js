@@ -128,8 +128,9 @@ function empriseTuiles(m) {
  * Rend un RGBA de W × H, une entrée par cellule — donc directement superposable
  * aux couches de relief, qui vivent sur la même grille.
  *
- * Les tuiles passent par `RESEAU.recuperer`, comme tout le reste : file bornée,
- * réessais, et le 400 fantôme de la passerelle traité comme transitoire. Leaflet
+ * Les tuiles passent par `RESEAU.recuperer`, dans sa file `tuiles`, plus large
+ * que celle des COPC : réessais, et le 400 fantôme de la passerelle traité
+ * comme transitoire. Leaflet
  * ne passe pas par là, ce qui est précisément la raison de son `updateWhenIdle`.
  *
  * `fond` choisit la couche WMTS (`CONFIG.ign.fonds`) — `'ortho'` (photo
@@ -165,7 +166,7 @@ async function charger(emprise, pas, W, H, opts = {}) {
       const url = gabarit.replace('{z}', z).replace('{x}', tx).replace('{y}', ty);
       demandes.push((async () => {
         try {
-          const octets = await RESEAU.recuperer(url, { signal });
+          const octets = await RESEAU.recuperer(url, { signal, file: 'tuiles' });
           const image = await createImageBitmap(new Blob([octets], { type: mime }));
           ctx.drawImage(image, (tx - tx0) * TUILE, (ty - ty0) * TUILE);
           image.close?.();

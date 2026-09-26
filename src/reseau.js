@@ -7,19 +7,31 @@
 // On borne donc les requêtes en vol, on réessaie les refus temporaires, et on
 // disperse les reprises.
 
-let enVol = 0;
-const attente = [];
+// Deux files, parce que deux services aux limites sans rapport :
+//
+//  - `defaut` : le téléchargement des COPC, le WFS, le géocodage. L'API de
+//    téléchargement est limitée à 10 requêtes par seconde et par IP, et c'est
+//    elle qui a dicté les 3 requêtes en vol.
+//  - `tuiles` : les tuiles WMTS de la photo aérienne et du plan. Mesuré sans
+//    un seul refus jusqu'à ~145 tuiles par seconde, rafales comprises. Les
+//    faire passer par la file des COPC les bridait à une dizaine par seconde :
+//    6 à 30 s pour la centaine de tuiles d'une dalle.
+const files = {
+  defaut: { enVol: 0, attente: [], max: () => CONFIG.reseau.requetesParallèles },
+  tuiles: { enVol: 0, attente: [], max: () => CONFIG.reseau.requetesParallelesTuiles },
+};
 
-function suivant() {
-  if (enVol >= CONFIG.reseau.requetesParallèles) return;
-  const tache = attente.shift();
+function suivant(f) {
+  if (f.enVol >= f.max()) return;
+  const tache = f.attente.shift();
   if (!tache) return;
-  enVol++;
-  tache.run().then(tache.ok, tache.ko).finally(() => { enVol--; suivant(); });
+  f.enVol++;
+  tache.run().then(tache.ok, tache.ko).finally(() => { f.enVol--; suivant(f); });
 }
 
-function enfiler(run) {
-  return new Promise((ok, ko) => { attente.push({ run, ok, ko }); suivant(); });
+function enfiler(run, nom = 'defaut') {
+  const f = files[nom] || files.defaut;
+  return new Promise((ok, ko) => { f.attente.push({ run, ok, ko }); suivant(f); });
 }
 
 const sommeil = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -38,10 +50,10 @@ const recul = (essai) =>
 /**
  * GET avec réessai. `signal` permet d'abandonner tout un chargement.
  * @param {string} url
- * @param {{plage?:[number,number], signal?:AbortSignal, type?:'buffer'|'json'|'texte'}} opts
+ * @param {{plage?:[number,number], signal?:AbortSignal, type?:'buffer'|'json'|'texte', file?:'defaut'|'tuiles'}} opts
  */
 function recuperer(url, opts = {}) {
-  const { plage, signal, type = 'buffer' } = opts;
+  const { plage, signal, type = 'buffer', file = 'defaut' } = opts;
 
   return enfiler(async () => {
     let dernierEchec;
@@ -135,7 +147,7 @@ function recuperer(url, opts = {}) {
       }
     }
     throw dernierEchec;
-  });
+  }, file);
 }
 
 /**
