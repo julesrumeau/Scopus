@@ -446,4 +446,112 @@ void main() {
   if (!dedans || c.g < 0.5 || s.g <= 0.05) { o = vec4(0.0); return; }
   o = vec4((c.r - u_ref) - s.r / s.g, 0.0, 0.0, 1.0);
 }`,
+
+  // Rangement des points dans la grille de la vue, sans EXT_float_blend. Un
+  // point = un fragment d'un pixel, dans la case que donne la division entière
+  // de ses centimètres : la même que RASTER.accumuler, au point près.
+  // Six modes, un par passe :
+  //   0 sol minimal (profondeur, test LESS, classes du sol seules)
+  //   1 minimum de tous (LESS) : la référence des sommes
+  //   2 maximum de tous (GREATER)
+  //   3 classe du maximum (EQUAL sur la profondeur du maximum)
+  //   4 comptes : sol, non classé, bâti, total, additifs sur 8 bits
+  //   5 sommes des hauteurs au-dessus du minimum de tous, additives sur 16 bits
+  // La profondeur porte l'altitude relative à zRef, divisée par l'étendue.
+  accuVS: `#version 300 es
+precision highp float; precision highp int;
+in int a_x; in int a_y; in int a_z; in uint a_cls;
+uniform ivec2 u_decal;
+uniform int u_zDecal;
+uniform int u_pasCm; uniform int u_W; uniform int u_H;
+uniform float u_span;
+uniform int u_mode;
+uniform uint u_sol[8];
+uniform highp sampler2D u_minTous;
+out float v_prof;
+flat out uint v_cls;
+out vec4 v_val;
+void main() {
+  int x = a_x + u_decal.x;
+  int y = a_y + u_decal.y;
+  int cx = x >= 0 ? x / u_pasCm : -1;
+  int cy = y >= 0 ? y / u_pasCm : -1;
+  bool sol = ((u_sol[a_cls >> 5u] >> (a_cls & 31u)) & 1u) == 1u;
+  bool garder = cx >= 0 && cy >= 0 && cx < u_W && cy < u_H && (u_mode != 0 || sol);
+  gl_Position = garder
+    ? vec4((float(cx) + 0.5) / float(u_W) * 2.0 - 1.0, (float(cy) + 0.5) / float(u_H) * 2.0 - 1.0, 0.0, 1.0)
+    : vec4(2.0, 2.0, 2.0, 1.0);
+  gl_PointSize = 1.0;
+  float zrel = float(a_z + u_zDecal);
+  v_prof = zrel / u_span;
+  v_cls = a_cls;
+  bool nc = !sol && a_cls == 1u;
+  bool bat = !sol && a_cls == 6u;
+  if (u_mode == 4) {
+    v_val = vec4(sol ? 1.0 : 0.0, nc ? 1.0 : 0.0, bat ? 1.0 : 0.0, 1.0) / 255.0;
+  } else if (u_mode == 5 && garder) {
+    float ref = texelFetch(u_minTous, ivec2(cx, cy), 0).r * u_span;
+    float h = (zrel - ref) / 100.0;
+    v_val = vec4(nc ? h : 0.0, bat ? h : 0.0, 0.0, 0.0);
+  } else {
+    v_val = vec4(0.0);
+  }
+}`,
+
+  accuFS: `#version 300 es
+precision highp float; precision highp int;
+in float v_prof;
+flat in uint v_cls;
+in vec4 v_val;
+uniform int u_mode;
+out vec4 o;
+void main() {
+  gl_FragDepth = v_prof;
+  o = u_mode == 3 ? vec4(float(v_cls) / 255.0, 0.0, 0.0, 1.0) : v_val;
+}`,
+
+  // Sol minimal (profondeur) et comptes vers l'entrée du terrain : RG =
+  // (altitude en mètres au-dessus de zRef, sol connu).
+  solPrepFS: `#version 300 es
+precision highp float;
+uniform highp sampler2D u_prof;
+uniform highp sampler2D u_comptes;
+uniform float u_span;
+out vec4 o;
+void main() {
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  bool connu = texelFetch(u_comptes, p, 0).r > 0.0;
+  o = vec4(connu ? texelFetch(u_prof, p, 0).r * u_span / 100.0 : 0.0, connu ? 1.0 : 0.0, 0.0, 1.0);
+}`,
+
+  // Surface affichée au pas de la grille, comme RELIEF.preparer avec un
+  // facteur 1 et garderRepli : le sol comblé, complété par le non classé (et
+  // le bâti si demandé) là où aucun retour sol, sous le plafond de hauteur.
+  // Sortie : altitude, valide, hauteur des structures, trou.
+  surfaceFS: `#version 300 es
+precision highp float;
+uniform highp sampler2D u_terrain;
+uniform highp sampler2D u_comptes;
+uniform highp sampler2D u_sommes;
+uniform highp sampler2D u_minTous;
+uniform float u_span;
+uniform int u_bati; uniform int u_sursol; uniform float u_hMax;
+out vec4 o;
+void main() {
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  vec2 t = texelFetch(u_terrain, p, 0).rg;
+  vec4 c = floor(texelFetch(u_comptes, p, 0) * 255.0 + 0.5);
+  vec2 s = texelFetch(u_sommes, p, 0).rg;
+  float ref = texelFetch(u_minTous, p, 0).r * u_span / 100.0;
+  bool connue = t.g > 0.5;
+  float n = c.g + (u_bati == 1 ? c.b : 0.0);
+  float zSursol = n > 0.0 ? (s.r + (u_bati == 1 ? s.g : 0.0)) / n + ref : 0.0;
+  float hauteur = (n > 0.0 && connue) ? max(0.0, zSursol - t.r) : 0.0;
+  float z = t.r;
+  if (connue && u_sursol == 1 && c.r == 0.0 && n > 0.0) {
+    float h = zSursol - t.r;
+    if (h > 0.0 && h <= u_hMax) z = zSursol;
+  }
+  o = vec4(z, connue ? 1.0 : 0.0, hauteur, c.r == 0.0 ? 1.0 : 0.0);
+}`,
 };

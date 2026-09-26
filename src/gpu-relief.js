@@ -35,15 +35,17 @@ const GPU_RELIEF = (() => {
     if (!gl) { raison = 'WebGL2 absent'; return false; }
     // Rendre dans une texture flottante n'est pas garanti par WebGL2 seul.
     if (!gl.getExtension('EXT_color_buffer_float')) { raison = 'textures flottantes non rendables'; return false; }
-    canvas.addEventListener('webglcontextlost', () => { etat = false; raison = 'contexte perdu'; });
+    canvas.addEventListener('webglcontextlost', () => { etat = false; raison = 'contexte perdu'; blocsGPU.clear(); });
 
     const programmes = {};
     for (const [nom, fs] of [['horizons', SHADERS.horizonsFS], ['ombrages', SHADERS.ombragesFS],
       ['microPrep', SHADERS.microPrepFS], ['boite', SHADERS.boiteFS], ['microFin', SHADERS.microFinFS],
       ['comblement', SHADERS.comblementFS], ['echantillon', SHADERS.echantillonFS],
-      ['lissage', SHADERS.lissageFS], ['pente', SHADERS.penteFS]]) {
+      ['lissage', SHADERS.lissageFS], ['pente', SHADERS.penteFS],
+      ['solPrep', SHADERS.solPrepFS], ['surface', SHADERS.surfaceFS]]) {
       programmes[nom] = GL.program(gl, SHADERS.reliefVS, fs);
     }
+    programmes.accu = GL.program(gl, SHADERS.accuVS, SHADERS.accuFS);
     const tri = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, tri);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
@@ -70,10 +72,10 @@ const GPU_RELIEF = (() => {
 
   // ── Textures et passes ────────────────────────────────────────────────────
 
-  function texture(gl, W, H, interne, format, donnees) {
+  function texture(gl, W, H, interne, format, donnees, type = gl.FLOAT) {
     const t = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, t);
-    gl.texImage2D(gl.TEXTURE_2D, 0, interne, W, H, 0, format, gl.FLOAT, donnees);
+    gl.texImage2D(gl.TEXTURE_2D, 0, interne, W, H, 0, format, type, donnees);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -108,6 +110,9 @@ const GPU_RELIEF = (() => {
    */
   function passe(e, prog, dest, W, H, unites) {
     const { gl, tri } = e;
+    // Les blocs de points ont leurs propres VAO ; le triangle plein écran vit
+    // sur l'état par défaut.
+    gl.bindVertexArray(null);
     gl.useProgram(prog);
     gl.bindBuffer(gl.ARRAY_BUFFER, tri);
     const loc = gl.getAttribLocation(prog, 'a_p');
@@ -320,8 +325,42 @@ const GPU_RELIEF = (() => {
       rg[2 * i + 1] = connu ? 1 : 0;
     }
     const entree = texture(gl, W, H, gl.RG32F, gl.RG, rg);
-    let a = cible(gl, W, H, gl.RG32F, gl.RG), b = cible(gl, W, H, gl.RG32F, gl.RG);
     const fin = cible(gl, W, H);
+    let r = null;
+    try {
+      r = terrainTex(e, entree, W, H, passes, rayonLissage);
+      gl.useProgram(P.pente);
+      gl.uniform1i(P.pente.u.u_W, W);
+      gl.uniform1i(P.pente.u.u_H, H);
+      gl.uniform1f(P.pente.u.u_pas, g.pas);
+      passe(e, P.pente, fin, W, H, { u_src: r.comble.tex });
+      const res = lire(gl, fin, W, H);
+
+      const mnt = new Float32Array(N), solConnu = new Uint8Array(N), pente = new Uint8Array(N);
+      for (let i = 0; i < N; i++) {
+        const k = i * 4;
+        mnt[i] = res[k];
+        solConnu[i] = res[k + 1] > 0.5 ? 1 : 0;
+        pente[i] = res[k + 2];
+      }
+      return { mnt, solConnu, pente };
+    } finally {
+      liberer(gl, entree, fin, r && r.comble, r && r.libre);
+    }
+  }
+
+  /**
+   * Comblement, repli et lissage depuis une texture RG (altitude, sol connu)
+   * déjà sur la carte. Rend la cible RG finale (`comble`), l'autre cible
+   * (`libre`) et la valeur de repli ; l'appelant libère les deux cibles.
+   * Une passe au moins : la première écrit dans une cible, jamais dans
+   * l'entrée, que le lissage vertical écraserait sinon.
+   */
+  function terrainTex(e, entree, W, H, passes, rayonLissage) {
+    const { gl } = e;
+    const P = e.programmes;
+    const N = W * H;
+    let a = cible(gl, W, H, gl.RG32F, gl.RG), b = cible(gl, W, H, gl.RG32F, gl.RG);
     let ech = null;
     try {
       // Comblement : autant de passes que le processeur au plus. Il s'arrête
@@ -332,7 +371,7 @@ const GPU_RELIEF = (() => {
       gl.uniform1i(P.comblement.u.u_W, W);
       gl.uniform1i(P.comblement.u.u_H, H);
       let src = entree;
-      for (let p = 0; p < passes; p++) {
+      for (let p = 0; p < Math.max(1, passes); p++) {
         passe(e, P.comblement, a, W, H, { u_src: src.tex || src });
         src = a; [a, b] = [b, a];
       }
@@ -355,7 +394,7 @@ const GPU_RELIEF = (() => {
       for (let k = 0; k < nb; k++) if (px[k * 4 + 1] > 0.5) valeurs.push(px[k * 4]);
       const repli = valeurs.length ? valeurs.sort((u, v) => u - v)[valeurs.length >> 1] : 0;
 
-      // Lissage horizontal (avec le repli) puis vertical, puis la pente.
+      // Lissage horizontal (avec le repli) puis vertical.
       const lisse = comble === a ? b : a;   // la cible libre
       gl.useProgram(P.lissage);
       gl.uniform1i(P.lissage.u.u_W, W);
@@ -369,24 +408,197 @@ const GPU_RELIEF = (() => {
       gl.uniform1i(P.lissage.u.u_horizontal, 0);
       gl.uniform1i(P.lissage.u.u_repli, 0);
       passe(e, P.lissage, comble, W, H, { u_src: lisse.tex, u_valide: lisse.tex });
+      return { comble, libre: lisse, repli };
+    } catch (err) {
+      liberer(gl, a, b);
+      throw err;
+    } finally {
+      liberer(gl, ech);
+    }
+  }
 
-      gl.useProgram(P.pente);
-      gl.uniform1i(P.pente.u.u_W, W);
-      gl.uniform1i(P.pente.u.u_H, H);
-      gl.uniform1f(P.pente.u.u_pas, g.pas);
-      passe(e, P.pente, fin, W, H, { u_src: comble.tex });
-      const res = lire(gl, fin, W, H);
+  // ── Grille de la vue ──────────────────────────────────────────────────────
 
-      const mnt = new Float32Array(N), solConnu = new Uint8Array(N), pente = new Uint8Array(N);
+  // Points par appel de dessin : au-delà d'un million, un appel peut dépasser
+  // le délai de Windows (mesuré : 15 M d'un coup, carte réinitialisée).
+  const POINTS_PAR_APPEL = 1_000_000;
+
+  // Blocs de points gardés sur la carte : cle → { vao, tampons, nb }.
+  const blocsGPU = new Map();
+
+  function tamponEntier(gl, prog, nom, donnees, entier) {
+    const t = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, t);
+    gl.bufferData(gl.ARRAY_BUFFER, donnees, gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, nom);
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribIPointer(loc, 1, entier, 0, 0);
+    return t;
+  }
+
+  /** Envoie un bloc à la carte, une fois : il y reste jusqu'à `retirerBloc`. */
+  function ajouterBloc(cle, b) {
+    const e = contexte();
+    if (!e) return false;
+    retirerBloc(cle);
+    const { gl } = e;
+    const prog = e.programmes.accu;
+    const n = b.nbPoints;
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    const tampons = [
+      tamponEntier(gl, prog, 'a_x', b.xc.subarray(0, n), gl.INT),
+      tamponEntier(gl, prog, 'a_y', b.yc.subarray(0, n), gl.INT),
+      tamponEntier(gl, prog, 'a_z', b.zc.subarray(0, n), gl.INT),
+      tamponEntier(gl, prog, 'a_cls', b.cls.subarray(0, n), gl.UNSIGNED_BYTE),
+    ];
+    gl.bindVertexArray(null);
+    blocsGPU.set(cle, { vao, tampons, nb: n });
+    return true;
+  }
+
+  function retirerBloc(cle) {
+    const s = blocsGPU.get(cle);
+    if (!s) return;
+    blocsGPU.delete(cle);
+    const e = etat;
+    if (!e) return;
+    e.gl.deleteVertexArray(s.vao);
+    for (const t of s.tampons) e.gl.deleteBuffer(t);
+  }
+
+  function textureProfondeur(gl, W, H) {
+    return texture(gl, W, H, gl.DEPTH_COMPONENT32F, gl.DEPTH_COMPONENT, null);
+  }
+
+  /**
+   * Surface de la vue, entièrement sur la carte : rangement des points (six
+   * passes), terrain, surface affichée ; un seul rapatriement, celui de la
+   * surface (quatre flottants par case). Mêmes sorties que
+   * VUE_RELIEF.surfaceCPU pour `mnt`, `valide`, `hauteur`, `trou`.
+   */
+  function surfaceVue(geo, blocs, zRefCm, spanCm, r, e = contexte()) {
+    if (!e || geo.W > e.max || geo.H > e.max) return null;
+    const { gl } = e;
+    const P = e.programmes;
+    const { W, H } = geo;
+    const N = W * H;
+
+    const profSol = textureProfondeur(gl, W, H);
+    const profMin = textureProfondeur(gl, W, H);
+    const profMax = textureProfondeur(gl, W, H);
+    const classe = texture(gl, W, H, gl.RGBA8, gl.RGBA, null, gl.UNSIGNED_BYTE);
+    const comptes = texture(gl, W, H, gl.RGBA8, gl.RGBA, null, gl.UNSIGNED_BYTE);
+    const sommes = texture(gl, W, H, gl.RGBA16F, gl.RGBA, null);
+    const fb = gl.createFramebuffer();
+    const solRG = cible(gl, W, H, gl.RG32F, gl.RG);
+    const dest = cible(gl, W, H);
+    let terrainR = null;
+    try {
+      const cibler = (couleur, prof) => {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, couleur, 0);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, prof, 0);
+      };
+      const prog = P.accu;
+      gl.useProgram(prog);
+      gl.uniform1i(prog.u.u_pasCm, geo.pasCm);
+      gl.uniform1i(prog.u.u_W, W);
+      gl.uniform1i(prog.u.u_H, H);
+      gl.uniform1f(prog.u.u_span, spanCm);
+      gl.uniform1i(prog.u.u_zDecal, -zRefCm);
+      const bits = new Uint32Array(8);
+      for (const c of r.classesSol) bits[c >> 5] |= 1 << (c & 31);
+      gl.uniform1uiv(gl.getUniformLocation(prog, 'u_sol[0]'), bits);
+      gl.uniform1i(prog.u.u_minTous, 0);
+      // Aucune texture sur l'unité 0 tant que le minimum n'est pas écrit : le
+      // sampler existe dans le programme, et y laisser une profondeur attachée
+      // serait une boucle de rétroaction refusée.
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, null);
+      gl.viewport(0, 0, W, H);
+
+      const dessiner = (mode) => {
+        gl.uniform1i(prog.u.u_mode, mode);
+        for (const b of blocs) {
+          const s = blocsGPU.get(b.cle);
+          if (!s) continue;
+          gl.uniform2i(prog.u.u_decal, b.origineCm[0] - geo.xminCm, b.origineCm[1] - geo.yminCm);
+          gl.bindVertexArray(s.vao);
+          for (let d = 0; d < s.nb; d += POINTS_PAR_APPEL) {
+            gl.drawArrays(gl.POINTS, d, Math.min(POINTS_PAR_APPEL, s.nb - d));
+            gl.flush();
+          }
+        }
+        gl.bindVertexArray(null);
+      };
+
+      gl.disable(gl.BLEND);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthMask(true);
+      gl.colorMask(false, false, false, false);
+      for (const [mode, prof, clair, fonction] of [[0, profSol, 1, gl.LESS], [1, profMin, 1, gl.LESS], [2, profMax, 0, gl.GREATER]]) {
+        cibler(classe, prof);
+        gl.clearDepth(clair);
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+        gl.depthFunc(fonction);
+        dessiner(mode);
+      }
+      gl.colorMask(true, true, true, true);
+      gl.clearColor(0, 0, 0, 0);
+
+      // Classe du maximum : seuls les points à la profondeur du maximum passent.
+      cibler(classe, profMax);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.depthMask(false);
+      gl.depthFunc(gl.EQUAL);
+      dessiner(3);
+      gl.depthMask(true);
+      gl.disable(gl.DEPTH_TEST);
+
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE);
+      cibler(comptes, null);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      dessiner(4);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, profMin);
+      cibler(sommes, null);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      dessiner(5);
+      gl.disable(gl.BLEND);
+      gl.bindTexture(gl.TEXTURE_2D, null);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+      gl.useProgram(P.solPrep);
+      gl.uniform1f(P.solPrep.u.u_span, spanCm);
+      passe(e, P.solPrep, solRG, W, H, { u_prof: profSol, u_comptes: comptes });
+      terrainR = terrainTex(e, solRG, W, H, r.passes, r.rayonLissage);
+
+      gl.useProgram(P.surface);
+      gl.uniform1f(P.surface.u.u_span, spanCm);
+      gl.uniform1i(P.surface.u.u_bati, r.inclureBati ? 1 : 0);
+      gl.uniform1i(P.surface.u.u_sursol, r.inclureSursol ? 1 : 0);
+      gl.uniform1f(P.surface.u.u_hMax, r.hauteurSursolMaxM);
+      passe(e, P.surface, dest, W, H, { u_terrain: terrainR.comble.tex, u_comptes: comptes, u_sommes: sommes, u_minTous: profMin });
+      const px = lire(gl, dest, W, H);
+
+      const mnt = new Float32Array(N), valide = new Uint8Array(N), hauteur = new Float32Array(N), trou = new Float32Array(N);
       for (let i = 0; i < N; i++) {
         const k = i * 4;
-        mnt[i] = res[k];
-        solConnu[i] = res[k + 1] > 0.5 ? 1 : 0;
-        pente[i] = res[k + 2];
+        mnt[i] = px[k];
+        valide[i] = px[k + 1] > 0.5 ? 1 : 0;
+        hauteur[i] = px[k + 2];
+        trou[i] = px[k + 3];
       }
-      return { mnt, solConnu, pente };
+      return {
+        W, H, N, pas: geo.pas, mnt, valide, hauteur, trou,
+        emprise: geo.emprise, origine: [geo.emprise.xmin, geo.emprise.ymin, zRefCm / 100],
+      };
     } finally {
-      liberer(gl, entree, a, b, fin, ech);
+      gl.deleteFramebuffer(fb);
+      liberer(gl, profSol, profMin, profMax, classe, comptes, sommes, solRG, dest,
+        terrainR && terrainR.comble, terrainR && terrainR.libre);
     }
   }
 
@@ -491,6 +703,11 @@ const GPU_RELIEF = (() => {
     terrain: (g, passes, rayonLissage) => terrain(g, passes, rayonLissage),
     ombrages: (t, soleils) => ombrages(t, soleils),
     microRelief: (t, r) => microRelief(t, r),
+    ajouterBloc,
+    retirerBloc,
+    surfaceVue: (geo, blocs, zRefCm, spanCm, r) => surfaceVue(geo, blocs, zRefCm, spanCm, r),
+    /** Côté maximal d'une texture, 0 sans carte graphique. */
+    coteMax: () => { const e = contexte(); return e ? e.max : 0; },
     /** `true` si la carte graphique est prête et vérifiée. */
     disponible: () => !!contexte(),
     raison: () => raison,
