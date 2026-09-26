@@ -42,6 +42,11 @@ class Vue2D {
     this.pointsMesure = [];         // [[x, y], ...] Lambert-93, voir definirMesure
     this.montrerDetections = true;
     this.montrerSentiers = true;
+    // Interpolation bilinéaire entre cellules, au lieu d'un carré plein par
+    // cellule. N'invente rien de plus que la grille : les valeurs affichées
+    // entre deux centres sont un mélange pondéré de leurs voisines. Voir
+    // `_rendre`.
+    this.lisser = false;
     // Mode d'interaction du clic — 'deplacement' (défaut, choisit une
     // détection), 'selection' (vise un point) ou 'mesure' (vise deux points,
     // l'un après l'autre) — commutable depuis l'extérieur, partagé avec la
@@ -116,6 +121,11 @@ class Vue2D {
    * déjà là. Une image de plus coûte quelques millisecondes, là où refaire un
    * Sky-View Factor à chaque cran du curseur en coûterait des milliers.
    */
+  definirLissage(actif) {
+    this.lisser = !!actif;
+    this.invalider();
+  }
+
   definirContraste(c) {
     this.contraste = c;
     this.invalider();
@@ -435,6 +445,16 @@ class Vue2D {
     const cx0 = (bordGauche - t.emprise.xmin) / t.pas;
     const cy0 = (haut - t.emprise.ymin) / t.pas;
 
+    // Le lissage ne sert qu'agrandi, quand une cellule couvre plus d'un pixel :
+    // en dessous, chaque pixel résume déjà plusieurs cellules, et interpoler
+    // coûterait quatre lectures par pixel pour rien.
+    if (this.lisser && parCellule < 1) {
+      this._rendreLisse(px, w, h, t, sg, sd, coupe, cx0, cy0, parCellule, fr, fg, fb);
+      ctx.putImageData(image, 0, 0);
+      this._rendreCalques(ctx, w, h, dpr, sg, sd, coupe);
+      return;
+    }
+
     for (let y = 0; y < h; y++) {
       // Troncature seulement après le test : `-0.5 | 0` vaut 0, ce qui ferait
       // passer pour la première ligne un pixel situé hors de la dalle.
@@ -484,7 +504,11 @@ class Vue2D {
       }
     }
     ctx.putImageData(image, 0, 0);
+    this._rendreCalques(ctx, w, h, dpr, sg, sd, coupe);
+  }
 
+  /** Tout ce qui se dessine par-dessus l'image : tracés, repères, échelle. */
+  _rendreCalques(ctx, w, h, dpr, sg, sd, coupe) {
     ctx.save();
     ctx.lineWidth = Math.max(1, dpr);
     if (this.montrerSentiers) this._tracerSentiers(ctx, w, h);
@@ -494,6 +518,87 @@ class Vue2D {
     this._tracerEchelle(ctx, w, h, dpr);
     if (sg && sd) this._tracerEtiquettes(ctx, w, dpr, coupe, sg, sd);
     ctx.restore();
+  }
+
+  /**
+   * Rendu lissé : interpolation bilinéaire entre les centres des quatre
+   * cellules voisines.
+   *
+   * Même convention que le rendu direct — `fy` compte les lignes depuis le
+   * sud, comme toutes les grilles du projet — mais décalée d'une demi-cellule :
+   * une valeur de grille vaut au **centre** de sa cellule, et c'est entre deux
+   * centres qu'on interpole. Sans ce décalage l'image glisserait d'une
+   * demi-cellule par rapport au rendu direct, et le rideau comme les tracés
+   * cesseraient de tomber juste en basculant la case.
+   *
+   * Une cellule sans valeur (NaN, tuile de photo absente) parmi les quatre fait
+   * retomber ce pixel sur la cellule la plus proche : le vide reste un gris net
+   * au lieu de baver sur ses voisines, et aucune valeur n'est inventée à partir
+   * d'un trou.
+   */
+  _rendreLisse(px, w, h, t, sg, sd, coupe, cx0, cy0, parCellule, fr, fg, fb) {
+    const W = t.W, H = t.H;
+    for (let y = 0; y < h; y++) {
+      const fy = cy0 - y * parCellule;
+      let o = y * w * 4;
+      const dehorsY = fy < 0 || fy >= H;
+      const gy = fy - 0.5;
+      let y0 = Math.floor(gy);
+      const ty = gy - y0;
+      let y1 = y0 + 1;
+      if (y0 < 0) y0 = 0;
+      if (y1 > H - 1) y1 = H - 1;
+      const l0 = y0 * W, l1 = y1 * W;
+      const ligneProche = dehorsY ? 0 : (fy | 0) * W;
+
+      for (let x = 0; x < w; x++, o += 4) {
+        const src = x < coupe ? sg : sd;
+        const fx = cx0 + x * parCellule;
+        if (!src || dehorsY || fx < 0 || fx >= W) {
+          px[o] = fr; px[o + 1] = fg; px[o + 2] = fb; px[o + 3] = 255;
+          continue;
+        }
+        const gx = fx - 0.5;
+        let x0 = Math.floor(gx);
+        const tx = gx - x0;
+        let x1 = x0 + 1;
+        if (x0 < 0) x0 = 0;
+        if (x1 > W - 1) x1 = W - 1;
+        const a = l0 + x0, b = l0 + x1, c = l1 + x0, d = l1 + x1;
+        const pa = (1 - tx) * (1 - ty), pb = tx * (1 - ty), pc = (1 - tx) * ty, pd = tx * ty;
+
+        if (src.rgba) {
+          const r = src.rgba;
+          if (r[a * 4 + 3] === 0 || r[b * 4 + 3] === 0 || r[c * 4 + 3] === 0 || r[d * 4 + 3] === 0) {
+            const k = (ligneProche + (fx | 0)) * 4;
+            if (r[k + 3] === 0) { px[o] = 42; px[o + 1] = 46; px[o + 2] = 54; }
+            else { px[o] = r[k]; px[o + 1] = r[k + 1]; px[o + 2] = r[k + 2]; }
+            px[o + 3] = 255;
+            continue;
+          }
+          for (let q = 0; q < 3; q++) {
+            px[o + q] = r[a * 4 + q] * pa + r[b * 4 + q] * pb + r[c * 4 + q] * pc + r[d * 4 + q] * pd;
+          }
+          px[o + 3] = 255;
+          continue;
+        }
+
+        const vals = src.valeurs;
+        let v = vals[a] * pa + vals[b] * pb + vals[c] * pc + vals[d] * pd;
+        // Une seule voisine NaN rend la somme NaN : c'est le test qui décide
+        // du repli sur la cellule la plus proche.
+        if (!Number.isFinite(v)) v = vals[ligneProche + (fx | 0)];
+        if (!Number.isFinite(v)) {
+          px[o] = 42; px[o + 1] = 46; px[o + 2] = 54; px[o + 3] = 255;
+          continue;
+        }
+        let u = ((v - src.min) / src.span) * 255;
+        u = u < 0 ? 0 : u > 255 ? 255 : u;
+        const k = (u | 0) * 3;
+        px[o] = src.lut[k]; px[o + 1] = src.lut[k + 1]; px[o + 2] = src.lut[k + 2];
+        px[o + 3] = 255;
+      }
+    }
   }
 
   /**
