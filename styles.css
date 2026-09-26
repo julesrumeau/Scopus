@@ -878,6 +878,25 @@ input[type=range]::-moz-range-thumb {
 .rideau:hover .rideau-poignee, .rideau.tire .rideau-poignee { background: var(--accent); border-color: #fff; }
 .rideau.tire .rideau-poignee::before { color: #06202b; }
 
+/* Le même rideau sur la carte (« ?flux ») : au-dessus des volets de Leaflet
+   (400 à 450), sous ses contrôles (800 et plus). Les libellés se collent au
+   trait, là où se fait la comparaison. */
+.rideau-flux { z-index: 700; }
+.rideau-flux-libelle {
+  position: absolute;
+  top: 12px;
+  padding: 2px 7px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  color: #dbe1ea;
+  background: rgba(11, 14, 19, 0.8);
+  border-radius: 4px;
+  pointer-events: none;
+}
+.rideau-flux-libelle.gauche { right: 16px; }
+.rideau-flux-libelle.droite { left: 16px; }
+.rideau-flux-libelle:empty { display: none; }
+
 /* Les deux sélecteurs de couche, côte à côte comme les deux moitiés de l'image. */
 .deux-cotes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .deux-cotes .champ { margin-bottom: 8px; }

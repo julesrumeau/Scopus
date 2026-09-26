@@ -2355,7 +2355,7 @@ if (new URLSearchParams(location.search).has('flux')) {
   // processeur (3,9 s pour 15 M, mesuré) : on en garde moins.
   if (relief.moteur === 'cpu') budget = Math.min(budget, CONFIG.flux.budgetPointsProcesseur);
 
-  let dernierEtat = null, texteRelief = '', vueCourante = null, coucheFlux = 'ombrage', minuteur = null;
+  let dernierEtat = null, texteRelief = '', vueCourante = null, coucheFlux = 'svf', minuteur = null;
   const majStatut = () => {
     const e = dernierEtat;
     if (!e) return;
@@ -2413,7 +2413,7 @@ if (new URLSearchParams(location.search).has('flux')) {
     texteRelief = `relief ${(r.duree / 1000).toFixed(2)} s (${r.moteurSurface}, surface ${(r.dureeSurface / 1000).toFixed(2)} s) · ${geo.W}×${geo.H} cases de ${geo.pas.toFixed(2)} m`;
     majStatut();
   };
-  // Pendant l'arrivée des blocs, un recalcul au plus toutes les 600 ms ; au
+  // Pendant l'arrivée des blocs, un recalcul au plus toutes les 1,5 s ; au
   // déplacement, tout de suite — la vue d'avant n'a plus de sens.
   const planifierRelief = (delai) => {
     if (delai === 0 && minuteur) { clearTimeout(minuteur); minuteur = null; }
@@ -2431,7 +2431,7 @@ if (new URLSearchParams(location.search).has('flux')) {
     decoder: NUAGE.decoder,
     cache: CACHE_DISQUE.creer(CACHE_DISQUE.stockageIndexedDB(), CONFIG.flux.quotaDisqueOctets),
     config: { ...CONFIG.flux, budgetPoints: budget },
-    surBloc: (b) => { calque.ajouter(b); relief.ajouter(b); planifierRelief(600); },
+    surBloc: (b) => { calque.ajouter(b); relief.ajouter(b); planifierRelief(1500); },
     surLibere: (cle) => { calque.retirer(cle); relief.retirer(cle); },
     surEtat: (e) => { dernierEtat = e; majStatut(); },
   });
@@ -2455,12 +2455,22 @@ if (new URLSearchParams(location.search).has('flux')) {
   const choix = L.control({ position: 'topright' });
   choix.onAdd = () => {
     const s = L.DomUtil.create('select');
-    for (const c of RELIEF.COUCHES) s.add(new Option(c.libelle, c.cle, c.cle === coucheFlux, c.cle === coucheFlux));
+    // Sans l'ombrage : sur une grille au pixel, il sortait pâle et peu lisible.
+    // Le Sky-View Factor par défaut, comme la vue que montre l'accueil.
+    for (const c of RELIEF.COUCHES) {
+      if (c.cle === 'ombrage') continue;
+      s.add(new Option(c.libelle, c.cle, c.cle === coucheFlux, c.cle === coucheFlux));
+    }
     L.DomEvent.disableClickPropagation(s);
-    s.addEventListener('change', () => { coucheFlux = s.value; planifierRelief(0); });
+    s.addEventListener('change', () => {
+      coucheFlux = s.value;
+      reliefCalque.definirLibelle(s.selectedOptions[0].text);
+      planifierRelief(0);
+    });
     return s;
   };
   choix.addTo(carte.map);
+  reliefCalque.definirLibelle(RELIEF.COUCHES.find((c) => c.cle === coucheFlux).libelle);
 
   carte.map.on('moveend', majVueFlux);
   majVueFlux();

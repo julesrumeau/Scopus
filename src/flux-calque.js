@@ -24,21 +24,102 @@ const CalqueFlux = L.LayerGroup.extend({
 });
 
 // Relief de la vue, provisoire : la couche calculée, étirée sur sa palette,
-// posée en image sur la carte. Le plan 3 le remplace par un calque WebGL
-// redessiné à chaque image ; celui-ci ne sert qu'à voir le calcul.
+// posée en image sur la carte, derrière un rideau comme dans l'onglet 2D — la
+// carte Leaflet à gauche, le relief à droite. Le plan 3 le remplace par un
+// calque WebGL redessiné à chaque image ; celui-ci ne sert qu'à voir le calcul.
+//
+// Le côté droit est noir tant que rien n'y est calculé : un relief absent doit
+// se voir comme absent, pas comme la carte qui transparaît.
 //
 // L'image est posée sur le rectangle WGS84 des coins sud-ouest et nord-est de
 // la grille : un carré Lambert-93 étant tourné d'environ 1° en Mercator, elle
 // glisse de quelques mètres vers les bords d'une grande vue. Acceptable pour
 // un contrôle, pas pour l'affichage final.
 const CalqueReliefControle = L.Layer.extend({
-  onAdd(map) { this._carte = map; },
-  onRemove() { this.vider(); },
+  onAdd(map) {
+    this._carte = map;
+    this._generation = 0;
+    this._part = 0.5;
+    // Un volet à lui, au-dessus des contours de blocs, découpé à la position du
+    // rideau. Le fond noir et l'image y vivent ensemble : le découpage leur
+    // vaut à tous deux.
+    this._volet = map.getPane('reliefFlux') || map.createPane('reliefFlux');
+    this._volet.style.zIndex = 450;
+    this._volet.style.pointerEvents = 'none';
+    this._noir = L.DomUtil.create('div', '', this._volet);
+    Object.assign(this._noir.style, {
+      position: 'absolute', left: '-500000px', top: '-500000px', width: '1000000px', height: '1000000px', background: '#000',
+    });
+    this._creerRideau(map.getContainer());
+    map.on('move zoomend viewreset resize', this._decouper, this);
+    this._decouper();
+  },
+
+  onRemove(map) {
+    map.off('move zoomend viewreset resize', this._decouper, this);
+    this.vider();
+    this._noir.remove();
+    this._rideau.remove();
+    this._volet.style.clipPath = '';
+    this._carte = null;
+  },
+
+  /** Libellé du côté droit, collé au rideau. */
+  definirLibelle(texte) {
+    this._libelleDroit.textContent = texte;
+  },
+
+  _creerRideau(conteneur) {
+    const r = this._rideau = L.DomUtil.create('div', 'rideau rideau-flux', conteneur);
+    L.DomUtil.create('div', 'rideau-poignee', r).title = 'Glisser pour comparer la carte et le relief';
+    L.DomUtil.create('span', 'rideau-flux-libelle gauche', r).textContent = 'Carte';
+    this._libelleDroit = L.DomUtil.create('span', 'rideau-flux-libelle droite', r);
+    // Le geste appartient au rideau, pas à la carte : sans ça, tirer le rideau
+    // déplacerait la carte en même temps.
+    L.DomEvent.disableClickPropagation(r);
+    L.DomEvent.on(r, 'pointerdown mousedown touchstart wheel', L.DomEvent.stopPropagation);
+    let tire = false;   // un drapeau, pas hasPointerCapture (voir le rideau 2D)
+    r.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      tire = true;
+      r.classList.add('tire');
+      try { r.setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
+    });
+    r.addEventListener('pointermove', (e) => {
+      if (!tire) return;
+      const b = conteneur.getBoundingClientRect();
+      if (b.width > 0) { this._part = Math.max(0, Math.min(1, (e.clientX - b.left) / b.width)); this._decouper(); }
+    });
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+      r.addEventListener(type, (e) => {
+        tire = false;
+        r.classList.remove('tire');
+        try { r.releasePointerCapture(e.pointerId); } catch { /* déjà relâché */ }
+      });
+    }
+  },
+
+  /**
+   * Découpe le volet à la position du rideau. Le volet vit en coordonnées de
+   * calque, qui glissent avec la carte : la limite se recalcule à chaque
+   * mouvement depuis la position à l'écran.
+   */
+  _decouper() {
+    if (!this._carte) return;
+    const x = this._carte.getSize().x * this._part;
+    const lx = this._carte.containerPointToLayerPoint([x, 0]).x;
+    this._volet.style.clipPath = `inset(-1000000px -1000000px -1000000px ${lx}px)`;
+    this._rideau.style.left = `${this._part * 100}%`;
+  },
+
   vider() {
+    this._generation++;   // une image en cours d'encodage n'a plus à s'afficher
     if (this._image) { this._carte.removeLayer(this._image); this._image = null; }
     if (this._url) { URL.revokeObjectURL(this._url); this._url = null; }
   },
+
   afficher(r) {
+    const generation = ++this._generation;
     const { W, H } = r.geo;
     const lut = construireLUT(r.palette);
     const toile = document.createElement('canvas');
@@ -63,11 +144,13 @@ const CalqueReliefControle = L.Layer.extend({
     const so = PROJ.versWGS84(e.xmin, e.ymin), ne = PROJ.versWGS84(e.xmax, e.ymax);
     const bornes = L.latLngBounds([so.lat, so.lon], [ne.lat, ne.lon]);
     toile.toBlob((blob) => {
-      if (!this._carte) return;
+      // Un vider() ou un calcul plus récent est passé entre-temps : cette
+      // image est périmée, la poser ferait revenir une vue qu'on a quittée.
+      if (!this._carte || !blob || generation !== this._generation) return;
       const ancien = this._url;
       this._url = URL.createObjectURL(blob);
       if (this._image) { this._image.setUrl(this._url); this._image.setBounds(bornes); }
-      else this._image = L.imageOverlay(this._url, bornes, { opacity: 0.9, interactive: false }).addTo(this._carte);
+      else this._image = L.imageOverlay(this._url, bornes, { pane: 'reliefFlux', interactive: false }).addTo(this._carte);
       if (ancien) URL.revokeObjectURL(ancien);
     });
   },
