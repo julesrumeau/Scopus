@@ -2341,12 +2341,64 @@ $('btn-carte-directe').addEventListener('click', entrerDansLaCarte);
 
 // ── Chargement piloté par la vue (provisoire, « ?flux ») ────────────────────
 //
-// Le plan 1 de la spec docs/superpowers/specs/2026-09-26-flux-vue-design.md :
-// les blocs de la vue se chargent et se dessinent en contours, sans relief
-// encore. N'agit que si l'adresse porte « ?flux ».
+// Plans 1 et 2 de la spec docs/superpowers/specs/2026-09-26-flux-vue-design.md :
+// les blocs de la vue se chargent, se dessinent en contours, et le relief de
+// la vue se calcule et se pose en image de contrôle. N'agit que si l'adresse
+// porte « ?flux ».
 if (new URLSearchParams(location.search).has('flux')) {
   const calque = new CalqueFlux().addTo(carte.map);
+  const reliefCalque = new CalqueReliefControle().addTo(carte.map);
+  const relief = VUE_RELIEF.creer();
   const surAppareilPortatif = surMobile();
+  let budget = surAppareilPortatif ? CONFIG.flux.budgetPointsMobile : CONFIG.flux.budgetPoints;
+  // Sans carte graphique vérifiée, chaque recalcul range tous les points au
+  // processeur (3,9 s pour 15 M, mesuré) : on en garde moins.
+  if (relief.moteur === 'cpu') budget = Math.min(budget, CONFIG.flux.budgetPointsProcesseur);
+
+  let dernierEtat = null, texteRelief = '', vueCourante = null, coucheFlux = 'ombrage', minuteur = null;
+  const majStatut = () => {
+    const e = dernierEtat;
+    if (!e) return;
+    statut((e.tropLarge
+      ? `Flux : ${e.surfaceKm2.toFixed(0)} km² affichés, trop pour les points (seuil ${CONFIG.flux.surfaceMaxPointsKm2} km²) — zoomez`
+      : `Flux : ${e.surfaceKm2.toFixed(1)} km² · ${e.dallesOuvertes} dalles · ${e.charges} blocs · ${milliers(e.points)} points`
+        + (e.attente ? ` · ${e.attente} en attente` : '')
+        + (e.echecs ? ` · ${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}` : ''))
+      + (texteRelief ? ` · ${texteRelief}` : ''),
+    e.echecs ? 'erreur' : e.attente ? 'travail' : undefined);
+  };
+
+  const calculerRelief = () => {
+    if (!vueCourante || FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2) {
+      reliefCalque.vider();
+      texteRelief = '';
+      majStatut();
+      return;
+    }
+    const pas = FLUX_CHOIX.pasPourVue(vueCourante.xmax - vueCourante.xmin, vueCourante.largeurPx, CONFIG.flux.pasMinM);
+    const geo = VUE_GRILLE.definir(vueCourante, pas, VUE_GRILLE.marge({ ...CONFIG.relief, ...CONFIG.flux }), relief.coteMax);
+    let r;
+    try {
+      r = relief.calculer(geo, coucheFlux);
+    } catch (err) {
+      console.error(err);
+      texteRelief = `relief en échec : ${err.message}`;
+      majStatut();
+      return;
+    }
+    if (!r) { reliefCalque.vider(); texteRelief = ''; majStatut(); return; }
+    reliefCalque.afficher(r);
+    texteRelief = `relief ${(r.duree / 1000).toFixed(2)} s (${r.moteurSurface}, surface ${(r.dureeSurface / 1000).toFixed(2)} s) · ${geo.W}×${geo.H} cases de ${geo.pas.toFixed(2)} m`;
+    majStatut();
+  };
+  // Pendant l'arrivée des blocs, un recalcul au plus toutes les 600 ms ; au
+  // déplacement, tout de suite — la vue d'avant n'a plus de sens.
+  const planifierRelief = (delai) => {
+    if (delai === 0 && minuteur) { clearTimeout(minuteur); minuteur = null; }
+    if (minuteur) return;
+    minuteur = setTimeout(() => { minuteur = null; calculerRelief(); }, delai);
+  };
+
   const flux = FLUX.creer({
     chercherDalles: (z) => {
       const so = PROJ.versWGS84(z.xmin, z.ymin), ne = PROJ.versWGS84(z.xmax, z.ymax);
@@ -2356,31 +2408,42 @@ if (new URLSearchParams(location.search).has('flux')) {
     expliquer: RESEAU.expliquer,
     decoder: NUAGE.decoder,
     cache: CACHE_DISQUE.creer(CACHE_DISQUE.stockageIndexedDB(), CONFIG.flux.quotaDisqueOctets),
-    config: { ...CONFIG.flux, budgetPoints: surAppareilPortatif ? CONFIG.flux.budgetPointsMobile : CONFIG.flux.budgetPoints },
-    surBloc: (b) => calque.ajouter(b),
-    surLibere: (cle) => calque.retirer(cle),
-    surEtat: (e) => statut(e.tropLarge
-      ? `Flux : ${e.surfaceKm2.toFixed(0)} km² affichés, trop pour les points (seuil ${CONFIG.flux.surfaceMaxPointsKm2} km²) — zoomez`
-      : `Flux : ${e.surfaceKm2.toFixed(1)} km² · ${e.dallesOuvertes} dalles · ${e.charges} blocs · ${milliers(e.points)} points`
-        + (e.attente ? ` · ${e.attente} en attente` : '')
-        + (e.echecs ? ` · ${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}` : ''),
-      e.echecs ? 'erreur' : e.attente ? 'travail' : undefined),
+    config: { ...CONFIG.flux, budgetPoints: budget },
+    surBloc: (b) => { calque.ajouter(b); relief.ajouter(b); planifierRelief(600); },
+    surLibere: (cle) => { calque.retirer(cle); relief.retirer(cle); },
+    surEtat: (e) => { dernierEtat = e; majStatut(); },
   });
+
   const majVueFlux = () => {
     const b = carte.map.getBounds();
     const so = PROJ.versLambert93(b.getWest(), b.getSouth());
     const ne = PROJ.versLambert93(b.getEast(), b.getNorth());
     const no = PROJ.versLambert93(b.getWest(), b.getNorth());
     const se = PROJ.versLambert93(b.getEast(), b.getSouth());
-    flux.majVue({
+    vueCourante = {
       xmin: Math.min(so.x, no.x), xmax: Math.max(ne.x, se.x),
       ymin: Math.min(so.y, se.y), ymax: Math.max(ne.y, no.y),
       largeurPx: carte.map.getSize().x,
-    });
+    };
+    flux.majVue(vueCourante);
+    planifierRelief(0);
   };
+
+  // Choix de la couche, provisoire comme le calque.
+  const choix = L.control({ position: 'topright' });
+  choix.onAdd = () => {
+    const s = L.DomUtil.create('select');
+    for (const c of RELIEF.COUCHES) s.add(new Option(c.libelle, c.cle, c.cle === coucheFlux, c.cle === coucheFlux));
+    L.DomEvent.disableClickPropagation(s);
+    s.addEventListener('change', () => { coucheFlux = s.value; planifierRelief(0); });
+    return s;
+  };
+  choix.addTo(carte.map);
+
   carte.map.on('moveend', majVueFlux);
   majVueFlux();
-  window.fluxDeControle = flux;   // pour la console et les harnais
+  window.fluxDeControle = flux;     // pour la console et les harnais
+  window.reliefDeControle = relief;
 }
 
 // Un hash non vide veut dire qu'on arrive par un lien qui désigne déjà une
