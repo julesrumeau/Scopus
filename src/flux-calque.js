@@ -23,19 +23,15 @@ const CalqueFlux = L.LayerGroup.extend({
   },
 });
 
-// Relief de la vue, provisoire : la couche calculée, étirée sur sa palette,
-// posée en image sur la carte, derrière un rideau comme dans l'onglet 2D — la
-// carte Leaflet à gauche, le relief à droite. Le plan 3 le remplace par un
-// calque WebGL redessiné à chaque image ; celui-ci ne sert qu'à voir le calcul.
+// Le relief de la vue sur la carte, derrière un rideau comme dans l'onglet
+// 2D : la carte Leaflet à gauche, le relief à droite. L'image arrive du
+// worker déjà reprojetée au pixel de la carte (Web Mercator) : posée sur les
+// bornes de la carte, elle tombe exactement, sans le glissement vers les bords
+// qu'avait une image Lambert-93 posée sur un rectangle WGS84.
 //
 // Le côté droit est noir tant que rien n'y est calculé : un relief absent doit
 // se voir comme absent, pas comme la carte qui transparaît.
-//
-// L'image est posée sur le rectangle WGS84 des coins sud-ouest et nord-est de
-// la grille : un carré Lambert-93 étant tourné d'environ 1° en Mercator, elle
-// glisse de quelques mètres vers les bords d'une grande vue. Acceptable pour
-// un contrôle, pas pour l'affichage final.
-const CalqueReliefControle = L.Layer.extend({
+const CalqueRelief = L.Layer.extend({
   onAdd(map) {
     this._carte = map;
     this._generation = 0;
@@ -118,40 +114,30 @@ const CalqueReliefControle = L.Layer.extend({
     if (this._url) { URL.revokeObjectURL(this._url); this._url = null; }
   },
 
-  afficher(r) {
+  /**
+   * Pose l'image rendue par le worker (déjà reprojetée au pixel de la carte,
+   * relief-travailleur.js) exactement sur `bornes` — celles de la carte au
+   * moment de la demande : si la carte a bougé entre-temps, l'image tombe
+   * quand même à sa place. Encodée dans le worker quand le navigateur le
+   * permet (`blob`) ; sinon les pixels (`rgba`) passent par un canevas ici.
+   */
+  afficher(image, bornes) {
     const generation = ++this._generation;
-    const { W, H } = r.geo;
-    const lut = construireLUT(r.palette);
-    const toile = document.createElement('canvas');
-    toile.width = W;
-    toile.height = H;
-    const ctx = toile.getContext('2d');
-    const img = ctx.createImageData(W, H);
-    const etendue = r.max - r.min || 1;
-    // Ligne 0 de la grille au sud, ligne 0 de l'image au nord.
-    for (let y = 0; y < H; y++) {
-      const source = (H - 1 - y) * W;
-      for (let x = 0; x < W; x++) {
-        const v = r.valeurs[source + x];
-        if (!Number.isFinite(v)) continue;
-        const i = Math.max(0, Math.min(255, Math.round(((v - r.min) / etendue) * 255))) * 3;
-        const k = (y * W + x) * 4;
-        img.data[k] = lut[i]; img.data[k + 1] = lut[i + 1]; img.data[k + 2] = lut[i + 2]; img.data[k + 3] = 255;
-      }
-    }
-    ctx.putImageData(img, 0, 0);
-    const e = r.geo.emprise;
-    const so = PROJ.versWGS84(e.xmin, e.ymin), ne = PROJ.versWGS84(e.xmax, e.ymax);
-    const bornes = L.latLngBounds([so.lat, so.lon], [ne.lat, ne.lon]);
-    toile.toBlob((blob) => {
-      // Un vider() ou un calcul plus récent est passé entre-temps : cette
-      // image est périmée, la poser ferait revenir une vue qu'on a quittée.
+    const poser = (blob) => {
+      // Un vider() ou une image plus récente est passé entre-temps : celle-ci
+      // est périmée, la poser ferait revenir une vue qu'on a quittée.
       if (!this._carte || !blob || generation !== this._generation) return;
       const ancien = this._url;
       this._url = URL.createObjectURL(blob);
       if (this._image) { this._image.setUrl(this._url); this._image.setBounds(bornes); }
       else this._image = L.imageOverlay(this._url, bornes, { pane: 'reliefFlux', interactive: false }).addTo(this._carte);
       if (ancien) URL.revokeObjectURL(ancien);
-    });
+    };
+    if (image.blob) { poser(image.blob); return; }
+    const toile = document.createElement('canvas');
+    toile.width = image.W;
+    toile.height = image.H;
+    toile.getContext('2d').putImageData(new ImageData(image.rgba, image.W, image.H), 0, 0);
+    toile.toBlob(poser);
   },
 });

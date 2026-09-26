@@ -2369,7 +2369,7 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
       [FLUX_CHOIX, 'FLUX_CHOIX', ['blocsPourVue', 'aLiberer']],
       [COPC, 'COPC', ['lireFin', 'lireEntrees', 'grouperPlages']],
     ]) for (const n of noms) objet[n] = mesurer(`${nomObjet}.${n}`, objet[n]);
-    for (const n of ['afficher', 'vider']) CalqueReliefControle.prototype[n] = mesurer(`image du relief : ${n}`, CalqueReliefControle.prototype[n]);
+    for (const n of ['afficher', 'vider']) CalqueRelief.prototype[n] = mesurer(`image du relief : ${n}`, CalqueRelief.prototype[n]);
     for (const n of ['ajouter', 'retirer']) CalqueFlux.prototype[n] = mesurer(`contours des blocs : ${n}`, CalqueFlux.prototype[n]);
     try {
       new PerformanceObserver((l) => { for (const e of l.getEntries()) noter('TÂCHES LONGUES (> 50 ms, tout compris)', e.duration); })
@@ -2416,7 +2416,7 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
   }
 
   const calque = new CalqueFlux().addTo(carte.map);
-  const reliefCalque = new CalqueReliefControle().addTo(carte.map);
+  const reliefCalque = new CalqueRelief().addTo(carte.map);
   // Le calcul du relief tourne dans un worker (relief-travailleur.js) : sur le
   // fil principal, il figeait la carte une à plusieurs secondes à chaque
   // arrivée de blocs. S'il ne démarre pas, le même calcul se fait ici.
@@ -2427,7 +2427,10 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
   // jusqu'à 11 s sous émulation, sans une ligne de script (mesuré avec
   // &chrono, API long-animation-frame). Au processeur : plus de gel au-delà
   // de ~200 ms. « &gpu » la reprend, pour comparer (provisoire).
-  const optionsRelief = new URLSearchParams(location.search).has('gpu') ? {} : { moteur: 'cpu' };
+  // « &gpusvf » : surface au processeur, couches (SVF…) sur la carte
+  // graphique — à l'essai, gardé seulement si &chrono ne montre aucun gel.
+  const params = new URLSearchParams(location.search);
+  const optionsRelief = params.has('gpu') ? {} : params.has('gpusvf') ? { moteur: 'cpu', couches: 'gpu' } : { moteur: 'cpu' };
   let relief = RELIEF_TRAVAILLEUR.creer(optionsRelief);
   let infoRelief = null;
   if (relief) {
@@ -2465,6 +2468,13 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
   // qui compte. Une demande pendant un calcul est retenue, et relancée à la
   // fin avec la vue du moment.
   let enCalcul = false, aRefaire = false;
+  let contrasteFlux = 1, dernieresClasses = [];
+  // Palettes de 256 couleurs, une par couche, calculées une fois.
+  const luts = new Map();
+  const lutCouche = (cle) => {
+    if (!luts.has(cle)) luts.set(cle, construireLUT(RELIEF.COUCHES.find((c) => c.cle === cle).palette));
+    return luts.get(cle);
+  };
   const calculerRelief = async () => {
     if (enCalcul) { aRefaire = true; return; }
     // Au-delà du seuil, aucun point n'est demandé, donc aucun relief : le côté
@@ -2482,12 +2492,24 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
     enCalcul = true;
     activite.relief = true;
     try {
-      const r = await relief.calculer(geo, coucheFlux);
+      // L'écran de la carte au moment de la demande : le worker y reprojette
+      // le relief, et l'image se pose sur ces bornes-là — pas sur celles du
+      // retour, si la carte a bougé entre-temps.
+      const z = carte.map.getZoom();
+      const pb = carte.map.getPixelBounds();
+      const ecran = { x0: pb.min.x, y0: pb.min.y, W: Math.round(pb.max.x - pb.min.x), H: Math.round(pb.max.y - pb.min.y), z };
+      const bornes = L.latLngBounds(carte.map.unproject(pb.getBottomLeft(), z), carte.map.unproject(pb.getTopRight(), z));
+      const r = await relief.image(geo, coucheFlux, ecran, lutCouche(coucheFlux), {
+        contraste: contrasteFlux, lisser: true, actifs: [...flux.voulues()],
+      });
       if (!r) { reliefCalque.vider(); texteRelief = ''; }
       else {
-        reliefCalque.afficher(r);
-        texteRelief = `relief ${(r.duree / 1000).toFixed(2)} s (${r.moteurSurface}${infoRelief.filPrincipal ? ', fil principal' : ''}, `
-          + `surface ${(r.dureeSurface / 1000).toFixed(2)} s) · ${geo.W}×${geo.H} cases de ${geo.pas.toFixed(2)} m`;
+        reliefCalque.afficher(r, bornes);
+        texteRelief = `relief ${(r.duree / 1000).toFixed(2)} s (${r.moteurSurface}${r.moteurCouche && r.moteurCouche !== r.moteurSurface ? ' + ' + r.moteurCouche : ''}`
+          + `${infoRelief.filPrincipal ? ', fil principal' : ''} ; surface ${(r.dureeSurface / 1000).toFixed(2)} s`
+          + `, couche ${r.recalcul ? (r.dureeCouche / 1000).toFixed(2) + ' s' : 'gardée'}, image ${((r.dureeImage || 0) / 1000).toFixed(2)} s)`
+          + ` · ${geo.W}×${geo.H} cases de ${geo.pas.toFixed(2)} m`;
+        dernieresClasses = r.classes || [];
       }
     } catch (err) {
       console.error(err);

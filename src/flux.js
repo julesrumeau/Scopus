@@ -384,7 +384,10 @@ const FLUX = (() => {
       vue = null;
     }
 
-    return { majVue, attendreCalme, arreter, _deps: deps };
+    // Les blocs que la vue demande, en copie : le relief ne range que ceux-là
+    // dans une grille neuve (vue-relief.js), pas les blocs fins gardés d'une
+    // vue précédente.
+    return { majVue, attendreCalme, arreter, voulues: () => new Set(voulues), _deps: deps };
   }
 
   return { creer };

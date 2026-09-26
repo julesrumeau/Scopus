@@ -285,3 +285,13 @@ test('les blocs fins se téléchargent du centre vers les bords, un à un', asyn
   const premieres = plages.slice(0, 4).map((a) => a.u);
   assert.deepEqual(premieres, [url(1, 1), url(1, 1), url(1, 1), url(1, 1)], 'les quatre quarts de la dalle du centre d’abord, chacun sa requête');
 });
+
+test('voulues() : les blocs que la vue demande, en copie', async () => {
+  const { flux } = monter();
+  await flux.majVue(VUE);
+  await flux.attendreCalme();
+  const v = flux.voulues();
+  assert.ok(v.size > 0);
+  v.clear();
+  assert.ok(flux.voulues().size > 0);
+});
