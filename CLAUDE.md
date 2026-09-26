@@ -474,9 +474,22 @@ réétire que l'intervalle, sans refaire le SVF. Mesuré à Verdun (WSL, 4,8 M d
 points, grille de 1072 × 871) : premier calcul 2,6 s — surface 0,8 s, SVF
 1,6 s, image 0,1 s ; un recalcul sans nouveauté ne coûte que l'image.
 
-`&gpusvf` calcule les couches (SVF…) sur la carte graphique et la surface au
-processeur — à l'essai. À garder seulement si `&chrono` ne montre aucun gel :
-verdict à rendre à l'usage.
+**Les couches (SVF, ouvertures, ombrages) passent par la carte graphique, la
+surface par le processeur** — le réglage par défaut. Essayé d'abord derrière
+`&gpusvf` : aucun ralentissement ressenti à l'usage, là où le rangement des
+points sur la carte gelait la page. Un SVF est un calcul court et découpé en
+bandes ; le rangement, plusieurs secondes d'affilée. Le SVF passe ainsi de
+1,6 s à ~0,2 s. `&cpu` met tout au processeur, `&gpu` tout sur la carte.
+
+**L'ombrage coloré** est proposé comme dans l'onglet 2D : il rend ses
+couleurs directement (`RELIEF.ombrageRGB`), reprojetées par
+`VUE_IMAGE.peindreRGBA`, sans palette ni contraste. L'ombrage gris ne l'est
+pas : sur une grille au pixel, il sortait pâle et peu lisible.
+
+Au-delà du seuil de surface, c'est le libellé du rideau, côté relief, qui dit
+« Zoomez pour voir le relief ». Un avis posé au milieu de la carte gênait —
+et sa classe, `.avis-zoom`, était déjà celle de l'avis de zoom maximal de la
+carte, qu'il détournait.
 
 **Le MNT de l'IGN, écrit puis débranché** (`mnt-ign.js`). Au-delà du seuil, il donnait le relief de toute la vue ; retiré à l'usage le jour même, parce qu'on ne savait plus si ce qu'on voyait venait de lui ou du calcul sur les points. Au-delà du seuil, le côté relief reste donc noir et le statut dit de zoomer. Le module reste, testé, pour un éventuel bouche-trou clairement signalé. Ce qu'il faisait : une requête WMS
 `IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93` en

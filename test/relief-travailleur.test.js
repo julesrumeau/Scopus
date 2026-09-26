@@ -142,3 +142,21 @@ test('proj part dans le worker : même Lambert-93 que le fil principal', () => {
   const attendu = ctx.PROJ.versLambert93(5.4359, 49.2066);
   assert.deepEqual({ ...w.self.__L }, { ...attendu });
 });
+
+test('le worker rend aussi l’ombrage coloré', () => {
+  const ctx = chargerScripts(FICHIERS);
+  const w = travailleur(ctx.RELIEF_TRAVAILLEUR.source());
+  w.envoyer({ type: 'demarrer' });
+  const geo = ctx.VUE_GRILLE.definir({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 0.5, 0, 4096);
+  const centre = ctx.PROJ.versWGS84(1020, 2020), z = 20, n = 256 * 2 ** z;
+  const px = ((centre.lon + 180) / 360) * n;
+  const py = ((1 - Math.log(Math.tan(Math.PI / 4 + (centre.lat * Math.PI) / 360)) / Math.PI) / 2) * n;
+  const ecran = { x0: Math.floor(px - 32), y0: Math.floor(py - 24), W: 64, H: 48, z };
+  w.envoyer({ type: 'ajouter', bloc: bloc('a', 1000, 2000) });
+  w.envoyer({ type: 'image', id: 9, geo, couche: 'ombrage-rgb', ecran, lut: null, contraste: 1, lisser: true });
+  const r = w.recus.at(-1);
+  assert.equal(r.type, 'image', r.message);
+  let couleur = 0;
+  for (let i = 0; i < r.rgba.length; i += 4) if (r.rgba[i] !== r.rgba[i + 1] || r.rgba[i + 1] !== r.rgba[i + 2]) couleur++;
+  assert.ok(couleur > 64 * 48 * 0.5, `${couleur} pixels en couleur seulement`);
+});

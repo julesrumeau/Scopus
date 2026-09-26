@@ -75,3 +75,16 @@ test('peindre : hors de la grille, noir', () => {
   const centre = 250 * ecran.W + 400;
   assert.deepEqual([...rgba.slice(centre * 4, centre * 4 + 4)], [0, 0, 0, 255]);
 });
+
+test('peindreRGBA : une couche déjà en couleurs (ombrage coloré) garde sa couleur ; case invalide, noir', () => {
+  const { u, v } = VUE_IMAGE.cases(geo, ecran, PROJ.versLambert93);
+  const k = 250 * ecran.W + 400;
+  const cx = Math.round(u[k]), cy = Math.round(v[k]);
+  const grille = new Uint8ClampedArray(geo.W * geo.H * 4);
+  for (let i = 0; i < geo.W * geo.H; i++) grille.set([10, 200, 30, 255], i * 4);
+  grille.set([0, 0, 0, 0], (cy * geo.W + cx) * 4);   // case sans valeur
+  const rgba = VUE_IMAGE.peindreRGBA(grille, geo, { u, v }, false);
+  assert.deepEqual([...rgba.slice(k * 4, k * 4 + 4)], [0, 0, 0, 255]);
+  const loin = 20 * ecran.W + 20;
+  assert.deepEqual([...rgba.slice(loin * 4, loin * 4 + 4)], [10, 200, 30, 255]);
+});

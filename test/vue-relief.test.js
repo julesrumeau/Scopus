@@ -182,3 +182,13 @@ test('changer le contraste ne recalcule pas la couche', () => {
   assert.equal(c2.valeurs, c1.valeurs);
   assert.ok(c2.max - c2.min < c1.max - c1.min);
 });
+
+test('ombrage coloré : une couche en couleurs, que le contraste ne touche pas', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  const c = m.calculer(geo, 'ombrage-rgb', { contraste: 3 });
+  assert.equal(c.rgba.length, geo.W * geo.H * 4);
+  assert.equal(c.valeurs, undefined);
+  const c2 = m.calculer(geo, 'ombrage-rgb', { contraste: 1 });
+  assert.equal(c2.recalcul, false);
+});

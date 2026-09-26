@@ -205,14 +205,30 @@ function fabriqueVueRelief() {
     // pas : un changement de contraste ne réétire que l'intervalle — refaire
     // un SVF à chaque cran du curseur coûterait des secondes.
     let memoCouche = null;   // { t, cle, c }
+    // L'ombrage coloré (trois soleils, un par canal) ne suit pas le contrat
+    // des couches de RELIEF.COUCHES : il rend directement des couleurs.
+    function calculerCouche(t, cle) {
+      if (cle === 'ombrage-rgb') {
+        const rgba = RELIEF.ombrageRGB(t, calculCouches);
+        return { cle, rgba, moteur: RELIEF.moteur() };
+      }
+      return RELIEF.calculer(t, cle, calculCouches);
+    }
     function calculer(geo, cle, options = {}) {
       const t0 = performance.now();
       const t = surface(geo, options.actifs);
       if (!t) return null;
       const dureeSurface = performance.now() - t0;
       const recalcul = !(memoCouche && memoCouche.t === t && memoCouche.cle === cle);
-      if (recalcul) memoCouche = { t, cle, c: RELIEF.calculer(t, cle, calculCouches) };
+      if (recalcul) memoCouche = { t, cle, c: calculerCouche(t, cle) };
       const c = memoCouche.c;
+      // Une couche déjà en couleurs n'a ni palette ni intervalle à étirer.
+      if (c.rgba) {
+        return {
+          ...c, geo, t, recalcul, moteurSurface: gpu ? 'gpu' : 'cpu', moteurCouche: c.moteur,
+          dureeSurface, duree: performance.now() - t0,
+        };
+      }
       const [min, max] = RELIEF.etirer(c.base, c.ancrage, options.contraste ?? 1);
       return {
         ...c, min, max, geo, t, recalcul, moteurSurface: gpu ? 'gpu' : 'cpu', moteurCouche: c.moteur,

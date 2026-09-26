@@ -39,7 +39,9 @@ function corpsTravailleurRelief() {
         if (!r) { self.postMessage({ type: 'image', id: m.id, vide: true, classes: moteur.classes() }); return; }
         const t1 = performance.now();
         const uv = VUE_IMAGE.cases(m.geo, m.ecran, PROJ.versLambert93);
-        const rgba = VUE_IMAGE.peindre(r.valeurs, m.geo, uv, r.min, r.max, m.lut, m.lisser);
+        const rgba = r.rgba
+          ? VUE_IMAGE.peindreRGBA(r.rgba, m.geo, uv, m.lisser)
+          : VUE_IMAGE.peindre(r.valeurs, m.geo, uv, r.min, r.max, m.lut, m.lisser);
         const infos = {
           type: 'image', id: m.id, W: m.ecran.W, H: m.ecran.H, min: r.min, max: r.max, classes: moteur.classes(),
           recalcul: r.recalcul, moteurSurface: r.moteurSurface, moteurCouche: r.moteurCouche,
@@ -197,7 +199,10 @@ const RELIEF_TRAVAILLEUR = (() => {
         const r = moteur.calculer(geo, couche, { contraste: reglages.contraste ?? 1, actifs: reglages.actifs ? new Set(reglages.actifs) : undefined });
         if (!r) return null;
         const uv = VUE_IMAGE.cases(geo, ecran, PROJ.versLambert93);
-        return { ...r, W: ecran.W, H: ecran.H, classes: moteur.classes(), rgba: VUE_IMAGE.peindre(r.valeurs, geo, uv, r.min, r.max, lut, reglages.lisser ?? true) };
+        const rgba = r.rgba
+          ? VUE_IMAGE.peindreRGBA(r.rgba, geo, uv, reglages.lisser ?? true)
+          : VUE_IMAGE.peindre(r.valeurs, geo, uv, r.min, r.max, lut, reglages.lisser ?? true);
+        return { ...r, W: ecran.W, H: ecran.H, classes: moteur.classes(), rgba };
       },
       arreter() {},
     };

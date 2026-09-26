@@ -2461,10 +2461,13 @@ if (MODE_VUE) (async () => {
   // jusqu'à 11 s sous émulation, sans une ligne de script (mesuré avec
   // &chrono, API long-animation-frame). Au processeur : plus de gel au-delà
   // de ~200 ms. « &gpu » la reprend, pour comparer (provisoire).
-  // « &gpusvf » : surface au processeur, couches (SVF…) sur la carte
-  // graphique — à l'essai, gardé seulement si &chrono ne montre aucun gel.
+  // Surface au processeur, couches (SVF…) sur la carte graphique : un calcul
+  // court, qui ne fait pas geler la page à l'usage (essayé sous « &gpusvf »,
+  // aucun ralentissement ressenti), là où le rangement des points sur la carte
+  // la gelait. « &cpu » : tout au processeur ; « &gpu » : tout sur la carte,
+  // pour comparer.
   const params = new URLSearchParams(location.search);
-  const optionsRelief = params.has('gpu') ? {} : params.has('gpusvf') ? { moteur: 'cpu', couches: 'gpu' } : { moteur: 'cpu' };
+  const optionsRelief = params.has('gpu') ? {} : params.has('cpu') ? { moteur: 'cpu' } : { moteur: 'cpu', couches: 'gpu' };
   let relief = RELIEF_TRAVAILLEUR.creer(optionsRelief);
   let infoRelief = null;
   if (relief) {
@@ -2531,7 +2534,9 @@ if (MODE_VUE) (async () => {
   // Palettes de 256 couleurs, une par couche, calculées une fois.
   const luts = new Map();
   const lutCouche = (cle) => {
-    if (!luts.has(cle)) luts.set(cle, construireLUT(RELIEF.COUCHES.find((c) => c.cle === cle).palette));
+    const def = RELIEF.COUCHES.find((c) => c.cle === cle);
+    if (!def) return null;   // l'ombrage coloré porte ses couleurs
+    if (!luts.has(cle)) luts.set(cle, construireLUT(def.palette));
     return luts.get(cle);
   };
   const calculerRelief = async () => {
@@ -2540,8 +2545,10 @@ if (MODE_VUE) (async () => {
     // droit reste noir et le statut dit de zoomer. Le MNT de l'IGN servait ici
     // (mnt-ign.js), retiré à l'usage : on ne savait plus si ce qu'on voyait
     // venait de lui ou du calcul sur les points.
+    // Trop large : le côté relief reste noir, et son libellé sur le rideau dit
+    // pourquoi — plutôt qu'un avis posé au milieu de la carte.
     const tropLarge = vueCourante && FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2;
-    $('avis-zoom').hidden = !tropLarge;
+    reliefCalque.definirLibelle(tropLarge ? 'Zoomez pour voir le relief' : COUCHES_VUE.find((x) => x.cle === coucheFlux).libelle);
     if (!vueCourante || tropLarge) {
       reliefCalque.vider();
       texteRelief = '';
@@ -2637,12 +2644,12 @@ if (MODE_VUE) (async () => {
   // Sans l'ombrage : sur une grille au pixel, il sortait pâle et peu lisible.
   // Le Sky-View Factor par défaut, comme la vue que montre l'accueil.
   const selCouche = $('vue-couche');
-  for (const c of RELIEF.COUCHES) {
-    if (c.cle === 'ombrage') continue;
-    selCouche.add(new Option(c.libelle, c.cle, c.cle === coucheFlux, c.cle === coucheFlux));
-  }
+  // Les couches de l'onglet 2D, fonds de carte à part (la carte Leaflet les
+  // porte déjà, à gauche du rideau) : relief.js, plus l'ombrage coloré.
+  const COUCHES_VUE = CHOIX_2D.filter((c) => c.cle !== PHOTO && c.cle !== PLAN && c.cle !== 'ombrage');
+  for (const c of COUCHES_VUE) selCouche.add(new Option(c.libelle, c.cle, c.cle === coucheFlux, c.cle === coucheFlux));
   const majCouche = () => {
-    const c = RELIEF.COUCHES.find((x) => x.cle === coucheFlux);
+    const c = COUCHES_VUE.find((x) => x.cle === coucheFlux);
     $('vue-aide').textContent = c.aide;
     reliefCalque.definirLibelle(c.libelle);
   };

@@ -87,6 +87,44 @@ function fabriqueVueImage() {
     return rgba;
   }
 
-  return { pixelVersLonLat, cases, peindre };
+  /**
+   * Même chose pour une couche déjà en couleurs (l'ombrage coloré,
+   * RELIEF.ombrageRGB) : chaque pixel prend la couleur de sa case, sans
+   * palette ni étirement. Une case sans valeur (alpha nul) est noire ; le
+   * lissage n'interpole qu'entre quatre cases valides.
+   */
+  function peindreRGBA(grille, geo, uv, lisser) {
+    const { u, v } = uv;
+    const n = u.length;
+    const rgba = new Uint8ClampedArray(n * 4);
+    const Wg = geo.W, Hg = geo.H;
+    for (let k = 0; k < n; k++) {
+      const o = k * 4;
+      rgba[o + 3] = 255;
+      const uu = u[k], vv = v[k];
+      if (lisser) {
+        const x0 = Math.floor(uu), y0 = Math.floor(vv);
+        if (x0 >= 0 && y0 >= 0 && x0 + 1 < Wg && y0 + 1 < Hg) {
+          const i00 = (y0 * Wg + x0) * 4, i10 = i00 + 4, i01 = i00 + Wg * 4, i11 = i01 + 4;
+          if (grille[i00 + 3] && grille[i10 + 3] && grille[i01 + 3] && grille[i11 + 3]) {
+            const fx = uu - x0, fy = vv - y0;
+            for (let c = 0; c < 3; c++) {
+              rgba[o + c] = (grille[i00 + c] * (1 - fx) + grille[i10 + c] * fx) * (1 - fy)
+                + (grille[i01 + c] * (1 - fx) + grille[i11 + c] * fx) * fy;
+            }
+            continue;
+          }
+        }
+      }
+      const ix = Math.round(uu), iy = Math.round(vv);
+      if (ix < 0 || iy < 0 || ix >= Wg || iy >= Hg) continue;
+      const i = (iy * Wg + ix) * 4;
+      if (!grille[i + 3]) continue;
+      rgba[o] = grille[i]; rgba[o + 1] = grille[i + 1]; rgba[o + 2] = grille[i + 2];
+    }
+    return rgba;
+  }
+
+  return { pixelVersLonLat, cases, peindre, peindreRGBA };
 }
 const VUE_IMAGE = fabriqueVueImage();

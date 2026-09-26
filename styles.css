@@ -1085,17 +1085,4 @@ body[data-mode="vue"] #section-analyse { display: none !important; }
 body[data-mode="dalle"] #section-vue { display: none !important; }
 .classes-sol { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; margin-top: 4px; }
 .classes-sol .case { margin: 0; }
-/* Au-dessus du relief (450) et du rideau (700), sous les contrôles de Leaflet. */
-.avis-zoom {
-  position: absolute;
-  left: 50%; top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 750;
-  padding: 10px 16px;
-  border-radius: 8px;
-  background: rgba(11, 14, 19, 0.85);
-  color: #dbe1ea;
-  font-size: 14px;
-  pointer-events: none;
-}
 
