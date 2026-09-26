@@ -183,6 +183,24 @@ class Vue2D {
     this.invalider();
   }
 
+  /**
+   * Amène un point Lambert-93 au centre, à une résolution donnée en mètres par
+   * pixel CSS — l'unité du zoom de carte, que parle le lien partageable
+   * (`LIEN.resolutionDepuisZoom`). `echelle`, elle, est par pixel physique.
+   */
+  placer(x, y, metresParPixelCss) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.centre = [x, y];
+    this.echelle = Math.max(0.02, Math.min(8, metresParPixelCss / dpr));
+    this.invalider();
+  }
+
+  /** Centre visé et mètres par pixel CSS — l'inverse de `placer`. */
+  vue() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    return { x: this.centre[0], y: this.centre[1], metresParPixelCss: this.echelle * dpr };
+  }
+
   // ── Contrôles ─────────────────────────────────────────────────────────────
 
   _lambertSousCurseur(ev) {
@@ -387,6 +405,9 @@ class Vue2D {
     ctx.fillStyle = CONFIG.rendu.fond;
     ctx.fillRect(0, 0, w, h);
     if (!this.grille) return;
+    // Toute image rendue peut venir d'un déplacement : le lien partageable
+    // suit (voir `majLien` dans app.js, qui regroupe les appels).
+    this.cb.surVue?.();
 
     const t = this.grille;
     const sg = this._preparerSource('gauche');
