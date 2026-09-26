@@ -261,6 +261,79 @@ résout qu'à ~0,5 m.
 
 ---
 
+## Le chargement piloté par la vue
+
+`flux.js` charge les points **de la vue**, sans dalle à choisir : les dalles du
+rectangle affiché, ouvertes d'une requête chacune, puis les blocs plus fins que
+le zoom demande. Il remplacera « Charger la dalle » ; pour l'instant il ne
+tourne que derrière `?flux` dans l'adresse, avec un calque de contrôle
+(`flux-calque.js`) qui dessine les blocs chargés. Conception complète :
+`docs/superpowers/specs/2026-09-26-flux-vue-design.md` ; ce qui suit est ce que
+le code en a appris.
+
+**Une requête par dalle : la fin du fichier.** L'IGN range ses COPC du plus fin
+au plus grossier — `[en-tête][niveau 5 … niveau 1][niveau 0][index][~830 o]`,
+identique sur 12 dalles de toute la France. `Range: bytes=-1000000` ramène donc
+l'index **et** le niveau 0 (0,86 Mo au plus mesuré ; relecture à 4 Mo en
+secours). Sans l'en-tête, l'index se retrouve en cherchant, depuis la fin,
+l'EVLR `copc` / 1000 (`COPC.lireFin`). La longueur d'un point varie **par lot de
+publication** (30 octets, 46 pour le lot d'avril 2026) : 256 octets d'en-tête
+une fois par lot, lot lu dans l'adresse du fichier, demandé **dès la première
+ouverture** — demandé après la première réponse, il passait derrière toutes les
+fins de fichier de la file, et aucun bloc ne se décodait avant ~11 s.
+
+**En navigateur, la taille du fichier est invisible.** L'IGN n'expose pas
+`Content-Range` aux pages web (pas d'`Access-Control-Expose-Headers`) : le
+navigateur le masque, et `RESEAU.recuperer({ fin })` rend `total: null` sur un
+`206`. Or il faut savoir où tombe la fin reçue dans le fichier pour y lire le
+niveau 0. L'ancre : juste après le dernier bloc de points, un LAZ range sa table
+des blocs, qui commence par 4 octets nuls puis **le nombre de blocs** — égal au
+nombre de nœuds de l'index sur 7 dalles sur 7. La fin absolue du dernier bloc se
+lit dans l'index ; retrouver la signature dans les octets reçus donne leur
+position. Le test simulé fournissait la taille, le navigateur non : c'est la
+vérification sur données réelles qui l'a montré (niveau 0 redemandé au réseau,
+premier bloc à 12–16 s).
+
+**Le quota.** L'API de téléchargement est limitée à 10 requêtes/s par IP ;
+mesuré ~4,5 dalles/s pour la fin de fichier. Au-delà de 10 km de large
+(`CONFIG.flux.largeurMaxPointsM`), rien n'est demandé : le niveau 0 est un
+plancher (~0,6 Mo, 25 000 à 80 000 points par dalle, un bloc LAZ ne se lit pas
+en partie) et le temps croîtrait avec le nombre de dalles, plus avec l'écran.
+
+**Quels blocs, dans quel ordre.** Le pas suit le pixel au sol, jamais sous
+`pasMinM` ; le niveau visé est le plus grossier dont la densité cumulée atteint
+`pointsParCase` points par case. Ordre : **niveau croissant, puis distance au
+centre** — tout l'écran atteint un niveau avant que le suivant ne commence
+(l'ordre de Potree), et la liste est **tronquée au budget** de points : un bloc
+au-delà n'est pas demandé, ce qui évite de le libérer puis de le redemander.
+Au-dessus du budget, on libère d'abord les blocs non voulus les plus fins et les
+plus loin. Un bloc se décode **dès que ses octets sont là** — la fin de fichier
+et le cache d'abord, chaque plage réseau à son arrivée : tout attendre faisait
+patienter le niveau 0 du centre derrière les 7 Mo du niveau 1 de sa dalle.
+
+**Centimètres entiers.** Les workers rendent les coordonnées en centimètres
+entiers relatifs au coin de la dalle (`entiers`, `xc/yc/zc`) : échelle 0,01 et
+décalage 0 chez l'IGN, la conversion est exacte, et l'affectation d'un point à
+une case ne dépendra plus d'un arrondi de flottant (0,03 % des cases
+différaient sinon entre processeur et carte graphique).
+
+**L'emprise d'un bloc sans l'en-tête.** Le cube de l'octree est dans l'en-tête,
+qu'on ne lit plus ; il coïncide avec la dalle (demi-côté 500 m, centré). Vérifié
+en navigateur sur la vue de Verdun : 14,9 M de points décodés, **aucun** hors de
+l'emprise calculée de son bloc. Si une dalle y dérogeait, ses blocs seraient
+placés au mauvais endroit sans erreur : c'est le contrôle à refaire au moindre
+doute.
+
+**Le cache disque** (`cache-disque.js`, IndexedDB) garde les octets compressés
+des blocs **et** les fins de fichier, sous `quotaDisqueOctets`, le moins
+récemment lu effacé d'abord. Il ne fait jamais échouer un chargement :
+navigation privée ou quota atteint, il se tait et le réseau sert.
+
+Mesuré sur la vue de Verdun (~3 km de large, 15 dalles, 63 blocs, 14,9 M de
+points), Chromium, depuis le chargement de la page : première visite, premier
+bloc à 4,4 s et tout chargé en ~35 s ; seconde visite, premier bloc à 1,8 s,
+aucune fin de fichier redemandée, 2 requêtes de plage au lieu de 27.
+
 ## La carte
 
 La grille des dalles n'est pas téléchargée, elle est **calculée**. Une dalle est
