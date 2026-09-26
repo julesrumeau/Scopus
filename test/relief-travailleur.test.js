@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { chargerScripts } from './charger.js';
 
-const FICHIERS = ['config.js', 'vue-grille.js', 'raster.js', 'relief.js', 'gl.js', 'shaders.js', 'gpu-relief.js', 'vue-relief.js', 'relief-travailleur.js'];
+const FICHIERS = ['config.js', 'proj.js', 'vue-grille.js', 'vue-image.js', 'raster.js', 'relief.js', 'gl.js', 'shaders.js', 'gpu-relief.js', 'vue-relief.js', 'relief-travailleur.js'];
 
 function bloc(cle, x0, y0) {
   const cote = 40, pasCm = 25, n = (cote * 100 / pasCm) ** 2;
@@ -32,7 +32,7 @@ function travailleur(source) {
   const self = { postMessage: (m) => recus.push(m) };
   const ctx = vm.createContext({ self, console, performance, Math, Float32Array, Float64Array, Int32Array, Uint8Array, Uint32Array, Uint8ClampedArray, Map, Set, Array, Object, JSON, Number, String, Error, Infinity, NaN });
   vm.runInContext(source, ctx);
-  return { envoyer: (m) => self.onmessage({ data: m }), recus };
+  return { envoyer: (m) => self.onmessage({ data: m }), recus, self };
 }
 
 test('le source du worker se suffit à lui-même et calcule comme le fil principal', () => {
@@ -103,4 +103,42 @@ test('sur le fil principal, la même interface', async () => {
   const r = await m.calculer(geo, 'svf');
   assert.equal(r.valeurs.length, geo.W * geo.H);
   assert.equal(r.geo, geo);
+});
+
+test('le worker rend l’image reprojetée, identique au calcul du fil principal', () => {
+  const ctx = chargerScripts(FICHIERS);
+  const w = travailleur(ctx.RELIEF_TRAVAILLEUR.source());
+  w.envoyer({ type: 'demarrer' });
+  const geo = ctx.VUE_GRILLE.definir({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 0.5, 0, 4096);
+  // Un écran au zoom 20 (≈ 15 cm par pixel) centré sur la grille.
+  const centre = ctx.PROJ.versWGS84(1020, 2020), z = 20, n = 256 * 2 ** z;
+  const px = ((centre.lon + 180) / 360) * n;
+  const py = ((1 - Math.log(Math.tan(Math.PI / 4 + (centre.lat * Math.PI) / 360)) / Math.PI) / 2) * n;
+  const ecran = { x0: Math.floor(px - 32), y0: Math.floor(py - 24), W: 64, H: 48, z };
+  const lut = new Uint8Array(768).map((_, i) => Math.floor(i / 3));
+  w.envoyer({ type: 'ajouter', bloc: bloc('a', 1000, 2000) });
+  w.envoyer({ type: 'image', id: 4, geo, couche: 'svf', ecran, lut, contraste: 1, lisser: true, actifs: ['a'] });
+  const r = w.recus.at(-1);
+  assert.equal(r.type, 'image', r.message);
+  assert.equal(r.rgba.length, 64 * 48 * 4);
+  let peints = 0;
+  for (let i = 0; i < r.rgba.length; i += 4) if (r.rgba[i] || r.rgba[i + 1] || r.rgba[i + 2]) peints++;
+  // Pas une image toute noire ; le bas de la palette l'est aussi, et l'écran
+  // est centré sur la bosse, où le SVF est le plus bas.
+  assert.ok(peints > 64 * 48 * 0.5, `${peints} pixels peints seulement`);
+  assert.equal(JSON.stringify(r.classes.map(([c]) => c)), '[1,2]');
+
+  const ref = ctx.VUE_RELIEF.creer({ moteur: 'cpu' });
+  ref.ajouter(bloc('a', 1000, 2000));
+  const c = ref.calculer(geo, 'svf', { contraste: 1 });
+  const uv = ctx.VUE_IMAGE.cases(geo, ecran, ctx.PROJ.versLambert93);
+  assert.deepEqual([...r.rgba], [...ctx.VUE_IMAGE.peindre(c.valeurs, geo, uv, c.min, c.max, lut, true)]);
+});
+
+test('proj part dans le worker : même Lambert-93 que le fil principal', () => {
+  const ctx = chargerScripts(FICHIERS);
+  const src = ctx.RELIEF_TRAVAILLEUR.source() + '\nself.__L = PROJ.versLambert93(5.4359, 49.2066);';
+  const w = travailleur(src);
+  const attendu = ctx.PROJ.versLambert93(5.4359, 49.2066);
+  assert.deepEqual({ ...w.self.__L }, { ...attendu });
 });

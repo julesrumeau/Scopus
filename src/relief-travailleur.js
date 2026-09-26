@@ -33,6 +33,30 @@ function corpsTravailleurRelief() {
         moteur.retirer(m.cle);
       } else if (m.type === 'reglages') {
         moteur.reglages(m.reglages);
+      } else if (m.type === 'image') {
+        const t0 = performance.now();
+        const r = moteur.calculer(m.geo, m.couche, { contraste: m.contraste, actifs: m.actifs ? new Set(m.actifs) : undefined });
+        if (!r) { self.postMessage({ type: 'image', id: m.id, vide: true, classes: moteur.classes() }); return; }
+        const t1 = performance.now();
+        const uv = VUE_IMAGE.cases(m.geo, m.ecran, PROJ.versLambert93);
+        const rgba = VUE_IMAGE.peindre(r.valeurs, m.geo, uv, r.min, r.max, m.lut, m.lisser);
+        const infos = {
+          type: 'image', id: m.id, W: m.ecran.W, H: m.ecran.H, min: r.min, max: r.max, classes: moteur.classes(),
+          recalcul: r.recalcul, moteurSurface: r.moteurSurface, moteurCouche: r.moteurCouche,
+          dureeSurface: r.dureeSurface, dureeCouche: t1 - t0 - r.dureeSurface, dureeImage: performance.now() - t1,
+        };
+        // Encodée ici quand le navigateur le permet : le fil principal n'a
+        // plus qu'à poser l'image.
+        if (typeof OffscreenCanvas !== 'undefined' && typeof ImageData !== 'undefined') {
+          const toile = new OffscreenCanvas(m.ecran.W, m.ecran.H);
+          toile.getContext('2d').putImageData(new ImageData(rgba, m.ecran.W, m.ecran.H), 0, 0);
+          toile.convertToBlob({ type: 'image/png' }).then(
+            (blob) => self.postMessage({ ...infos, blob, duree: performance.now() - t0 }),
+            (err) => self.postMessage({ type: 'erreur', id: m.id, message: String((err && err.message) || err) }),
+          );
+        } else {
+          self.postMessage({ ...infos, rgba, duree: performance.now() - t0 }, [rgba.buffer]);
+        }
       } else if (m.type === 'calculer') {
         const r = moteur.calculer(m.geo, m.couche);
         if (!r) { self.postMessage({ type: 'resultat', id: m.id, vide: true }); return; }
@@ -74,9 +98,16 @@ const RELIEF_TRAVAILLEUR = (() => {
       `const SHADERS = ${JSON.stringify(SHADERS)};`,
       texteObjet('GL', GL),
       `const CLASSE = ${JSON.stringify(CLASSE)};`,
+      // proj.js : ses constantes en valeurs (un double s'écrit exactement en
+      // texte), ses fonctions en texte.
+      `const A = ${A}, F = ${F}, E = ${E}, LON0 = ${LON0}, LAT0 = ${LAT0}, LAT1 = ${LAT1}, LAT2 = ${LAT2}, X0 = ${X0}, Y0 = ${Y0};`,
+      `const M1 = ${M1}, M2 = ${M2}, T0 = ${T0}, T1 = ${T1}, T2 = ${T2}, N = ${N}, BIGF = ${BIGF}, R0 = ${R0};`,
+      String(m), String(t), String(versLambert93), String(versWGS84),
+      'const PROJ = { versLambert93, versWGS84 };',
       ...FONCTIONS_RASTER.map(String),
       'const RASTER = { CLASSE, creerGrilles, creerGrillesVue, accumuler, finaliser, rasteriser, signal, hauteurParPoint, centreCellule };',
       `${fabriqueVueGrille}\nconst VUE_GRILLE = fabriqueVueGrille();`,
+      `${fabriqueVueImage}\nconst VUE_IMAGE = fabriqueVueImage();`,
       `${fabriqueRelief}\nconst RELIEF = fabriqueRelief();`,
       `${fabriqueGpuRelief}\nconst GPU_RELIEF = fabriqueGpuRelief();`,
       `${fabriqueVueRelief}\nconst VUE_RELIEF = fabriqueVueRelief();`,
@@ -141,6 +172,14 @@ const RELIEF_TRAVAILLEUR = (() => {
           w.postMessage({ type: 'calculer', id, geo, couche });
         });
       },
+      /** L'image reprojetée de la couche, `null` sans bloc dans la vue. */
+      image(geo, couche, ecran, lut, reglages = {}) {
+        return new Promise((ok, ko) => {
+          const id = ++prochain;
+          attente.set(id, { ok, ko });
+          w.postMessage({ type: 'image', id, geo, couche, ecran, lut, contraste: reglages.contraste ?? 1, lisser: reglages.lisser ?? true, actifs: reglages.actifs });
+        });
+      },
       arreter() { w.terminate(); },
     };
   }
@@ -154,6 +193,12 @@ const RELIEF_TRAVAILLEUR = (() => {
       retirer: (cle) => moteur.retirer(cle),
       reglages: (r) => moteur.reglages(r),
       calculer: async (geo, couche) => moteur.calculer(geo, couche),
+      image: async (geo, couche, ecran, lut, reglages = {}) => {
+        const r = moteur.calculer(geo, couche, { contraste: reglages.contraste ?? 1, actifs: reglages.actifs ? new Set(reglages.actifs) : undefined });
+        if (!r) return null;
+        const uv = VUE_IMAGE.cases(geo, ecran, PROJ.versLambert93);
+        return { ...r, W: ecran.W, H: ecran.H, classes: moteur.classes(), rgba: VUE_IMAGE.peindre(r.valeurs, geo, uv, r.min, r.max, lut, reglages.lisser ?? true) };
+      },
       arreter() {},
     };
   }
