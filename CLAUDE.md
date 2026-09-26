@@ -1378,6 +1378,78 @@ cellule pleine, et le calcul est seize fois plus léger — ce qui décide de la
 faisabilité du Sky-View Factor, seul calcul coûteux du lot et donc calculé à la
 demande, avec sa durée affichée.
 
+## Le calcul sur la carte graphique
+
+Le relief et le terrain sont du calcul cellule par cellule : exactement ce que
+fait une carte graphique, des milliers à la fois. `gpu-relief.js` porte sur
+WebGL2 le balayage d'horizons (SVF, ouvertures), les ombrages, le micro-relief
+et le terrain de `RASTER.finaliser` (comblement, repli, lissage, pente). Les
+noyaux vivent dans `shaders.js`, section « Calcul du relief », pour rester
+sous le garde-fou du backtick.
+
+Mesuré sur une dalle entière, carte graphique **intégrée** d'ordinateur
+portable (AMD Radeon, Direct3D 11), transferts compris :
+
+| Étape | Processeur | Carte graphique |
+|---|---|---|
+| SVF | 12,5 s | 1,1 s |
+| Ouvertures | 11 à 14 s | 0,8 à 1,2 s |
+| Terrain, 16 M de cellules à 25 cm | 5,0 s | 2,5 s |
+| Ombrage, ombrage coloré | 0,45 s | 0,3 à 0,4 s |
+| Micro-relief | 0,97 s | 1,08 s |
+
+L'attente visible après un téléchargement, SVF affiché, passe d'environ 18 s
+à environ 4,5 s. Le SVF seul, calcul pur, coûte 0,31 s : **le reste est du
+transfert** — envoyer la grille, rapatrier le résultat. C'est pourquoi ombrage
+et micro-relief ne gagnent rien, et pourquoi l'agrégation à 50 cm
+(`RELIEF.preparer`, 0,85 s, neuf grilles à envoyer) et l'accumulation des
+points (déjà cachée derrière le téléchargement) sont restées sur le
+processeur. Un affichage de plusieurs dalles sans attente demandera des
+grilles qui **restent** sur la carte graphique, de l'accumulation à
+l'affichage, sans aller-retour.
+
+Quatre décisions :
+
+- **`relief.js` et `raster.js` restent la référence et le repli.** Chaque noyau
+  en est la traduction ligne à ligne ; `moteur: 'cpu'` ou `CONFIG.relief.gpu`
+  à `false` forcent le processeur, et `RELIEF.calculer` dit dans `moteur` qui
+  a calculé.
+- **Rien n'est employé sans autocontrôle.** Au premier usage, une petite
+  surface (pente, bosse, creux, trous petits et grands) est calculée des deux
+  façons ; au moindre écart hors tolérance, tout reste sur le processeur, avec
+  la raison dans la console. Le premier essai réel l'a prouvé utile : la carte
+  graphique était refusée, et sans ce contrôle elle aurait affiché des bords
+  faux.
+- **Un contexte WebGL à part**, jamais celui de la vue 3D.
+- **Par bandes de 256 lignes** : un seul appel de dessin sur une dalle entière
+  peut dépasser le délai au-delà duquel Windows réinitialise la carte
+  graphique sur une machine lente.
+
+Deux pièges de simple précision, tous deux invisibles à l'intérieur de la
+grille et vus aux bords et autour des trous, là où un échantillon qui change
+de ligne sort de la grille ou tombe sur une cellule sans donnée :
+
+- **cos(90°) vaut −4·10⁻⁸ en simple précision**, et le rayon plein nord lisait
+  la colonne voisine. Les directions sont calculées en double côté JavaScript
+  et passées en uniforms.
+- **Le pas en diagonale vaut 0,9999999999999998 et s'arrondit à 1** : le
+  plancher désignait la ligne suivante. Le pas de l'axe mineur arrive donc en
+  deux morceaux (valeur simple précision + reste), et le plancher se recompose
+  **depuis l'entier le plus proche** — partir de `floor(a)` échoue quand
+  `a − floor(a)` s'arrondit à 1, ce qui a d'abord décalé les colonnes de bord.
+
+Écarts résiduels, mesurés sur une vraie dalle : SVF 1,2·10⁻⁷, ouvertures
+7·10⁻⁴ degré (précision de l'arctangente), altitude du terrain 2·10⁻⁵ m, pente
+décalée d'un degré sur 0,06 % des cellules (l'arrondi à l'entier supérieur
+bascule).
+
+Les mesures se font **dans le vrai Chrome de Windows, sur la vraie carte
+graphique** : le Chromium de WSL n'a qu'une carte émulée (SwiftShader), juste
+pour vérifier des valeurs. Harnais jetable : un petit serveur HTTP dans WSL,
+joignable depuis Windows par `localhost`, une page qui envoie son verdict par
+POST — et qui doit être servie en `text/html`, sans quoi Chrome l'affiche
+comme du texte sans rien exécuter.
+
 ## Extraction de lignes : la chaîne par la forme
 
 `lignes.js` cherche des structures **sans lire le classement** : un tas de
