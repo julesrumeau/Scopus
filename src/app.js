@@ -2363,6 +2363,7 @@ if (new URLSearchParams(location.search).has('flux')) (async () => {
   };
   const chronometrer = new URLSearchParams(location.search).has('chrono');
   if (chronometrer) {
+    console.info('Chrono du fil principal actif : un tableau toutes les 5 s dès que la carte travaille.');
     for (const [objet, nomObjet, noms] of [
       [FLUX_CHOIX, 'FLUX_CHOIX', ['blocsPourVue', 'aLiberer']],
       [COPC, 'COPC', ['lireFin', 'lireEntrees', 'grouperPlages']],
