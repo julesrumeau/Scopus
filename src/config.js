@@ -158,6 +158,20 @@ const CONFIG = {
     // Points (toutes classes) visés par case de grille pour choisir le niveau :
     // environ un point sol par case sur un sol à 25 %.
     pointsParCase: 4,
+    // Réglages du terrain exprimés en mètres, pour garder leur sens quel que
+    // soit le pas de la grille de la vue : 3 m de comblement et 50 cm de
+    // lissage valent les 12 passes et 2 cellules de la grille de 25 cm.
+    comblementM: 3,
+    lissageM: 0.5,
+    // Côté maximal de la grille de la vue, en cases. Au-delà, le pas est
+    // relevé : 4096 tient dans toute carte graphique WebGL2 et reste sous le
+    // plafond de cellules du processeur.
+    coteMaxGrille: 4096,
+    // Points gardés quand la carte graphique est refusée : le calcul de la vue
+    // se fait alors au processeur à chaque recalcul, 3,9 s pour 15 M mesurés.
+    budgetPointsProcesseur: 5_000_000,
+    // Côté maximal d'une image du MNT demandée au WMS de l'IGN.
+    pixelsMaxMnt: 5010,
     // Points décompressés gardés à la fois. Sur appareil portatif, le navigateur
     // ferme un onglet trop gourmand sans prévenir.
     budgetPoints: 20_000_000,
