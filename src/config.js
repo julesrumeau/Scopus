@@ -274,6 +274,12 @@ const CONFIG = {
     // un chemin creux, 16 affinent les formes rondes pour le double du temps.
     svfDirections: 8,
     svfRayonM: 10,
+    // Calcul des couches coûteuses (SVF, ouvertures, ombrages, micro-relief)
+    // sur la carte graphique — voir gpu-relief.js. `false` force le
+    // processeur partout, pour comparer ou isoler un pilote suspect. La carte
+    // graphique n'est de toute façon employée qu'après un autocontrôle
+    // contre le calcul processeur.
+    gpu: true,
     // Plafond de la palette de hauteur. Au-delà de 3 m on ne cherche plus une
     // ruine mais un arbre isolé, et l'étaler écraserait tout le reste.
     hauteurMaxM: 3,

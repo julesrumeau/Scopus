@@ -202,4 +202,167 @@ void main() {
   }
   fragColor = u_couleur;
 }`,
+
+  // ── Calcul du relief sur la carte graphique (gpu-relief.js) ─────────────────
+  //
+  // Chaque noyau est la traduction ligne à ligne de sa version processeur dans
+  // relief.js, qui reste la référence : mêmes bornes, mêmes cellules écartées.
+  // Une cellule de sortie = un fragment ; un seul triangle couvre la cible.
+  // Les grilles sont des textures dont la ligne 0 est au sud, comme les
+  // tableaux du projet : les indices se correspondent sans retournement.
+
+  reliefVS: `#version 300 es
+in vec2 a_p;
+void main() { gl_Position = vec4(a_p, 0.0, 1.0); }`,
+
+  // Balayage d'horizons : SVF, ouverture positive et négative en une passe,
+  // comme RELIEF.balayerHorizons. Entrée RG = (altitude, validité). Pour chaque
+  // direction, le pas le long de l'axe dominant est entier, l'autre axe est
+  // interpolé ; un échantillon hors grille ou touchant une cellule invalide
+  // est ignoré, ce que fait NaN côté processeur. Les directions arrivent
+  // calculées en double précision par le JavaScript : en simple précision,
+  // cos(90 degrés) vaut -4e-8 et le rayon plein nord lirait la colonne voisine.
+  //
+  // Le pas sur l'axe mineur arrive en deux morceaux, sa valeur en simple
+  // précision et le reste. En diagonale il vaut 0,9999999999999998 : arrondi
+  // à 1, le plancher désigne la ligne suivante, et l'échantillon sort de la
+  // grille (ou touche un trou) une ligne trop tôt. Le plancher se recompose
+  // donc avec le reste, pour tomber sur la même ligne que le processeur.
+  horizonsFS: `#version 300 es
+precision highp float; precision highp int;
+uniform highp sampler2D u_grille;
+uniform int u_W; uniform int u_H; uniform int u_n;
+uniform vec4 u_dir[32];   // pas en x, pas en y (en cellules par pas), distance par pas (m), nombre de pas
+uniform vec2 u_dirReste[32];   // ce que la simple précision perd de ces deux pas
+uniform bool u_majeurX[32];
+out vec4 o;
+// Plancher et partie fractionnaire de (hi + lo) * k, sans perdre lo. On part
+// de l'entier le plus proche : l'écart à cet entier se calcule exactement,
+// son signe dit de quel côté tombe le plancher. Partir de floor(a) échoue
+// quand a vaut -2e-16 : a - floor(a) s'arrondit à 1 et désigne la mauvaise
+// colonne (vu sur les colonnes de bord, rayons plein nord et plein sud).
+void plancher(float hi, float lo, float k, out float f0, out float t) {
+  float a = hi * k;
+  float n = round(a);
+  float e = (a - n) + lo * k;
+  if (e >= 0.0) { f0 = n; t = e; } else { f0 = n - 1.0; t = 1.0 + e; }
+}
+void main() {
+  int x = int(gl_FragCoord.x), y = int(gl_FragCoord.y);
+  vec2 c = texelFetch(u_grille, ivec2(x, y), 0).rg;
+  if (c.g < 0.5) { o = vec4(0.0); return; }
+  float z0 = c.r, svf = 0.0, pos = 0.0, neg = 0.0;
+  for (int d = 0; d < u_n; d++) {
+    vec4 D = u_dir[d];
+    int K = int(D.w);
+    float maxTan = -1e30, minTan = 1e30;
+    for (int k = 1; k <= K; k++) {
+      float fx = D.x * float(k), dist = D.z * float(k), f0, t;
+      vec2 s0, s1;
+      if (u_majeurX[d]) {
+        plancher(D.y, u_dirReste[d].y, float(k), f0, t);
+        int xa = x + int(round(fx)); int ya = y + int(f0);
+        if (xa < 0 || xa >= u_W || ya < 0 || ya + 1 >= u_H) continue;
+        s0 = texelFetch(u_grille, ivec2(xa, ya), 0).rg; s1 = texelFetch(u_grille, ivec2(xa, ya + 1), 0).rg;
+      } else {
+        plancher(D.x, u_dirReste[d].x, float(k), f0, t);
+        int ya = y + int(round(D.y * float(k))); int xa = x + int(f0);
+        if (ya < 0 || ya >= u_H || xa < 0 || xa + 1 >= u_W) continue;
+        s0 = texelFetch(u_grille, ivec2(xa, ya), 0).rg; s1 = texelFetch(u_grille, ivec2(xa + 1, ya), 0).rg;
+      }
+      if (s0.g < 0.5 || s1.g < 0.5) continue;
+      float tanv = ((1.0 - t) * s0.r + t * s1.r - z0) / dist;
+      maxTan = max(maxTan, tanv);
+      minTan = min(minTan, tanv);
+    }
+    float haut = maxTan < -1e29 ? 0.0 : maxTan;
+    float bas = minTan > 1e29 ? 0.0 : minTan;
+    float u = max(haut, 0.0);
+    svf += u / sqrt(1.0 + u * u);
+    pos += 1.5707963267948966 - atan(haut);
+    neg += 1.5707963267948966 + atan(bas);
+  }
+  float versDeg = 57.29577951308232 / float(u_n);
+  o = vec4(1.0 - svf / float(u_n), pos * versDeg, neg * versDeg, 1.0);
+}`,
+
+  // Ombrage de Horn, jusqu'à quatre soleils à la fois (un par canal), comme
+  // RELIEF.gradients puis RELIEF.ombrage. Lectures bornées au bord de la
+  // grille, comme la fonction lire() côté processeur. Entrée R = altitude.
+  ombragesFS: `#version 300 es
+precision highp float; precision highp int;
+uniform highp sampler2D u_grille;
+uniform int u_W; uniform int u_H; uniform float u_pas;
+uniform vec3 u_soleil[4];
+uniform int u_nbSoleils;
+out vec4 o;
+float z(int x, int y) { return texelFetch(u_grille, ivec2(clamp(x, 0, u_W - 1), clamp(y, 0, u_H - 1)), 0).r; }
+void main() {
+  int x = int(gl_FragCoord.x), y = int(gl_FragCoord.y);
+  float a = z(x - 1, y + 1), b = z(x, y + 1), c = z(x + 1, y + 1);
+  float d = z(x - 1, y), f = z(x + 1, y);
+  float g = z(x - 1, y - 1), h = z(x, y - 1), i = z(x + 1, y - 1);
+  float gx = ((c + 2.0 * f + i) - (a + 2.0 * d + g)) / (8.0 * u_pas);
+  float gy = ((a + 2.0 * b + c) - (g + 2.0 * h + i)) / (8.0 * u_pas);
+  float nx = -gx, ny = -gy;
+  float inv = 1.0 / sqrt(nx * nx + ny * ny + 1.0);
+  vec4 r = vec4(0.0);
+  for (int s = 0; s < 4; s++) {
+    if (s >= u_nbSoleils) break;
+    vec3 L = u_soleil[s];
+    r[s] = max((nx * L.x + ny * L.y + L.z) * inv, 0.0);
+  }
+  o = r;
+}`,
+
+  // Micro-relief, étape 1 : altitude pondérée et poids (R, G), comme la boucle
+  // qui prépare la convolution normalisée de RELIEF.microRelief. Les
+  // altitudes sont centrées sur u_ref pour que la somme de la boîte garde sa
+  // précision en simple précision ; la soustraction finale l'annule.
+  microPrepFS: `#version 300 es
+precision highp float; precision highp int;
+uniform highp sampler2D u_grille;
+uniform float u_ref;
+out vec4 o;
+void main() {
+  vec2 c = texelFetch(u_grille, ivec2(gl_FragCoord.xy), 0).rg;
+  o = c.g > 0.5 ? vec4(c.r - u_ref, 1.0, 0.0, 0.0) : vec4(0.0);
+}`,
+
+  // Micro-relief, étape 2 : une boîte horizontale ou verticale sur (R, G), la
+  // moyenne sur la seule partie de la fenêtre qui tombe dans la grille, comme
+  // boiteH et boiteV (fenêtre de debut à fin, bornée aux bords).
+  boiteFS: `#version 300 es
+precision highp float; precision highp int;
+uniform highp sampler2D u_src;
+uniform int u_W; uniform int u_H; uniform int u_r; uniform bool u_horizontal;
+out vec4 o;
+void main() {
+  int x = int(gl_FragCoord.x), y = int(gl_FragCoord.y);
+  int p = u_horizontal ? x : y, lim = u_horizontal ? u_W : u_H;
+  int debut = max(0, p - u_r), fin = min(lim - 1, p + u_r);
+  vec2 somme = vec2(0.0);
+  for (int k = debut; k <= fin; k++) {
+    somme += texelFetch(u_src, u_horizontal ? ivec2(k, y) : ivec2(x, k), 0).rg;
+  }
+  o = vec4(somme / float(fin - debut + 1), 0.0, 0.0);
+}`,
+
+  // Micro-relief, étape 3 : altitude moins moyenne locale, dans la marge de
+  // trois rayons seulement et là où le poids lissé dépasse 0,05, comme la
+  // boucle finale de RELIEF.microRelief. A = 1 si la valeur est définie.
+  microFinFS: `#version 300 es
+precision highp float; precision highp int;
+uniform highp sampler2D u_grille;
+uniform highp sampler2D u_lisse;
+uniform int u_W; uniform int u_H; uniform int u_marge; uniform float u_ref;
+out vec4 o;
+void main() {
+  int x = int(gl_FragCoord.x), y = int(gl_FragCoord.y);
+  vec2 c = texelFetch(u_grille, ivec2(x, y), 0).rg;
+  vec2 s = texelFetch(u_lisse, ivec2(x, y), 0).rg;
+  bool dedans = x >= u_marge && x < u_W - u_marge && y >= u_marge && y < u_H - u_marge;
+  if (!dedans || c.g < 0.5 || s.g <= 0.05) { o = vec4(0.0); return; }
+  o = vec4((c.r - u_ref) - s.r / s.g, 0.0, 0.0, 1.0);
+}`,
 };
