@@ -701,7 +701,7 @@ test('blocs de la vue : niveau croissant, puis du centre vers les bords', () => 
   const dalles = [dalle(0, 0), dalle(1, 0)];
   const vue = { xmin: 500, xmax: 1500, ymin: 0, ymax: 1000 };
   const b = FLUX_CHOIX.blocsPourVue(dalles, vue, 4, 4, Infinity);
-  const niveaux = b.map((x) => x.niveau);
+  const niveaux = Array.from(b, (x) => x.niveau);
   assert.deepEqual(niveaux, [...niveaux].sort((p, q) => p - q), 'niveaux croissants');
   // Aucun bloc hors de la vue (les blocs x=0 de la dalle 0, à gauche de 500 m).
   assert.ok(b.every((x) => x.emprise.xmax > vue.xmin && x.emprise.xmin < vue.xmax));
@@ -714,7 +714,7 @@ test('blocs de la vue : niveau croissant, puis du centre vers les bords', () => 
 test('blocs de la vue : tronqués au budget de points', () => {
   // 200 000 points : le niveau 0 (60 000) passe, le premier bloc de niveau 1 (225 000 de plus) non.
   const b = FLUX_CHOIX.blocsPourVue([dalle(0, 0)], { xmin: 0, xmax: 1000, ymin: 0, ymax: 1000 }, 4, 4, 200_000);
-  assert.deepEqual(b.map((x) => x.niveau), [0]);
+  assert.deepEqual(Array.from(b, (x) => x.niveau), [0]);
 });
 
 test('libérer : hors des blocs voulus seulement, le plus fin et le plus loin d’abord', () => {
@@ -726,9 +726,9 @@ test('libérer : hors des blocs voulus seulement, le plus fin et le plus loin d�
     { cle: 'c', niveau: 2, nbPoints: 100, emprise: e(2000) },
     { cle: 'd', niveau: 1, nbPoints: 100, emprise: e(9000) },
   ];
-  assert.deepEqual(FLUX_CHOIX.aLiberer(charges, new Set(['a']), 250, vue), ['b', 'c']);
-  assert.deepEqual(FLUX_CHOIX.aLiberer(charges, new Set(['a']), 1000, vue), []);
-  assert.deepEqual(FLUX_CHOIX.aLiberer(charges, new Set(['a', 'b', 'c', 'd']), 0, vue), []);
+  assert.deepEqual(Array.from(FLUX_CHOIX.aLiberer(charges, new Set(['a']), 250, vue)), ['b', 'c']);
+  assert.equal(FLUX_CHOIX.aLiberer(charges, new Set(['a']), 1000, vue).length, 0);
+  assert.equal(FLUX_CHOIX.aLiberer(charges, new Set(['a', 'b', 'c', 'd']), 0, vue).length, 0);
 });
 ```
 
