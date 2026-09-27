@@ -8,6 +8,7 @@
   "scripts": {
     "test": "node --test test/*.test.js",
     "embarquer-lazperf": "node tools/embarquer-lazperf.js",
-    "banc": "node tools/banc-lignes.js"
+    "banc": "node tools/banc-lignes.js",
+    "banc-traces": "node --max-old-space-size=6000 tools/banc-traces.js"
   }
 }

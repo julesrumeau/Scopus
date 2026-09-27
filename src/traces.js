@@ -140,6 +140,17 @@ function fabriqueTraces() {
     };
   }
 
-  return { longueur, decouper, mesurer, distanceCarree };
+  // ── Détection ──────────────────────────────────────────────────────────────
+
+  /**
+   * Les tracés d'une surface de vue (`t` : `W`, `H`, `pas`, `emprise`) et de
+   * son SVF (`reglages.svf`, NaN hors données), en polylignes Lambert-93.
+   * Pas encore écrite : le banc part de zéro (plan, Task 3).
+   */
+  function detecter(t, reglages = {}) {
+    return { lignes: [], stats: {} };
+  }
+
+  return { longueur, decouper, mesurer, distanceCarree, detecter };
 }
 const TRACES = fabriqueTraces();
