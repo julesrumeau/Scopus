@@ -254,3 +254,27 @@ test('réglages de couche (SVF) : pris en compte, et gardés en mémo par régla
   const c3 = m.calculer(geo, 'svf', { couche: { svfRayonM: 4 } });
   assert.equal(c3.recalcul, false);
 });
+
+test('deux couches à la fois (une par côté du rideau) : chacune gardée', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  const a1 = m.calculer(geo, 'svf');
+  const b1 = m.calculer(geo, 'microrelief');
+  const a2 = m.calculer(geo, 'svf');
+  const b2 = m.calculer(geo, 'microrelief');
+  assert.equal(a2.recalcul, false);
+  assert.equal(b2.recalcul, false);
+  assert.equal(a2.valeurs, a1.valeurs);
+  assert.equal(b2.valeurs, b1.valeurs);
+});
+
+test('lire un point : la valeur de la couche demandée', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  const svf = m.calculer(geo, 'svf');
+  const micro = m.calculer(geo, 'microrelief');
+  const i = Math.floor((2030.2 - geo.emprise.ymin) / geo.pas) * geo.W + Math.floor((1030.2 - geo.emprise.xmin) / geo.pas);
+  assert.equal(m.lire(1030.2, 2030.2, 'svf').valeur, svf.valeurs[i]);
+  assert.equal(m.lire(1030.2, 2030.2, 'microrelief').valeur, micro.valeurs[i]);
+  assert.equal(m.lire(1030.2, 2030.2, 'hauteur').valeur, null);   // pas calculée
+});

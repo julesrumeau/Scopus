@@ -67,7 +67,7 @@ function corpsTravailleurRelief() {
           pixels();
         }
       } else if (m.type === 'lire') {
-        self.postMessage({ type: 'lire', id: m.id, point: moteur.lire(m.x, m.y) });
+        self.postMessage({ type: 'lire', id: m.id, point: moteur.lire(m.x, m.y, m.couche) });
       } else if (m.type === 'calculer') {
         const r = moteur.calculer(m.geo, m.couche);
         if (!r) { self.postMessage({ type: 'resultat', id: m.id, vide: true }); return; }
@@ -185,11 +185,11 @@ const RELIEF_TRAVAILLEUR = (() => {
         });
       },
       /** Altitude, hauteur et valeur de la couche en un point Lambert-93 de la dernière vue calculée. */
-      lire(x, y) {
+      lire(x, y, couche) {
         return new Promise((ok, ko) => {
           const id = ++prochain;
           attente.set(id, { ok, ko });
-          w.postMessage({ type: 'lire', id, x, y });
+          w.postMessage({ type: 'lire', id, x, y, couche });
         });
       },
       /** L'image reprojetée de la couche, `null` sans bloc dans la vue. */
@@ -216,7 +216,7 @@ const RELIEF_TRAVAILLEUR = (() => {
       retirer: (cle) => moteur.retirer(cle),
       reglages: (r) => moteur.reglages(r),
       calculer: async (geo, couche) => moteur.calculer(geo, couche),
-      lire: async (x, y) => moteur.lire(x, y),
+      lire: async (x, y, couche) => moteur.lire(x, y, couche),
       image: async (geo, couche, ecran, lut, reglages = {}) => {
         if (!(ecran.W > 0 && ecran.H > 0)) return null;
         const t0 = performance.now();

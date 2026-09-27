@@ -227,7 +227,10 @@ function fabriqueVueRelief() {
     // La couche calculée est gardée tant que la surface et la clé ne changent
     // pas : un changement de contraste ne réétire que l'intervalle — refaire
     // un SVF à chaque cran du curseur coûterait des secondes.
-    let memoCouche = null;   // { t, cle, reglagesCouche, c }
+    // Les couches de la surface courante, par clé et réglages : une de chaque
+    // côté du rideau, et un aller-retour du sélecteur ne refait rien. Vidé
+    // quand la surface change — c'est elle qui fait leur validité.
+    let memoCouche = null;   // { t, couches: Map<cle|réglages, c>, derniere: c }
     // L'ombrage coloré (trois soleils, un par canal) ne suit pas le contrat
     // des couches de RELIEF.COUCHES : il rend directement des couleurs.
     // `reglagesCouche` : ceux du panneau propres à une couche (directions et
@@ -245,10 +248,12 @@ function fabriqueVueRelief() {
       const t = surface(geo, options.actifs);
       if (!t) return null;
       const dureeSurface = performance.now() - t0;
-      const reglagesCouche = JSON.stringify(options.couche || {});
-      const recalcul = !(memoCouche && memoCouche.t === t && memoCouche.cle === cle && memoCouche.reglagesCouche === reglagesCouche);
-      if (recalcul) memoCouche = { t, cle, reglagesCouche, c: calculerCouche(t, cle, options.couche) };
-      const c = memoCouche.c;
+      if (!memoCouche || memoCouche.t !== t) memoCouche = { t, couches: new Map(), derniere: null };
+      const cleMemo = `${cle}|${JSON.stringify(options.couche || {})}`;
+      const recalcul = !memoCouche.couches.has(cleMemo);
+      if (recalcul) memoCouche.couches.set(cleMemo, calculerCouche(t, cle, options.couche));
+      const c = memoCouche.couches.get(cleMemo);
+      memoCouche.derniere = c;
       // Une couche déjà en couleurs n'a ni palette ni intervalle à étirer.
       if (c.rgba) {
         return {
@@ -269,9 +274,14 @@ function fabriqueVueRelief() {
      * de la couche. Lu dans la dernière vue calculée, jamais recalculé : c'est
      * ce que l'écran montre. `null` hors de cette vue.
      */
-    function lire(x, y) {
+    function lire(x, y, cle) {
       if (!memoCouche) return null;
-      const { t, c } = memoCouche;
+      const { t } = memoCouche;
+      // La couche demandée (le côté du rideau survolé), la dernière calculée
+      // sinon ; `valeur` nulle si elle n'a pas été calculée sur cette surface.
+      let c = cle ? null : memoCouche.derniere;
+      // Même clé sous plusieurs réglages : la plus récemment calculée.
+      if (cle) for (const [k, v] of memoCouche.couches) if (k.startsWith(`${cle}|`)) c = v;
       const cx = Math.floor((x - t.emprise.xmin) / t.pas), cy = Math.floor((y - t.emprise.ymin) / t.pas);
       if (cx < 0 || cy < 0 || cx >= t.W || cy >= t.H) return null;
       const i = cy * t.W + cx;
@@ -279,7 +289,7 @@ function fabriqueVueRelief() {
         x, y,
         altitude: t.valide[i] ? t.mnt[i] + t.origine[2] : null,
         hauteur: t.hauteur[i],
-        valeur: c.valeurs ? c.valeurs[i] : null,
+        valeur: c && c.valeurs ? c.valeurs[i] : null,
       };
     }
 
