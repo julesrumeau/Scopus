@@ -277,6 +277,12 @@ const CONFIG = {
     // 1,4 pixel. Sans lui, un nuage vu de près est une bouillie de points ;
     // avec, murets et talus ressortent.
     edl: { actif: true, force: 1.0, rayon: 1.4 },
+    // Pendant un geste (glisser, pivoter, molette, animation), seule une part
+    // du nuage est dessinée, ajustée au retard des images (entre la demande
+    // et le rendu) : sous `imageRapideMs` elle remonte, au-dessus de
+    // `imageLenteMs` elle baisse, jamais sous `partMin`. `arretMs` sans
+    // geste : une image complète.
+    mouvement: { arretMs: 150, imageLenteMs: 34, imageRapideMs: 22, partMin: 0.05 },
     // Plafond de points du nuage 3D en vue normale (vue-relief.js, nuage3d) :
     // au-delà, un point sur N, tiré au hasard mais toujours le même pour une
     // même vue. Réglable dans le panneau, de 1 à 20 M.

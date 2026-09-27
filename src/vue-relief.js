@@ -335,6 +335,26 @@ function fabriqueVueRelief() {
     // qu'à lire la couche à ces cases.
     let dernierNuage = null;   // { t, cases: Int32Array }
 
+    /**
+     * L'ordre des `n` premiers points rangés par paquet de hachage : paquet
+     * = hachage ramené à [0, 1) par le taux du tirage (un point gardé a un
+     * hachage sous `taux`), sur 256 paquets. Les points d'un paquet sont
+     * répartis partout : chaque préfixe de paquets est un tirage régulier.
+     */
+    function rangerParHachage(xs, ys, zs, n, taux) {
+      const paquet = new Uint8Array(n);
+      const compte = new Uint32Array(257);
+      for (let i = 0; i < n; i++) {
+        const p = Math.min(255, Math.floor((hacher(xs[i], ys[i], zs[i]) / taux) * 256));
+        paquet[i] = p;
+        compte[p + 1]++;
+      }
+      for (let p = 1; p < 257; p++) compte[p] += compte[p - 1];
+      const ordre = new Int32Array(n);
+      for (let i = 0; i < n; i++) ordre[compte[paquet[i]]++] = i;
+      return ordre;
+    }
+
     /** Le nuage de la vue pour l'onglet 3D (spec 2026-09-27-vue-3d-design). */
     function nuage3d(emprise, budget, actifs) {
       dernierNuage = null;
@@ -391,20 +411,28 @@ function fabriqueVueRelief() {
       const t = couvre ? tc : null;
       const cases = new Int32Array(n).fill(-1);
       const parCode = new Uint32Array(256);
-      for (let i = 0; i < n; i++) {
-        X[i] = (xs[i] - e.xmin) / 100; Y[i] = (ys[i] - e.ymin) / 100; Z[i] = (zs[i] - zminCm) / 100;
+      // Rangés par paquets du même hachage que le tirage : n'importe quel
+      // début du nuage en est alors un échantillon régulier, et la 3D peut
+      // n'en dessiner qu'une part pendant qu'on bouge (Vue3D._rendre). Un tri
+      // par comptage sur 256 paquets : une passe, pas de tri.
+      const ordre = rangerParHachage(xs, ys, zs, n, taux);
+      const C = new Uint8Array(n);
+      for (let k = 0; k < n; k++) {
+        const i = ordre[k];
+        X[k] = (xs[i] - e.xmin) / 100; Y[k] = (ys[i] - e.ymin) / 100; Z[k] = (zs[i] - zminCm) / 100;
+        C[k] = cls[i];
         parCode[cls[i]]++;
         if (t) {
           const cx = Math.floor((xs[i] / 100 - t.emprise.xmin) / t.pas), cy = Math.floor((ys[i] / 100 - t.emprise.ymin) / t.pas);
           if (cx >= 0 && cy >= 0 && cx < t.W && cy < t.H) {
-            cases[i] = cy * t.W + cx;
-            if (t.valide[cases[i]]) H[i] = zs[i] / 100 - (t.mnt[cases[i]] + t.origine[2]);
+            cases[k] = cy * t.W + cx;
+            if (t.valide[cases[k]]) H[k] = zs[i] / 100 - (t.mnt[cases[k]] + t.origine[2]);
           }
         }
       }
       if (t) dernierNuage = { t, cases };
       return {
-        n, x: X, y: Y, z: Z, cls: cls.slice(0, n), hauteur: H,
+        n, x: X, y: Y, z: Z, cls: C, hauteur: H,
         origine, emprise: { ...emprise }, zmin: 0, zmax: (zmaxCm - zminCm) / 100,
         parClasse: [...histogramme(parCode)],
       };
