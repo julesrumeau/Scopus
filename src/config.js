@@ -251,6 +251,9 @@ const CONFIG = {
     angleMaxDeg: 40,
     longueurMinM: 40,
     compaciteMax: 4,
+    // Au-delà de ce pas de grille (m par case, le pixel au sol de la vue),
+    // les chemins ne font plus qu'une ou deux cases : on demande de zoomer.
+    pasMaxM: 1,
   },
 
   // ── Carte ─────────────────────────────────────────────────────────────────

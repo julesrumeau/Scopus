@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { chargerScripts } from './charger.js';
 
-const FICHIERS = ['config.js', 'proj.js', 'vue-grille.js', 'vue-image.js', 'raster.js', 'relief.js', 'gl.js', 'shaders.js', 'gpu-relief.js', 'vue-relief.js', 'relief-travailleur.js'];
+const FICHIERS = ['config.js', 'proj.js', 'vue-grille.js', 'vue-image.js', 'raster.js', 'relief.js', 'gl.js', 'shaders.js', 'gpu-relief.js', 'traces.js', 'vue-relief.js', 'relief-travailleur.js'];
 
 function bloc(cle, x0, y0) {
   const cote = 40, pasCm = 25, n = (cote * 100 / pasCm) ** 2;
@@ -256,4 +256,23 @@ test('le worker drape une couche sur le dernier nuage 3D', () => {
   const r = w.recus.at(-1);
   assert.equal(r.type, 'drape3d', r.message);
   assert.equal(r.valeurs.length, n);
+});
+
+test('les tracés partent du worker, les mêmes que sur le fil principal', () => {
+  const ctx = chargerScripts(FICHIERS);
+  const w = travailleur(ctx.RELIEF_TRAVAILLEUR.source());
+  w.envoyer({ type: 'demarrer' });
+  const geo = ctx.VUE_GRILLE.definir({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 0.5, 0, 4096);
+  w.envoyer({ type: 'traces', id: 3 });
+  assert.equal(w.recus.at(-1).resultat, null, 'sans vue calculée');
+  w.envoyer({ type: 'ajouter', bloc: bloc('a', 1000, 2000) });
+  w.envoyer({ type: 'calculer', id: 4, geo, couche: 'svf' });
+  const reglages = { longueurMinM: 5, longueurCheminM: 5, seuilMasque: 0.01 };
+  w.envoyer({ type: 'traces', id: 5, reglagesCouche: {}, reglagesTraces: reglages });
+  const r = w.recus.at(-1);
+  assert.equal(r.type, 'traces', r.message);
+  const ref = ctx.VUE_RELIEF.creer({ moteur: 'cpu' });
+  ref.ajouter(bloc('a', 1000, 2000));
+  ref.calculer(geo, 'svf');
+  assert.equal(JSON.stringify(r.resultat.lignes), JSON.stringify(ref.traces({}, reglages).lignes));
 });

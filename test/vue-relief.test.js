@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { chargerScripts } from './charger.js';
 
 const { VUE_RELIEF, VUE_GRILLE, RASTER, RELIEF } = chargerScripts(
-  ['config.js', 'vue-grille.js', 'raster.js', 'relief.js', 'vue-relief.js']);
+  ['config.js', 'vue-grille.js', 'raster.js', 'relief.js', 'traces.js', 'vue-relief.js']);
 
 /** Bloc d'une dalle au coin (x0, y0) en mètres : un plan à 300 m, une bosse, des points tous les 25 cm. */
 function bloc(cle, x0, y0, { cote = 60, pasCm = 25, zBase = 30000 } = {}) {
@@ -452,5 +452,35 @@ test('un trou sans sol n’assombrit pas le SVF de ses voisines', () => {
     const x = cx + dx * 8, y = cy + dy * 8;
     const v = lire(x, y);
     assert.ok(!Number.isFinite(v) || Math.abs(v - plan) < 0.01, `SVF à (${x}, ${y}) : ${v?.toFixed(4)} au lieu de ${plan.toFixed(4)}`);
+  }
+});
+
+// ── Détection des tracés sur la dernière vue calculée ───────────────────────
+
+test('traces : rien sans vue calculée', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  assert.equal(m.traces(), null);
+});
+
+test('traces : sur la dernière surface, des tracés en 3D (x, y, altitude absolue)', () => {
+  // Un versant à 30 % coupé d'une piste plate de 4 m de large, sur 60 m.
+  const cote = 60, pasCm = 25, pts = [];
+  for (let y = 0; y < cote * 100; y += pasCm) for (let x = 0; x < cote * 100; x += pasCm) {
+    const z = y >= 2800 && y < 3200 ? 2800 * 0.3 : y * 0.3;
+    pts.push([x, y, 30000 + Math.round(z)]);
+  }
+  const n = pts.length;
+  const p = { nbPoints: n, xc: new Int32Array(n), yc: new Int32Array(n), zc: new Int32Array(n), cls: new Uint8Array(n).fill(2) };
+  pts.forEach(([x, y, z], i) => { p.xc[i] = x; p.yc[i] = y; p.zc[i] = z; });
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter({ cle: 'piste', emprise: { xmin: 1000, ymin: 2000, xmax: 1060, ymax: 2060 }, origineCm: [100000, 200000, 0], points: p });
+  m.calculer(VUE_GRILLE.definir({ xmin: 1000, xmax: 1060, ymin: 2000, ymax: 2060 }, 0.5, 0, 4096), 'svf');
+  const r = m.traces({}, { longueurMinM: 20, longueurCheminM: 20 });
+  assert.ok(Array.isArray(r.lignes));
+  assert.ok(r.lignes.length >= 1, 'la piste est trouvée');
+  for (const l of r.lignes) for (const [x, y, z] of l) {
+    assert.ok(x >= 1000 && x <= 1060 && y >= 2000 && y <= 2060, `${x}, ${y} hors de la vue`);
+    // Altitude absolue du terrain : entre 300 m et 300 + 0,3 × 60 m.
+    assert.ok(z >= 299 && z <= 319, `altitude ${z}`);
   }
 });

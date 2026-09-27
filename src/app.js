@@ -2873,6 +2873,7 @@ if (MODE_VUE) (async () => {
             await etape('Nuage vers la carte graphique…', `${milliers(r.n)} points`);
             r.parClasse = new Map(r.parClasse);
             vue3d.definirNuage(r, r.hauteur);
+            dessinerTraces();   // le nuage neuf n'a pas encore les tracés
           }
           return r;
         });
@@ -2956,6 +2957,59 @@ if (MODE_VUE) (async () => {
       });
     },
   };
+  // ── Les tracés (src/traces.js) ──
+  // Détectés dans le worker sur la dernière vue calculée, avec l'altitude du
+  // terrain : la carte les dessine dans le volet des outils, la 3D les pose
+  // sur le nuage. La case les masque sans les oublier ; une nouvelle
+  // détection les remplace. Ils restent justes si la carte bouge : ce sont
+  // des coordonnées.
+  let tracesCourants = null, coucheTraces = null;
+  const dessinerTraces = () => {
+    coucheTraces?.remove();
+    coucheTraces = null;
+    const visibles = !!tracesCourants && $('traces-afficher').checked;
+    if (visibles) {
+      coucheTraces = L.layerGroup(tracesCourants.lignes.map((l) => L.polyline(l.map(([x, y]) => versLatLng(x, y)), {
+        pane: 'outilsVue', renderer: traceOutils, color: '#ff3d7f', weight: 3, opacity: 0.9, className: 'trace-detecte', interactive: false,
+      }))).addTo(carte.map);
+    }
+    vue3d?.definirSentiers(visibles ? tracesCourants.lignes.map((l) => ({ points: l })) : [], null);
+  };
+  const etatTraces = (t) => { $('traces-etat').textContent = t; };
+  $('btn-traces').addEventListener('click', async () => {
+    if (!vueCourante) return;
+    const pas = FLUX_CHOIX.pasPourVue(vueCourante.xmax - vueCourante.xmin, vueCourante.largeurPx, CONFIG.flux.pasMinM);
+    if (FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2 || pas > CONFIG.traces.pasMaxM) {
+      etatTraces(`Zoomez pour détecter les tracés : un pixel vaut ${pas.toFixed(1).replace('.', ',')} m au sol, ${String(CONFIG.traces.pasMaxM).replace('.', ',')} m au plus.`);
+      return;
+    }
+    if (!['gauche', 'droite'].some((c) => estRelief(cotes[c]))) {
+      etatTraces('Affichez une couche de relief d’un côté du rideau : les tracés se cherchent dans le relief calculé.');
+      return;
+    }
+    $('btn-traces').disabled = true;
+    etatTraces('Détection…');
+    try {
+      // Le relief en cours de calcul d'abord : la détection lit la dernière vue.
+      while (enCalcul) await enCalcul;
+      const r = await relief.traces({ svfDirections, svfRayonM }, {});
+      if (!r) { etatTraces('Pas encore de relief calculé ici : attendez qu’il s’affiche.'); return; }
+      tracesCourants = r;
+      $('traces-afficher').disabled = false;
+      dessinerTraces();
+      const km = r.lignes.reduce((a, l) => a + TRACES.longueur([l]), 0) / 1000;
+      etatTraces(r.lignes.length
+        ? `${r.lignes.length} tracé${r.lignes.length > 1 ? 's' : ''}, ${km.toFixed(1).replace('.', ',')} km.`
+        : 'Aucun tracé trouvé sur la zone affichée.');
+    } catch (err) {
+      console.error(err);
+      etatTraces(`La détection a échoué : ${err.message}`);
+    } finally {
+      $('btn-traces').disabled = false;
+    }
+  });
+  $('traces-afficher').addEventListener('change', dessinerTraces);
+
   // Un clic (pas un glisser : Leaflet ne l'émet pas après un déplacement)
   // vise un point en mode Sélection ou Mesure.
   carte.map.on('click', async (e) => {

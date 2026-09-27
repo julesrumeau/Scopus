@@ -556,7 +556,7 @@ class Vue3D {
   }
 
   _remplirTraces(traces, grille, suffixe) {
-    if (!this.nuage || !grille) return 0;
+    if (!this.nuage) return 0;
     const o = this.nuage.origine;
     const sommets = [];
 
@@ -570,8 +570,20 @@ class Vue3D {
     const PAS = 2;            // mètres entre deux échantillons
     const HAUTEUR = 0.35;     // décollement du sol, en mètres
 
+    // Des points (x, y, z) portent leur altitude absolue (les tracés de la
+    // vue, VUE_RELIEF.traces) ; sinon, elle se lit dans la grille de la dalle.
     for (const t of traces) {
       const pts = t.points || [];
+      if (pts[0] && pts[0].length >= 3) {
+        let precedent = null;
+        for (const [x, y, z] of pts) {
+          const p = [x - o[0], y - o[1], z - o[2] + HAUTEUR];
+          if (precedent) sommets.push(...precedent, ...p);
+          precedent = p;
+        }
+        continue;
+      }
+      if (!grille) continue;
       let precedent = null;
 
       for (let i = 1; i < pts.length; i++) {

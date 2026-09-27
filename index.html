@@ -310,6 +310,16 @@
       </div>
     </section>
 
+    <!-- Détection des tracés (src/traces.js) : sur le relief à l'écran,
+         sur la carte comme en 3D. Masquée derrière ?dalle. -->
+    <section class="etape" data-vue="carte 3d" id="section-traces">
+      <h2>Tracés</h2>
+      <p class="note">Chemins, sentiers, pistes, ruisseaux, sentes : tout ce qui dessine une ligne dans le relief, détecté sur la zone affichée.</p>
+      <div class="rangee"><button id="btn-traces" class="secondaire">Détecter les tracés</button></div>
+      <label class="case"><input type="checkbox" id="traces-afficher" checked disabled><span>Afficher les tracés</span></label>
+      <p class="note" id="traces-etat"></p>
+    </section>
+
     <!-- ─── 2D et 3D : point sélectionné ──────────────────────────────────
          Commun aux deux onglets (`data-vue="2d 3d"`) : le mode Sélection de la
          sous-barre change ce que fait un clic dans les deux vues à la fois.

@@ -462,8 +462,38 @@ function fabriqueVueRelief() {
       return out;
     }
 
+    /**
+     * Les tracés de la dernière vue calculée (TRACES.detecter, sur son SVF pris
+     * dans le mémo ou calculé), un point tous les 2 m avec l'altitude absolue
+     * du terrain — la 3D les pose tels quels. `null` sans vue calculée.
+     */
+    function traces(reglagesCouche, reglagesTraces) {
+      if (!memoCouche) return null;
+      const t = memoCouche.t;
+      const { c } = couche(t, 'svf', reglagesCouche);
+      const r = TRACES.detecter(t, { ...reglagesTraces, svf: c.valeurs });
+      const altitude = (x, y) => {
+        const cx = Math.min(t.W - 1, Math.max(0, Math.floor((x - t.emprise.xmin) / t.pas)));
+        const cy = Math.min(t.H - 1, Math.max(0, Math.floor((y - t.emprise.ymin) / t.pas)));
+        return t.mnt[cy * t.W + cx] + t.origine[2];
+      };
+      const lignes = r.lignes.map((l) => {
+        const out = [];
+        for (let i = 1; i < l.length; i++) {
+          const [ax, ay] = l[i - 1], [bx, by] = l[i];
+          const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 2));
+          for (let k = i === 1 ? 0 : 1; k <= n; k++) {
+            const x = ax + (bx - ax) * (k / n), y = ay + (by - ay) * (k / n);
+            out.push([x, y, altitude(x, y)]);
+          }
+        }
+        return out;
+      });
+      return { lignes, stats: r.stats, pas: t.pas };
+    }
+
     return {
-      ajouter, retirer, reglages, surface, calculer, statistiques, classes, lire, nuage3d, drape3d,
+      ajouter, retirer, reglages, surface, calculer, statistiques, classes, lire, nuage3d, drape3d, traces,
       taille: () => blocs.size,
       moteur: gpu ? 'gpu' : 'cpu',
       coteMax: gpu ? Math.min(CONFIG.flux.coteMaxGrille, GPU_RELIEF.coteMax()) : CONFIG.flux.coteMaxGrille,
