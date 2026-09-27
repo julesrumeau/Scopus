@@ -202,6 +202,7 @@ function definirModeInteraction(mode) {
   // comme en mesure.
   $('canvas-2d').classList.toggle('mode-vise', mode !== 'deplacement');
   $('canvas3d').classList.toggle('mode-vise', mode !== 'deplacement');
+  $('vue-carte').classList.toggle('mode-vise', mode !== 'deplacement');
 }
 $('mode-deplacement').addEventListener('click', () => definirModeInteraction('deplacement'));
 $('mode-selection').addEventListener('click', () => definirModeInteraction('selection'));
@@ -210,6 +211,12 @@ $('mode-mesure').addEventListener('click', () => definirModeInteraction('mesure'
 // Coordonnées du point actuellement affiché — lues par les liens « Ouvrir
 // dans » au clic, pas mémorisées dans `etat` : rien d'autre n'en a besoin.
 let selectionActuelle = null;
+
+// Mode vue (relief sur la carte) : ce qui dessine sélection et mesure sur la
+// carte, et ce qui lit un point dans le relief calculé. Posés par le bloc du
+// mode vue, plus bas ; nuls dans l'ancien parcours.
+let carteOutils = null;
+let lireVue = null;
 
 /**
  * @param {number} x Lambert-93
@@ -222,7 +229,7 @@ function afficherSelection(x, y, sol, hauteur = 0) {
   // Le sommet est ce qui a été visé — un toit s'il y en a un à cet endroit,
   // le sol sinon — donc c'est lui qui porte le marqueur, pas le sol seul.
   const sommetPoint = MESURE.sommet({ sol, hauteur });
-  selectionActuelle = { lon, lat, sol, hauteur, sommet: sommetPoint };
+  selectionActuelle = { x, y, lon, lat, sol, hauteur, sommet: sommetPoint };
   $('selection-vide').hidden = true;
   $('detail-selection').hidden = false;
   $('detail-selection').innerHTML = ligneDetail('Longitude', `${lon.toFixed(6)}°`)
@@ -235,6 +242,7 @@ function afficherSelection(x, y, sol, hauteur = 0) {
   // l'inverse) doit retrouver le marqueur au même endroit, pas le perdre.
   vue2d.definirPointSelectionne([x, y]);
   vue3d?.definirPointSelectionne({ x, y, altitude: sommetPoint });
+  carteOutils?.selection([x, y]);
 }
 
 function effacerSelection() {
@@ -244,6 +252,7 @@ function effacerSelection() {
   $('selection-liens').hidden = true;
   vue2d.definirPointSelectionne(null);
   vue3d?.definirPointSelectionne(null);
+  carteOutils?.selection(null);
 }
 
 $('lien-gmaps').addEventListener('click', () => {
@@ -265,7 +274,7 @@ $('lien-osm').addEventListener('click', () => {
  * vues à la fois, et les deux caméras se recentrent pour que le marqueur ne
  * tombe pas hors champ.
  */
-function chercherPoint() {
+async function chercherPoint() {
   const texte = $('recherche-point').value.trim();
   if (!texte) return;
 
@@ -274,6 +283,14 @@ function chercherPoint() {
   if (!PROJ.dansEmpriseFrance(p.lon, p.lat)) { alerter('Ces coordonnées sont hors de France.'); return; }
 
   const lambert = PROJ.versLambert93(p.lon, p.lat);
+  // Mode vue : la carte va au point, et l'altitude se lit dans le relief —
+  // tout de suite s'il est déjà calculé là, sinon dès la prochaine image.
+  if (MODE_VUE && lireVue) {
+    carte.allerA(p.lon, p.lat, Math.max(carte.map.getZoom(), 17));
+    const pt = await lireVue(lambert.x, lambert.y);
+    afficherSelection(lambert.x, lambert.y, pt?.altitude ?? null, pt?.hauteur ?? 0);
+    return;
+  }
   const t = etat.reliefGrille;
   let altitude = null, hauteur = 0;
   if (t) {
@@ -340,6 +357,7 @@ function afficherMesure() {
   const versVue3D = (p) => (MESURE.sommet(p) != null ? { x: p.x, y: p.y, altitude: MESURE.sommet(p) } : null);
   vue2d.definirMesure(pointsMesure.map((p) => [p.x, p.y]));
   vue3d?.definirMesure(pointsMesure.map(versVue3D));
+  carteOutils?.mesure(pointsMesure);
 
   if (!pointsMesure.length) {
     $('mesure-vide').hidden = false;
@@ -2233,7 +2251,8 @@ function basculerVue(quoi) {
   }
   // Le mode sélection n'a de sens qu'en 2D et en 3D — « cliquer un point » sur
   // la carte n'en est pas un.
-  $('barre-mode').hidden = quoi === 'carte';
+  // En mode vue, la carte porte le relief : sélection et mesure s'y font.
+  $('barre-mode').hidden = quoi === 'carte' && !MODE_VUE;
 
   // Leaflet mesure son conteneur à l'initialisation ; masqué, il l'a mesuré à
   // zéro et n'affiche aucune tuile tant qu'on ne le lui redit pas.
@@ -2522,6 +2541,9 @@ if (MODE_VUE) (async () => {
   // fin avec la vue du moment.
   let enCalcul = false, aRefaire = false;
   let contrasteFlux = 1, dernieresClasses = [], erreurRelief = '';
+  // Réglages du balayage d'horizons (SVF, ouvertures) et du lissage, comme
+  // dans l'onglet 2D.
+  let svfDirections = CONFIG.relief.svfDirections, svfRayonM = CONFIG.relief.svfRayonM, lisserFlux = true;
   let classesSolFlux = new Set(CONFIG.raster.classesSolDefaut), classesAffichees = '';
   // Une case par classe présente dans les points reçus, cochée si elle compte
   // comme sol. Reconstruite seulement quand la liste change.
@@ -2557,7 +2579,7 @@ if (MODE_VUE) (async () => {
       return;
     }
     const pas = FLUX_CHOIX.pasPourVue(vueCourante.xmax - vueCourante.xmin, vueCourante.largeurPx, CONFIG.flux.pasMinM);
-    const geo = VUE_GRILLE.definir(vueCourante, pas, VUE_GRILLE.marge({ ...CONFIG.relief, ...CONFIG.flux }), infoRelief.coteMax);
+    const geo = VUE_GRILLE.definir(vueCourante, pas, VUE_GRILLE.marge({ ...CONFIG.relief, ...CONFIG.flux, svfRayonM }), infoRelief.coteMax);
     enCalcul = true;
     activite.relief = true;
     try {
@@ -2569,12 +2591,19 @@ if (MODE_VUE) (async () => {
       const ecran = { x0: pb.min.x, y0: pb.min.y, W: Math.round(pb.max.x - pb.min.x), H: Math.round(pb.max.y - pb.min.y), z };
       const bornes = L.latLngBounds(carte.map.unproject(pb.getBottomLeft(), z), carte.map.unproject(pb.getTopRight(), z));
       const r = await relief.image(geo, coucheFlux, ecran, lutCouche(coucheFlux), {
-        contraste: contrasteFlux, lisser: true, actifs: [...flux.voulues()],
+        contraste: contrasteFlux, lisser: lisserFlux, actifs: [...flux.voulues()],
+        couche: { svfDirections, svfRayonM },
       });
       erreurRelief = '';
       if (!r) { reliefCalque.vider(); texteRelief = ''; }
       else {
         reliefCalque.afficher(r, bornes);
+        // Un point cherché par ses coordonnées avant que le relief n'y soit
+        // calculé : son altitude arrive avec cette image.
+        if (selectionActuelle && selectionActuelle.sol == null) {
+          const pt = await relief.lire(selectionActuelle.x, selectionActuelle.y);
+          if (pt?.altitude != null) afficherSelection(selectionActuelle.x, selectionActuelle.y, pt.altitude, pt.hauteur);
+        }
         texteRelief = `relief ${(r.duree / 1000).toFixed(2)} s (${r.moteurSurface}${r.moteurCouche && r.moteurCouche !== r.moteurSurface ? ' + ' + r.moteurCouche : ''}`
           + `${infoRelief.filPrincipal ? ', fil principal' : ''} ; surface ${(r.dureeSurface / 1000).toFixed(2)} s`
           + `, couche ${r.recalcul ? (r.dureeCouche / 1000).toFixed(2) + ' s' : 'gardée'}, image ${((r.dureeImage || 0) / 1000).toFixed(2)} s)`
@@ -2649,11 +2678,111 @@ if (MODE_VUE) (async () => {
   // porte déjà, à gauche du rideau) : relief.js, plus l'ombrage coloré.
   const COUCHES_VUE = CHOIX_2D.filter((c) => c.cle !== PHOTO && c.cle !== PLAN && c.cle !== 'ombrage');
   for (const c of COUCHES_VUE) selCouche.add(new Option(c.libelle, c.cle, c.cle === coucheFlux, c.cle === coucheFlux));
+  const BALAYAGE = new Set(['svf', 'ouverture-pos', 'ouverture-neg']);
   const majCouche = () => {
     const c = COUCHES_VUE.find((x) => x.cle === coucheFlux);
     $('vue-aide').textContent = c.aide;
     reliefCalque.definirLibelle(c.libelle);
+    $('vue-svf-reglages').hidden = !BALAYAGE.has(coucheFlux);
   };
+  // Réglages du balayage : appliqués au relâchement du curseur, un SVF coûte
+  // trop cher pour suivre chaque cran.
+  $('vue-svf-directions').value = svfDirections;
+  $('val-vue-svf-directions').textContent = svfDirections;
+  $('vue-svf-rayon').value = svfRayonM;
+  $('val-vue-svf-rayon').textContent = `${svfRayonM} m`;
+  $('vue-svf-directions').addEventListener('input', (e) => { $('val-vue-svf-directions').textContent = e.target.value; });
+  $('vue-svf-directions').addEventListener('change', (e) => { svfDirections = Number(e.target.value); planifierRelief(0); });
+  $('vue-svf-rayon').addEventListener('input', (e) => { $('val-vue-svf-rayon').textContent = `${e.target.value} m`; });
+  $('vue-svf-rayon').addEventListener('change', (e) => { svfRayonM = Number(e.target.value); planifierRelief(0); });
+  $('vue-lisser').addEventListener('change', (e) => { lisserFlux = e.target.checked; planifierRelief(0); });
+
+  // ── Sélection d'un point et mesure, sur la carte ──
+  // Les mêmes sections et le même tableau que l'onglet 2D ; le point se lit
+  // dans le relief calculé par le worker (relief.lire), jamais recalculé.
+  $('barre-mode').hidden = false;
+  for (const id of ['section-selection', 'section-mesure']) {
+    $(id).dataset.vue = 'carte 2d 3d';
+    $(id).hidden = false;
+  }
+  lireVue = (x, y) => relief.lire(x, y);
+  // Un volet à part, au-dessus du relief (450) et sous le rideau (700) : les
+  // marqueurs restent visibles des deux côtés.
+  carte.map.createPane('outilsVue').style.zIndex = 660;
+  // En SVG, pas dans le canevas de la carte (preferCanvas) : quelques
+  // marqueurs et traits, qui restent ainsi des éléments qu'on peut viser et
+  // vérifier.
+  const traceOutils = L.svg({ pane: 'outilsVue' });
+  const versLatLng = (x, y) => { const w = PROJ.versWGS84(x, y); return [w.lat, w.lon]; };
+  let coucheSelection = null, coucheMesure = null;
+  carteOutils = {
+    selection(p) {
+      coucheSelection?.remove();
+      coucheSelection = p ? L.circleMarker(versLatLng(p[0], p[1]), {
+        pane: 'outilsVue', renderer: traceOutils, radius: 7, color: '#fff', weight: 2, fillColor: '#ffd24a', fillOpacity: 1,
+        className: 'marqueur-selection', interactive: false,
+      }).addTo(carte.map) : null;
+    },
+    mesure(points) {
+      coucheMesure?.remove();
+      coucheMesure = L.layerGroup().addTo(carte.map);
+      const lls = points.map((p) => versLatLng(p.x, p.y));
+      if (lls.length > 1) {
+        L.polyline(lls, { pane: 'outilsVue', renderer: traceOutils, color: '#ffd24a', weight: 2.5, className: 'trace-mesure', interactive: false }).addTo(coucheMesure);
+      }
+      for (const ll of lls) {
+        L.circleMarker(ll, { pane: 'outilsVue', renderer: traceOutils, radius: 4, color: '#fff', weight: 1.5, fillColor: '#ffd24a', fillOpacity: 1, interactive: false }).addTo(coucheMesure);
+      }
+      // La distance horizontale au milieu de chaque segment, comme en 2D : la
+      // seule des trois qui se lise sur un plan.
+      MESURE.segments(points).forEach((sg, i) => {
+        L.tooltip({ permanent: true, direction: 'center', className: 'etiquette-mesure', interactive: false })
+          .setLatLng([(lls[i][0] + lls[i + 1][0]) / 2, (lls[i][1] + lls[i + 1][1]) / 2])
+          .setContent(`${sg.horizontale.toFixed(1)} m`)
+          .addTo(coucheMesure);
+      });
+    },
+  };
+  // Un clic (pas un glisser : Leaflet ne l'émet pas après un déplacement)
+  // vise un point en mode Sélection ou Mesure.
+  carte.map.on('click', async (e) => {
+    const mode = vue2d.mode;
+    if (mode !== 'selection' && mode !== 'mesure') return;
+    const { x, y } = PROJ.versLambert93(e.latlng.lng, e.latlng.lat);
+    const pt = await relief.lire(x, y);
+    if (mode === 'selection') afficherSelection(x, y, pt?.altitude ?? null, pt?.hauteur ?? 0);
+    else ajouterPointMesure(x, y, pt?.altitude ?? null, pt?.hauteur ?? 0);
+  });
+
+  // ── Ce que le relief dit sous le curseur ──
+  // Une lecture à la fois : pendant qu'elle revient du worker, seul le dernier
+  // mouvement est retenu.
+  const hud = $('hud-vue');
+  let hudEnCours = false, hudProchain = null;
+  const lireHud = async () => {
+    hudEnCours = true;
+    while (hudProchain) {
+      const ll = hudProchain;
+      hudProchain = null;
+      const { x, y } = PROJ.versLambert93(ll.lng, ll.lat);
+      const p = await relief.lire(x, y);
+      if (!ll.dedans) continue;
+      const c = COUCHES_VUE.find((k) => k.cle === coucheFlux);
+      hud.hidden = false;
+      hud.innerHTML = `x ${x.toFixed(0)} · y ${y.toFixed(0)}`
+        + (p?.altitude == null ? ' · sol inconnu' : ` · sol ${p.altitude.toFixed(1)} m`)
+        + (p?.hauteur > 0.05 ? ` · <b>+${p.hauteur.toFixed(2)} m</b>` : '')
+        + (p?.valeur != null && Number.isFinite(p.valeur) ? ` · ${echapper(c.libelle)} <b>${p.valeur.toFixed(2)}</b>` : '');
+    }
+    hudEnCours = false;
+  };
+  let dedans = false;
+  carte.map.on('mousemove', (e) => {
+    dedans = true;
+    hudProchain = { lng: e.latlng.lng, lat: e.latlng.lat, get dedans() { return dedans; } };
+    if (!hudEnCours) lireHud();
+  });
+  carte.map.on('mouseout', () => { dedans = false; hud.hidden = true; });
   selCouche.addEventListener('change', () => { coucheFlux = selCouche.value; majCouche(); planifierRelief(0); });
   majCouche();
   // Le contraste ne recalcule pas la couche (gardée dans le worker) : seule

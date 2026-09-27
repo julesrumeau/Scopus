@@ -37,7 +37,7 @@ function corpsTravailleurRelief() {
         const t0 = performance.now();
         // Une carte de taille nulle (masquée, pas encore mesurée) : rien à peindre.
         if (!(m.ecran.W > 0 && m.ecran.H > 0)) { self.postMessage({ type: 'image', id: m.id, vide: true, classes: moteur.classes() }); return; }
-        const r = moteur.calculer(m.geo, m.couche, { contraste: m.contraste, actifs: m.actifs ? new Set(m.actifs) : undefined });
+        const r = moteur.calculer(m.geo, m.couche, { contraste: m.contraste, couche: m.reglagesCouche, actifs: m.actifs ? new Set(m.actifs) : undefined });
         if (!r) { self.postMessage({ type: 'image', id: m.id, vide: true, classes: moteur.classes() }); return; }
         const t1 = performance.now();
         const uv = VUE_IMAGE.cases(m.geo, m.ecran, PROJ.versLambert93);
@@ -66,6 +66,8 @@ function corpsTravailleurRelief() {
         } else {
           pixels();
         }
+      } else if (m.type === 'lire') {
+        self.postMessage({ type: 'lire', id: m.id, point: moteur.lire(m.x, m.y) });
       } else if (m.type === 'calculer') {
         const r = moteur.calculer(m.geo, m.couche);
         if (!r) { self.postMessage({ type: 'resultat', id: m.id, vide: true }); return; }
@@ -149,6 +151,7 @@ const RELIEF_TRAVAILLEUR = (() => {
       if (!a) return;
       attente.delete(m.id);
       if (m.type === 'erreur') a.ko(new Error(m.message));
+      else if (m.type === 'lire') a.ok(m.point);
       else a.ok(m.vide ? null : m);
     };
     // Une erreur non rattrapée dans le worker : tout ce qui attend doit
@@ -181,12 +184,23 @@ const RELIEF_TRAVAILLEUR = (() => {
           w.postMessage({ type: 'calculer', id, geo, couche });
         });
       },
+      /** Altitude, hauteur et valeur de la couche en un point Lambert-93 de la dernière vue calculée. */
+      lire(x, y) {
+        return new Promise((ok, ko) => {
+          const id = ++prochain;
+          attente.set(id, { ok, ko });
+          w.postMessage({ type: 'lire', id, x, y });
+        });
+      },
       /** L'image reprojetée de la couche, `null` sans bloc dans la vue. */
       image(geo, couche, ecran, lut, reglages = {}) {
         return new Promise((ok, ko) => {
           const id = ++prochain;
           attente.set(id, { ok, ko });
-          w.postMessage({ type: 'image', id, geo, couche, ecran, lut, contraste: reglages.contraste ?? 1, lisser: reglages.lisser ?? true, actifs: reglages.actifs });
+          w.postMessage({
+            type: 'image', id, geo, couche, ecran, lut, contraste: reglages.contraste ?? 1, lisser: reglages.lisser ?? true,
+            actifs: reglages.actifs, reglagesCouche: reglages.couche,
+          });
         });
       },
       arreter() { w.terminate(); },
@@ -202,10 +216,11 @@ const RELIEF_TRAVAILLEUR = (() => {
       retirer: (cle) => moteur.retirer(cle),
       reglages: (r) => moteur.reglages(r),
       calculer: async (geo, couche) => moteur.calculer(geo, couche),
+      lire: async (x, y) => moteur.lire(x, y),
       image: async (geo, couche, ecran, lut, reglages = {}) => {
         if (!(ecran.W > 0 && ecran.H > 0)) return null;
         const t0 = performance.now();
-        const r = moteur.calculer(geo, couche, { contraste: reglages.contraste ?? 1, actifs: reglages.actifs ? new Set(reglages.actifs) : undefined });
+        const r = moteur.calculer(geo, couche, { contraste: reglages.contraste ?? 1, couche: reglages.couche, actifs: reglages.actifs ? new Set(reglages.actifs) : undefined });
         if (!r) return null;
         const t1 = performance.now();
         const uv = VUE_IMAGE.cases(geo, ecran, PROJ.versLambert93);

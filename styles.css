@@ -132,6 +132,10 @@ html, body {
    glissé effectif — le geste de glisser continue toujours de déplacer, quel
    que soit le mode, seul le curseur au repos change. */
 #canvas3d.mode-vise, #canvas-2d.mode-vise { cursor: default; }
+/* Sur la carte (mode vue), Leaflet pose sa main sur le conteneur : il faut
+   au moins sa spécificité pour la remplacer par une visée. */
+#vue-carte.mode-vise.leaflet-container,
+#vue-carte.mode-vise.leaflet-grab { cursor: crosshair; }
 #canvas3d:active, #canvas-2d:active { cursor: grabbing; }
 
 .onglets {
@@ -1085,4 +1089,17 @@ body[data-mode="vue"] #section-analyse { display: none !important; }
 body[data-mode="dalle"] #section-vue { display: none !important; }
 .classes-sol { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; margin-top: 4px; }
 .classes-sol .case { margin: 0; }
+/* Info-bulle du curseur en mode vue : au-dessus du relief et du rideau, sous
+   les contrôles de Leaflet, et jamais une cible pour la souris. */
+.hud-vue { z-index: 760; pointer-events: none; }
+/* Distances de la mesure sur la carte : une étiquette sobre, comme en 2D. */
+.leaflet-tooltip.etiquette-mesure {
+  padding: 1px 6px;
+  font-size: 11.5px;
+  color: #06202b;
+  background: #ffd24a;
+  border: 1px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.leaflet-tooltip.etiquette-mesure::before { display: none; }
 

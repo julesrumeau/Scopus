@@ -228,3 +228,29 @@ test('rangement incrémental : décalage dans l’autre sens (x négatif, y posi
   assert.equal(m.statistiques().decalages, 1);
   memeSurface(t, reference([b1], g2));
 });
+
+test('lire un point : altitude absolue, hauteur, valeur de la couche ; null hors de la grille', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  assert.equal(m.lire(1030, 2030), null);   // rien de calculé encore
+  m.ajouter(bloc('a', 1000, 2000));
+  const c = m.calculer(geo, 'svf');
+  const p = m.lire(1030.2, 2030.2, 'svf');
+  const cx = Math.floor((1030.2 - geo.emprise.xmin) / geo.pas), cy = Math.floor((2030.2 - geo.emprise.ymin) / geo.pas);
+  const i = cy * geo.W + cx;
+  assert.ok(Math.abs(p.altitude - (c.t.mnt[i] + c.t.origine[2])) < 1e-9);
+  assert.ok(p.altitude > 300 && p.altitude < 305, `${p.altitude}`);
+  assert.equal(p.valeur, c.valeurs[i]);
+  assert.equal(p.hauteur, c.t.hauteur[i]);
+  assert.equal(m.lire(5000, 5000), null);
+});
+
+test('réglages de couche (SVF) : pris en compte, et gardés en mémo par réglage', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  const c1 = m.calculer(geo, 'svf', { couche: { svfRayonM: 10 } });
+  const c2 = m.calculer(geo, 'svf', { couche: { svfRayonM: 4 } });
+  assert.equal(c2.recalcul, true);
+  assert.notEqual(c2.valeurs, c1.valeurs);
+  const c3 = m.calculer(geo, 'svf', { couche: { svfRayonM: 4 } });
+  assert.equal(c3.recalcul, false);
+});

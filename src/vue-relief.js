@@ -227,23 +227,27 @@ function fabriqueVueRelief() {
     // La couche calculée est gardée tant que la surface et la clé ne changent
     // pas : un changement de contraste ne réétire que l'intervalle — refaire
     // un SVF à chaque cran du curseur coûterait des secondes.
-    let memoCouche = null;   // { t, cle, c }
+    let memoCouche = null;   // { t, cle, reglagesCouche, c }
     // L'ombrage coloré (trois soleils, un par canal) ne suit pas le contrat
     // des couches de RELIEF.COUCHES : il rend directement des couleurs.
-    function calculerCouche(t, cle) {
+    // `reglagesCouche` : ceux du panneau propres à une couche (directions et
+    // rayon du Sky-View Factor…), par-dessus CONFIG.relief.
+    function calculerCouche(t, cle, reglagesCouche) {
+      const p = { ...calculCouches, ...reglagesCouche };
       if (cle === 'ombrage-rgb') {
-        const rgba = RELIEF.ombrageRGB(t, calculCouches);
+        const rgba = RELIEF.ombrageRGB(t, p);
         return { cle, rgba, moteur: RELIEF.moteur() };
       }
-      return RELIEF.calculer(t, cle, calculCouches);
+      return RELIEF.calculer(t, cle, p);
     }
     function calculer(geo, cle, options = {}) {
       const t0 = performance.now();
       const t = surface(geo, options.actifs);
       if (!t) return null;
       const dureeSurface = performance.now() - t0;
-      const recalcul = !(memoCouche && memoCouche.t === t && memoCouche.cle === cle);
-      if (recalcul) memoCouche = { t, cle, c: calculerCouche(t, cle) };
+      const reglagesCouche = JSON.stringify(options.couche || {});
+      const recalcul = !(memoCouche && memoCouche.t === t && memoCouche.cle === cle && memoCouche.reglagesCouche === reglagesCouche);
+      if (recalcul) memoCouche = { t, cle, reglagesCouche, c: calculerCouche(t, cle, options.couche) };
       const c = memoCouche.c;
       // Une couche déjà en couleurs n'a ni palette ni intervalle à étirer.
       if (c.rgba) {
@@ -259,8 +263,28 @@ function fabriqueVueRelief() {
       };
     }
 
+    /**
+     * Ce que la vue calculée dit d'un point Lambert-93 : altitude absolue du
+     * sol affiché (null sans sol connu), hauteur de ce qui s'y dresse, valeur
+     * de la couche. Lu dans la dernière vue calculée, jamais recalculé : c'est
+     * ce que l'écran montre. `null` hors de cette vue.
+     */
+    function lire(x, y) {
+      if (!memoCouche) return null;
+      const { t, c } = memoCouche;
+      const cx = Math.floor((x - t.emprise.xmin) / t.pas), cy = Math.floor((y - t.emprise.ymin) / t.pas);
+      if (cx < 0 || cy < 0 || cx >= t.W || cy >= t.H) return null;
+      const i = cy * t.W + cx;
+      return {
+        x, y,
+        altitude: t.valide[i] ? t.mnt[i] + t.origine[2] : null,
+        hauteur: t.hauteur[i],
+        valeur: c.valeurs ? c.valeurs[i] : null,
+      };
+    }
+
     return {
-      ajouter, retirer, reglages, surface, calculer, statistiques, classes,
+      ajouter, retirer, reglages, surface, calculer, statistiques, classes, lire,
       taille: () => blocs.size,
       moteur: gpu ? 'gpu' : 'cpu',
       coteMax: gpu ? Math.min(CONFIG.flux.coteMaxGrille, GPU_RELIEF.coteMax()) : CONFIG.flux.coteMaxGrille,

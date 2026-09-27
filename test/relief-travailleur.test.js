@@ -199,3 +199,27 @@ test('sur le fil principal, l’image porte ses durées', async () => {
   const r = await m.image(geo, 'svf', { x0: 0, y0: 0, W: 4, H: 4, z: 0 }, new Uint8Array(768), {});
   assert.ok(Number.isFinite(r.dureeCouche) && Number.isFinite(r.dureeImage));
 });
+
+test('le worker lit un point de la vue calculée', () => {
+  const ctx = chargerScripts(FICHIERS);
+  const w = travailleur(ctx.RELIEF_TRAVAILLEUR.source());
+  w.envoyer({ type: 'demarrer' });
+  const geo = ctx.VUE_GRILLE.definir({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 0.5, 0, 4096);
+  w.envoyer({ type: 'ajouter', bloc: bloc('a', 1000, 2000) });
+  w.envoyer({ type: 'calculer', id: 1, geo, couche: 'svf' });
+  w.envoyer({ type: 'lire', id: 2, x: 1020, y: 2020, couche: 'svf' });
+  const r = w.recus.at(-1);
+  assert.equal(r.type, 'lire');
+  assert.ok(r.point.altitude > 300, JSON.stringify(r.point));
+  assert.ok(Number.isFinite(r.point.valeur));
+});
+
+test('sur le fil principal, lire un point', async () => {
+  const ctx = chargerScripts(FICHIERS);
+  const m = ctx.RELIEF_TRAVAILLEUR.surFilPrincipal({ moteur: 'cpu' });
+  const geo = ctx.VUE_GRILLE.definir({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 0.5, 0, 4096);
+  m.ajouter(bloc('a', 1000, 2000));
+  await m.calculer(geo, 'svf');
+  const p = await m.lire(1020, 2020, 'svf');
+  assert.ok(p.altitude > 300);
+});

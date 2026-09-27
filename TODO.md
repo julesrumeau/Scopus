@@ -143,13 +143,15 @@ compacité, le diagnostic à cinq couches et la piste de l'ouverture écartée
 restent acquis pour la prochaine tentative, qui demandera un vrai chemin
 connu pour se calibrer plutôt que d'autres essais à l'aveugle.
 
-### #3 — Mesure et pointé sur le relief de la vue
+### #3 — « Compléter le sol par les non classés » en vue normale
 
-Le relief piloté par la vue remplace la dalle chargée : la mesure en chaîne et
-la sélection d'un point (§ « Mesure en chaîne », « Le pointé au clic »)
-lisaient les grilles d'une dalle, qui n'existent plus dans ce mode. Il faut
-lire l'altitude dans la grille de la vue, que garde le worker du relief
-(`relief-travailleur.js`) — une question au worker par clic.
+Fait le 27 septembre 2026 : sélection d'un point, mesure en chaîne,
+recherche par coordonnées, info-bulle au curseur, réglages du SVF et
+lissage, sur la carte en vue normale (voir CLAUDE.md, « Le calcul de la
+vue »). Reste la case « Compléter le sol par les retours non classés »,
+masquée : son effet n'a pas convaincu à l'usage. Le réglage par défaut
+(`CONFIG.relief.inclureSursol`, activé) s'applique toujours. À vérifier sur
+une ruine connue avant de la rendre, ou de la retirer pour de bon.
 
 ### #4 — Le retour de la 3D
 

@@ -159,11 +159,32 @@
       <h2>Relief</h2>
       <label class="champ"><span>Couche</span><select id="vue-couche"></select></label>
       <p class="note" id="vue-aide"></p>
+      <!-- Propres au balayage d'horizons : SVF et ouvertures seulement. -->
+      <div id="vue-svf-reglages">
+        <label class="champ">
+          <span><span class="libelle-aide">Directions balayées
+            <button type="button" class="aide-info" title="Nombre de directions balayées pour estimer l’horizon de chaque case. En augmenter lisse les formes rondes et atténue les artefacts autour des trous de données, sans changer la finesse spatiale. Coût linéaire : doubler les directions double le temps de calcul.">?</button>
+          </span><b id="val-vue-svf-directions">8</b></span>
+          <input type="range" id="vue-svf-directions" min="4" max="24" step="1" value="8">
+        </label>
+        <label class="champ">
+          <span><span class="libelle-aide">Rayon balayé
+            <button type="button" class="aide-info" title="Distance balayée pour chercher l’horizon. Un rayon court isole les petites structures ; un rayon long est plus fidèle au relief lointain mais dilue les petites structures et coûte plus cher.">?</button>
+          </span><b id="val-vue-svf-rayon">10 m</b></span>
+          <input type="range" id="vue-svf-rayon" min="3" max="30" step="1" value="10">
+        </label>
+      </div>
       <label class="champ">
         <span>Contraste <b id="val-vue-contraste">×1.0</b></span>
         <input type="range" id="vue-contraste" min="0.4" max="5" step="0.1" value="1">
       </label>
       <label class="case">
+        <input type="checkbox" id="vue-lisser" checked>
+        <span>Lisser l'affichage <small>(interpolation entre cases, visible en zoomant)</small></span>
+      </label>
+      <!-- Masquée pour l'instant : son effet n'a pas convaincu à l'usage. Le
+           réglage reste celui par défaut (CONFIG.relief.inclureSursol). -->
+      <label class="case" hidden>
         <input type="checkbox" id="vue-sursol" checked>
         <span>Compléter le sol par les retours non classés
           <small>(ruines et tas de pierres, sous 3 m)</small></span>
@@ -499,7 +520,10 @@
         </svg>
       </button>
     </nav>
-    <div id="vue-carte" class="vue"></div>
+    <div id="vue-carte" class="vue">
+      <!-- Ce que le relief dit sous le curseur (mode vue). -->
+      <div id="hud-vue" class="hud hud-vue" hidden></div>
+    </div>
     <div id="vue-2d" class="vue" hidden>
       <canvas id="canvas-2d"></canvas>
       <!-- Rideau de comparaison. La ligne et la poignée sont en DOM, pas dans le

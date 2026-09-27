@@ -491,6 +491,22 @@ couleurs directement (`RELIEF.ombrageRGB`), reprojetées par
 `VUE_IMAGE.peindreRGBA`, sans palette ni contraste. L'ombrage gris ne l'est
 pas : sur une grille au pixel, il sortait pâle et peu lisible.
 
+**Les outils de la 2D sur la carte.** En vue normale, la barre de modes
+(déplacement, sélection, mesure), « Point sélectionné » et la mesure en
+chaîne marchent sur la carte, avec les mêmes sections et le même tableau
+que l'onglet 2D. Le point se **lit** dans la dernière vue calculée par le
+worker (`relief.lire`, `VUE_RELIEF.lire`) — altitude absolue, hauteur,
+valeur de la couche —, jamais recalculé : c'est ce que l'écran montre, et
+une question au worker par clic. L'info-bulle au curseur fait de même, une
+lecture à la fois, en ne gardant que le dernier mouvement. Marqueurs et
+traits vont dans un volet à part (au-dessus du relief, sous le rideau), en
+**SVG** plutôt que dans le canevas de la carte (`preferCanvas`) : quelques
+éléments, qu'on peut viser et vérifier. Un point cherché par coordonnées
+avant que le relief n'y soit calculé reçoit son altitude avec l'image
+suivante. Les réglages du balayage (directions, rayon) partent avec chaque
+image ; le rayon agrandit aussi la marge de la grille. La case « Compléter
+le sol par les non classés » est masquée (TODO #3).
+
 Au-delà du seuil de surface, c'est le libellé du rideau, côté relief, qui dit
 « Zoomez pour voir le relief ». Un avis posé au milieu de la carte gênait —
 et sa classe, `.avis-zoom`, était déjà celle de l'avis de zoom maximal de la
@@ -2292,7 +2308,7 @@ masquée ».
 | Borne de zoom de la carte | ✅ |
 | Vue d'ouverture sur la France entière | ✅ |
 | Lien partageable | ✅ — la vue, au format osm.org (`#map=zoom/lat/lon`, + angles en 3D) ; voir « Le lien partageable » |
-| Relief piloté par la vue | ✅ vue normale (plans 1 à 3) : relief de ce qui est à l'écran, rideau carte / relief, panneau « Relief » ; ancienne interface derrière `?dalle` ; mesure, 3D et relief de secours dans TODO (#3 à #5) |
+| Relief piloté par la vue | ✅ vue normale (plans 1 à 3) : relief de ce qui est à l'écran, rideau carte / relief, panneau « Relief » ; ancienne interface derrière `?dalle` ; sélection, mesure, info-bulle et réglages du SVF sur la carte ; 3D et relief de secours dans TODO (#4, #5) |
 
 ## Jalon de publication
 
