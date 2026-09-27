@@ -95,7 +95,7 @@ function corpsTravailleurRelief() {
         const valeurs = moteur.drape3d(m.cle, m.reglagesCouche, m.min, m.max);
         self.postMessage({ type: 'drape3d', id: m.id, valeurs }, valeurs ? [valeurs.buffer] : []);
       } else if (m.type === 'traces') {
-        self.postMessage({ type: 'traces', id: m.id, resultat: moteur.traces(m.reglagesCouche, m.reglagesTraces) });
+        self.postMessage({ type: 'traces', id: m.id, resultat: moteur.traces(m.reglagesTraces) });
       } else if (m.type === 'lire') {
         self.postMessage({ type: 'lire', id: m.id, point: moteur.lire(m.x, m.y, m.couche) });
       } else if (m.type === 'calculer') {
@@ -237,7 +237,7 @@ const RELIEF_TRAVAILLEUR = (() => {
       /** Altitude, hauteur et valeur de la couche en un point Lambert-93 de la dernière vue calculée. */
       lire: (x, y, couche) => demander({ type: 'lire', x, y, couche }),
       /** Les tracés de la dernière vue calculée, en 3D ; `null` sans vue. */
-      traces: (reglagesCouche, reglagesTraces) => demander({ type: 'traces', reglagesCouche, reglagesTraces }),
+      traces: (reglagesTraces) => demander({ type: 'traces', reglagesTraces }),
       /** L'image reprojetée de la couche, `null` sans bloc dans la vue. */
       image: (geo, couche, ecran, lut, reglages = {}) => demander({
         type: 'image', geo, couche, ecran, lut, contraste: reglages.contraste, lisser: reglages.lisser,
@@ -258,7 +258,7 @@ const RELIEF_TRAVAILLEUR = (() => {
       reglages: (r) => moteur.reglages(r),
       calculer: async (geo, couche) => moteur.calculer(geo, couche),
       lire: async (x, y, couche) => moteur.lire(x, y, couche),
-      traces: async (reglagesCouche, reglagesTraces) => moteur.traces(reglagesCouche, reglagesTraces),
+      traces: async (reglagesTraces) => moteur.traces(reglagesTraces),
       drape3d: async (cle, reglagesCouche, min, max) => moteur.drape3d(cle, reglagesCouche, min, max),
       nuage3d: async (emprise, budget, actifs) => {
         const r = moteur.nuage3d(emprise, budget, actifs ? new Set(actifs) : undefined);

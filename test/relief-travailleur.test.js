@@ -268,11 +268,11 @@ test('les tracés partent du worker, les mêmes que sur le fil principal', () =>
   w.envoyer({ type: 'ajouter', bloc: bloc('a', 1000, 2000) });
   w.envoyer({ type: 'calculer', id: 4, geo, couche: 'svf' });
   const reglages = { longueurMinM: 5, longueurCheminM: 5, seuilMasque: 0.01 };
-  w.envoyer({ type: 'traces', id: 5, reglagesCouche: {}, reglagesTraces: reglages });
+  w.envoyer({ type: 'traces', id: 5, reglagesTraces: reglages });
   const r = w.recus.at(-1);
   assert.equal(r.type, 'traces', r.message);
   const ref = ctx.VUE_RELIEF.creer({ moteur: 'cpu' });
   ref.ajouter(bloc('a', 1000, 2000));
   ref.calculer(geo, 'svf');
-  assert.equal(JSON.stringify(r.resultat.lignes), JSON.stringify(ref.traces({}, reglages).lignes));
+  assert.equal(JSON.stringify(r.resultat.lignes), JSON.stringify(ref.traces(reglages).lignes));
 });

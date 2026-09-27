@@ -177,6 +177,37 @@ function fabriqueTraces() {
   }
 
   /**
+   * Moyenne en boîte des seules cases connues, rayon `r` cases, à somme
+   * glissante : son coût ne dépend pas du rayon (la fenêtre du contraste
+   * local fait 30 m, soit 121 cases de large à 25 cm).
+   */
+  function moyenneBoite(valeurs, W, H, r) {
+    const N = W * H;
+    const sv = new Float64Array(N), sw = new Float64Array(N);
+    for (let y = 0; y < H; y++) {
+      let a = 0, b = 0;
+      const l = y * W;
+      for (let x = -r; x < W + r; x++) {
+        const ent = x + r, sor = x - r - 1;
+        if (ent < W) { const v = valeurs[l + ent]; if (v === v) { a += v; b++; } }
+        if (sor >= 0) { const v = valeurs[l + sor]; if (v === v) { a -= v; b--; } }
+        if (x >= 0 && x < W) { sv[l + x] = a; sw[l + x] = b; }
+      }
+    }
+    const out = new Float32Array(N);
+    for (let x = 0; x < W; x++) {
+      let a = 0, b = 0;
+      for (let y = -r; y < H + r; y++) {
+        const ent = y + r, sor = y - r - 1;
+        if (ent < H) { a += sv[ent * W + x]; b += sw[ent * W + x]; }
+        if (sor >= 0) { a -= sv[sor * W + x]; b -= sw[sor * W + x]; }
+        if (y >= 0 && y < H) out[y * W + x] = b > 0 ? a / b : NaN;
+      }
+    }
+    return out;
+  }
+
+  /**
    * Réponse de ligne sombre (Frangi et al., 1998), maximum sur les échelles :
    * sur un creux allongé, la courbure est forte en travers (λ1 > 0) et nulle
    * le long (λ2 ≈ 0) ; sur une tache, forte dans les deux sens. Courbures
@@ -193,10 +224,28 @@ function fabriqueTraces() {
     // taillée dans la pente est un replat, une bande claire. `polarite` :
     // 'sombre', 'clair' ou 'deux'.
     const signes = p.polarite === 'clair' ? [-1] : p.polarite === 'deux' ? [1, -1] : [1];
+    const locale = p.normalisation === 'locale';
     for (const sM of p.echellesM) for (const signe of signes) {
       const s = sM / pas;
       const f = flouGauss(svf, W, H, s);
       if (signe < 0) for (let i = 0; i < N; i++) f[i] = -f[i];
+      // Contraste de référence local : la courbure quadratique moyenne sur
+      // une fenêtre de `fenetreM`, multipliée par `contrasteRelatif`. Un creux
+      // de 0,03 de SVF dans une prairie calme compte alors autant qu'un creux
+      // de 0,15 dans une forêt agitée — même leçon que sentiers.js (« seuils
+      // en multiples de la rugosité locale »).
+      let c2loc = null;
+      if (locale) {
+        const q = new Float32Array(N);
+        for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+          const i = y * W + x;
+          const dxx = (f[i + 1] - 2 * f[i] + f[i - 1]) * s * s, dyy = (f[i + W] - 2 * f[i] + f[i - W]) * s * s;
+          q[i] = dxx === dxx && dyy === dyy ? dxx * dxx + dyy * dyy : NaN;
+        }
+        c2loc = moyenneBoite(q, W, H, Math.max(1, Math.round(p.fenetreM / pas / 2)));
+        const k2 = p.contrasteRelatif * p.contrasteRelatif, mini = p.contrasteMin * p.contrasteMin;
+        for (let i = 0; i < N; i++) c2loc[i] = 2 * Math.max(mini, k2 * (c2loc[i] === c2loc[i] ? c2loc[i] : 0));
+      }
       const n = s * s;
       for (let y = 1; y < H - 1; y++) {
         for (let x = 1; x < W - 1; x++) {
@@ -211,7 +260,7 @@ function fabriqueTraces() {
           const l1 = m + d, l2 = m - d;   // l1 ≥ l2 : la plus forte courbure positive
           if (l1 <= 0 || Math.abs(l2) > l1) continue;
           const rb = l2 / l1, sc = l1 * l1 + l2 * l2;
-          const v = Math.exp(-(rb * rb) / b2) * (1 - Math.exp(-sc / c2));
+          const v = Math.exp(-(rb * rb) / b2) * (1 - Math.exp(-sc / (c2loc ? c2loc[i] : c2)));
           if (v > rep[i]) {
             rep[i] = v;
             let ex = dxy, ey = l1 - dxx;
@@ -686,6 +735,6 @@ function fabriqueTraces() {
     };
   }
 
-  return { longueur, decouper, mesurer, distanceCarree, detecter, reponseLignes, ouvertureChemins };
+  return { longueur, decouper, mesurer, distanceCarree, detecter, reponseLignes, ouvertureChemins, moyenneBoite };
 }
 const TRACES = fabriqueTraces();

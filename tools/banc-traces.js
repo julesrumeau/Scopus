@@ -25,12 +25,22 @@ const LOT = 'https://data.geopf.fr/telechargement/download/LiDARHD-NUALID/';
 const DALLES = [
   { nom: '0536_6214', role: 'référence', url: `${LOT}NUALHD_1-0__LAZ_LAMB93_IR_2025-03-20/LHD_FXX_0536_6214_PTS_LAMB93_IGN69.copc.laz` },
   { nom: '0535_6214', role: 'contrôle', url: `${LOT}NUALHD_1-0__LAZ_LAMB93_HR_2025-04-18/LHD_FXX_0535_6214_PTS_LAMB93_IGN69.copc.laz` },
+  // Montagne ariégeoise : un sentier que l'utilisateur voit nettement sur le
+  // SVF, et que la détection manquait (27 septembre 2026). `temoin` : un point
+  // de ce sentier ; le banc dit à quelle distance passe le tracé le plus proche.
+  { nom: '0542_6197', role: 'montagne', url: `${LOT}NUALHD_1-0__LAZ_LAMB93_IR_2025-03-20/LHD_FXX_0542_6197_PTS_LAMB93_IGN69.copc.laz`, temoin: [542314.1, 6196599.6] },
 ];
 const args = process.argv.slice(2);
 const PAS = Number(args[args.indexOf('--pas') + 1]) || 0.5;
 const RECALCULER = args.includes('--recalculer');
 // `--reglages '{"seuilHaut": 0.3}'` : surcharge CONFIG.traces pour ce passage.
 const REGLAGES = args.includes('--reglages') ? JSON.parse(args[args.indexOf('--reglages') + 1]) : {};
+// `--svf '{"svfRayonM": 5}'` : réglages du SVF (rayon, directions), comme les curseurs de l'appli.
+// Par défaut, celui de la détection dans l'appli (CONFIG.traces.svf).
+const SVF = { ...S.CONFIG.traces.svf, ...(args.includes('--svf') ? JSON.parse(args[args.indexOf('--svf') + 1]) : {}) };
+const SUFFIXE_SVF = Object.keys(SVF).length ? `-${Object.entries(SVF).map(([k, v]) => `${k}${v}`).join('-')}` : '';
+// `--dalles 0542_6197,0536_6214` : seulement celles-là.
+const CHOIX = args.includes('--dalles') ? args[args.indexOf('--dalles') + 1].split(',') : null;
 const RACINE = new URL('../.tmp/banc-traces/', import.meta.url);
 mkdirSync(RACINE, { recursive: true });
 const chemin = (...p) => new URL(p.join('/'), RACINE);
@@ -68,7 +78,7 @@ async function blocs(d) {
 /** Le SVF de la dalle au pas `PAS`, calculé comme dans l'appli, gardé sur disque. */
 async function svf(d) {
   const e = empriseDe(d.nom);
-  const f = chemin(d.nom, `svf-${PAS}.bin`), m = chemin(d.nom, `svf-${PAS}.json`);
+  const f = chemin(d.nom, `svf-${PAS}${SUFFIXE_SVF}.bin`), m = chemin(d.nom, `svf-${PAS}${SUFFIXE_SVF}.json`);
   if (!RECALCULER && existsSync(f) && existsSync(m)) {
     const meta = JSON.parse(readFileSync(m, 'utf8'));
     const o = readFileSync(f);
@@ -91,7 +101,7 @@ async function svf(d) {
   console.log(`  ${(total / 1e6).toFixed(1)} M points décodés en ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   const geo = S.VUE_GRILLE.definir(e, PAS, S.VUE_GRILLE.marge({ ...S.CONFIG.relief, ...S.CONFIG.flux }), 16384);
   t0 = Date.now();
-  const r = moteur.calculer(geo, 'svf', { contraste: 1 });
+  const r = moteur.calculer(geo, 'svf', { contraste: 1, couche: SVF });
   console.log(`  SVF ${geo.W}×${geo.H} en ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   const meta = { W: r.t.W, H: r.t.H, pas: r.t.pas, emprise: r.t.emprise, min: r.min, max: r.max };
   const n = meta.W * meta.H;
@@ -159,7 +169,7 @@ let html = '<!doctype html><meta charset="utf-8"><title>Banc des tracés</title>
   + `<h1>Banc des tracés — pas ${PAS} m</h1><p>Réglages : ${JSON.stringify({ ...S.CONFIG.traces, ...REGLAGES })}</p><p>Gris : SVF. Bleu clair : BD TOPO. Rouge : détection.</p><table><tr><th>Dalle</th><th>Rappel 10 m</th><th>Précision 10 m</th><th>Rappel 20 m</th><th>Précision 20 m</th><th>IGN</th><th>Détecté</th><th>Durée</th></tr>`;
 const pct = (v) => (Number.isFinite(v) ? `${(100 * v).toFixed(1)} %` : '—');
 let corps = '';
-for (const d of DALLES) {
+for (const d of DALLES.filter((x) => !CHOIX || CHOIX.includes(x.nom))) {
   console.log(`${d.nom} (${d.role})`);
   const s = await svf(d);
   const reference = (await ign(d)).map((l) => l.points);
@@ -170,6 +180,17 @@ for (const d of DALLES) {
   const m10 = S.TRACES.mesurer(r.lignes, reference, e, 10), m20 = S.TRACES.mesurer(r.lignes, reference, e, 20);
   const ligne = { dalle: d.nom, role: d.role, pas: PAS, rappel10: m10.rappel, precision10: m10.precision, rappel20: m20.rappel, precision20: m20.precision, ign: m10.longueurReference, detecte: m10.longueurDetectee, duree, stats: r.stats };
   lignes.push(ligne);
+  if (d.temoin) {
+    let dmin = Infinity;
+    for (const l of r.lignes) for (let i = 1; i < l.length; i++) {
+      const [ax, ay] = l[i - 1], [bx, by] = l[i], [px, py] = d.temoin;
+      const L2 = (bx - ax) ** 2 + (by - ay) ** 2 || 1e-9;
+      const u = Math.max(0, Math.min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / L2));
+      dmin = Math.min(dmin, Math.hypot(px - ax - u * (bx - ax), py - ay - u * (by - ay)));
+    }
+    ligne.temoin = dmin;
+    console.log(`  témoin : tracé le plus proche à ${dmin.toFixed(1)} m ${dmin <= 5 ? '(trouvé)' : '(MANQUÉ)'}`);
+  }
   console.log(`  rappel ${pct(m10.rappel)} · précision ${pct(m10.precision)} à 10 m (${pct(m20.rappel)} · ${pct(m20.precision)} à 20 m) · IGN ${m10.longueurReference.toFixed(0)} m · détecté ${m10.longueurDetectee.toFixed(0)} m · ${duree.toFixed(1)} s`);
   html += `<tr><td>${d.nom} (${d.role})</td><td>${pct(m10.rappel)}</td><td>${pct(m10.precision)}</td><td>${pct(m20.rappel)}</td><td>${pct(m20.precision)}</td><td>${m10.longueurReference.toFixed(0)} m</td><td>${m10.longueurDetectee.toFixed(0)} m</td><td>${duree.toFixed(1)} s</td></tr>`;
   corps += `<h2>${d.nom} (${d.role})</h2><div class="q">${images(d, s, reference, S.TRACES.decouper(r.lignes, e)).map(([q, n]) => `<figure><img src="${n}"><figcaption>${q}</figcaption></figure>`).join('')}</div>`;

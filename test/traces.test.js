@@ -111,30 +111,30 @@ const piste = (points) => [
 /** Une courbe de x = 20 à 180 m : y = 100 + 20 sin(x / 25). */
 const COURBE = Array.from({ length: 81 }, (_, k) => { const x = 20 + 2 * k; return [x, 100 + 20 * Math.sin(x / 25)]; });
 
-test('detecter : une piste courbe dans du bruit est retrouvée', () => {
+test('detecter : une piste taillée dans la pente (replat clair) est retrouvée en polarité claire', () => {
   const s = svfSynthetique({ traits: piste(COURBE) });
+  const r = TRACES.detecter(s.t, { svf: s.svf, polarite: 'clair' });
+  const m = TRACES.mesurer(r.lignes, [COURBE], s.emprise, 2);
+  assert.ok(m.rappel >= 0.9, `rappel ${m.rappel}`);
+  assert.ok(m.precision >= 0.9, `précision ${m.precision}`);
+});
+
+test('detecter : un chemin creux, trait sombre, est retrouvé (défaut)', () => {
+  const s = svfSynthetique({ traits: [{ points: COURBE, amplitude: -0.23, largeur: 0.8 }] });
   const r = TRACES.detecter(s.t, { svf: s.svf });
   const m = TRACES.mesurer(r.lignes, [COURBE], s.emprise, 2);
   assert.ok(m.rappel >= 0.9, `rappel ${m.rappel}`);
   assert.ok(m.precision >= 0.9, `précision ${m.precision}`);
 });
 
-test('detecter : un chemin creux, trait sombre, est retrouvé en polarité sombre', () => {
-  const s = svfSynthetique({ traits: [{ points: COURBE, amplitude: -0.23, largeur: 0.8 }] });
-  const r = TRACES.detecter(s.t, { svf: s.svf, polarite: 'sombre' });
-  const m = TRACES.mesurer(r.lignes, [COURBE], s.emprise, 2);
-  assert.ok(m.rappel >= 0.9, `rappel ${m.rappel}`);
-  assert.ok(m.precision >= 0.9, `précision ${m.precision}`);
-});
-
-test('detecter : une tache ronde claire n’est pas un tracé', () => {
-  const s = svfSynthetique({ taches: [[100, 100, 6, 0.23]] });
+test('detecter : une tache ronde sombre n’est pas un tracé', () => {
+  const s = svfSynthetique({ taches: [[100, 100, 6, -0.23]] });
   assert.equal(TRACES.detecter(s.t, { svf: s.svf }).lignes.length, 0);
 });
 
-test('detecter : une piste coupée par un trou sans sol reste un seul tracé', () => {
+test('detecter : un chemin coupé par un trou sans sol reste un seul tracé', () => {
   const droite = [[20, 100], [180, 100]];
-  const s = svfSynthetique({ traits: piste(droite), trous: [[98, 90, 102, 110]] });
+  const s = svfSynthetique({ traits: [{ points: droite, amplitude: -0.23, largeur: 0.8 }], trous: [[98, 90, 102, 110]] });
   const r = TRACES.detecter(s.t, { svf: s.svf });
   assert.equal(r.lignes.length, 1, `${r.lignes.length} tracés`);
   assert.ok(TRACES.mesurer(r.lignes, [droite], s.emprise, 2).rappel >= 0.9);
@@ -155,4 +155,16 @@ test('ouvertureChemins : garde un chemin long et sinueux, efface les morceaux co
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (g[y * W + x]) (x < 30 ? chemin++ : court++);
   assert.equal(chemin, H);
   assert.equal(court, 0);
+});
+
+test('moyenneBoite : la moyenne des cases connues de la fenêtre', () => {
+  const W = 7, H = 5, v = new Float32Array(W * H).map((_, i) => i);
+  v[2 * W + 3] = NaN;
+  const m = TRACES.moyenneBoite(v, W, H, 1);
+  // Case (3, 2), NaN : la moyenne de ses huit voisines.
+  const voisines = [];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) voisines.push((2 + dy) * W + 3 + dx);
+  assert.ok(Math.abs(m[2 * W + 3] - voisines.reduce((a, b) => a + b) / 8) < 1e-5);
+  // Coin (0, 0) : quatre cases.
+  assert.ok(Math.abs(m[0] - (0 + 1 + W + W + 1) / 4) < 1e-5);
 });

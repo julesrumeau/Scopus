@@ -475,7 +475,7 @@ test('traces : sur la dernière surface, des tracés en 3D (x, y, altitude absol
   const m = VUE_RELIEF.creer({ moteur: 'cpu' });
   m.ajouter({ cle: 'piste', emprise: { xmin: 1000, ymin: 2000, xmax: 1060, ymax: 2060 }, origineCm: [100000, 200000, 0], points: p });
   m.calculer(VUE_GRILLE.definir({ xmin: 1000, xmax: 1060, ymin: 2000, ymax: 2060 }, 0.5, 0, 4096), 'svf');
-  const r = m.traces({}, { longueurMinM: 20, longueurCheminM: 20 });
+  const r = m.traces({ longueurMinM: 20, longueurCheminM: 20, polarite: 'clair' });
   assert.ok(Array.isArray(r.lignes));
   assert.ok(r.lignes.length >= 1, 'la piste est trouvée');
   for (const l of r.lignes) for (const [x, y, z] of l) {

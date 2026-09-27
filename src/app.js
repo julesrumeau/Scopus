@@ -3016,15 +3016,17 @@ if (MODE_VUE) (async () => {
     try {
       // Le relief en cours de calcul d'abord : la détection lit la dernière vue.
       while (enCalcul) await enCalcul;
-      const r = await relief.traces({ svfDirections, svfRayonM }, reglagesTraces());
+      const r = await relief.traces(reglagesTraces());
       if (!r) { etatTraces('Pas encore de relief calculé ici : attendez qu’il s’affiche.'); return; }
       tracesCourants = r;
       $('traces-afficher').disabled = false;
       dessinerTraces();
       const km = r.lignes.reduce((a, l) => a + TRACES.longueur([l]), 0) / 1000;
-      etatTraces(r.lignes.length
+      const avertissement = r.pas > CONFIG.traces.pasFinM
+        ? ` À ce zoom (${r.pas.toFixed(1).replace('.', ',')} m par pixel), les sentiers étroits sont manqués : zoomez pour les trouver.` : '';
+      etatTraces((r.lignes.length
         ? `${r.lignes.length} tracé${r.lignes.length > 1 ? 's' : ''}, ${km.toFixed(1).replace('.', ',')} km.`
-        : 'Aucun tracé trouvé sur la zone affichée.');
+        : 'Aucun tracé trouvé sur la zone affichée.') + avertissement);
     } catch (err) {
       console.error(err);
       etatTraces(`La détection a échoué : ${err.message}`);

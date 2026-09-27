@@ -463,14 +463,16 @@ function fabriqueVueRelief() {
     }
 
     /**
-     * Les tracés de la dernière vue calculée (TRACES.detecter, sur son SVF pris
-     * dans le mémo ou calculé), un point tous les 2 m avec l'altitude absolue
-     * du terrain — la 3D les pose tels quels. `null` sans vue calculée.
+     * Les tracés de la dernière vue calculée (TRACES.detecter), un point tous
+     * les 2 m avec l'altitude absolue du terrain — la 3D les pose tels quels.
+     * Sur le SVF de la détection (CONFIG.traces.svf, pris dans le mémo ou
+     * calculé), pas celui qu'on affiche : régler l'affichage ne change pas ce
+     * qui est détecté. `null` sans vue calculée.
      */
-    function traces(reglagesCouche, reglagesTraces) {
+    function traces(reglagesTraces) {
       if (!memoCouche) return null;
       const t = memoCouche.t;
-      const { c } = couche(t, 'svf', reglagesCouche);
+      const { c } = couche(t, 'svf', { ...CONFIG.traces.svf });
       const r = TRACES.detecter(t, { ...reglagesTraces, svf: c.valeurs });
       const altitude = (x, y) => {
         const cx = Math.min(t.W - 1, Math.max(0, Math.floor((x - t.emprise.xmin) / t.pas)));

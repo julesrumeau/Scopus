@@ -213,18 +213,26 @@ const CONFIG = {
   traces: {
     // Largeurs (écart type du lissage, m) auxquelles on cherche un trait
     // sombre : un sentier fait 1 m, une piste 3 à 4 m.
-    echellesM: [1, 1.5, 2.5],
+    echellesM: [0.5, 1, 1.5, 2.5],
     // Frangi : tolérance à ce qui n'est pas une ligne (plus petit, plus une
     // tache est rejetée), et contraste de référence en courbure normalisée du
     // SVF (un creux de 0,05 de SVF sur 2 m en vaut ~0,02).
     beta: 0.5,
     contraste: 0.06,
     // Sens des traits cherchés : 'sombre' (creux), 'clair' (replat), 'deux'.
-    // Mesuré sur la dalle de référence : les pistes et chemins y sont des
-    // replats taillés dans la pente, des bandes claires bordées d'un talus
-    // sombre ; à 5 % de la dalle couverte, la réponse claire garde 70 % des
-    // points IGN, la sombre 55 %, les deux ensemble 56 %.
-    polarite: 'clair',
+    // Creux par défaut : un chemin est un creux (l'utilisateur, un sentier de
+    // montagne de 50 cm de creux que les replats manquaient). Les replats
+    // font mieux sur les pistes taillées dans la pente de la dalle de
+    // référence (71,7 / 81,1 contre 60,9 / 67,6) : proposés dans le panneau.
+    polarite: 'sombre',
+    // Contraste de référence : 'fixe' (`contraste`, le même partout) ou
+    // 'locale' (`contrasteRelatif` fois la courbure moyenne sur `fenetreM`,
+    // jamais sous `contrasteMin`) — un sentier de prairie ne creuse le SVF
+    // que de 0,03, la texture d'une forêt varie bien plus.
+    normalisation: 'locale',
+    fenetreM: 30,
+    contrasteRelatif: 3,
+    contrasteMin: 0.005,
     // Méthode du masque : 'lignes' (hystérésis sur la réponse) ou 'chemins'
     // (seuil bas, puis seules les cases d'un chemin continu d'au moins
     // `longueurCheminM` mètres — ouverture par chemins).
@@ -251,9 +259,17 @@ const CONFIG = {
     angleMaxDeg: 40,
     longueurMinM: 40,
     compaciteMax: 4,
-    // Au-delà de ce pas de grille (m par case, le pixel au sol de la vue),
-    // les chemins ne font plus qu'une ou deux cases : on demande de zoomer.
-    pasMaxM: 1,
+    // Le SVF de la détection, calculé à part de celui qu'on affiche : un
+    // rayon court fait peser un creux étroit (le sentier de montagne : 0,03 de
+    // SVF à 10 m de rayon ; rappel de la référence 47 % → 61 % à 5 m).
+    svf: { svfRayonM: 5 },
+    // Pas de grille (m par case, le pixel au sol de la vue) : au-delà de
+    // `pasFinM`, les sentiers d'un mètre sont perdus (le sentier témoin de
+    // montagne : trouvé à 1 m, manqué à 2 m ; les pistes tiennent, rappel de
+    // la référence 66 % à 1 m, 56 % à 2 m) ; au-delà de `pasMaxM`, on demande
+    // de zoomer.
+    pasFinM: 1,
+    pasMaxM: 2,
   },
 
   // ── Carte ─────────────────────────────────────────────────────────────────
