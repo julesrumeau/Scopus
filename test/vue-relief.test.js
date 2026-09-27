@@ -184,6 +184,16 @@ test('changer le contraste ne recalcule pas la couche', () => {
   assert.ok(c2.max - c2.min < c1.max - c1.min);
 });
 
+test('le mémo garde les six couches les plus récemment lues, pas toutes', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  const reglages = (d) => ({ couche: { svfDirections: d } });
+  for (const d of [4, 5, 6, 7, 8, 9]) m.calculer(geo, 'svf', reglages(d));
+  assert.equal(m.calculer(geo, 'svf', reglages(4)).recalcul, false);
+  m.calculer(geo, 'svf', reglages(10));   // la septième lâche la plus ancienne
+  assert.equal(m.calculer(geo, 'svf', reglages(5)).recalcul, true);
+});
+
 test('ombrage coloré : une couche en couleurs, que le contraste ne touche pas', () => {
   const m = VUE_RELIEF.creer({ moteur: 'cpu' });
   m.ajouter(bloc('a', 1000, 2000));

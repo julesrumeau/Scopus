@@ -64,11 +64,12 @@ function fabriqueVueRelief() {
       const p = b.points;
       const n = p.nbPoints;
       let zmin = Infinity, zmax = -Infinity;
-      const classes = new Map();
+      const parCode = new Uint32Array(256);
       for (let i = 0; i < n; i++) {
         const z = p.zc[i]; if (z < zmin) zmin = z; if (z > zmax) zmax = z;
-        classes.set(p.cls[i], (classes.get(p.cls[i]) || 0) + 1);
+        parCode[p.cls[i]]++;
       }
+      const classes = histogramme(parCode);
       // Un bloc déjà gardé sous cette clé est remplacé, pas compté deux fois.
       retirer(b.cle);
       if (gpu && !GPU_RELIEF.ajouterBloc(b.cle, p)) return;
@@ -81,6 +82,13 @@ function fabriqueVueRelief() {
       });
       for (const [c, k] of classes) classesPresentes.set(c, (classesPresentes.get(c) || 0) + k);
       version++;
+    }
+
+    // Les classes présentes d'un comptage par code, en [classe, nombre].
+    function histogramme(parCode) {
+      const h = new Map();
+      for (let c = 0; c < 256; c++) if (parCode[c]) h.set(c, parCode[c]);
+      return h;
     }
 
     function retirer(cle) {
@@ -250,16 +258,29 @@ function fabriqueVueRelief() {
       }
       return RELIEF.calculer(t, cle, p);
     }
+    // Couches gardées par surface : au-delà, la moins récemment lue est lâchée.
+    // Chaque réglage essayé au curseur (directions, rayon) en ajoute une, et
+    // chacune pèse une grille entière.
+    const COUCHES_GARDEES = 6;
+    /** La couche `cle` de la surface `t`, prise dans le mémo ou calculée. */
+    function couche(t, cle, reglagesCouche) {
+      if (!memoCouche || memoCouche.t !== t) memoCouche = { t, couches: new Map(), derniere: null };
+      const k = `${cle}|${JSON.stringify(reglagesCouche || {})}`;
+      const couches = memoCouche.couches;
+      const recalcul = !couches.has(k);
+      // Relue ou calculée, elle devient la plus récente (ordre d'insertion).
+      const c = recalcul ? calculerCouche(t, cle, reglagesCouche) : couches.get(k);
+      couches.delete(k);
+      couches.set(k, c);
+      if (couches.size > COUCHES_GARDEES) couches.delete(couches.keys().next().value);
+      return { c, recalcul };
+    }
     function calculer(geo, cle, options = {}) {
       const t0 = performance.now();
       const t = surface(geo, options.actifs);
       if (!t) return null;
       const dureeSurface = performance.now() - t0;
-      if (!memoCouche || memoCouche.t !== t) memoCouche = { t, couches: new Map(), derniere: null };
-      const cleMemo = `${cle}|${JSON.stringify(options.couche || {})}`;
-      const recalcul = !memoCouche.couches.has(cleMemo);
-      if (recalcul) memoCouche.couches.set(cleMemo, calculerCouche(t, cle, options.couche));
-      const c = memoCouche.couches.get(cleMemo);
+      const { c, recalcul } = couche(t, cle, options.couche);
       memoCouche.derniere = c;
       // Une couche déjà en couleurs n'a ni palette ni intervalle à étirer.
       if (c.rgba) {
@@ -323,6 +344,13 @@ function fabriqueVueRelief() {
       // Premier passage : compter, pour connaître le taux à tirer.
       let total = 0;
       for (const [, b] of dedans) {
+        // Un bloc entier dans l'emprise (en centimètres, bord haut exclu) :
+        // tous ses points comptent.
+        const be = b.emprise;
+        if (be.xmin * 100 >= e.xmin && be.xmax * 100 <= e.xmax - 1 && be.ymin * 100 >= e.ymin && be.ymax * 100 <= e.ymax - 1) {
+          total += b.nbPoints;
+          continue;
+        }
         const p = b.points, [ox, oy] = b.origineCm;
         for (let i = 0; i < b.nbPoints; i++) {
           const x = p.xc[i] + ox, y = p.yc[i] + oy;
@@ -362,10 +390,10 @@ function fabriqueVueRelief() {
         && tc.emprise.xmax >= emprise.xmax && tc.emprise.ymax >= emprise.ymax;
       const t = couvre ? tc : null;
       const cases = new Int32Array(n).fill(-1);
-      const compte = new Map();
+      const parCode = new Uint32Array(256);
       for (let i = 0; i < n; i++) {
         X[i] = (xs[i] - e.xmin) / 100; Y[i] = (ys[i] - e.ymin) / 100; Z[i] = (zs[i] - zminCm) / 100;
-        compte.set(cls[i], (compte.get(cls[i]) || 0) + 1);
+        parCode[cls[i]]++;
         if (t) {
           const cx = Math.floor((xs[i] / 100 - t.emprise.xmin) / t.pas), cy = Math.floor((ys[i] / 100 - t.emprise.ymin) / t.pas);
           if (cx >= 0 && cy >= 0 && cx < t.W && cy < t.H) {
@@ -378,7 +406,7 @@ function fabriqueVueRelief() {
       return {
         n, x: X, y: Y, z: Z, cls: cls.slice(0, n), intensite: its.slice(0, n), hauteur: H,
         origine, emprise: { ...emprise }, zmin: 0, zmax: (zmaxCm - zminCm) / 100,
-        parClasse: [...compte].sort((a, b) => a[0] - b[0]),
+        parClasse: [...histogramme(parCode)],
       };
     }
 
@@ -393,14 +421,9 @@ function fabriqueVueRelief() {
     function drape3d(cle, reglagesCouche, min, max) {
       if (!dernierNuage) return null;
       const { t, cases } = dernierNuage;
-      let c = null;
-      if (memoCouche && memoCouche.t === t) {
-        const k = `${cle}|${JSON.stringify(reglagesCouche || {})}`;
-        if (!memoCouche.couches.has(k)) memoCouche.couches.set(k, calculerCouche(t, cle, reglagesCouche));
-        c = memoCouche.couches.get(k);
-      } else {
-        c = calculerCouche(t, cle, reglagesCouche);
-      }
+      // Sur la surface du mémo, la couche y est prise ou gardée ; sur une
+      // autre (le mémo a changé depuis le nuage), calculée sans la garder.
+      const c = memoCouche && memoCouche.t === t ? couche(t, cle, reglagesCouche).c : calculerCouche(t, cle, reglagesCouche);
       const out = new Float32Array(cases.length);
       if (!c.valeurs) return out;   // une couche en couleurs (ombrage coloré) ne se drape pas
       const etendue = max - min || 1;

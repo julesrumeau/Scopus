@@ -41,12 +41,14 @@ function decoderBloc(lazPerf, octets, p) {
   const decodeur = new lazPerf.ChunkDecoder();
   decodeur.open(formatPoint, longueurPoint, src);
 
-  const x = new Float32Array(nbPoints);
-  const y = new Float32Array(nbPoints);
-  const z = new Float32Array(nbPoints);
   const cls = new Uint8Array(nbPoints);
   const intensite = new Uint16Array(nbPoints);
-  const retour = new Uint8Array(nbPoints);
+  // Mètres en Float32 et numéro de retour : pour l'ancien parcours par dalle.
+  // Avec `entiers` (le flux de la vue), seuls les centimètres servent.
+  const x = entiers ? undefined : new Float32Array(nbPoints);
+  const y = entiers ? undefined : new Float32Array(nbPoints);
+  const z = entiers ? undefined : new Float32Array(nbPoints);
+  const retour = entiers ? undefined : new Uint8Array(nbPoints);
 
   // Centimètres entiers, relatifs à `entiers` (en centimètres) : l'échelle de
   // l'IGN est 0,01 et le décalage 0, la conversion est donc exacte, et
@@ -86,18 +88,19 @@ function decoderBloc(lazPerf, octets, p) {
     // en Lambert-93 les Y valent 6,2 millions, ce qu'un flottant 32 bits ne
     // résout qu'à ~0,5 m. Relatives à l'origine de la zone, elles tombent sous
     // le millier de mètres et gardent une précision submillimétrique.
-    x[i] = vue.getInt32(0, true) * sx + ox - gx;
-    y[i] = vue.getInt32(4, true) * sy + oy - gy;
-    z[i] = vue.getInt32(8, true) * sz + oz - gz;
+    intensite[i] = vue.getUint16(dIntensite, true);
+    cls[i] = vue.getUint8(dClasse);
 
     if (entiers) {
       xc[i] = Math.round((vue.getInt32(0, true) * sx + ox) * 100) - entiers[0];
       yc[i] = Math.round((vue.getInt32(4, true) * sy + oy) * 100) - entiers[1];
       zc[i] = Math.round((vue.getInt32(8, true) * sz + oz) * 100) - entiers[2];
+      continue;
     }
 
-    intensite[i] = vue.getUint16(dIntensite, true);
-    cls[i] = vue.getUint8(dClasse);
+    x[i] = vue.getInt32(0, true) * sx + ox - gx;
+    y[i] = vue.getInt32(4, true) * sy + oy - gy;
+    z[i] = vue.getInt32(8, true) * sz + oz - gz;
 
     const b = vue.getUint8(dRetour);
     retour[i] = bitsRetour === 4

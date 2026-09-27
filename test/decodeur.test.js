@@ -45,6 +45,10 @@ test('entiers : centimètres exacts, relatifs à l’origine donnée', () => {
   assert.deepEqual([...r.yc], [50, 99_999, 50_000]);
   assert.deepEqual([...r.zc], [30_012, 29_000, 31_000]);
   assert.deepEqual([...r.cls], [2, 5, 1]);
+  // Les mètres en Float32 et le retour ne servent qu'à l'ancien parcours :
+  // ni calculés ni transférés ici.
+  assert.equal(r.x, undefined);
+  assert.equal(r.retour, undefined);
 });
 
 test('sans entiers : la sortie d’avant, en mètres relatifs à l’origine', () => {
