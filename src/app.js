@@ -2976,6 +2976,30 @@ if (MODE_VUE) (async () => {
     vue3d?.definirSentiers(visibles ? tracesCourants.lignes.map((l) => ({ points: l })) : [], null);
   };
   const etatTraces = (t) => { $('traces-etat').textContent = t; };
+  // Les réglages exposés : cinq des réglages de CONFIG.traces, ceux qui ont
+  // un sens à l'œil. Les autres restent ceux du banc (npm run banc-traces).
+  const REGLAGES_TRACES = [
+    { id: 'traces-seuil', cle: 'seuilMasque', texte: (v) => v.toFixed(2).replace('.', ',') },
+    { id: 'traces-continuite', cle: 'longueurCheminM', texte: (v) => `${v} m` },
+    { id: 'traces-longueur', cle: 'longueurMinM', texte: (v) => `${v} m` },
+    { id: 'traces-raccord', cle: 'raccordM', texte: (v) => `${v} m` },
+  ];
+  const reglagesTraces = () => {
+    const r = { polarite: $('traces-polarite').value };
+    for (const g of REGLAGES_TRACES) r[g.cle] = Number($(g.id).value);
+    return r;
+  };
+  const afficherReglagesTraces = () => {
+    for (const g of REGLAGES_TRACES) $(`val-${g.id}`).textContent = g.texte(Number($(g.id).value));
+  };
+  const reglagesTracesParDefaut = () => {
+    $('traces-polarite').value = CONFIG.traces.polarite;
+    for (const g of REGLAGES_TRACES) $(g.id).value = CONFIG.traces[g.cle];
+    afficherReglagesTraces();
+  };
+  for (const g of REGLAGES_TRACES) $(g.id).addEventListener('input', afficherReglagesTraces);
+  $('traces-defaut').addEventListener('click', reglagesTracesParDefaut);
+  reglagesTracesParDefaut();
   $('btn-traces').addEventListener('click', async () => {
     if (!vueCourante) return;
     const pas = FLUX_CHOIX.pasPourVue(vueCourante.xmax - vueCourante.xmin, vueCourante.largeurPx, CONFIG.flux.pasMinM);
@@ -2992,7 +3016,7 @@ if (MODE_VUE) (async () => {
     try {
       // Le relief en cours de calcul d'abord : la détection lit la dernière vue.
       while (enCalcul) await enCalcul;
-      const r = await relief.traces({ svfDirections, svfRayonM }, {});
+      const r = await relief.traces({ svfDirections, svfRayonM }, reglagesTraces());
       if (!r) { etatTraces('Pas encore de relief calculé ici : attendez qu’il s’affiche.'); return; }
       tracesCourants = r;
       $('traces-afficher').disabled = false;

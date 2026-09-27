@@ -1178,6 +1178,10 @@ body[data-mode="dalle"] #section-vue { display: none !important; }
 /* Le plafond du nuage ne sert qu'en vue normale ; l'ancien parcours a le sien. */
 body[data-mode="dalle"] #champ-budget3d { display: none !important; }
 body[data-mode="dalle"] #section-traces { display: none !important; }
+.reglages-traces { margin-top: 10px; }
+.reglages-traces summary { cursor: pointer; color: var(--texte-2); font-size: 13px; }
+.reglages-traces[open] summary { margin-bottom: 8px; }
+#traces-polarite { width: 100%; }
 /* Le voile d'un côté de relief (CalqueRelief) : la carte se voit dessous,
    assombrie, là où rien n'est calculé. */
 .voile-relief {

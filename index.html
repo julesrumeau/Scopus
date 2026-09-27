@@ -318,6 +318,42 @@
       <div class="rangee"><button id="btn-traces" class="secondaire">Détecter les tracés</button></div>
       <label class="case"><input type="checkbox" id="traces-afficher" checked disabled><span>Afficher les tracés</span></label>
       <p class="note" id="traces-etat"></p>
+      <details class="reglages-traces">
+        <summary>Réglages de la détection</summary>
+        <label class="champ">
+          <span>Type de trait</span>
+          <select id="traces-polarite">
+            <option value="clair">Replats clairs : pistes, chemins taillés dans la pente</option>
+            <option value="sombre">Creux sombres : chemins creux, ruisseaux, ravines</option>
+            <option value="deux">Les deux</option>
+          </select>
+        </label>
+        <label class="champ">
+          <span><span class="libelle-aide">Seuil de détection
+            <button type="button" class="aide-info" title="Contraste de trait minimal pour qu’une case compte. Plus bas : plus de tracés, et plus de bruit (la texture de la forêt).">?</button>
+          </span><b id="val-traces-seuil"></b></span>
+          <input type="range" id="traces-seuil" min="0.02" max="0.2" step="0.01">
+        </label>
+        <label class="champ">
+          <span><span class="libelle-aide">Continuité exigée
+            <button type="button" class="aide-info" title="Longueur d’un trait continu pour qu’il compte. C’est ce qui sépare un chemin de la texture d’une forêt, qui ne fait que des bouts courts. Plus court : plus de petits tracés, et plus de bruit.">?</button>
+          </span><b id="val-traces-continuite"></b></span>
+          <input type="range" id="traces-continuite" min="20" max="150" step="5">
+        </label>
+        <label class="champ">
+          <span><span class="libelle-aide">Longueur minimale d’un tracé
+            <button type="button" class="aide-info" title="Une fois les morceaux raccordés, un tracé plus court est écarté.">?</button>
+          </span><b id="val-traces-longueur"></b></span>
+          <input type="range" id="traces-longueur" min="10" max="150" step="5">
+        </label>
+        <label class="champ">
+          <span><span class="libelle-aide">Raccorder les trous jusqu’à
+            <button type="button" class="aide-info" title="Deux bouts de tracé qui se font face à moins de cette distance sont recollés : un chemin coupé par un arbre tombé ou un trou sans point de sol reste un seul tracé.">?</button>
+          </span><b id="val-traces-raccord"></b></span>
+          <input type="range" id="traces-raccord" min="0" max="30" step="1">
+        </label>
+        <div class="rangee"><button type="button" id="traces-defaut" class="secondaire">Valeurs par défaut</button></div>
+      </details>
     </section>
 
     <!-- ─── 2D et 3D : point sélectionné ──────────────────────────────────
