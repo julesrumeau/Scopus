@@ -157,8 +157,9 @@ class Vue3D {
     this._attribut(vao, 1, nuage.cls, 1, gl.UNSIGNED_BYTE, false);
 
     // L'intensité, elle, est normalisée à la volée par le pipeline fixe :
-    // 16 bits bruts n'ont aucune signification absolue en LiDAR.
-    this._attribut(vao, 2, nuage.intensite, 1, gl.UNSIGNED_SHORT, true);
+    // 16 bits bruts n'ont aucune signification absolue en LiDAR. Absente du
+    // nuage de la vue (plus téléchargée) : l'attribut garde sa valeur fixe.
+    if (nuage.intensite) this._attribut(vao, 2, nuage.intensite, 1, gl.UNSIGNED_SHORT, true);
 
     const h = hauteurs || new Float32Array(nuage.n);
     this._attribut(vao, 3, h, 1, gl.FLOAT, false);

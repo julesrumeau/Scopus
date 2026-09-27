@@ -105,10 +105,12 @@ const CONFIG = {
     // en totalité (429) lors d'un essai en ligne de commande. Le navigateur
     // passe mieux — connexions HTTP/2 multiplexées — mais reste borderline.
     //
-    // D'où 3 requêtes en vol seulement, et une marge de réessais confortable :
-    // le facteur limitant du chargement est la décompression, pas le débit,
-    // donc rien n'est perdu à rester poli.
-    requetesParallèles: 3,
+    // D'où peu de requêtes en vol, et une marge de réessais confortable. Le
+    // quota mord sur les petites requêtes ; au-dessus de ~500 Ko, aucun refus
+    // mesuré même à 10 en vol (27 septembre 2026), et c'est alors le débit qui
+    // compte : 3 en vol n'en tiraient que 70 % de la ligne, 5 à 6 la
+    // remplissent. Voir `flux.plagesEnVol`.
+    requetesParallèles: 5,
     // Tuiles WMTS (photo aérienne, plan), dans leur propre file : leur service
     // n'a pas la limite du téléchargement. Mesuré sans refus jusqu'à ~145
     // tuiles/s. 16 en vol laissent de la marge sous le nombre de flux qu'une
@@ -186,12 +188,20 @@ const CONFIG = {
     octetsFin: 1_000_000,
     octetsFinSecours: 4_000_000,
     // File de priorité du réseau : plages en vol à la fois, et taille maximale
-    // d'une plage. Plus de requêtes en vol n'accélère rien — le débit que
-    // l'IGN accorde à un client (~3–4 Mo/s, mesuré) se partage entre elles ;
-    // la borne de taille fait arriver les quarts de dalle (~1,7 Mo) un à un,
-    // du centre vers les bords.
-    plagesEnVol: 3,
+    // d'une plage groupée. Le débit se partage entre les requêtes en vol ;
+    // mesuré le 27 septembre 2026 sur une ligne à ~3,4 Mo/s : 3 en vol en
+    // tiraient 2,4 Mo/s, 6 à 10 en vol 3,5 Mo/s, soit la ligne pleine. La
+    // borne de taille fait arriver les blocs un à un, du centre vers les bords.
+    plagesEnVol: 5,
     plageMaxOctets: 2 * 1024 * 1024,
+    // Un bloc au moins aussi gros part seul, et seul son début est demandé :
+    // les couches que le relief lit (XY, Z, classe) sont au début, et font
+    // 49 à 66 % du bloc (COPC.tailleUtileBloc). `fractionCoupe` couvre
+    // presque tous les blocs d'une requête ; sinon le reste est redemandé.
+    // Plus petits, les blocs restent groupés entiers : des requêtes de moins
+    // de ~500 Ko déclenchent le quota de l'IGN (10 requêtes/s, 429 mesurés).
+    coupeMinOctets: 768 * 1024,
+    fractionCoupe: 0.68,
   },
 
   // ── Carte ─────────────────────────────────────────────────────────────────

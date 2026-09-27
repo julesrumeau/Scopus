@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chargerScripts } from './charger.js';
-import { fabriquerFin, fabriquerEntete } from './copc-fin.js';
+import { fabriquerFin, fabriquerEntete, fabriquerBloc } from './copc-fin.js';
 
 const { COPC } = chargerScripts(['config.js', 'copc.js']);
 
@@ -90,4 +90,44 @@ test('lireFin sans table des blocs reconnaissable : position inconnue, index qua
 test('lireFin garde la position fournie quand on la connaît', () => {
   const octets = fabriquerFin({ entrees: [{ n: 0, offset: 10, taille: 5, nbPoints: 3 }] });
   assert.equal(COPC.lireFin(octets, 1234).debutMorceau, 1234);
+});
+
+// ── Blocs réduits aux couches lues ──────────────────────────────────────────
+// Format 6, 30 octets : neuf couches (XY, Z, classe, drapeaux, intensité,
+// angle, utilisateur, source, temps GPS). Avec 16 octets supplémentaires
+// (46 octets, lot d'avril 2026), seize couches de plus.
+const TAILLES_6 = [400, 150, 20, 5, 170, 110, 0, 1, 150];
+
+test('tailleUtileBloc : en-tête du bloc, puis XY, Z, classe et drapeaux', () => {
+  const b = fabriquerBloc({ longueurPoint: 30, tailles: TAILLES_6 });
+  assert.equal(COPC.tailleUtileBloc(b, 6, 30), 30 + 4 + 4 * 9 + 400 + 150 + 20 + 5);
+  const b46 = fabriquerBloc({ longueurPoint: 46, tailles: [...TAILLES_6, ...new Array(16).fill(3)] });
+  assert.equal(COPC.tailleUtileBloc(b46, 6, 46), 46 + 4 + 4 * 25 + 575);
+  // L'en-tête suffit : pas besoin du bloc entier pour savoir où couper.
+  assert.equal(COPC.tailleUtileBloc(b.subarray(0, 30 + 4 + 36), 6, 30), 30 + 4 + 36 + 575);
+});
+
+test('tailleUtileBloc : null si l’en-tête manque ou si le format n’est pas en couches', () => {
+  const b = fabriquerBloc({ longueurPoint: 30, tailles: TAILLES_6 });
+  assert.equal(COPC.tailleUtileBloc(b.subarray(0, 50), 6, 30), null);
+  assert.equal(COPC.tailleUtileBloc(b, 3, 30), null);
+  assert.equal(COPC.tailleUtileBloc(b, 6, 20), null, 'plus court qu’un point de format 6');
+});
+
+test('reduireBloc : les couches lues gardées, les autres déclarées vides', () => {
+  const b = fabriquerBloc({ longueurPoint: 30, tailles: TAILLES_6 });
+  const utile = COPC.tailleUtileBloc(b, 6, 30);
+  // Depuis le bloc entier comme depuis un début de bloc assez long.
+  for (const source of [b, b.subarray(0, utile + 17)]) {
+    const r = COPC.reduireBloc(source, 6, 30);
+    assert.equal(r.length, utile);
+    const dv = new DataView(r.buffer, r.byteOffset);
+    assert.deepEqual(Array.from({ length: 9 }, (_, i) => dv.getUint32(34 + 4 * i, true)), [400, 150, 20, 5, 0, 0, 0, 0, 0]);
+    assert.deepEqual([...r.subarray(0, utile)], [...b.subarray(0, 34), ...r.subarray(34, 70), ...b.subarray(70, utile)]);
+  }
+});
+
+test('reduireBloc : null si les couches lues ne sont pas toutes là', () => {
+  const b = fabriquerBloc({ longueurPoint: 30, tailles: TAILLES_6 });
+  assert.equal(COPC.reduireBloc(b.subarray(0, COPC.tailleUtileBloc(b, 6, 30) - 1), 6, 30), null);
 });

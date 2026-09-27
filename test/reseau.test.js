@@ -52,7 +52,7 @@ test('sans file précisée, c’est la file des COPC', async () => {
   const { ctx, pic, liberer } = monter();
   const r = Array.from({ length: 8 }, (_, i) => ctx.RESEAU.recuperer(`https://x/copc${i}`));
   await souffler();
-  assert.equal(pic.defaut, 3);
+  assert.equal(pic.defaut, ctx.CONFIG.reseau.requetesParallèles);
   while (liberer.length) { liberer.splice(0).forEach((f) => f()); await souffler(); }
   await Promise.all(r);
 });

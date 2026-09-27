@@ -157,6 +157,7 @@ const FLUX = (() => {
           return;
         }
         d.etat = 'echec';
+        pomper();   // la barrière du niveau 0 ne l'attend plus
         derniereErreur = deps.expliquer ? deps.expliquer(e) : e.message;
         console.warn('Flux : dalle non ouverte —', e.message);
         reessayerPlusTard(d);
@@ -165,6 +166,8 @@ const FLUX = (() => {
     }
 
     const cleCache = (url, noeud) => `${url}#${noeud.offset}`;
+    // Blocs compressés en couches (LAS 1.4, formats 6 à 8) : ceux de l'IGN.
+    const enCouches = (d) => d.entete.formatPoint >= 6 && d.entete.formatPoint <= 8;
 
     // Blocs dont les octets doivent venir du réseau, en attente d'une place.
     const enAttenteReseau = new Set();
@@ -237,26 +240,53 @@ const FLUX = (() => {
      * Les plages sont bornées à `plageMaxOctets` : les quarts d'une dalle
      * arrivent un à un, du centre vers les bords. Partir par dalle entière, dans
      * l'ordre où les dalles s'ouvraient, donnait une arrivée qui paraissait
-     * aléatoire. Plus de requêtes en vol ne servirait à rien : le débit que
-     * l'IGN accorde à un client (~3–4 Mo/s, mesuré) se partage entre elles.
+     * aléatoire. Un gros bloc part seul, coupé à ses couches lues ; les petits
+     * se groupent entiers (voir `coupeMinOctets`).
      */
     function pomper() {
-      while (plagesEnVol < (config.plagesEnVol ?? 3)) {
+      const niveau = niveauEnCours();
+      while (plagesEnVol < config.plagesEnVol) {
         let meilleur = null;
         for (const cle of enAttenteReseau) {
           const b = blocs.get(cle);
           if (!b) { enAttenteReseau.delete(cle); continue; }
+          if (b.niveau > niveau) continue;
           if (!meilleur || b.rang < meilleur.rang) meilleur = b;
         }
         if (!meilleur) return;
         const d = dalles.get(meilleur.url);
-        const memeDalle = [...enAttenteReseau].map((c) => blocs.get(c)).filter((b) => b && b.url === meilleur.url);
-        const plages = COPC.grouperPlages(memeDalle.map((b) => ({ ...b.bloc.noeud, bloc: b.bloc })), 0, config.plageMaxOctets ?? (2 << 20));
-        const plage = plages.find((p) => p.noeuds.some((n) => n.bloc.cle === meilleur.bloc.cle));
+        const gros = (b) => enCouches(d) && b.bloc.noeud.taille >= config.coupeMinOctets;
+        let plage;
+        if (gros(meilleur)) {
+          const n = meilleur.bloc.noeud;
+          plage = { debut: n.offset, fin: n.offset + Math.ceil(n.taille * config.fractionCoupe), noeuds: [{ ...n, bloc: meilleur.bloc }], coupe: true };
+        } else {
+          const memeDalle = [...enAttenteReseau].map((c) => blocs.get(c))
+            .filter((b) => b && b.url === meilleur.url && b.niveau <= niveau && !gros(b));
+          const plages = COPC.grouperPlages(memeDalle.map((b) => ({ ...b.bloc.noeud, bloc: b.bloc })), 0, config.plageMaxOctets);
+          plage = plages.find((p) => p.noeuds.some((n) => n.bloc.cle === meilleur.bloc.cle));
+        }
         for (const n of plage.noeuds) enAttenteReseau.delete(n.bloc.cle);
         plagesEnVol++;
-        suivre(servirPlage(d, plage)).finally(() => { plagesEnVol--; pomper(); });
+        // La relance est dans la tâche suivie : sinon `attendreCalme` se
+        // résolvait entre la fin d'une plage et le départ de la suivante.
+        suivre(servirPlage(d, plage).finally(() => { plagesEnVol--; pomper(); }));
       }
+    }
+
+    /**
+     * Le niveau en cours : le plus grossier dont un bloc voulu n'est pas encore
+     * arrivé — 0 tant qu'une dalle visible n'a pas livré sa fin de fichier.
+     * Rien d'un niveau plus fin ne part avant (l'ordre de Potree, tenu cette
+     * fois jusqu'au bout) : retour d'usage, du détail arrivait avant que tout
+     * l'écran ait son niveau grossier, et un déplacement le rendait inutile.
+     * Le prix : moins de requêtes en vol à la fin de chaque niveau.
+     */
+    function niveauEnCours() {
+      if (vue && [...dalles.values()].some((d) => (d.etat === 'inconnue' || d.etat === 'ouverture') && coupe(d.dalle.emprise, vue))) return 0;
+      let n = Infinity;
+      for (const b of blocs.values()) if (b.etat === 'attente' && b.niveau < n) n = b.niveau;
+      return n;
     }
 
     async function servirPlage(d, plage) {
@@ -267,6 +297,14 @@ const FLUX = (() => {
       let o;
       try {
         o = await deps.recuperer(d.dalle.url, { plage: [plage.debut, plage.fin - 1], signal: groupe.ctrl.signal });
+        // Un bloc coupé : si ses couches lues dépassent le début reçu, le reste.
+        const utile = plage.coupe ? COPC.tailleUtileBloc(o, d.entete.formatPoint, d.entete.longueurPoint) : null;
+        if (utile > o.length) {
+          const reste = await deps.recuperer(d.dalle.url, { plage: [plage.debut + o.length, plage.debut + utile - 1], signal: groupe.ctrl.signal });
+          const tout = new Uint8Array(o.length + reste.length);
+          tout.set(o); tout.set(reste, o.length);
+          o = tout;
+        }
       } catch (e) {
         for (const c of cles) if (blocs.get(c)?.etat === 'attente') blocs.delete(c);
         if (groupe.ctrl.signal.aborted) return;
@@ -279,7 +317,10 @@ const FLUX = (() => {
         return;
       }
       for (const n of plage.noeuds) {
-        const tranche = o.subarray(n.offset - plage.debut, n.offset - plage.debut + n.taille);
+        const brut = o.subarray(n.offset - plage.debut, n.offset - plage.debut + n.taille);
+        // Réduit aux couches lues, coupé ou non : le cache en garde moins, et
+        // le décodeur n'a pas d'autre travail à faire.
+        const tranche = (enCouches(d) && COPC.reduireBloc(brut, d.entete.formatPoint, d.entete.longueurPoint)) || brut;
         // Suivie comme le reste : une seconde visite juste après doit la trouver.
         if (deps.cache) suivre(deps.cache.ecrire(cleCache(d.dalle.url, n), tranche.slice()));
         await emettre(d, n.bloc, tranche);

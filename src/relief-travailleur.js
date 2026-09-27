@@ -90,7 +90,7 @@ function corpsTravailleurRelief() {
         const r = moteur.nuage3d(m.emprise, m.budget, m.actifs ? new Set(m.actifs) : undefined);
         if (!r || r.raison) { self.postMessage({ type: 'nuage3d', id: m.id, vide: true, raison: (r && r.raison) || '' }); return; }
         self.postMessage({ type: 'nuage3d', id: m.id, ...r },
-          [r.x.buffer, r.y.buffer, r.z.buffer, r.cls.buffer, r.intensite.buffer, r.hauteur.buffer]);
+          [r.x.buffer, r.y.buffer, r.z.buffer, r.cls.buffer, r.hauteur.buffer]);
       } else if (m.type === 'drape3d') {
         const valeurs = moteur.drape3d(m.cle, m.reglagesCouche, m.min, m.max);
         self.postMessage({ type: 'drape3d', id: m.id, valeurs }, valeurs ? [valeurs.buffer] : []);
@@ -214,12 +214,12 @@ const RELIEF_TRAVAILLEUR = (() => {
       ajouter(b) {
         const p = b.points;
         // L'intensité aussi : la vue 3D la colore (nuage3d).
-        const tampons = [...new Set([p.xc.buffer, p.yc.buffer, p.zc.buffer, p.cls.buffer, ...(p.intensite ? [p.intensite.buffer] : [])])];
+        const tampons = [...new Set([p.xc.buffer, p.yc.buffer, p.zc.buffer, p.cls.buffer])];
         w.postMessage({
           type: 'ajouter',
           bloc: {
             cle: b.cle, emprise: b.emprise, origineCm: b.origineCm,
-            points: { nbPoints: p.nbPoints, xc: p.xc, yc: p.yc, zc: p.zc, cls: p.cls, intensite: p.intensite },
+            points: { nbPoints: p.nbPoints, xc: p.xc, yc: p.yc, zc: p.zc, cls: p.cls },
           },
         }, tampons);
       },

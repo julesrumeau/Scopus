@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chargerScripts } from './charger.js';
-import { fabriquerFin, fabriquerEntete } from './copc-fin.js';
+import { fabriquerFin, fabriquerEntete, fabriquerBloc } from './copc-fin.js';
 
 const ctx = chargerScripts(['config.js', 'copc.js', 'flux-choix.js', 'cache-disque.js', 'flux.js']);
 const { FLUX, CACHE_DISQUE, CONFIG } = ctx;
@@ -30,6 +30,7 @@ function monter({ cache = CACHE_DISQUE.creer(CACHE_DISQUE.stockageMemoire(), 1e9
   const appels = [];
   const blocs = [];
   const liberes = [];
+  const decodes = [];
   const flux = FLUX.creer({
     chercherDalles: async () => {
       const out = [];
@@ -48,13 +49,13 @@ function monter({ cache = CACHE_DISQUE.creer(CACHE_DISQUE.stockageMemoire(), 1e9
       if (opts.signal?.aborted) throw new DOMException('abandon', 'AbortError');
       return new Uint8Array(opts.plage[1] - opts.plage[0] + 1);
     },
-    decoder: async (charge) => ({ nbPoints: charge.nbPoints, xc: new Int32Array(1), yc: new Int32Array(1), zc: new Int32Array(1), cls: new Uint8Array(1) }),
+    decoder: async (charge) => (decodes.push(charge), { nbPoints: charge.nbPoints, xc: new Int32Array(1), yc: new Int32Array(1), zc: new Int32Array(1), cls: new Uint8Array(1) }),
     cache,
     config: { ...CONFIG.flux, budgetPoints: 1e9, delaiReessaiMs: 20, ...config },
     surBloc: (b) => blocs.push(b),
     surLibere: (c) => liberes.push(c),
   });
-  return { flux, appels, blocs, liberes };
+  return { flux, appels, blocs, liberes, decodes, cache };
 }
 
 // Vue de 3 km sur 1400 px : pas ~2,1 m, niveau 1 visé (0,96 pt/m² ≥ 4/4,5).
@@ -78,7 +79,8 @@ test('les dalles s’ouvrent du centre vers les bords, un en-tête par lot', asy
 });
 
 test('le niveau 0 sort de la fin de fichier, sans autre requête ; le niveau 1 en une plage par dalle', async () => {
-  const { flux, appels, blocs } = monter();
+  // Blocs groupés : la coupe des gros blocs (plus bas) désactivée.
+  const { flux, appels, blocs } = monter({ config: { coupeMinOctets: Infinity } });
   await flux.majVue(VUE);
   await flux.attendreCalme();
   assert.equal(blocs.filter((b) => b.niveau === 0).length, 9);
@@ -294,4 +296,101 @@ test('voulues() : les blocs que la vue demande, en copie', async () => {
   assert.ok(v.size > 0);
   v.clear();
   assert.ok(flux.voulues().size > 0);
+});
+
+// ── Blocs coupés aux couches lues ───────────────────────────────────────────
+// Les faux blocs de niveau 1 font 1 Mo, au-dessus de coupeMinOctets : chacun
+// part seul, et seul son début est demandé.
+
+test('un gros bloc part seul, et seul son début est demandé', async () => {
+  const { flux, appels } = monter();
+  await flux.majVue(VUE);
+  await flux.attendreCalme();
+  const plages = appels.filter((a) => a.opts.plage && a.opts.plage[0] !== 0);
+  assert.equal(plages.length, 36, 'un bloc de niveau 1 par requête');
+  const attendu = Math.ceil(1_000_000 * CONFIG.flux.fractionCoupe);
+  assert.ok(plages.every((a) => a.opts.plage[1] - a.opts.plage[0] + 1 === attendu), 'le début du bloc, pas le bloc entier');
+});
+
+test('le décodeur et le cache reçoivent le bloc réduit aux couches lues', async () => {
+  // Chaque plage rend un bloc dont les couches lues font 300 000 octets.
+  const bloc = fabriquerBloc({ longueurPoint: 30, tailles: [200_000, 90_000, 9_000, 1_000, 150_000, 100_000, 0, 0, 150_000] });
+  const { flux, decodes, cache } = monter({ config: {} });
+  const recup = flux._deps.recuperer;
+  flux._deps.recuperer = async (u, o) => (o.plage && o.plage[0] !== 0 ? bloc.slice(0, o.plage[1] - o.plage[0] + 1) : recup(u, o));
+  await flux.majVue(VUE);
+  await flux.attendreCalme();
+  const niveau1 = decodes.filter((c) => c.nbPoints === 225_000);
+  assert.equal(niveau1.length, 36);
+  assert.ok(niveau1.every((c) => c.octets.byteLength === 300_070), 'en-tête (70) + couches lues');
+  const garde = await cache.lire(`${url(1, 1)}#${200_000_000 - 600_000 - 4_000_000}`);
+  assert.equal(garde.length, 300_070, 'le cache garde le bloc réduit');
+});
+
+test('si le début demandé ne suffit pas, le reste des couches lues est redemandé', async () => {
+  // Couches lues : 900 000 octets, plus que les 68 % d'1 Mo demandés.
+  const bloc = fabriquerBloc({ longueurPoint: 30, tailles: [700_000, 150_000, 40_000, 10_000, 30_000, 0, 0, 0, 0] });
+  const { flux, appels, decodes } = monter();
+  const recup = flux._deps.recuperer;
+  flux._deps.recuperer = async (u, o) => {
+    if (!o.plage || o.plage[0] === 0) return recup(u, o);
+    appels.push({ u, opts: o });
+    const debutBloc = [0, 1, 2, 3].map((k) => 200_000_000 - 600_000 - 4_000_000 + k * 1_000_000).find((d) => o.plage[0] >= d && o.plage[0] < d + 1_000_000);
+    return bloc.slice(o.plage[0] - debutBloc, o.plage[1] - debutBloc + 1);
+  };
+  await flux.majVue({ xmin: 1000, xmax: 2000, ymin: 1000, ymax: 2000, largeurPx: 1400 });
+  await flux.attendreCalme();
+  const niveau1 = decodes.filter((c) => c.nbPoints === 225_000);
+  assert.ok(niveau1.length > 0);
+  assert.ok(niveau1.every((c) => c.octets.byteLength === 900_070));
+  const suites = appels.filter((a) => a.opts.plage && a.opts.plage[0] !== 0 && (a.opts.plage[0] - (200_000_000 - 4_600_000)) % 1_000_000 !== 0);
+  assert.equal(suites.length, niveau1.length, 'une requête de complément par bloc');
+});
+
+// ── Un niveau entier avant le suivant ───────────────────────────────────────
+// Retour d'usage (calque &debug) : du vert (niveau 1) arrivait avant la fin du
+// bleu (niveau 0), et au moindre déplacement ce détail était perdu.
+
+test('aucun bloc de niveau 1 n’est demandé avant que toutes les dalles visibles aient livré leur niveau 0', async () => {
+  const { flux, appels } = monter();
+  // Fins de fichier lentes : sans barrière, les blocs des premières dalles
+  // ouvertes partiraient pendant que les autres attendent encore la leur.
+  const recup = flux._deps.recuperer;
+  flux._deps.recuperer = async (u, o) => {
+    if (o.fin) await pause(u === url(1, 1) ? 5 : 40);
+    const r = await recup(u, o);
+    if (o.fin) appels.push({ u, opts: { finRecue: true } });
+    return r;
+  };
+  await flux.majVue(VUE);
+  await flux.attendreCalme();
+  const derniereFin = appels.map((a, i) => (a.opts.finRecue ? i : -1)).filter((i) => i >= 0).pop();
+  const premierBloc = appels.findIndex((a) => a.opts.plage && a.opts.plage[0] !== 0);
+  assert.ok(premierBloc > derniereFin, `premier bloc demandé en ${premierBloc}, dernière fin de fichier reçue en ${derniereFin}`);
+});
+
+test('le niveau 2 attend que tout le niveau 1 soit arrivé, même avec des places libres', async () => {
+  const { flux, appels } = monter({ delaiPlage: 20 });
+  const racine = TAILLE - 600_000;
+  const entrees = [{ n: 0, offset: racine, taille: 500_000, nbPoints: 60_000 }];
+  for (let k = 0; k < 4; k++) entrees.push({ n: 1, x: k >> 1, y: k & 1, offset: racine - 4_000_000 + k * 1_000_000, taille: 1_000_000, nbPoints: 225_000 });
+  for (let k = 0; k < 16; k++) entrees.push({ n: 2, x: k >> 2, y: k & 3, offset: 150_000_000 + k * 1000, taille: 1000, nbPoints: 900_000 });
+  const fin = fabriquerFin({ entrees, avant: 1_000_000 - 60 - entrees.length * 32 - 830, tableBlocs: { position: 900_000, nombre: entrees.length } });
+  const recup = flux._deps.recuperer;
+  const recus = [];
+  flux._deps.recuperer = async (u, o) => {
+    if (o.fin) { appels.push({ u, opts: o }); return { octets: fin, total: null }; }
+    const r = await recup(u, o);
+    if (o.plage && o.plage[0] !== 0) recus.push(o.plage[0]);
+    return r;
+  };
+  // 1 km sur 1400 px : pas ~0,7 m, le niveau 2 est voulu.
+  await flux.majVue({ xmin: 1000, xmax: 2000, ymin: 1000, ymax: 2000, largeurPx: 1400 });
+  await flux.attendreCalme();
+  const demandes = appels.filter((a) => a.opts.plage && a.opts.plage[0] !== 0).map((a) => a.opts.plage[0]);
+  const niveau2 = (o) => o >= 150_000_000 && o < 151_000_000;
+  const premierN2 = demandes.findIndex(niveau2);
+  assert.ok(premierN2 > 0, 'le niveau 2 est demandé');
+  const recusAvant = recus.slice(0, recus.findIndex(niveau2));
+  assert.equal(recusAvant.filter((o) => !niveau2(o)).length, 4, 'les quatre blocs du niveau 1 reçus avant le premier du niveau 2');
 });

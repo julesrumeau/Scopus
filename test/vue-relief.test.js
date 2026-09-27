@@ -319,7 +319,8 @@ test('nuage3d : tous les points de l’emprise, à leur place, le bord droit exc
   assert.equal(xmax, 102975);   // 103000 = xmax : exclu
   assert.equal(r.zmin, 0);
   assert.ok(r.zmax > 0);
-  assert.equal(r.intensite.length, r.n);
+  // L'intensité n'est plus téléchargée (blocs coupés aux couches lues).
+  assert.equal(r.intensite, undefined);
   assert.equal(JSON.stringify(r.parClasse), JSON.stringify([[2, r.n]]));
 });
 
@@ -337,7 +338,7 @@ test('nuage3d : plafond, tirage stable et uniforme', () => {
   for (const q of quarts) assert.ok(q / r.n > 0.2 && q / r.n < 0.3, JSON.stringify(quarts));
 });
 
-test('nuage3d : hauteur au-dessus du sol, intensité et classe suivent leur point', () => {
+test('nuage3d : hauteur au-dessus du sol et classe suivent leur point', () => {
   const m = VUE_RELIEF.creer({ moteur: 'cpu' });
   const b = bloc('a', 1000, 2000, { cote: 40 });
   // Un point non classé, 2 m au-dessus du sol, au milieu.
@@ -350,7 +351,7 @@ test('nuage3d : hauteur au-dessus du sol, intensité et classe suivent leur poin
   // Sol de la fabrique en (20 m, 20 m) : la pente seule, la bosse (centrée à
   // 30 m) y est nulle. Puis 2 m au-dessus.
   p.zc[0] = 30000 + Math.round(2000 * 0.05 + 80 * Math.exp(-((1000 ** 2) * 2) / 2e5)) + 200;
-  p.cls[0] = 1; p.intensite[0] = 4242;
+  p.cls[0] = 1;
   autre.emprise = { xmin: 1000, ymin: 2000, xmax: 1040, ymax: 2040 };
   m.ajouter(b);
   m.ajouter(autre);
@@ -359,7 +360,6 @@ test('nuage3d : hauteur au-dessus du sol, intensité et classe suivent leur poin
   let i = -1;
   for (let j = 0; j < r.n; j++) if (r.cls[j] === 1) i = j;
   assert.ok(i >= 0);
-  assert.equal(r.intensite[i], 4242);
   assert.ok(Math.abs(r.hauteur[i] - 2) < 0.05, `${r.hauteur[i]}`);
   assert.ok(k > 0);
 });
