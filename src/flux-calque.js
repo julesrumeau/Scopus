@@ -2,6 +2,39 @@
 // bloc chargé, coloré par niveau, pour voir ce qui arrive et dans quel ordre.
 // Activé par « &debug » dans l'adresse.
 
+/**
+ * Le geste d'un rideau de comparaison : glisser la bande `el` place la limite
+ * à la position du pointeur dans `conteneur`, en part de sa largeur. Commun au
+ * rideau de l'onglet 2D et à celui de la carte.
+ *
+ * L'état du geste est tenu par un drapeau, et non par `hasPointerCapture` : la
+ * capture est une commodité, pas une source de vérité — elle échoue si le
+ * pointeur n'est plus actif, et le rideau resterait alors sourd au mouvement.
+ * Elle garde le geste sur la poignée quand il sort de la bande, ce qui arrive
+ * dès qu'on tire un peu vite.
+ */
+function brancherRideau(el, conteneur, placer) {
+  let tire = false;
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    tire = true;
+    el.classList.add('tire');
+    try { el.setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!tire) return;
+    const b = conteneur.getBoundingClientRect();
+    if (b.width > 0) placer((e.clientX - b.left) / b.width);
+  });
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+    el.addEventListener(type, (e) => {
+      tire = false;
+      el.classList.remove('tire');
+      try { el.releasePointerCapture(e.pointerId); } catch { /* déjà relâché */ }
+    });
+  }
+}
+
 const CalqueFlux = L.LayerGroup.extend({
   initialize() {
     L.LayerGroup.prototype.initialize.call(this);
@@ -118,25 +151,7 @@ const CalqueRelief = L.Layer.extend({
     // déplacerait la carte en même temps.
     L.DomEvent.disableClickPropagation(r);
     L.DomEvent.on(r, 'pointerdown mousedown touchstart wheel', L.DomEvent.stopPropagation);
-    let tire = false;   // un drapeau, pas hasPointerCapture (voir le rideau 2D)
-    r.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      tire = true;
-      r.classList.add('tire');
-      try { r.setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
-    });
-    r.addEventListener('pointermove', (e) => {
-      if (!tire) return;
-      const b = conteneur.getBoundingClientRect();
-      if (b.width > 0) this.placerRideau((e.clientX - b.left) / b.width);
-    });
-    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-      r.addEventListener(type, (e) => {
-        tire = false;
-        r.classList.remove('tire');
-        try { r.releasePointerCapture(e.pointerId); } catch { /* déjà relâché */ }
-      });
-    }
+    brancherRideau(r, conteneur, (part) => this.placerRideau(part));
   },
 
   /**

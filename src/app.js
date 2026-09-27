@@ -156,17 +156,23 @@ try {
 
 // ── Vue 2D ──────────────────────────────────────────────────────────────────
 
+/**
+ * Ce que le relief dit sous le curseur, en une ligne : position, sol, hauteur
+ * de ce qui s'y dresse, et la valeur de la couche nommée. La couche est celle
+ * du côté survolé : sous le curseur il n'y a qu'une image, et dire laquelle
+ * évite de lire une valeur pour une autre. Commun à l'onglet 2D et à la carte.
+ */
+function texteCurseur(p, nomCouche) {
+  return `x ${p.x.toFixed(0)} · y ${p.y.toFixed(0)}`
+    + (p.altitude == null ? ' · sol inconnu' : ` · sol ${p.altitude.toFixed(1)} m`)
+    + (p.hauteur > 0.05 ? ` · <b>+${p.hauteur.toFixed(2)} m</b>` : '')
+    + (nomCouche != null && p.valeur != null && Number.isFinite(p.valeur)
+      ? ` · ${echapper(nomCouche)} <b>${p.valeur.toFixed(2)}</b>` : '');
+}
+
 const vue2d = new Vue2D($('canvas-2d'), {
   surCurseur: (p) => {
-    if (!p) { $('hud-2d').innerHTML = ''; return; }
-    $('hud-2d').innerHTML =
-      `x ${p.x.toFixed(0)} · y ${p.y.toFixed(0)}`
-      + (p.altitude == null ? ' · sol inconnu' : ` · sol ${p.altitude.toFixed(1)} m`)
-      + (p.hauteur > 0.05 ? ` · <b>+${p.hauteur.toFixed(2)} m</b>` : '')
-      // La couche nommée est celle du côté survolé : sous le curseur il n'y a
-      // qu'une image, et dire laquelle évite de lire une valeur pour une autre.
-      + (p.valeur != null && Number.isFinite(p.valeur)
-        ? ` · ${echapper(p.couche || '')} <b>${p.valeur.toFixed(2)}</b>` : '');
+    $('hud-2d').innerHTML = p ? texteCurseur(p, p.couche || '') : '';
   },
   // Cliquer une boîte sélectionne la détection dans toutes les vues à la fois.
   surClic: (id) => {
@@ -1535,31 +1541,7 @@ function placerRideau(part) {
   $('rideau').style.left = `${p * 100}%`;
 }
 
-// L'état du geste est tenu par un drapeau, et non par `hasPointerCapture` : la
-// capture est une commodité, pas une source de vérité — elle échoue si le
-// pointeur n'est plus actif, et le rideau resterait alors sourd au mouvement.
-let tirageRideau = false;
-
-$('rideau').addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  tirageRideau = true;
-  $('rideau').classList.add('tire');
-  // La capture garde le geste sur la poignée quand il sort de la bande de
-  // 22 px, ce qui arrive dès qu'on tire un peu vite.
-  try { $('rideau').setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
-});
-$('rideau').addEventListener('pointermove', (e) => {
-  if (!tirageRideau) return;
-  const r = $('vue-2d').getBoundingClientRect();
-  if (r.width > 0) placerRideau((e.clientX - r.left) / r.width);
-});
-for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-  $('rideau').addEventListener(type, (e) => {
-    tirageRideau = false;
-    $('rideau').classList.remove('tire');
-    try { $('rideau').releasePointerCapture(e.pointerId); } catch { /* déjà relâché */ }
-  });
-}
+brancherRideau($('rideau'), $('vue-2d'), placerRideau);
 
 
 // ── Volets d'analyse ────────────────────────────────────────────────────────
@@ -2564,8 +2546,9 @@ if (MODE_VUE) (async () => {
   // Un seul calcul à la fois : le worker les traite dans l'ordre, et en
   // empiler pendant un déplacement ne ferait que retarder le dernier, le seul
   // qui compte. Une demande pendant un calcul est retenue, et relancée à la
-  // fin avec la vue du moment.
-  let enCalcul = false, aRefaire = false;
+  // fin avec la vue du moment. `enCalcul` est la promesse du calcul en
+  // cours, qui se tient à la fin : qui doit l'attendre l'attend, sans sonder.
+  let enCalcul = null, aRefaire = false;
   let contrasteFlux = 1, dernieresClasses = [], erreurRelief = '';
   // L'étirement de la dernière image de chaque côté : le relief drapé sur le
   // nuage 3D reprend le même, pour que les deux vues soient la même image.
@@ -2615,7 +2598,8 @@ if (MODE_VUE) (async () => {
     }
     const pas = FLUX_CHOIX.pasPourVue(vueCourante.xmax - vueCourante.xmin, vueCourante.largeurPx, CONFIG.flux.pasMinM);
     const geo = VUE_GRILLE.definir(vueCourante, pas, VUE_GRILLE.marge({ ...CONFIG.relief, ...CONFIG.flux, svfRayonM }), infoRelief.coteMax);
-    enCalcul = true;
+    let terminer;
+    enCalcul = new Promise((ok) => { terminer = ok; });
     activite.relief = true;
     try {
       // L'écran de la carte au moment de la demande : le worker y reprojette
@@ -2657,7 +2641,8 @@ if (MODE_VUE) (async () => {
       texteRelief = `relief en échec : ${err.message}`;
       erreurRelief = err.message;
     } finally {
-      enCalcul = false;
+      enCalcul = null;
+      terminer();
       activite.relief = false;
     }
     majStatut();
@@ -2812,7 +2797,7 @@ if (MODE_VUE) (async () => {
           // relief de la carte a pu rester en retard (en pause pendant la 3D,
           // ou un calcul encore en cours au moment de basculer).
           await etape('Relief de la vue…');
-          while (enCalcul) await new Promise((ok) => setTimeout(ok, 50));
+          while (enCalcul) await enCalcul;
           await calculerRelief(true);
           await etape('Nuage de la vue…', 'les points déjà chargés pour le relief');
           const r = await relief.nuage3d(e, budget3D, [...flux.voulues()]);
@@ -2852,7 +2837,7 @@ if (MODE_VUE) (async () => {
     if (!vue3d || !etat.nuage) return;
     if (CONFIG.rendu.coloration === 'hauteur') { vue3d.definirHauteurs(etat.nuage.hauteur); return; }
     if (CONFIG.rendu.coloration !== 'relief') return;
-    const cote = estRelief(cotes.droite) && cotes.droite !== 'ombrage-rgb' ? 'droite' : 'gauche';
+    const cote = estRelief(cotes.droite) && cotes.droite !== OMBRAGE_RGB ? 'droite' : 'gauche';
     const etirement = derniersEtirements[cote];
     if (!estRelief(cotes[cote]) || !etirement || etirement.cle !== cotes[cote] || etirement.min == null) return;
     const valeurs = await relief.drape3d(etirement.cle, { svfDirections, svfRayonM }, etirement.min, etirement.max);
@@ -2929,10 +2914,7 @@ if (MODE_VUE) (async () => {
       const p = await relief.lire(x, y, estRelief(cle) ? cle : undefined);
       if (!ll.dedans) continue;
       hud.hidden = false;
-      hud.innerHTML = `x ${x.toFixed(0)} · y ${y.toFixed(0)}`
-        + (p?.altitude == null ? ' · sol inconnu' : ` · sol ${p.altitude.toFixed(1)} m`)
-        + (p?.hauteur > 0.05 ? ` · <b>+${p.hauteur.toFixed(2)} m</b>` : '')
-        + (estRelief(cle) && p?.valeur != null && Number.isFinite(p.valeur) ? ` · ${echapper(libelleCouche(cle))} <b>${p.valeur.toFixed(2)}</b>` : '');
+      hud.innerHTML = texteCurseur({ x, y, altitude: null, ...p }, estRelief(cle) ? libelleCouche(cle) : null);
     }
     hudEnCours = false;
   };
