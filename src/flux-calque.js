@@ -40,9 +40,9 @@ const CalqueFlux = L.LayerGroup.extend({
     L.LayerGroup.prototype.initialize.call(this);
     this._parCle = new Map();
   },
-  ajouter(bloc) {
+  ajouter(bloc, versGeo) {
     const couleurs = ['#5ec8f0', '#4ade80', '#ffd24a', '#ff9f43', '#ff6b52', '#c084fc'];
-    const forme = L.polygon(GRILLE.contourEmprise(bloc.emprise), {
+    const forme = L.polygon(GRILLE.contourEmprise(bloc.emprise, 8, versGeo), {
       color: couleurs[Math.min(bloc.niveau, couleurs.length - 1)],
       weight: 1, fillOpacity: 0.08, interactive: false,
     });
