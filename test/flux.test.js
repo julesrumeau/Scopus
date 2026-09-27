@@ -346,3 +346,51 @@ test('si le début demandé ne suffit pas, le reste des couches lues est redeman
   const suites = appels.filter((a) => a.opts.plage && a.opts.plage[0] !== 0 && (a.opts.plage[0] - (200_000_000 - 4_600_000)) % 1_000_000 !== 0);
   assert.equal(suites.length, niveau1.length, 'une requête de complément par bloc');
 });
+
+// ── Un niveau entier avant le suivant ───────────────────────────────────────
+// Retour d'usage (calque &debug) : du vert (niveau 1) arrivait avant la fin du
+// bleu (niveau 0), et au moindre déplacement ce détail était perdu.
+
+test('aucun bloc de niveau 1 n’est demandé avant que toutes les dalles visibles aient livré leur niveau 0', async () => {
+  const { flux, appels } = monter();
+  // Fins de fichier lentes : sans barrière, les blocs des premières dalles
+  // ouvertes partiraient pendant que les autres attendent encore la leur.
+  const recup = flux._deps.recuperer;
+  flux._deps.recuperer = async (u, o) => {
+    if (o.fin) await pause(u === url(1, 1) ? 5 : 40);
+    const r = await recup(u, o);
+    if (o.fin) appels.push({ u, opts: { finRecue: true } });
+    return r;
+  };
+  await flux.majVue(VUE);
+  await flux.attendreCalme();
+  const derniereFin = appels.map((a, i) => (a.opts.finRecue ? i : -1)).filter((i) => i >= 0).pop();
+  const premierBloc = appels.findIndex((a) => a.opts.plage && a.opts.plage[0] !== 0);
+  assert.ok(premierBloc > derniereFin, `premier bloc demandé en ${premierBloc}, dernière fin de fichier reçue en ${derniereFin}`);
+});
+
+test('le niveau 2 attend que tout le niveau 1 soit arrivé, même avec des places libres', async () => {
+  const { flux, appels } = monter({ delaiPlage: 20 });
+  const racine = TAILLE - 600_000;
+  const entrees = [{ n: 0, offset: racine, taille: 500_000, nbPoints: 60_000 }];
+  for (let k = 0; k < 4; k++) entrees.push({ n: 1, x: k >> 1, y: k & 1, offset: racine - 4_000_000 + k * 1_000_000, taille: 1_000_000, nbPoints: 225_000 });
+  for (let k = 0; k < 16; k++) entrees.push({ n: 2, x: k >> 2, y: k & 3, offset: 150_000_000 + k * 1000, taille: 1000, nbPoints: 900_000 });
+  const fin = fabriquerFin({ entrees, avant: 1_000_000 - 60 - entrees.length * 32 - 830, tableBlocs: { position: 900_000, nombre: entrees.length } });
+  const recup = flux._deps.recuperer;
+  const recus = [];
+  flux._deps.recuperer = async (u, o) => {
+    if (o.fin) { appels.push({ u, opts: o }); return { octets: fin, total: null }; }
+    const r = await recup(u, o);
+    if (o.plage && o.plage[0] !== 0) recus.push(o.plage[0]);
+    return r;
+  };
+  // 1 km sur 1400 px : pas ~0,7 m, le niveau 2 est voulu.
+  await flux.majVue({ xmin: 1000, xmax: 2000, ymin: 1000, ymax: 2000, largeurPx: 1400 });
+  await flux.attendreCalme();
+  const demandes = appels.filter((a) => a.opts.plage && a.opts.plage[0] !== 0).map((a) => a.opts.plage[0]);
+  const niveau2 = (o) => o >= 150_000_000 && o < 151_000_000;
+  const premierN2 = demandes.findIndex(niveau2);
+  assert.ok(premierN2 > 0, 'le niveau 2 est demandé');
+  const recusAvant = recus.slice(0, recus.findIndex(niveau2));
+  assert.equal(recusAvant.filter((o) => !niveau2(o)).length, 4, 'les quatre blocs du niveau 1 reçus avant le premier du niveau 2');
+});

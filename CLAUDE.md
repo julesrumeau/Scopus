@@ -313,6 +313,17 @@ au-delà n'est pas demandé, ce qui évite de le libérer puis de le redemander.
 Au-dessus du budget, on libère d'abord les blocs non voulus les plus fins et les
 plus loin.
 
+**Un niveau entier avant le suivant.** L'ordre de la file ne suffisait pas :
+elle ne connaît que les dalles déjà ouvertes, et le niveau 1 d'une dalle
+partait pendant que ses voisines attendaient encore leur fin de fichier ; de
+même, la fin d'un niveau laissait des places libres au suivant. Retour
+d'usage, sur le calque `&debug` : du vert (niveau 1) avant la fin du bleu
+(niveau 0), et ce détail perdu au moindre déplacement. `pomper` ne sert donc
+que le **niveau en cours** — le plus grossier dont un bloc voulu n'est pas
+arrivé, 0 tant qu'une dalle visible n'a pas livré sa fin de fichier. Prix
+mesuré : rien au zoom 16 (22 à 25,6 s, bruit du réseau), ~1 s de plus au zoom
+18 (~12 s contre 10,8), où les niveaux se succèdent plus souvent.
+
 **Une file de priorité, pas une file d'arrivée.** Les blocs à télécharger
 passent par une file unique, triée par ce rang et recalculée à chaque vue : au
 plus `plagesEnVol` plages à la fois (3), toujours celle du bloc le plus
