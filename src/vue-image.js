@@ -55,7 +55,10 @@ function fabriqueVueImage() {
    * L'image : chaque pixel prend la valeur de sa case, étirée sur la palette.
    * `lisser` interpole entre les centres des quatre cases voisines (quand une
    * case couvre plusieurs pixels), et retombe sur la plus proche si l'une est
-   * sans valeur — comme le lissage de l'onglet 2D.
+   * sans valeur — comme le lissage de l'onglet 2D. Un pixel sans valeur
+   * (hors de la grille, case sans sol, bloc pas encore arrivé) reste
+   * transparent : le voile du côté se voit à travers, et le relief le
+   * recouvre à mesure qu'il se calcule.
    */
   function peindre(valeurs, geo, uv, min, max, lut, lisser) {
     const { u, v } = uv;
@@ -65,7 +68,6 @@ function fabriqueVueImage() {
     const echelle = 255 / (max - min || 1);
     for (let k = 0; k < n; k++) {
       const o = k * 4;
-      rgba[o + 3] = 255;
       const uu = u[k], vv = v[k];
       const ix = Math.round(uu), iy = Math.round(vv);
       if (ix < 0 || iy < 0 || ix >= Wg || iy >= Hg) continue;
@@ -82,7 +84,7 @@ function fabriqueVueImage() {
       }
       if (!(val === val)) continue;
       const i = Math.max(0, Math.min(255, Math.round((val - min) * echelle))) * 3;
-      rgba[o] = lut[i]; rgba[o + 1] = lut[i + 1]; rgba[o + 2] = lut[i + 2];
+      rgba[o] = lut[i]; rgba[o + 1] = lut[i + 1]; rgba[o + 2] = lut[i + 2]; rgba[o + 3] = 255;
     }
     return rgba;
   }
@@ -90,7 +92,7 @@ function fabriqueVueImage() {
   /**
    * Même chose pour une couche déjà en couleurs (l'ombrage coloré,
    * RELIEF.ombrageRGB) : chaque pixel prend la couleur de sa case, sans
-   * palette ni étirement. Une case sans valeur (alpha nul) est noire ; le
+   * palette ni étirement. Une case sans valeur (alpha nul) reste transparente ; le
    * lissage n'interpole qu'entre quatre cases valides.
    */
   function peindreRGBA(grille, geo, uv, lisser) {
@@ -100,7 +102,6 @@ function fabriqueVueImage() {
     const Wg = geo.W, Hg = geo.H;
     for (let k = 0; k < n; k++) {
       const o = k * 4;
-      rgba[o + 3] = 255;
       const uu = u[k], vv = v[k];
       if (lisser) {
         const x0 = Math.floor(uu), y0 = Math.floor(vv);
@@ -112,6 +113,7 @@ function fabriqueVueImage() {
               rgba[o + c] = (grille[i00 + c] * (1 - fx) + grille[i10 + c] * fx) * (1 - fy)
                 + (grille[i01 + c] * (1 - fx) + grille[i11 + c] * fx) * fy;
             }
+            rgba[o + 3] = 255;
             continue;
           }
         }
@@ -120,7 +122,7 @@ function fabriqueVueImage() {
       if (ix < 0 || iy < 0 || ix >= Wg || iy >= Hg) continue;
       const i = (iy * Wg + ix) * 4;
       if (!grille[i + 3]) continue;
-      rgba[o] = grille[i]; rgba[o + 1] = grille[i + 1]; rgba[o + 2] = grille[i + 2];
+      rgba[o] = grille[i]; rgba[o + 1] = grille[i + 1]; rgba[o + 2] = grille[i + 2]; rgba[o + 3] = 255;
     }
     return rgba;
   }
