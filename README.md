@@ -59,7 +59,8 @@ Détail des réglages (`.nojekyll`, chemins relatifs) dans `CLAUDE.md`.
 ## Soutenir
 
 Scopus est gratuit, sans pub ni compte, et le restera. S'il vous sert, un don
-aide à le faire vivre : **[liberapay.com/julesrumeau](https://liberapay.com/julesrumeau/donate)**.
+aide à le faire vivre : **[offrir un café sur Ko-fi](https://ko-fi.com/julesrumeau)**,
+ou un soutien régulier sur [Liberapay](https://liberapay.com/julesrumeau/donate).
 Rien n'est réservé aux donateurs.
 
 ## Licences

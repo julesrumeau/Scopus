@@ -210,7 +210,7 @@ const CONFIG = {
   // demande un compte au donateur). Liberapay en petit lien, pour qui préfère
   // un soutien régulier. Vides toutes deux : la section est masquée.
   soutien: {
-    kofi: '',
+    kofi: 'https://ko-fi.com/julesrumeau',
     liberapay: 'https://liberapay.com/julesrumeau/donate',
   },
 
