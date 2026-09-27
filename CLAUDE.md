@@ -1083,8 +1083,8 @@ pouvoir être mis à jour.
 
 Le bouton vit dans la barre des onglets, pas dans le panneau : c'est une action
 sur la vue affichée, valable dans les trois onglets, alors que le panneau change
-avec l'onglet et devient un tiroir fermé sous 900 px. Le menu se pose au-dessus
-des contrôles de Leaflet (z-index 1000) mais sous le tiroir (1400, 1500) — à
+avec l'onglet et se replie sous 900 px. Le menu se pose au-dessus
+des contrôles de Leaflet (z-index 1000) mais sous le panneau (1500) — à
 1000 pile, le bouton des couches de la carte passait par-dessus, vu au cliché.
 
 Le lien se copie par `navigator.clipboard.writeText`, avec repli sur
@@ -1159,29 +1159,30 @@ permanence, ils noyaient les deux boutons qui font le travail. La numérotation
 des étapes a disparu avec tout ça : elle ne pouvait plus être juste dès lors que
 les sections apparaissent et disparaissent.
 
-### Sous 900 px, le panneau devient un tiroir
+### Sous 900 px, le panneau se pose sur la carte, sans la cacher
 
 Un premier essai empilait le panneau au-dessus de la scène (45 %/55 %) —
-jamais vérifié à une vraie largeur de téléphone, et mesuré ensuite comme
-inutilisable : à 380 px, la carte ou le nuage n'avaient plus qu'une bande de
-quelques centimètres. Un panneau de 380 px ne partage pas l'écran avec quoi
-que ce soit d'utile en dessous de 900 px, il faut choisir lequel des deux est
-visible à l'instant, pas les tasser tous les deux.
+inutilisable à 380 px, la carte réduite à une bande. Le second en faisait un
+tiroir modal : ☰ en haut à gauche, 85 % de l'écran, fond assombri. Retours
+d'usage : pas pratique — pour voir l'effet d'un réglage, il fallait refermer
+le tiroir à chaque fois. Veille faite (NN/G, Material Design, Google Maps,
+Komoot, Géoportail) : les applis de carte gardent la carte **visible et
+utilisable** à côté du panneau. Deux formes, selon la largeur (styles.css) :
 
-Le panneau devient donc un tiroir : `position: fixed`, ouvert par un bouton
-« ☰ » fixé en haut à gauche de la barre de titre (`#btn-menu`, masqué
-au-dessus de 900 px), fermé par défaut, glissé hors écran par `transform`
-plutôt que cascadé (une transition sur `display` n'existe pas). Sorti du flux
-de la grille par le `position: fixed`, il laisse `.grille` repasser à une
-seule colonne — la scène récupère toute la largeur, ce que l'empilement ne
-permettait pas. Un rideau (`#fond-panneau`) capte le clic pour refermer et
-assombrit la scène pendant que le tiroir est ouvert, sur le même principe que
-le rideau de comparaison 2D mais pour un tout autre geste.
+- **Sous 600 px** (téléphone debout), une **feuille tirée du bas**, trois
+  hauteurs (`data-feuille` : `replie`, `mi`, `plein`). Repliée (136 px,
+  `--feuille-repliee`), elle montre la section principale de l'onglet — les
+  listes Gauche / Droite sur la carte, les couleurs en 3D, remontées par
+  `order` dans un panneau passé en colonne flex — : l'action la plus
+  fréquente ne demande rien d'ouvrir. La poignée se tire (la feuille va à
+  la hauteur la plus proche au lâcher) ou, d'un appui, passe à la suivante.
+- **De 600 à 900 px** (tablette, téléphone couché), un **panneau latéral**
+  de 340 px au plus, ouvert par défaut, replié par une languette ◀ / ▶
+  collée à son bord droit et centrée en hauteur.
 
-Changer d'onglet referme le tiroir automatiquement, câblé dans `basculerVue`
-— le même choke point que pour `data-vue` — pour qu'aucun appelant n'ait à y
-penser séparément : sans ça, choisir un onglet depuis le tiroir laisserait
-la scène cachée derrière le panneau qu'on venait de quitter.
+Pas de fond assombri, plus de ☰ : la carte reste active autour. Échap
+replie les deux. Changer d'onglet ne touche plus au panneau — il n'y a plus
+de tiroir à refermer.
 
 **Sous 600 px**, le sous-titre de la barre de titre et l'aide de la barre des
 onglets sont masqués : à 380 px, le premier passait sur deux lignes sous la
@@ -1189,16 +1190,15 @@ barre et la seconde en prenait quatre ou cinq, ~110 px de carte en moins —
 et elle parlait de molette et de Maj à qui n'a qu'un doigt. `.partage` prend
 alors le `margin-left: auto` que portait l'aide. Sur écran tactile
 (`pointer: coarse`), l'aide de la 3D décrit les gestes du doigt
-(`AIDE_TACTILE`) et la bande du rideau passe de 22 à 44 px. Vérifié en
-émulation de téléphone (Playwright, `isMobile`, `hasTouch`, 380 × 800) et de
-tablette (820 × 1180) : aucun débordement horizontal, tiroir, rideau,
-« Partager » et 3D en place.
+(`AIDE_TACTILE`), la bande du rideau passe de 22 à 44 px — le trait y est
+centré et les libellés recalés, sans quoi ils se chevauchaient et le trait
+tombait 11 px à côté de la limite.
 
-Piège mesuré en vrai navigateur, pas supposé : `.btn-menu` est un enfant flex
-de `.barre` aux côtés du titre et de l'état, et sans `flex-shrink: 0` il se
-faisait écraser à 380 px — 30 px de large posés en CSS, 15 px mesurés à
-l'écran. Une zone tactile qui rétrécit sous la pression de ses voisins ne se
-voit qu'en la mesurant, jamais en la lisant dans la feuille de style.
+Vérifié en émulation (Playwright, `isMobile`, `hasTouch`) à 380 × 800, 820 ×
+1180 et 800 × 380 : aucun débordement horizontal, feuille repliée / appui /
+glisser vers le haut et vers le bas, carte sous le doigt au-dessus de la
+feuille, panneau latéral ouvert et replié. Les gestes au vrai doigt restent
+à essayer sur un téléphone.
 
 ## Filtrage des classes
 
