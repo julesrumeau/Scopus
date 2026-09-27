@@ -26,7 +26,6 @@ const GrilleDalles = L.Layer.extend({
 
   initialize(options) {
     L.setOptions(this, options);
-    this._blocs = [];
   },
 
   onAdd(map) {
@@ -55,12 +54,6 @@ const GrilleDalles = L.Layer.extend({
     map.off('zoomstart', this._masquer, this);
     map.off('zoomend', this._afficher, this);
     this._canvas.remove();
-  },
-
-  /** Emprises de chantier servant de gabarit de découpe. */
-  definirBlocs(blocs) {
-    this._blocs = blocs || [];
-    this._redessiner();
   },
 
   _redessiner() {
@@ -92,27 +85,6 @@ const GrilleDalles = L.Layer.extend({
       return map.latLngToContainerPoint([g.lat, g.lon]);
     };
 
-    // ── Emprises de chantier ────────────────────────────────────────────────
-    const chemin = new Path2D();
-    let aDesBlocs = false;
-    for (const bloc of this._blocs) {
-      for (const anneau of bloc.anneaux) {
-        aDesBlocs = true;
-        anneau.forEach(([lat, lon], i) => {
-          const p = map.latLngToContainerPoint([lat, lon]);
-          if (i === 0) chemin.moveTo(p.x, p.y); else chemin.lineTo(p.x, p.y);
-        });
-        chemin.closePath();
-      }
-    }
-    if (aDesBlocs) {
-      ctx.fillStyle = 'rgba(94, 200, 240, 0.10)';
-      ctx.strokeStyle = 'rgba(94, 200, 240, 0.85)';
-      ctx.lineWidth = 1.5;
-      ctx.fill(chemin, 'evenodd');
-      ctx.stroke(chemin);
-    }
-
     if (map.getZoom() < CONFIG.carte.zoomGrille) return;
 
     // ── Quadrillage kilométrique ────────────────────────────────────────────
@@ -134,10 +106,10 @@ const GrilleDalles = L.Layer.extend({
     const nbLignes = (xmax - xmin) / 1000 + (ymax - ymin) / 1000;
     if (nbLignes > CONFIG.carte.maxLignesGrille) return;
 
-    // La grille n'est tracée qu'à l'intérieur des chantiers : ailleurs il n'y a
-    // pas de LiDAR, et un quadrillage y laisserait croire le contraire.
+    // La grille était découpée sur les emprises de chantier ; elles ont
+    // disparu du WFS de l'IGN (voir CONFIG.ign) : elle est tracée partout, et
+    // un clic hors LiDAR le dit (« pas encore volée »).
     ctx.save();
-    if (aDesBlocs) ctx.clip(chemin, 'evenodd');
 
     ctx.strokeStyle = 'rgba(94, 200, 240, 0.55)';
     ctx.lineWidth = 1;
