@@ -373,3 +373,24 @@ test('drape3d : la valeur étirée de la couche à la case de chaque point', () 
   const micro = m.drape3d('microrelief', undefined, -0.1, 0.1);
   assert.equal(micro.length, r.n);
 });
+
+test('nuage3d : une surface qui ne couvre pas l’emprise n’est pas lue (hauteurs 0, pas de drapé)', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  // Surface calculée sur une autre vue (le coin sud-ouest seulement).
+  const c = m.calculer(VUE_GRILLE.definir({ xmin: 1000, xmax: 1010, ymin: 2000, ymax: 2010 }, 0.5, 0, 4096), 'svf');
+  const r = m.nuage3d({ xmin: 1000, xmax: 1060, ymin: 2000, ymax: 2060 }, 1e9);
+  assert.ok(r.n > 0);
+  assert.equal(r.hauteur.every((h) => h === 0), true);
+  assert.equal(m.drape3d('svf', undefined, c.min, c.max), null);
+});
+
+test('drape3d : plus rien après que la grille a changé (surface lâchée)', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  const c = m.calculer(geo, 'svf');
+  m.nuage3d({ xmin: 1010, xmax: 1050, ymin: 2010, ymax: 2050 }, 1e9);
+  assert.ok(m.drape3d('svf', undefined, c.min, c.max));
+  m.calculer(VUE_GRILLE.definir({ xmin: 1000, xmax: 1060, ymin: 2000, ymax: 2060 }, 1, 0, 4096), 'svf');   // autre pas : grille neuve
+  assert.equal(m.drape3d('svf', undefined, c.min, c.max), null);
+});

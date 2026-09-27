@@ -2593,11 +2593,12 @@ if (MODE_VUE) (async () => {
     if (!luts.has(cle)) luts.set(cle, construireLUT(def.palette));
     return luts.get(cle);
   };
-  const calculerRelief = async () => {
+  const calculerRelief = async (forcer = false) => {
     // En 3D, la carte est masquée : ses images attendront le retour (spec
     // 2026-09-27, « rien ne suit la carte pendant qu'on est en 3D »). Les
-    // calculer quand même mettait le nuage 3D en file derrière elles.
-    if (!$('vue-3d').hidden) return;
+    // calculer quand même mettait le nuage 3D en file derrière elles. Seul
+    // le nuage lui-même peut forcer un calcul, pour lire la bonne surface.
+    if (!forcer && !$('vue-3d').hidden) return;
     if (enCalcul) { aRefaire = true; return; }
     // Au-delà du seuil, aucun point n'est demandé, donc aucun relief : le côté
     // droit reste noir et le statut dit de zoomer. Le MNT de l'IGN servait ici
@@ -2764,6 +2765,12 @@ if (MODE_VUE) (async () => {
   // Les mêmes sections et le même tableau que l'onglet 2D ; le point se lit
   // dans le relief calculé par le worker (relief.lire), jamais recalculé.
   $('barre-mode').hidden = false;
+  // La barre de modes vient de réduire la hauteur de la carte, ce que Leaflet
+  // ne détecte pas seul (redimensionnement purement CSS) : sans ce rappel, il
+  // gardait l'ancienne hauteur, les bornes lues pour la vue et pour poser le
+  // relief étaient décalées, et la première emprise glissait de ~17 m au
+  // premier redimensionnement suivant — un nuage 3D reconstruit pour rien.
+  carte.invalider();
   for (const id of ['section-selection', 'section-mesure']) {
     $(id).dataset.vue = 'carte 2d 3d';
     $(id).hidden = false;
@@ -2791,7 +2798,11 @@ if (MODE_VUE) (async () => {
     if (construction) return construction;
     const e = vueCourante;
     const tropLarge = !e || FLUX_CHOIX.surfaceKm2(e) > CONFIG.flux.surfaceMaxPointsKm2;
-    const cle = e && JSON.stringify([e.xmin, e.xmax, e.ymin, e.ymax].map((v) => Math.round(v)).concat(budget3D));
+    // Reconstruit si la vue a bougé, si le plafond a changé, ou si des points
+    // sont arrivés depuis : un nuage bâti en plein chargement ne doit pas
+    // rester clairsemé une fois tout arrivé.
+    const cle = e && JSON.stringify([e.xmin, e.xmax, e.ymin, e.ymax].map((v) => Math.round(v))
+      .concat(budget3D, dernierEtat ? dernierEtat.points : 0));
     if (!tropLarge && cle === empriseNuage && etat.nuage) return;   // rien n'a bougé
     vue3d.vider();
     etat.nuage = null;
@@ -2801,6 +2812,12 @@ if (MODE_VUE) (async () => {
     construction = (async () => {
       try {
         const n = await ATTENTE.pendant('Nuage 3D', async (etape) => {
+          // La surface de la vue d'abord : hauteurs et drapé s'y lisent, et le
+          // relief de la carte a pu rester en retard (en pause pendant la 3D,
+          // ou un calcul encore en cours au moment de basculer).
+          await etape('Relief de la vue…');
+          while (enCalcul) await new Promise((ok) => setTimeout(ok, 50));
+          await calculerRelief(true);
           await etape('Nuage de la vue…', 'les points déjà chargés pour le relief');
           const r = await relief.nuage3d(e, budget3D, [...flux.voulues()]);
           if (r && !r.vide) {

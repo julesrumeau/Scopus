@@ -128,7 +128,13 @@ function fabriqueVueRelief() {
       // L'ancienne surface et sa couche ne serviront plus si la grille change :
       // les lâcher avant d'en bâtir une autre, sans quoi la mémoire du worker
       // tiendrait trois grilles à la fois au moment d'un décalage.
-      const lacher = () => { memoCouche = null; if (grille) { grille.gFin = null; grille.t = null; } };
+      const lacher = () => {
+        memoCouche = null;
+        // Le dernier nuage 3D tient sa surface : la lâcher aussi, ou la mémoire
+        // garderait une grille de trop.
+        dernierNuage = null;
+        if (grille) { grille.gFin = null; grille.t = null; }
+      };
       if (!recouvre) {
         lacher();
         const choisis = [...blocs].filter(([cle, b]) => estActif(cle) && coupe(b));
@@ -347,7 +353,13 @@ function fabriqueVueRelief() {
       }
       const origine = [e.xmin / 100, e.ymin / 100, zminCm / 100];
       const X = new Float32Array(n), Y = new Float32Array(n), Z = new Float32Array(n), H = new Float32Array(n);
-      const t = memoCouche && memoCouche.t;
+      // La surface n'est lue que si elle couvre toute l'emprise : calculée pour
+      // une vue précédente (relief en pause pendant la 3D, calcul en retard),
+      // elle donnerait des hauteurs et un drapé faux sur une partie du nuage.
+      const tc = memoCouche && memoCouche.t;
+      const couvre = tc && tc.emprise.xmin <= emprise.xmin && tc.emprise.ymin <= emprise.ymin
+        && tc.emprise.xmax >= emprise.xmax && tc.emprise.ymax >= emprise.ymax;
+      const t = couvre ? tc : null;
       const cases = new Int32Array(n).fill(-1);
       const compte = new Map();
       for (let i = 0; i < n; i++) {
