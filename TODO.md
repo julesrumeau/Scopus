@@ -188,3 +188,23 @@ parce que ça changerait un comportement ou demanderait une décision :
 - **`app.js` enveloppe la vue normale** dans un bloc de ~600 lignes : à
   sortir dans son propre fichier quand l'ancien parcours (`?dalle`) partira.
 
+
+### Détection des tracés — arrêtée le 27 septembre 2026 (branche `feat/traces`)
+
+Mise de côté par l'utilisateur : ce qu'on voit à l'œil sur le SVF, la
+détection le retrouve à moitié, avec des faux positifs, pour beaucoup de
+réglages. Rien n'est fusionné dans `dev`. État de la branche :
+
+- `src/traces.js` : Frangi sur un SVF propre (5 m de rayon), contraste
+  relatif au bruit local, ouverture par chemins, sommets, recentrage,
+  doublons, raccordement ; bouton « Détecter les tracés » et cinq réglages
+  dans le panneau, tracés sur la carte et en 3D.
+- `npm run banc-traces` : trois dalles notées contre la BD TOPO (rappel /
+  précision à 10 m) — référence 60,9 / 67,6 (71,7 / 81,1 en replats
+  clairs), forêt dense 19,4 / 48,3, montagne 22,3 / 21,8, sentier témoin
+  de l'utilisateur trouvé à 0,5 m. Faible en montagne : ravines et
+  pâturages font des faux traits, et une part des tracés IGN n'y est pas
+  lisible dans le relief.
+- À garder même sans la détection : le lissage des seules cellules connues
+  (`RASTER.flouNormalise`, et son noyau GPU), qui retire les étoiles autour
+  des trous du SVF (commit 821cc0f).
