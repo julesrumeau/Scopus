@@ -261,6 +261,326 @@ résout qu'à ~0,5 m.
 
 ---
 
+## Le chargement piloté par la vue
+
+`flux.js` charge les points **de la vue**, sans dalle à choisir : les dalles du
+rectangle affiché, ouvertes d'une requête chacune, puis les blocs plus fins que
+le zoom demande. Il a remplacé « Charger la dalle » : c'est la vue par défaut
+(l'ancien parcours reste derrière `?dalle`) ; `&debug` ajoute un calque
+(`flux-calque.js`) qui dessine les contours des blocs chargés. Conception complète :
+`docs/superpowers/specs/2026-09-26-flux-vue-design.md` ; ce qui suit est ce que
+le code en a appris.
+
+**Une requête par dalle : la fin du fichier.** L'IGN range ses COPC du plus fin
+au plus grossier — `[en-tête][niveau 5 … niveau 1][niveau 0][index][~830 o]`,
+identique sur 12 dalles de toute la France. `Range: bytes=-1000000` ramène donc
+l'index **et** le niveau 0 (0,86 Mo au plus mesuré ; relecture à 4 Mo en
+secours). Sans l'en-tête, l'index se retrouve en cherchant, depuis la fin,
+l'EVLR `copc` / 1000 (`COPC.lireFin`). La longueur d'un point varie **par lot de
+publication** (30 octets, 46 pour le lot d'avril 2026) : 256 octets d'en-tête
+une fois par lot, lot lu dans l'adresse du fichier, demandé **dès la première
+ouverture** — demandé après la première réponse, il passait derrière toutes les
+fins de fichier de la file, et aucun bloc ne se décodait avant ~11 s.
+
+**En navigateur, la taille du fichier est invisible.** L'IGN n'expose pas
+`Content-Range` aux pages web (pas d'`Access-Control-Expose-Headers`) : le
+navigateur le masque, et `RESEAU.recuperer({ fin })` rend `total: null` sur un
+`206`. Or il faut savoir où tombe la fin reçue dans le fichier pour y lire le
+niveau 0. L'ancre : juste après le dernier bloc de points, un LAZ range sa table
+des blocs, qui commence par 4 octets nuls puis **le nombre de blocs** — égal au
+nombre de nœuds de l'index sur 7 dalles sur 7. La fin absolue du dernier bloc se
+lit dans l'index ; retrouver la signature dans les octets reçus donne leur
+position. Le test simulé fournissait la taille, le navigateur non : c'est la
+vérification sur données réelles qui l'a montré (niveau 0 redemandé au réseau,
+premier bloc à 12–16 s).
+
+**Le quota.** L'API de téléchargement est limitée à 10 requêtes/s par IP ;
+mesuré ~4,5 dalles/s pour la fin de fichier. Au-delà d'une **surface affichée** de
+60 km² (`CONFIG.flux.surfaceMaxPointsKm2`, environ 10 km de large sur un écran
+16/10), rien n'est demandé : le niveau 0 est un plancher (~0,6 Mo, 25 000 à
+80 000 points par dalle, un bloc LAZ ne se lit pas en partie) et le temps
+croîtrait avec le nombre de dalles, plus avec l'écran. La surface et non le zoom
+ni la largeur : c'est elle qui fixe le nombre de dalles, et une même largeur
+couvre deux fois plus de terrain sur un écran deux fois plus haut. Elle
+s'affiche avec `&debug`, pour régler le seuil à l'usage.
+
+**Quels blocs, dans quel ordre.** Le pas suit le pixel au sol, jamais sous
+`pasMinM` ; le niveau visé est le plus grossier dont la densité cumulée atteint
+`pointsParCase` points par case. Ordre : **niveau croissant, puis distance au
+centre** — tout l'écran atteint un niveau avant que le suivant ne commence
+(l'ordre de Potree), et la liste est **tronquée au budget** de points : un bloc
+au-delà n'est pas demandé, ce qui évite de le libérer puis de le redemander.
+Au-dessus du budget, on libère d'abord les blocs non voulus les plus fins et les
+plus loin.
+
+**Une file de priorité, pas une file d'arrivée.** Les blocs à télécharger
+passent par une file unique, triée par ce rang et recalculée à chaque vue : au
+plus `plagesEnVol` plages à la fois (3), toujours celle du bloc le plus
+prioritaire, bornées à `plageMaxOctets` (2 Mo). Avant, les blocs partaient par
+dalle entière (les quatre quarts en une plage de ~7 Mo), dans l'ordre où les
+dalles s'ouvraient : l'arrivée paraissait aléatoire (retour d'usage). Mesuré
+après : les quarts arrivent à 354 m du centre, puis 791, 1 061, 1 275 m. Plus de
+requêtes en vol n'accélère rien : l'IGN accorde à un client ~3–4 Mo/s au total,
+qui se partagent (mesuré : 0,54 plage de 8 Mo/s à 2 ou 3 en vol, 0,32 à 10).
+C'est le débit, pas le quota de requêtes, qui fixe la durée — ~30 s pour les
+~105 Mo de niveau 1 d'une vue de 3 km. Un bloc se décode **dès que ses octets sont là** — la fin de fichier
+et le cache d'abord, chaque plage réseau à son arrivée : tout attendre faisait
+patienter le niveau 0 du centre derrière les 7 Mo du niveau 1 de sa dalle.
+
+**Centimètres entiers.** Les workers rendent les coordonnées en centimètres
+entiers relatifs au coin de la dalle (`entiers`, `xc/yc/zc`) : échelle 0,01 et
+décalage 0 chez l'IGN, la conversion est exacte, et l'affectation d'un point à
+une case ne dépendra plus d'un arrondi de flottant (0,03 % des cases
+différaient sinon entre processeur et carte graphique).
+
+**L'emprise d'un bloc sans l'en-tête.** Le cube de l'octree est dans l'en-tête,
+qu'on ne lit plus ; il coïncide avec la dalle (demi-côté 500 m, centré). Vérifié
+en navigateur sur la vue de Verdun : 14,9 M de points décodés, **aucun** hors de
+l'emprise calculée de son bloc. Si une dalle y dérogeait, ses blocs seraient
+placés au mauvais endroit sans erreur : c'est le contrôle à refaire au moindre
+doute.
+
+**Le cache disque** (`cache-disque.js`, IndexedDB) garde les octets compressés
+des blocs **et** les fins de fichier, sous `quotaDisqueOctets`, le moins
+récemment lu effacé d'abord. Il ne fait jamais échouer un chargement :
+navigation privée ou quota atteint, il se tait et le réseau sert.
+
+Mesuré sur la vue de Verdun (~3 km de large, 15 dalles, 63 blocs, 14,9 M de
+points), Chromium, depuis le chargement de la page : première visite, premier
+bloc à 4,4 s et tout chargé en ~35 s ; seconde visite, premier bloc à 1,8 s,
+aucune fin de fichier redemandée, 2 requêtes de plage au lieu de 27.
+
+## Le calcul de la vue
+
+`vue-relief.js` calcule le relief de ce qui est à l'écran à partir des blocs que
+`flux.js` livre : grille de la vue, rangement des points, terrain, surface
+affichée, puis la couche par `RELIEF.calculer`, inchangé. Le résultat se pose
+sur la carte derrière un rideau (`CalqueRelief`), en image déjà reprojetée
+par le worker (voir plus bas). Conception :
+`docs/superpowers/specs/2026-09-26-flux-vue-design.md`, section « 2. Le calcul ».
+
+**La grille est en centimètres entiers** (`VUE_GRILLE`) : son coin est un
+multiple du pas, les points arrivent en centimètres entiers, et la case d'un
+point est une division entière — la même au processeur (`RASTER.accumulerCm`)
+et sur la carte graphique, au point près, y compris pile sur une limite. Le
+pas suit le pixel au sol (jamais sous 50 cm), la grille couvre la vue plus la
+plus grande portée des couches (`VUE_GRILLE.marge`, ~40 m) ; comblement et
+lissage sont réglés **en mètres** (`comblementM`, `lissageM`) pour garder leur
+sens à tous les pas.
+
+**Deux chemins, une référence.** `VUE_RELIEF.surfaceCPU` enchaîne
+`RASTER.creerGrillesVue`, `accumuler`, `finaliser` et `RELIEF.preparer` au pas
+même de la grille (`garderRepli` : une case sans sol garde l'altitude que le
+terrain lui a donnée, ce que la carte graphique produit sans rien calculer de
+plus). `GPU_RELIEF.surfaceVue` fait la même chose sur la carte : six passes de
+points sans `EXT_float_blend` (profondeur pour le sol minimal, le minimum et le
+maximum de tous ; `RGBA8` additif pour les comptes ; `RGBA16F` additif pour les
+hauteurs au-dessus du minimum), puis le terrain et la surface, et **un seul
+rapatriement**, celui de la surface. À la taille d'un écran il coûte quelques
+millisecondes, et il laisse les couches existantes intactes.
+
+Rien ne sort de la carte sans **autocontrôle** (`VUE_RELIEF.controleGPU`) :
+des points d'essai pile sur les limites, deux dalles à 600 m d'écart
+d'altitude, un mur non classé sans sol dessous, un arbre au-dessus du plafond,
+du bâti, de l'eau, un grand trou. Tolérances mesurées sur la carte AMD
+intégrée : la profondeur rend l'altitude du sol au centième de millimètre,
+quelle que soit l'étendue ; les cases complétées par le non classé passent par
+des sommes sur 16 bits, à 2,4 mm au pire ; et une case dont la hauteur tombe
+pile au plafond de 3 m peut basculer d'un côté ou de l'autre (12 cases sur
+1,9 M) — tolérées si elles restent rares. Vérifié qu'il sait échouer : un
+plafond faussé ou un pas décalé d'un centimètre le font refuser.
+
+**La carte graphique n'est pas plus rapide pour ranger les points** — contre
+ce que la conception supposait. L'essai du 26 septembre annonçait 15 M de
+points en 0,23 s ; il était faux (maximum faux de 24,8 m, une erreur GL en
+fin de passe : les passes de profondeur ne faisaient pas leur travail). Mesuré
+depuis, dans le Chrome de Windows, carte AMD intégrée :
+
+| | Carte graphique | Processeur |
+|---|---|---|
+| vrais points de Verdun, 5,7 M, grille 2158² | 2,2 s | 2,2 s |
+| points synthétiques au hasard, 15 M | 5,3 à 6,8 s | 3,8 à 4,3 s |
+
+Le coût est dans les passes avec test de profondeur (~250 ms chacune pour
+5,7 M), et il dépend de l'**ordre** des points : triés spatialement, des points
+synthétiques passent 15 fois plus vite ; au hasard, 15 fois plus lentement.
+Les vrais points sont entre les deux, et un tri à l'arrivée ne leur fait rien
+gagner (mesuré). Écrire l'altitude par `gl_Position.z` plutôt que
+`gl_FragDepth`, une profondeur 24 bits ou un tampon de rendu : aucune
+différence. Le chemin de la carte est gardé — juste, aussi rapide, et il
+libère la mémoire JavaScript des points — mais la conception qui suppose des
+grilles « sur la carte pour la vitesse » est à revoir au plan 3.
+
+Dans l'application (même carte, Verdun) : un recalcul prend 0,5 s au
+premier bloc, puis 3 à 5 s une fois le budget de 20 M de points atteint — à
+97 % le rangement des points, **tous** refaits à chaque recalcul, y compris
+des blocs fins gardés d'une vue précédente et inutiles au pas courant. C'est
+la stratégie de recalcul, pas le moteur, qui est à reprendre.
+
+Le budget de points n'est plus réduit sans carte graphique : le rangement
+est incrémental et se fait dans le worker, au processeur, dans tous les cas.
+
+**Le calcul tourne dans un worker, et au processeur** (`relief-travailleur.js`).
+Sur le fil principal, chaque recalcul figeait la carte une à plusieurs
+secondes. Dans un worker, ça ne suffisait pas tant que le calcul passait par
+la carte graphique : la page gelait encore, de 0,5 à 1 s sur la carte AMD,
+sans une ligne de script. La page et le worker partagent la carte (et le
+processus graphique de Chrome), et l'affichage attend que le calcul du worker
+soit passé. Mesuré avec `&chrono` (API « long animation frames ») : presque
+tous les gels tombaient pendant un calcul du relief, jusqu'à 11 s sous
+émulation. Au processeur, plus aucun gel au-delà de ~200 ms, et plus aucun
+ralentissement ressenti à l'usage. `&gpu` reprend la carte graphique pour
+comparer. La leçon : **un calcul sur la carte graphique n'est jamais « en
+arrière-plan »**, même lancé depuis un worker.
+
+En `file://`, un worker ne peut rien charger : son source est composé du
+texte des fonctions (comme la décompression), d'où les modules écrits en
+`function fabriqueX()` puis `const X = fabriqueX()` — `vue-grille.js`,
+`relief.js`, `gpu-relief.js`, `vue-relief.js` — et `raster.js` repris
+fonction par fonction. Une fonction ajoutée à `raster.js` sans être listée
+dans `relief-travailleur.js` n'échouerait que dans le worker :
+`test/relief-travailleur.test.js` compare les deux listes et fait tourner le
+source composé dans un contexte nu.
+
+Un seul calcul à la fois : une demande pendant un calcul est retenue, et
+relancée à la fin avec la vue du moment. Les points sont cédés au worker, le
+fil principal ne les garde pas.
+
+**L'image arrive du worker déjà reprojetée** au pixel de la carte (Web
+Mercator), et se pose sur les bornes de la carte **au moment de la demande** :
+si la carte a bougé entre-temps, l'image tombe quand même à sa place.
+`VUE_IMAGE` reprend la technique de la photo aérienne dans l'autre sens — un
+nœud de maillage tous les 32 pixels projeté exactement, l'intérieur
+interpolé, à moins d'un dixième de case de la projection exacte (vérifié
+contre `PROJ` et `RASTER.centreCellule`). Une image Lambert-93 posée sur un
+rectangle WGS84 glissait de plusieurs mètres vers les bords. Le worker
+l'encode en PNG (`OffscreenCanvas.convertToBlob`) ; le fil principal ne fait
+que la poser.
+
+**Chaque bloc n'est rangé qu'une fois.** La grille de la vue est gardée dans
+le worker : un bloc arrivé est rangé seul ; un déplacement recopie la partie
+commune et ne range que la bande entrante (`RASTER.accumuler` et son
+rectangle exclu) ; tout est rangé de nouveau seulement si le pas, la taille
+ou les réglages changent, ou si un bloc déjà rangé est retiré — un minimum ne
+se défait pas. Une grille neuve ne prend que les blocs que la vue demande
+(`flux.voulues()`), pas les blocs fins gardés d'une vue précédente. Pour que
+le décalage serve, **la taille d'une grille ne dépend que de celle de la
+vue**, jamais de sa position : sans ça, un déplacement d'une fraction de case
+changeait `W` et forçait tout à se refaire. Les tests comparent chaque cas à
+un rangement complet, champ par champ — avec une nuance voulue : un bloc déjà
+rangé reste dans une grille décalée même s'il n'est plus demandé par la vue ;
+un rangement complet ne le prendrait pas. Le terrain et la surface sont
+gardés avec la grille : un bloc arrivé hors de la vue, un changement de
+contraste ou de « non classés » ne reprennent que ce qui en dépend (seules
+les classes du sol obligent à tout ranger de nouveau).
+
+**La couche est gardée** tant que la surface ne change pas : le contraste ne
+réétire que l'intervalle, sans refaire le SVF. Mesuré à Verdun (WSL, 4,8 M de
+points, grille de 1072 × 871) : premier calcul 2,6 s — surface 0,8 s, SVF
+1,6 s, image 0,1 s ; un recalcul sans nouveauté ne coûte que l'image.
+
+**Les couches (SVF, ouvertures, ombrages) passent par la carte graphique, la
+surface par le processeur** — le réglage par défaut. Essayé d'abord derrière
+`&gpusvf` : aucun ralentissement ressenti à l'usage, là où le rangement des
+points sur la carte gelait la page. Un SVF est un calcul court et découpé en
+bandes ; le rangement, plusieurs secondes d'affilée. Le SVF passe ainsi de
+1,6 s à ~0,2 s. `&cpu` met tout au processeur, `&gpu` tout sur la carte.
+
+**L'ombrage coloré** est proposé comme dans l'onglet 2D : il rend ses
+couleurs directement (`RELIEF.ombrageRGB`), reprojetées par
+`VUE_IMAGE.peindreRGBA`, sans palette ni contraste. L'ombrage gris ne l'est
+pas : sur une grille au pixel, il sortait pâle et peu lisible.
+
+**Deux côtés, comme en 2D.** Chaque côté du rideau porte soit « Photo
+aérienne » (la carte Leaflet elle-même, dont le sélecteur de fond est retiré
+en vue normale : les listes Gauche / Droite le rendaient redondant), soit
+« Plan IGN » — une couche de tuiles posée dans le volet du côté
+(`carte.nouveauFond`, mêmes réglages et réessais que les fonds de la carte),
+pour avoir la photo d'un côté et le plan de l'autre alors que la carte n'a
+qu'un fond à la fois —, soit une couche de relief ; par défaut la carte à gauche et le SVF à
+droite. `CalqueRelief` a un volet par côté, découpé à la position du rideau
+(le droit garde ce qui est à droite de la limite, le gauche le reste), avec
+son fond noir ; un côté « Carte » a son volet masqué. Les deux couches se
+calculent sur la même surface, rangée une fois : le worker garde plusieurs
+couches par surface (clé et réglages), et un aller-retour du sélecteur ou
+« Échanger » ne refait rien. L'info-bulle lit la couche du côté survolé.
+
+**Les outils de la 2D sur la carte.** En vue normale, la barre de modes
+(déplacement, sélection, mesure), « Point sélectionné » et la mesure en
+chaîne marchent sur la carte, avec les mêmes sections et le même tableau
+que l'onglet 2D. Le point se **lit** dans la dernière vue calculée par le
+worker (`relief.lire`, `VUE_RELIEF.lire`) — altitude absolue, hauteur,
+valeur de la couche —, jamais recalculé : c'est ce que l'écran montre, et
+une question au worker par clic. L'info-bulle au curseur fait de même, une
+lecture à la fois, en ne gardant que le dernier mouvement. Marqueurs et
+traits vont dans un volet à part (au-dessus du relief, sous le rideau), en
+**SVG** plutôt que dans le canevas de la carte (`preferCanvas`) : quelques
+éléments, qu'on peut viser et vérifier. Un point cherché par coordonnées
+avant que le relief n'y soit calculé reçoit son altitude avec l'image
+suivante. Les réglages du balayage (directions, rayon) partent avec chaque
+image ; le rayon agrandit aussi la marge de la grille. La case « Compléter
+le sol par les non classés » est masquée (TODO #3).
+
+Au-delà du seuil de surface, c'est le libellé du rideau, côté relief, qui dit
+« Zoomez pour voir le relief ». Un avis posé au milieu de la carte gênait —
+et sa classe, `.avis-zoom`, était déjà celle de l'avis de zoom maximal de la
+carte, qu'il détournait.
+
+**Le MNT de l'IGN, écrit puis débranché** (`mnt-ign.js`). Au-delà du seuil, il donnait le relief de toute la vue ; retiré à l'usage le jour même, parce qu'on ne savait plus si ce qu'on voyait venait de lui ou du calcul sur les points. Au-delà du seuil, le côté relief reste donc noir et le statut dit de zoomer. Le module a ensuite été retiré (il reste dans l'historique git, commit `90c7321`, avec ses tests) ; à reprendre seulement pour un bouche-trou clairement signalé (TODO #5). Ce qu'il faisait : une requête WMS
+`IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93` en
+`image/x-bil;bits=32` à la taille de la grille (au plus 5010 px de côté), puis
+les mêmes couches. Vérifié sur une vraie réponse : flottants
+**petit-boutistes**, ligne 0 au **nord** (ramenée au sud comme toutes les
+grilles du projet), `-9999` hors couverture. Mesuré : 548 km² en 2,4 s, réseau
+compris, sans aucune requête de points. `RESEAU.recuperer` rend un
+`Uint8Array`, parfois vue d'un tampon plus grand : la lecture en tient compte.
+
+## La 3D de la vue
+
+L'onglet 3D de la vue normale montre en nuage de points **ce que la carte
+affichait** au moment d'y passer, sans rien télécharger de plus : le worker
+du relief garde déjà les points (`relief-travailleur.js`), il en tire le
+nuage (`VUE_RELIEF.nuage3d`). Conception : `docs/superpowers/specs/2026-09-27-vue-3d-design.md`,
+fondée sur une veille de Potree, Giro3D (successeur d'iTowns, avec une
+démonstration sur 180 dalles LiDAR HD) et maplibre-gl-lidar.
+
+- **Quels points** : ceux des blocs que la vue demande (`flux.voulues()`),
+  tombant dans l'emprise de la carte — bord gauche et bas compris, droit et
+  haut exclus, pour qu'aucun point ne soit compté deux fois entre deux
+  emprises voisines.
+- **Un plafond** (5 M, 2 M sur téléphone ; curseur de 1 à 20 M). Au-delà,
+  chaque point est gardé avec la probabilité `plafond / total`, tirée d'un
+  **hachage de ses centimètres** : même vue, mêmes points — un aller-retour
+  ne fait pas scintiller le nuage — et une densité régulière partout (chaque
+  quart d'emprise reçoit 20 à 30 % des points, vérifié).
+- **Figé en 3D.** Revenir en 3D sans que la carte ait bougé garde le même
+  nuage, sans voile ; sinon l'ancien est libéré avant que le nouveau soit
+  bâti — jamais deux à la fois. Rien de chargé : « Zoomez sur la carte ».
+- **Le relief de la carte est en pause pendant qu'on est en 3D**, repris au
+  retour. Le calculer quand même faisait attendre le nuage derrière des
+  images que personne ne voyait (plus de 15 s en émulation) : le worker
+  traite ses demandes l'une après l'autre.
+- **Couleurs** : la hauteur au-dessus du sol vient avec le nuage (lue dans
+  la dernière surface calculée) ; le relief drapé est calculé par le worker
+  (`drape3d`), avec l'étirement de la dernière image du même côté du
+  rideau — les deux vues restent la même image. L'intensité suit désormais
+  les points jusqu'au worker.
+- **Sélection et mesure** visent le nuage (`pointDuNuage`) ; sans grille de
+  dalle, il n'y a plus d'enveloppe de repli.
+
+**L'ombrage de profondeur (EDL)**, activé par défaut comme chez Potree et
+Giro3D (`CONFIG.rendu.edl`, force 1 et rayon 1,4 pixel, ceux de Potree) : le
+nuage se rend dans une texture, puis une passe plein écran assombrit chaque
+pixel selon ce que ses huit voisins ont de plus proche, en log2 de la
+profondeur de vue (Boucheny, 2009). La profondeur est réécrite telle
+quelle : sélection et mesure gardent leur test de profondeur. Sur un nuage
+synthétique, un muret de 50 cm ressort en trait net ; aucune erreur GL, et
+les textures suivent la taille du canevas.
+
+Étape 2, non faite (TODO #4) : que la caméra 3D pilote elle-même le
+téléchargement, blocs les plus gros à l'écran d'abord (taille projetée, à la
+Potree), avec la « fourchette » de l'utilisateur en hystérésis.
+
 ## La carte
 
 La grille des dalles n'est pas téléchargée, elle est **calculée**. Une dalle est
@@ -544,6 +864,11 @@ curseur la survolait.
 
 ## La page d'accueil
 
+> **Depuis le plan 3 du relief piloté par la vue**, « Voir un exemple » cadre
+> le Bois des Caures au zoom 16, sans rien charger : le relief de la vue
+> arrive seul. L'ancien comportement (sélection et chargement de la dalle)
+> reste derrière `?dalle`.
+
 Sans elle, qui ouvre Scopus tombe sur une carte de France et doit deviner où
 cliquer — et tout le reste de l'outil est derrière ce clic. C'est une **section
 plein écran d'`index.html`**, pas un second fichier : le double-clic et la
@@ -611,6 +936,11 @@ téléphone demande un **iframe** — `position: fixed` s'y résout sur la taill
 cadre. Mesuré ainsi à 380 px, la page tient.
 
 ## Le lien partageable
+
+> **Depuis le plan 3 du relief piloté par la vue**, ouvrir un lien ne fait
+> que cadrer la carte — plus de dalle sélectionnée, rien d'attendu ; un ancien
+> `#d=x,y` cadre le centre de sa dalle au zoom 16. Ce qui suit décrit le
+> parcours par dalle, toujours actif derrière `?dalle`.
 
 **Le lien porte la vue, au format que tout le monde lit** : `#map=zoom/lat/lon`,
 celui d'osm.org, complété en 3D comme le fait MapLibre —
@@ -978,6 +1308,11 @@ et le compte de tracés seul (147 puis 133) ne dit rien de leur forme.
 ---
 
 ## Trois onglets : Carte, 2D, 3D
+
+> **Depuis le plan 3 du relief piloté par la vue**, la vue normale n'a plus
+> qu'un onglet, « Carte », qui porte le relief derrière un rideau ; la 2D et
+> la 3D sont masquées et désactivées (TODO #3, #4). Un clic sur la carte ne
+> sélectionne plus de dalle. Tout ce qui suit vaut pour `?dalle`.
 
 Le nom dit le **mode d'affichage**, pas le contenu — la question « où je vois
 quoi » doit avoir une réponse évidente. Carte pour explorer et choisir une dalle,
@@ -2033,6 +2368,7 @@ masquée ».
 | Borne de zoom de la carte | ✅ |
 | Vue d'ouverture sur la France entière | ✅ |
 | Lien partageable | ✅ — la vue, au format osm.org (`#map=zoom/lat/lon`, + angles en 3D) ; voir « Le lien partageable » |
+| Relief piloté par la vue | ✅ vue normale (plans 1 à 3) : relief de ce qui est à l'écran, rideau carte / relief, panneau « Relief » ; ancienne interface derrière `?dalle` ; sélection, mesure, info-bulle et réglages du SVF sur la carte ; 3D du nuage de la vue, avec EDL ; relief de secours et 3D qui télécharge dans TODO (#4, #5) |
 
 ## Jalon de publication
 

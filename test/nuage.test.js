@@ -16,6 +16,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { chargerScripts } from './charger.js';
+
+// `grouperPlages` a quitté nuage.js pour copc.js : le faux COPC ci-dessous
+// reçoit la vraie, le regroupement des plages faisant partie de ce qu'on
+// éprouve (la clé du cache d'octets en dépend).
+const { COPC: VRAI_COPC } = chargerScripts(['config.js', 'copc.js']);
 
 const SRC = new URL('../src/', import.meta.url);
 const lire = (nom) => readFileSync(fileURLToPath(new URL(nom, SRC)), 'utf8');
@@ -55,6 +61,7 @@ function charger() {
     };
     var COPC = { empriseNoeud: () => ({ xmin: 0, xmax: 0, ymin: 0, ymax: 0 }) };
   `, contexte);
+  contexte.COPC.grouperPlages = VRAI_COPC.grouperPlages;
 
   vm.runInContext(lire('config.js'), contexte);
   const source = lire('nuage.js');

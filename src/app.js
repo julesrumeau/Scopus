@@ -156,17 +156,23 @@ try {
 
 // ── Vue 2D ──────────────────────────────────────────────────────────────────
 
+/**
+ * Ce que le relief dit sous le curseur, en une ligne : position, sol, hauteur
+ * de ce qui s'y dresse, et la valeur de la couche nommée. La couche est celle
+ * du côté survolé : sous le curseur il n'y a qu'une image, et dire laquelle
+ * évite de lire une valeur pour une autre. Commun à l'onglet 2D et à la carte.
+ */
+function texteCurseur(p, nomCouche) {
+  return `x ${p.x.toFixed(0)} · y ${p.y.toFixed(0)}`
+    + (p.altitude == null ? ' · sol inconnu' : ` · sol ${p.altitude.toFixed(1)} m`)
+    + (p.hauteur > 0.05 ? ` · <b>+${p.hauteur.toFixed(2)} m</b>` : '')
+    + (nomCouche != null && p.valeur != null && Number.isFinite(p.valeur)
+      ? ` · ${echapper(nomCouche)} <b>${p.valeur.toFixed(2)}</b>` : '');
+}
+
 const vue2d = new Vue2D($('canvas-2d'), {
   surCurseur: (p) => {
-    if (!p) { $('hud-2d').innerHTML = ''; return; }
-    $('hud-2d').innerHTML =
-      `x ${p.x.toFixed(0)} · y ${p.y.toFixed(0)}`
-      + (p.altitude == null ? ' · sol inconnu' : ` · sol ${p.altitude.toFixed(1)} m`)
-      + (p.hauteur > 0.05 ? ` · <b>+${p.hauteur.toFixed(2)} m</b>` : '')
-      // La couche nommée est celle du côté survolé : sous le curseur il n'y a
-      // qu'une image, et dire laquelle évite de lire une valeur pour une autre.
-      + (p.valeur != null && Number.isFinite(p.valeur)
-        ? ` · ${echapper(p.couche || '')} <b>${p.valeur.toFixed(2)}</b>` : '');
+    $('hud-2d').innerHTML = p ? texteCurseur(p, p.couche || '') : '';
   },
   // Cliquer une boîte sélectionne la détection dans toutes les vues à la fois.
   surClic: (id) => {
@@ -202,6 +208,7 @@ function definirModeInteraction(mode) {
   // comme en mesure.
   $('canvas-2d').classList.toggle('mode-vise', mode !== 'deplacement');
   $('canvas3d').classList.toggle('mode-vise', mode !== 'deplacement');
+  $('vue-carte').classList.toggle('mode-vise', mode !== 'deplacement');
 }
 $('mode-deplacement').addEventListener('click', () => definirModeInteraction('deplacement'));
 $('mode-selection').addEventListener('click', () => definirModeInteraction('selection'));
@@ -210,6 +217,17 @@ $('mode-mesure').addEventListener('click', () => definirModeInteraction('mesure'
 // Coordonnées du point actuellement affiché — lues par les liens « Ouvrir
 // dans » au clic, pas mémorisées dans `etat` : rien d'autre n'en a besoin.
 let selectionActuelle = null;
+
+// Mode vue (relief sur la carte) : ce qui dessine sélection et mesure sur la
+// carte, et ce qui lit un point dans le relief calculé. Posés par le bloc du
+// mode vue, plus bas ; nuls dans l'ancien parcours.
+let carteOutils = null;
+let lireVue = null;
+// Mode vue : ce qui construit le nuage 3D en passant sur l'onglet, et ce qui
+// remplit l'attribut de couleur (hauteur, relief) depuis le worker.
+let surPassage3D = null;
+let surPassageCarte = null;
+let majAttributVue = null;
 
 /**
  * @param {number} x Lambert-93
@@ -222,7 +240,7 @@ function afficherSelection(x, y, sol, hauteur = 0) {
   // Le sommet est ce qui a été visé — un toit s'il y en a un à cet endroit,
   // le sol sinon — donc c'est lui qui porte le marqueur, pas le sol seul.
   const sommetPoint = MESURE.sommet({ sol, hauteur });
-  selectionActuelle = { lon, lat, sol, hauteur, sommet: sommetPoint };
+  selectionActuelle = { x, y, lon, lat, sol, hauteur, sommet: sommetPoint };
   $('selection-vide').hidden = true;
   $('detail-selection').hidden = false;
   $('detail-selection').innerHTML = ligneDetail('Longitude', `${lon.toFixed(6)}°`)
@@ -235,6 +253,7 @@ function afficherSelection(x, y, sol, hauteur = 0) {
   // l'inverse) doit retrouver le marqueur au même endroit, pas le perdre.
   vue2d.definirPointSelectionne([x, y]);
   vue3d?.definirPointSelectionne({ x, y, altitude: sommetPoint });
+  carteOutils?.selection([x, y]);
 }
 
 function effacerSelection() {
@@ -244,6 +263,7 @@ function effacerSelection() {
   $('selection-liens').hidden = true;
   vue2d.definirPointSelectionne(null);
   vue3d?.definirPointSelectionne(null);
+  carteOutils?.selection(null);
 }
 
 $('lien-gmaps').addEventListener('click', () => {
@@ -265,7 +285,7 @@ $('lien-osm').addEventListener('click', () => {
  * vues à la fois, et les deux caméras se recentrent pour que le marqueur ne
  * tombe pas hors champ.
  */
-function chercherPoint() {
+async function chercherPoint() {
   const texte = $('recherche-point').value.trim();
   if (!texte) return;
 
@@ -274,6 +294,14 @@ function chercherPoint() {
   if (!PROJ.dansEmpriseFrance(p.lon, p.lat)) { alerter('Ces coordonnées sont hors de France.'); return; }
 
   const lambert = PROJ.versLambert93(p.lon, p.lat);
+  // Mode vue : la carte va au point, et l'altitude se lit dans le relief —
+  // tout de suite s'il est déjà calculé là, sinon dès la prochaine image.
+  if (MODE_VUE && lireVue) {
+    carte.allerA(p.lon, p.lat, Math.max(carte.map.getZoom(), 17));
+    const pt = await lireVue(lambert.x, lambert.y);
+    afficherSelection(lambert.x, lambert.y, pt?.altitude ?? null, pt?.hauteur ?? 0);
+    return;
+  }
   const t = etat.reliefGrille;
   let altitude = null, hauteur = 0;
   if (t) {
@@ -306,8 +334,10 @@ $('recherche-point').addEventListener('keydown', (e) => {
 // seuil (clic imprécis, ou zone du terrain sans point rendu tout près),
 // l'enveloppe du MNT en repli plutôt que de rendre la main bredouille.
 function viserPoint3D(rayon) {
+  // Sans grille de dalle (vue normale), pas d'enveloppe de repli : le point
+  // visé est dans le nuage, ou nulle part.
   return vue3d.pointDuNuage(rayon, classesMasquees)
-    || TERRAIN.pointDuTerrain(rayon, etat.reliefGrille, CONFIG.rendu.exagerationZ, vue3d.zmin, classesMasquees);
+    || (etat.reliefGrille ? TERRAIN.pointDuTerrain(rayon, etat.reliefGrille, CONFIG.rendu.exagerationZ, vue3d.zmin, classesMasquees) : null);
 }
 
 if (vue3d) {
@@ -340,6 +370,7 @@ function afficherMesure() {
   const versVue3D = (p) => (MESURE.sommet(p) != null ? { x: p.x, y: p.y, altitude: MESURE.sommet(p) } : null);
   vue2d.definirMesure(pointsMesure.map((p) => [p.x, p.y]));
   vue3d?.definirMesure(pointsMesure.map(versVue3D));
+  carteOutils?.mesure(pointsMesure);
 
   if (!pointsMesure.length) {
     $('mesure-vide').hidden = false;
@@ -481,6 +512,12 @@ function majLien() {
  * que la dalle soit chargée — il n'y a rien à cadrer avant.
  */
 function ouvrirLien(lien) {
+  // Vue normale : le lien cadre la carte, et le relief de la vue suit. Plus de
+  // dalle à sélectionner, ni rien à charger d'un bloc.
+  if (MODE_VUE) {
+    requestAnimationFrame(() => { carte.invalider(); carte.map.setView([lien.lat, lien.lon], lien.zoom); });
+    return;
+  }
   // Loin de tout, aucune dalle n'est sélectionnée : rien n'attendra de
   // chargement, et retenir la vue bloquerait l'écriture du lien pour rien.
   const selectionnable = lien.zoom >= CONFIG.carte.zoomGrille
@@ -576,6 +613,16 @@ document.addEventListener('pointerdown', (e) => {
 });
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') basculerMenuPartage(false); });
 
+// ── Mode ────────────────────────────────────────────────────────────────────
+//
+// Par défaut, le relief se calcule pour la vue affichée, sans dalle à choisir
+// (spec docs/superpowers/specs/2026-09-26-flux-vue-design.md). « ?dalle » dans
+// l'adresse rend l'ancien parcours — choisir une dalle, la charger, la lire en
+// 2D ou en 3D — le temps de la transition. La feuille de style retire ce qui
+// n'a pas cours dans le mode (`body[data-mode]`).
+const MODE_VUE = !new URLSearchParams(location.search).has('dalle');
+document.body.dataset.mode = MODE_VUE ? 'vue' : 'dalle';
+
 // ── Carte ───────────────────────────────────────────────────────────────────
 
 const carte = new Carte($('vue-carte'), {
@@ -595,6 +642,9 @@ const carte = new Carte($('vue-carte'), {
   },
   surCouverture: (nb, zoom) => {
     if (etat.dalle) return;   // ne pas écraser l'état d'une dalle déjà choisie
+    // Vue normale : le statut appartient au relief de la vue, et « cliquez une
+    // dalle » y serait faux. Seule l'absence de LiDAR mérite d'être dite.
+    if (MODE_VUE && nb > 0) return;
     // Le message dit **quoi faire**, et pas seulement ce qu'il y a : à l'échelle
     // de la France, « 208 chantiers » ne mène nulle part si l'on ne sait pas que
     // le champ de recherche accepte un nom de commune.
@@ -651,7 +701,7 @@ async function rechercher() {
 function allerAu(lieu) {
   $('resultats-recherche').hidden = true;
   carte.allerA(lieu.lon, lieu.lat);
-  statut(`${lieu.label} — cliquez une dalle`);
+  statut(MODE_VUE ? lieu.label : `${lieu.label} — cliquez une dalle`);
 }
 
 $('btn-recherche').addEventListener('click', rechercher);
@@ -1491,31 +1541,7 @@ function placerRideau(part) {
   $('rideau').style.left = `${p * 100}%`;
 }
 
-// L'état du geste est tenu par un drapeau, et non par `hasPointerCapture` : la
-// capture est une commodité, pas une source de vérité — elle échoue si le
-// pointeur n'est plus actif, et le rideau resterait alors sourd au mouvement.
-let tirageRideau = false;
-
-$('rideau').addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  tirageRideau = true;
-  $('rideau').classList.add('tire');
-  // La capture garde le geste sur la poignée quand il sort de la bande de
-  // 22 px, ce qui arrive dès qu'on tire un peu vite.
-  try { $('rideau').setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
-});
-$('rideau').addEventListener('pointermove', (e) => {
-  if (!tirageRideau) return;
-  const r = $('vue-2d').getBoundingClientRect();
-  if (r.width > 0) placerRideau((e.clientX - r.left) / r.width);
-});
-for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-  $('rideau').addEventListener(type, (e) => {
-    tirageRideau = false;
-    $('rideau').classList.remove('tire');
-    try { $('rideau').releasePointerCapture(e.pointerId); } catch { /* déjà relâché */ }
-  });
-}
+brancherRideau($('rideau'), $('vue-2d'), placerRideau);
 
 
 // ── Volets d'analyse ────────────────────────────────────────────────────────
@@ -1578,6 +1604,7 @@ $('coloration').addEventListener('click', async (e) => {
  * rideau, ou la gauche si la droite porte la photo.
  */
 async function majAttributNuage() {
+  if (MODE_VUE) { await majAttributVue?.(); return; }
   if (!vue3d || !etat.nuage || !etat.grille) return;
 
   if (CONFIG.rendu.coloration === 'relief') {
@@ -2214,12 +2241,13 @@ function basculerVue(quoi) {
   }
   // Le mode sélection n'a de sens qu'en 2D et en 3D — « cliquer un point » sur
   // la carte n'en est pas un.
-  $('barre-mode').hidden = quoi === 'carte';
+  // En mode vue, la carte porte le relief : sélection et mesure s'y font.
+  $('barre-mode').hidden = quoi === 'carte' && !MODE_VUE;
 
   // Leaflet mesure son conteneur à l'initialisation ; masqué, il l'a mesuré à
   // zéro et n'affiche aucune tuile tant qu'on ne le lui redit pas.
-  if (quoi === 'carte') requestAnimationFrame(() => carte.invalider());
-  else if (quoi === '3d') vue3d?.invalider();
+  if (quoi === 'carte') { requestAnimationFrame(() => carte.invalider()); surPassageCarte?.(); }
+  else if (quoi === '3d') { vue3d?.invalider(); surPassage3D?.(); }
   else preparer2D();
   majLien();   // le lien décrit l'onglet affiché
 }
@@ -2328,6 +2356,13 @@ function selectionnerDalleParIndices(x, y, zoom = 16) {
 $('btn-exemple').addEventListener('click', async () => {
   masquerAccueil();
   basculerVue('carte');
+  if (MODE_VUE) {
+    // Le Bois des Caures cadré : le relief de la vue arrive seul.
+    const { x, y } = CONFIG.carte.dalleExemple;
+    const c = PROJ.versWGS84(x * 1000 + 500, y * 1000 + 500);
+    requestAnimationFrame(() => { carte.invalider(); carte.allerA(c.lon, c.lat, 16); });
+    return;
+  }
   const { x, y } = CONFIG.carte.dalleExemple;
   await selectionnerDalleParIndices(x, y);
   // `surDalle` publie `etat.promesseIndex` de façon synchrone avant que
@@ -2339,13 +2374,598 @@ $('btn-exemple').addEventListener('click', async () => {
 });
 $('btn-carte-directe').addEventListener('click', entrerDansLaCarte);
 
+// ── Le relief de la vue (mode par défaut) ───────────────────────────────────
+//
+// Spec docs/superpowers/specs/2026-09-26-flux-vue-design.md : les blocs de la
+// vue se chargent (flux.js), le relief se calcule dans un worker
+// (relief-travailleur.js) et se pose sur la carte derrière un rideau
+// (CalqueRelief). « ?dalle » dans l'adresse rend l'ancien parcours à la place.
+// Diagnostic : « &debug » (contours des blocs, statut chiffré), « &chrono »
+// (temps du fil principal, gels détaillés).
+if (MODE_VUE) (async () => {
+  // Pas de dalle à sélectionner au clic ; la 2D et la 3D attendent leur
+  // retour sur le relief de la vue (TODO #3, #4) — désactivées, y compris aux
+  // raccourcis clavier, que basculerVue refuse pour un onglet désactivé.
+  carte.selectionAuClic = false;
+  $('onglet-2d').disabled = true;
+  // La 3D, elle, revient : le nuage de la zone vue sur la carte (spec
+  // 2026-09-27-vue-3d-design). Sans WebGL2, elle reste désactivée.
+  $('onglet-3d').disabled = !vue3d;
+
+  // Chronométrage du fil principal, avec « &chrono » dans l'adresse : où part
+  // le temps quand la carte ralentit. Chaque morceau de travail mesuré est
+  // compté (appels, total, pire) ; les « tâches longues » sont celles que le
+  // navigateur voit bloquer plus de 50 ms, mesurées ou non. Un tableau dans la
+  // console toutes les 5 s. Un outil de diagnostic, pas une fonction.
+  const chrono = new Map();
+  const noter = (nom, ms) => {
+    const c = chrono.get(nom) || { appels: 0, totalMs: 0, pireMs: 0 };
+    c.appels++; c.totalMs += ms; c.pireMs = Math.max(c.pireMs, ms);
+    chrono.set(nom, c);
+  };
+  const mesurer = (nom, f) => function (...a) {
+    const t0 = performance.now();
+    try { return f.apply(this, a); } finally { noter(nom, performance.now() - t0); }
+  };
+  const chronometrer = new URLSearchParams(location.search).has('chrono');
+  const activite = { relief: false, decodages: 0 };
+  if (chronometrer) {
+    console.info('Chrono du fil principal actif : un tableau toutes les 5 s dès que la carte travaille.');
+    for (const [objet, nomObjet, noms] of [
+      [FLUX_CHOIX, 'FLUX_CHOIX', ['blocsPourVue', 'aLiberer']],
+      [COPC, 'COPC', ['lireFin', 'lireEntrees', 'grouperPlages']],
+    ]) for (const n of noms) objet[n] = mesurer(`${nomObjet}.${n}`, objet[n]);
+    for (const n of ['afficher', 'vider']) CalqueRelief.prototype[n] = mesurer(`image du relief : ${n}`, CalqueRelief.prototype[n]);
+    for (const n of ['ajouter', 'retirer']) CalqueFlux.prototype[n] = mesurer(`contours des blocs : ${n}`, CalqueFlux.prototype[n]);
+    try {
+      new PerformanceObserver((l) => { for (const e of l.getEntries()) noter('TÂCHES LONGUES (> 50 ms, tout compris)', e.duration); })
+        .observe({ type: 'longtask', buffered: true });
+    } catch { /* navigateur sans longtask */ }
+    // Le détail de chaque gel de plus de 150 ms : quels scripts (fonction,
+    // fichier, qui l'a appelée) et combien de rendu (style, mise en page,
+    // dessin). Le temps qui n'est ni l'un ni l'autre est hors JavaScript —
+    // ramasse-miettes compris. API « long animation frames » de Chrome.
+    const gels = [];
+    try {
+      new PerformanceObserver((l) => {
+        for (const e of l.getEntries()) {
+          if (e.duration < 150) continue;
+          const scripts = [...(e.scripts || [])].sort((a, b) => b.duration - a.duration);
+          const js = scripts.reduce((t, x) => t + x.duration, 0);
+          const rendu = e.renderStart ? e.startTime + e.duration - e.renderStart : 0;
+          const styleMiseEnPage = e.styleAndLayoutStart ? e.startTime + e.duration - e.styleAndLayoutStart : 0;
+          gels.push({
+            gelMs: Math.round(e.duration),
+            // Ce qui tournait ailleurs au même moment : les workers ne
+            // bloquent pas la page, sauf à saturer les cœurs du processeur.
+            reliefEnCalcul: activite.relief ? 'oui' : 'non',
+            decompressions: activite.decodages,
+            scriptsMs: Math.round(js),
+            renduMs: Math.round(rendu),
+            dontStyleEtMiseEnPageMs: Math.round(styleMiseEnPage),
+            resteMs: Math.round(e.duration - js - rendu),
+            scriptsPrincipaux: scripts.slice(0, 3).map((x) => `${Math.round(x.duration)} ms ${x.invoker || '?'} → ${x.sourceFunctionName || '?'} @${(x.sourceURL || '').split('/').pop()}:${x.sourceCharPosition}`).join(' | '),
+          });
+        }
+      }).observe({ type: 'long-animation-frame', buffered: true });
+    } catch { /* navigateur sans long-animation-frame */ }
+    setInterval(() => {
+      if (!chrono.size) return;
+      const lignes = [...chrono].sort((a, b) => b[1].totalMs - a[1].totalMs).map(([nom, c]) => ({
+        travail: nom, appels: c.appels, totalMs: Math.round(c.totalMs), pireMs: Math.round(c.pireMs),
+      }));
+      console.log(`Chrono du fil principal, 5 dernières secondes, ${new Date().toLocaleTimeString()}`);
+      console.table(lignes);
+      if (gels.length) { console.log('Détail des gels de plus de 150 ms :'); console.table(gels.splice(0)); }
+      chrono.clear();
+    }, 5000);
+  }
+
+  // Les contours des blocs chargés, pour voir le chargement : « &debug ».
+  const calque = new URLSearchParams(location.search).has('debug') ? new CalqueFlux().addTo(carte.map) : null;
+  const reliefCalque = new CalqueRelief().addTo(carte.map);
+  // Le calcul du relief tourne dans un worker (relief-travailleur.js) : sur le
+  // fil principal, il figeait la carte une à plusieurs secondes à chaque
+  // arrivée de blocs. S'il ne démarre pas, le même calcul se fait ici.
+  // Le rangement des points se fait au processeur, même dans le worker : sur
+  // la carte graphique, la page gelait pendant chaque calcul — elle partage
+  // la carte (et le processus graphique de Chrome) avec le worker, et son
+  // affichage attendait que le calcul soit passé : gels de 0,5 à 1 s sur la
+  // carte AMD, jusqu'à 11 s sous émulation, sans une ligne de script (mesuré
+  // avec &chrono, API long-animation-frame).
+  // Les couches (SVF…), elles, passent par la carte graphique : un calcul
+  // court, qui ne fait pas geler la page à l'usage (essayé, aucun
+  // ralentissement ressenti), là où le rangement des points la gelait. « &cpu » : tout au processeur ; « &gpu » : tout sur la carte,
+  // pour comparer.
+  const params = new URLSearchParams(location.search);
+  const optionsRelief = params.has('gpu') ? {} : params.has('cpu') ? { moteur: 'cpu' } : { moteur: 'cpu', couches: 'gpu' };
+  let relief = RELIEF_TRAVAILLEUR.creer(optionsRelief);
+  let infoRelief = null;
+  if (relief) {
+    try { infoRelief = await relief.pret; } catch (err) {
+      console.warn(`Relief calculé sur le fil principal : ${err.message}`);
+      relief.arreter();
+      relief = null;
+    }
+  }
+  if (!relief) {
+    relief = RELIEF_TRAVAILLEUR.surFilPrincipal(optionsRelief);
+    infoRelief = { ...(await relief.pret), filPrincipal: true };
+  }
+  const surAppareilPortatif = surMobile();
+  // Le rangement des points est incrémental, dans le worker : chaque bloc n'est
+  // rangé qu'une fois, le budget n'a plus à être réduit pour lui.
+  const budget = surAppareilPortatif ? CONFIG.flux.budgetPointsMobile : CONFIG.flux.budgetPoints;
+
+  let dernierEtat = null, texteRelief = '', vueCourante = null, minuteur = null;
+  // Ce que porte chaque côté du rideau, comme dans l'onglet 2D : « carte »
+  // (la carte Leaflet, qui remplace ici la photo aérienne) ou une couche de
+  // relief. Par défaut, la carte à gauche et le Sky-View Factor à droite.
+  const cotes = { gauche: 'carte', droite: 'svf' };
+  // Les couches de l'onglet 2D, fonds de carte à part (la carte Leaflet les
+  // porte, avec son propre choix de fond) : relief.js, plus l'ombrage coloré.
+  // L'ombrage gris n'y est pas : sur une grille au pixel, il sortait pâle.
+  const COUCHES_VUE = CHOIX_2D.filter((c) => c.cle !== PHOTO && c.cle !== PLAN && c.cle !== 'ombrage');
+  // Ce qui n'est pas du relief : la carte telle qu'affichée, et le Plan IGN,
+  // posé dans le côté même — la carte n'a qu'un fond à la fois, et ainsi un
+  // côté peut montrer la photo et l'autre le plan.
+  const FONDS_VUE = { carte: 'Photo aérienne', plan: 'Plan IGN' };
+  // Les listes Gauche / Droite choisissent le fond de chaque côté : le
+  // sélecteur de fond de Leaflet ferait doublon. La carte garde la photo.
+  carte.controleFonds.remove();
+  const estRelief = (cle) => !(cle in FONDS_VUE);
+  const libelleCouche = (cle) => FONDS_VUE[cle] || COUCHES_VUE.find((c) => c.cle === cle).libelle;
+  // Le statut dit à l'utilisateur où en est son relief ; le détail chiffré
+  // (surface, dalles, blocs, points, durées) ne sert qu'au diagnostic, avec
+  // « &debug » ou « &chrono ».
+  const diagnostic = params.has('debug') || params.has('chrono');
+  const majStatut = () => {
+    const e = dernierEtat;
+    if (!e) return;
+    $('vue-etat').textContent = e.attente && !e.tropLarge
+      ? `Affinage… ${e.attente} bloc${e.attente > 1 ? 's' : ''} attendu${e.attente > 1 ? 's' : ''}` : '';
+    if (!diagnostic) {
+      statut(e.tropLarge ? 'Zoomez pour voir le relief'
+        : e.echecs ? `${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}`
+          : erreurRelief ? `Le relief n’a pas pu être calculé — ${erreurRelief}`
+            : !['gauche', 'droite'].some((c) => estRelief(cotes[c])) ? 'Aucune couche de relief affichée'
+              : e.attente ? 'Relief en cours d’affinage…'
+                : texteRelief ? 'Relief à jour' : 'Relief en calcul…',
+      e.echecs || erreurRelief ? 'erreur' : e.attente ? 'travail' : undefined);
+      return;
+    }
+    statut((e.tropLarge
+      ? `Flux : ${e.surfaceKm2.toFixed(0)} km² affichés, trop pour les points (seuil ${CONFIG.flux.surfaceMaxPointsKm2} km²) — zoomez`
+      : `Flux : ${e.surfaceKm2.toFixed(1)} km² · ${e.dallesOuvertes} dalles · ${e.charges} blocs · ${milliers(e.points)} points`
+        + (e.attente ? ` · ${e.attente} en attente` : '')
+        + (e.echecs ? ` · ${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}` : ''))
+      + (texteRelief ? ` · ${texteRelief}` : ''),
+    e.echecs ? 'erreur' : e.attente ? 'travail' : undefined);
+  };
+
+  // Un seul calcul à la fois : le worker les traite dans l'ordre, et en
+  // empiler pendant un déplacement ne ferait que retarder le dernier, le seul
+  // qui compte. Une demande pendant un calcul est retenue, et relancée à la
+  // fin avec la vue du moment. `enCalcul` est la promesse du calcul en
+  // cours, qui se tient à la fin : qui doit l'attendre l'attend, sans sonder.
+  let enCalcul = null, aRefaire = false;
+  let contrasteFlux = 1, dernieresClasses = [], erreurRelief = '';
+  // L'étirement de la dernière image de chaque côté : le relief drapé sur le
+  // nuage 3D reprend le même, pour que les deux vues soient la même image.
+  const derniersEtirements = {};
+  // Réglages du balayage d'horizons (SVF, ouvertures) et du lissage, comme
+  // dans l'onglet 2D.
+  let svfDirections = CONFIG.relief.svfDirections, svfRayonM = CONFIG.relief.svfRayonM, lisserFlux = true;
+  let classesSolFlux = new Set(CONFIG.raster.classesSolDefaut), classesAffichees = '';
+  // Une case par classe présente dans les points reçus, cochée si elle compte
+  // comme sol. Reconstruite seulement quand la liste change.
+  const majClassesSol = () => {
+    const cle = dernieresClasses.map(([c]) => c).join(',');
+    if (cle === classesAffichees) return;
+    classesAffichees = cle;
+    $('vue-classes-sol').innerHTML = dernieresClasses.map(([c]) => `<label class="case"><input type="checkbox" value="${c}"`
+      + `${classesSolFlux.has(c) ? ' checked' : ''}><span>${NOMS_CLASSES[c] || `classe ${c}`}</span></label>`).join('');
+  };
+  // Palettes de 256 couleurs, une par couche, calculées une fois.
+  const luts = new Map();
+  const lutCouche = (cle) => {
+    const def = RELIEF.COUCHES.find((c) => c.cle === cle);
+    if (!def) return null;   // l'ombrage coloré porte ses couleurs
+    if (!luts.has(cle)) luts.set(cle, construireLUT(def.palette));
+    return luts.get(cle);
+  };
+  const calculerRelief = async (forcer = false) => {
+    // En 3D, la carte est masquée : ses images attendront le retour (spec
+    // 2026-09-27, « rien ne suit la carte pendant qu'on est en 3D »). Les
+    // calculer quand même mettait le nuage 3D en file derrière elles. Seul
+    // le nuage lui-même peut forcer un calcul, pour lire la bonne surface.
+    if (!forcer && !$('vue-3d').hidden) return;
+    if (enCalcul) { aRefaire = true; return; }
+    // Au-delà du seuil, aucun point n'est demandé, donc aucun relief : un côté
+    // de relief reste noir, et son libellé sur le rideau dit de zoomer. (Le
+    // MNT de l'IGN y servait un temps, retiré : on ne savait plus quelle
+    // source on regardait.)
+    const tropLarge = vueCourante && FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2;
+    const aCalculer = ['gauche', 'droite'].filter((c) => estRelief(cotes[c]));
+    for (const c of ['gauche', 'droite']) {
+      reliefCalque.definirLibelle(c, tropLarge && estRelief(cotes[c]) ? 'Zoomez pour voir le relief' : libelleCouche(cotes[c]));
+    }
+    if (!vueCourante || tropLarge || !aCalculer.length) {
+      for (const c of aCalculer) reliefCalque.vider(c);
+      texteRelief = '';
+      majStatut();
+      return;
+    }
+    const pas = FLUX_CHOIX.pasPourVue(vueCourante.xmax - vueCourante.xmin, vueCourante.largeurPx, CONFIG.flux.pasMinM);
+    const geo = VUE_GRILLE.definir(vueCourante, pas, VUE_GRILLE.marge({ ...CONFIG.relief, ...CONFIG.flux, svfRayonM }), infoRelief.coteMax);
+    let terminer;
+    enCalcul = new Promise((ok) => { terminer = ok; });
+    activite.relief = true;
+    try {
+      // L'écran de la carte au moment de la demande : le worker y reprojette
+      // le relief, et l'image se pose sur ces bornes-là — pas sur celles du
+      // retour, si la carte a bougé entre-temps.
+      const z = carte.map.getZoom();
+      const pb = carte.map.getPixelBounds();
+      const ecran = { x0: pb.min.x, y0: pb.min.y, W: Math.round(pb.max.x - pb.min.x), H: Math.round(pb.max.y - pb.min.y), z };
+      const bornes = L.latLngBounds(carte.map.unproject(pb.getBottomLeft(), z), carte.map.unproject(pb.getTopRight(), z));
+      const actifs = [...flux.voulues()];
+      erreurRelief = '';
+      const textes = [];
+      // Un côté après l'autre : la surface est rangée une fois pour les deux,
+      // seule la couche change (gardée par le worker d'un calcul à l'autre).
+      for (const c of aCalculer) {
+        const cle = cotes[c];
+        const r = await relief.image(geo, cle, ecran, lutCouche(cle), {
+          contraste: contrasteFlux, lisser: lisserFlux, actifs, couche: { svfDirections, svfRayonM },
+        });
+        if (cotes[c] !== cle) continue;   // le côté a changé pendant le calcul
+        if (!r) { reliefCalque.vider(c); continue; }
+        reliefCalque.afficher(c, r, bornes);
+        derniersEtirements[c] = { cle, min: r.min, max: r.max };
+        textes.push(`${c} ${(r.duree / 1000).toFixed(2)} s (${r.moteurSurface}${r.moteurCouche && r.moteurCouche !== r.moteurSurface ? ' + ' + r.moteurCouche : ''}`
+          + `${infoRelief.filPrincipal ? ', fil principal' : ''} ; surface ${(r.dureeSurface / 1000).toFixed(2)} s`
+          + `, couche ${r.recalcul ? (r.dureeCouche / 1000).toFixed(2) + ' s' : 'gardée'}, image ${((r.dureeImage || 0) / 1000).toFixed(2)} s)`);
+        dernieresClasses = r.classes || [];
+      }
+      texteRelief = textes.length ? `relief ${textes.join(' · ')} · ${geo.W}×${geo.H} cases de ${geo.pas.toFixed(2)} m` : '';
+      majClassesSol();
+      // Un point cherché par ses coordonnées avant que le relief n'y soit
+      // calculé : son altitude arrive avec cette image.
+      if (selectionActuelle && selectionActuelle.sol == null) {
+        const pt = await relief.lire(selectionActuelle.x, selectionActuelle.y);
+        if (pt?.altitude != null) afficherSelection(selectionActuelle.x, selectionActuelle.y, pt.altitude, pt.hauteur);
+      }
+    } catch (err) {
+      console.error(err);
+      texteRelief = `relief en échec : ${err.message}`;
+      erreurRelief = err.message;
+    } finally {
+      enCalcul = null;
+      terminer();
+      activite.relief = false;
+    }
+    majStatut();
+    if (aRefaire) { aRefaire = false; calculerRelief(); }
+  };
+  // Pendant l'arrivée des blocs, un recalcul au plus toutes les 1,5 s ; au
+  // déplacement, tout de suite — la vue d'avant n'a plus de sens.
+  const planifierRelief = (delai) => {
+    if (delai === 0 && minuteur) { clearTimeout(minuteur); minuteur = null; }
+    if (minuteur) return;
+    minuteur = setTimeout(() => { minuteur = null; calculerRelief(); }, delai);
+  };
+
+  const depsFlux = {
+    chercherDalles: (z) => {
+      const so = PROJ.versWGS84(z.xmin, z.ymin), ne = PROJ.versWGS84(z.xmax, z.ymax);
+      return IGN.dalles(so.lat, so.lon, ne.lat, ne.lon);
+    },
+    recuperer: RESEAU.recuperer,
+    expliquer: RESEAU.expliquer,
+    decoder: NUAGE.decoder,
+    cache: CACHE_DISQUE.creer(CACHE_DISQUE.stockageIndexedDB(), CONFIG.flux.quotaDisqueOctets),
+    config: { ...CONFIG.flux, budgetPoints: budget },
+    surBloc: (b) => { calque?.ajouter(b); relief.ajouter(b); planifierRelief(1500); },
+    surLibere: (cle) => { calque?.retirer(cle); relief.retirer(cle); },
+    surEtat: (e) => { dernierEtat = e; majStatut(); },
+  };
+  if (chronometrer) {
+    // Seule la part synchrone est comptée : ce qui bloque le fil principal.
+    for (const n of ['surBloc', 'surLibere', 'surEtat', 'recuperer', 'decoder', 'chercherDalles']) depsFlux[n] = mesurer(`flux : ${n}`, depsFlux[n]);
+    const decoder = depsFlux.decoder;
+    depsFlux.decoder = (charge) => { activite.decodages++; return decoder(charge).finally(() => { activite.decodages--; }); };
+    for (const n of ['lire', 'ecrire']) depsFlux.cache[n] = mesurer(`cache disque : ${n}`, depsFlux.cache[n]);
+    for (const n of ['ajouter', 'retirer', 'reglages', 'image']) relief[n] = mesurer(`worker du relief : ${n} (envoi)`, relief[n]);
+  }
+  const flux = FLUX.creer(depsFlux);
+  if (chronometrer) for (const n of ['majVue']) flux[n] = mesurer(`flux : ${n}`, flux[n]);
+
+  const majVueFlux = () => {
+    const b = carte.map.getBounds();
+    const so = PROJ.versLambert93(b.getWest(), b.getSouth());
+    const ne = PROJ.versLambert93(b.getEast(), b.getNorth());
+    const no = PROJ.versLambert93(b.getWest(), b.getNorth());
+    const se = PROJ.versLambert93(b.getEast(), b.getSouth());
+    vueCourante = {
+      xmin: Math.min(so.x, no.x), xmax: Math.max(ne.x, se.x),
+      ymin: Math.min(so.y, se.y), ymax: Math.max(ne.y, no.y),
+      largeurPx: carte.map.getSize().x,
+    };
+    flux.majVue(vueCourante);
+    planifierRelief(0);
+  };
+
+  // ── Le panneau du relief ──
+  const BALAYAGE = new Set(['svf', 'ouverture-pos', 'ouverture-neg']);
+  const fondsPoses = { gauche: false, droite: false };
+  const majCotes = () => {
+    for (const c of ['gauche', 'droite']) {
+      $(`vue-${c}`).value = cotes[c];
+      reliefCalque.definirActif(c, cotes[c] !== 'carte');
+      // Reposé seulement s'il change : recréer la couche rechargerait toutes
+      // ses tuiles à chaque changement de l'autre côté.
+      if (fondsPoses[c] !== (cotes[c] === 'plan')) {
+        fondsPoses[c] = cotes[c] === 'plan';
+        reliefCalque.definirFond(c, fondsPoses[c]
+          ? carte.nouveauFond('plan', { pane: c === 'gauche' ? 'reliefGauche' : 'reliefDroite' }) : null);
+      }
+      reliefCalque.definirLibelle(c, libelleCouche(cotes[c]));
+    }
+    // L'aide de la couche de relief affichée — celle de droite par défaut,
+    // côté du relief par convention.
+    const cle = estRelief(cotes.droite) ? cotes.droite : cotes.gauche;
+    $('vue-aide').textContent = estRelief(cle) ? COUCHES_VUE.find((x) => x.cle === cle).aide : 'Choisissez une couche de relief d’un côté du rideau.';
+    $('vue-svf-reglages').hidden = !(BALAYAGE.has(cotes.gauche) || BALAYAGE.has(cotes.droite));
+  };
+  for (const c of ['gauche', 'droite']) {
+    const sel = $(`vue-${c}`);
+    for (const [cle, libelle] of Object.entries(FONDS_VUE)) sel.add(new Option(libelle, cle));
+    for (const k of COUCHES_VUE) sel.add(new Option(k.libelle, k.cle));
+    sel.addEventListener('change', () => { cotes[c] = sel.value; majCotes(); majStatut(); planifierRelief(0); });
+  }
+  $('vue-echanger').addEventListener('click', () => {
+    [cotes.gauche, cotes.droite] = [cotes.droite, cotes.gauche];
+    majCotes();
+    planifierRelief(0);
+  });
+  $('vue-rideau-centre').addEventListener('click', () => reliefCalque.placerRideau(0.5));
+  // Réglages du balayage : appliqués au relâchement du curseur, un SVF coûte
+  // trop cher pour suivre chaque cran.
+  $('vue-svf-directions').value = svfDirections;
+  $('val-vue-svf-directions').textContent = svfDirections;
+  $('vue-svf-rayon').value = svfRayonM;
+  $('val-vue-svf-rayon').textContent = `${svfRayonM} m`;
+  $('vue-svf-directions').addEventListener('input', (e) => { $('val-vue-svf-directions').textContent = e.target.value; });
+  $('vue-svf-directions').addEventListener('change', (e) => { svfDirections = Number(e.target.value); planifierRelief(0); });
+  $('vue-svf-rayon').addEventListener('input', (e) => { $('val-vue-svf-rayon').textContent = `${e.target.value} m`; });
+  $('vue-svf-rayon').addEventListener('change', (e) => { svfRayonM = Number(e.target.value); planifierRelief(0); });
+  $('vue-lisser').addEventListener('change', (e) => { lisserFlux = e.target.checked; planifierRelief(0); });
+
+  // ── Sélection d'un point et mesure, sur la carte ──
+  // Les mêmes sections et le même tableau que l'onglet 2D ; le point se lit
+  // dans le relief calculé par le worker (relief.lire), jamais recalculé.
+  $('barre-mode').hidden = false;
+  // La barre de modes vient de réduire la hauteur de la carte, ce que Leaflet
+  // ne détecte pas seul (redimensionnement purement CSS) : sans ce rappel, il
+  // gardait l'ancienne hauteur, les bornes lues pour la vue et pour poser le
+  // relief étaient décalées, et la première emprise glissait de ~17 m au
+  // premier redimensionnement suivant — un nuage 3D reconstruit pour rien.
+  carte.invalider();
+  for (const id of ['section-selection', 'section-mesure']) {
+    $(id).dataset.vue = 'carte 2d 3d';
+    $(id).hidden = false;
+  }
+  lireVue = (x, y) => relief.lire(x, y);
+
+  // ── L'onglet 3D : le nuage de la zone vue sur la carte ──
+  // Rien n'est téléchargé pour lui : ce sont les points déjà là pour le
+  // relief, échantillonnés par le worker sous un plafond. Le nuage reste figé
+  // tant qu'on est en 3D ; revenu en 3D sans que la carte ait bougé, on
+  // garde le même, sinon on le reconstruit (spec 2026-09-27-vue-3d-design).
+  $('section-affichage').hidden = false;
+  $('section-vide-3d').hidden = true;
+  let budget3D = surMobile() ? CONFIG.rendu.budget3DMobile : CONFIG.rendu.budget3D;
+  $('vue-budget3d').value = budget3D / 1e6;
+  $('val-vue-budget3d').textContent = `${budget3D / 1e6} M`;
+  $('vue-edl').checked = CONFIG.rendu.edl.actif;
+  const avis3D = (texte) => {
+    $('avis-3d').hidden = !texte;
+    $('avis-3d').textContent = texte || '';
+  };
+  let empriseNuage = null, construction = null;
+  const construire3D = async () => {
+    if (!vue3d) return;
+    if (construction) return construction;
+    const e = vueCourante;
+    const tropLarge = !e || FLUX_CHOIX.surfaceKm2(e) > CONFIG.flux.surfaceMaxPointsKm2;
+    // Reconstruit si la vue a bougé, si le plafond a changé, ou si des points
+    // sont arrivés depuis : un nuage bâti en plein chargement ne doit pas
+    // rester clairsemé une fois tout arrivé.
+    const cle = e && JSON.stringify([e.xmin, e.xmax, e.ymin, e.ymax].map((v) => Math.round(v))
+      .concat(budget3D, dernierEtat ? dernierEtat.points : 0));
+    if (!tropLarge && cle === empriseNuage && etat.nuage) return;   // rien n'a bougé
+    vue3d.vider();
+    etat.nuage = null;
+    empriseNuage = null;
+    majLegende();
+    if (tropLarge) { avis3D('Zoomez sur la carte pour afficher le nuage en 3D.'); return; }
+    construction = (async () => {
+      try {
+        const n = await ATTENTE.pendant('Nuage 3D', async (etape) => {
+          // La surface de la vue d'abord : hauteurs et drapé s'y lisent, et le
+          // relief de la carte a pu rester en retard (en pause pendant la 3D,
+          // ou un calcul encore en cours au moment de basculer).
+          await etape('Relief de la vue…');
+          while (enCalcul) await enCalcul;
+          await calculerRelief(true);
+          await etape('Nuage de la vue…', 'les points déjà chargés pour le relief');
+          const r = await relief.nuage3d(e, budget3D, [...flux.voulues()]);
+          if (r && !r.vide) {
+            await etape('Nuage vers la carte graphique…', `${milliers(r.n)} points`);
+            r.parClasse = new Map(r.parClasse);
+            vue3d.definirNuage(r, r.hauteur);
+          }
+          return r;
+        });
+        if (!n || n.vide) {
+          avis3D(n?.raison || 'Zoomez sur la carte pour afficher le nuage en 3D.');
+          return;
+        }
+        avis3D(null);
+        etat.nuage = n;
+        empriseNuage = cle;
+        vue3d.definirClassesMasquees(classesMasquees);
+        majLegende();
+        await majAttributNuage();
+      } catch (err) {
+        console.error(err);
+        avis3D(`Le nuage 3D n’a pas pu être construit — ${err.message}`);
+      } finally {
+        construction = null;
+      }
+    })();
+    return construction;
+  };
+  surPassage3D = construire3D;
+  surPassageCarte = () => planifierRelief(0);
+
+  // Hauteur au-dessus du sol : venue avec le nuage. Relief : la couche du côté
+  // droit du rideau (ou du gauche si la droite n'en porte pas), drapée par le
+  // worker avec l'étirement de sa dernière image.
+  majAttributVue = async () => {
+    if (!vue3d || !etat.nuage) return;
+    if (CONFIG.rendu.coloration === 'hauteur') { vue3d.definirHauteurs(etat.nuage.hauteur); return; }
+    if (CONFIG.rendu.coloration !== 'relief') return;
+    const cote = estRelief(cotes.droite) && cotes.droite !== OMBRAGE_RGB ? 'droite' : 'gauche';
+    const etirement = derniersEtirements[cote];
+    if (!estRelief(cotes[cote]) || !etirement || etirement.cle !== cotes[cote] || etirement.min == null) return;
+    const valeurs = await relief.drape3d(etirement.cle, { svfDirections, svfRayonM }, etirement.min, etirement.max);
+    if (valeurs && etat.nuage && valeurs.length === etat.nuage.n) vue3d.definirHauteurs(valeurs);
+  };
+
+  $('vue-budget3d').addEventListener('input', (e) => { $('val-vue-budget3d').textContent = `${e.target.value} M`; });
+  $('vue-budget3d').addEventListener('change', (e) => {
+    budget3D = Number(e.target.value) * 1e6;
+    if (!$('vue-3d').hidden) construire3D();
+  });
+  $('vue-edl').addEventListener('change', (e) => vue3d?.definirEDL(e.target.checked));
+  // Un volet à part, au-dessus du relief (450) et sous le rideau (700) : les
+  // marqueurs restent visibles des deux côtés.
+  carte.map.createPane('outilsVue').style.zIndex = 660;
+  // En SVG, pas dans le canevas de la carte (preferCanvas) : quelques
+  // marqueurs et traits, qui restent ainsi des éléments qu'on peut viser et
+  // vérifier.
+  const traceOutils = L.svg({ pane: 'outilsVue' });
+  const versLatLng = (x, y) => { const w = PROJ.versWGS84(x, y); return [w.lat, w.lon]; };
+  let coucheSelection = null, coucheMesure = null;
+  carteOutils = {
+    selection(p) {
+      coucheSelection?.remove();
+      coucheSelection = p ? L.circleMarker(versLatLng(p[0], p[1]), {
+        pane: 'outilsVue', renderer: traceOutils, radius: 7, color: '#fff', weight: 2, fillColor: '#ffd24a', fillOpacity: 1,
+        className: 'marqueur-selection', interactive: false,
+      }).addTo(carte.map) : null;
+    },
+    mesure(points) {
+      coucheMesure?.remove();
+      coucheMesure = L.layerGroup().addTo(carte.map);
+      const lls = points.map((p) => versLatLng(p.x, p.y));
+      if (lls.length > 1) {
+        L.polyline(lls, { pane: 'outilsVue', renderer: traceOutils, color: '#ffd24a', weight: 2.5, className: 'trace-mesure', interactive: false }).addTo(coucheMesure);
+      }
+      for (const ll of lls) {
+        L.circleMarker(ll, { pane: 'outilsVue', renderer: traceOutils, radius: 4, color: '#fff', weight: 1.5, fillColor: '#ffd24a', fillOpacity: 1, interactive: false }).addTo(coucheMesure);
+      }
+      // La distance horizontale au milieu de chaque segment, comme en 2D : la
+      // seule des trois qui se lise sur un plan.
+      MESURE.segments(points).forEach((sg, i) => {
+        L.tooltip({ permanent: true, direction: 'center', className: 'etiquette-mesure', interactive: false })
+          .setLatLng([(lls[i][0] + lls[i + 1][0]) / 2, (lls[i][1] + lls[i + 1][1]) / 2])
+          .setContent(`${sg.horizontale.toFixed(1)} m`)
+          .addTo(coucheMesure);
+      });
+    },
+  };
+  // Un clic (pas un glisser : Leaflet ne l'émet pas après un déplacement)
+  // vise un point en mode Sélection ou Mesure.
+  carte.map.on('click', async (e) => {
+    const mode = vue2d.mode;
+    if (mode !== 'selection' && mode !== 'mesure') return;
+    const { x, y } = PROJ.versLambert93(e.latlng.lng, e.latlng.lat);
+    const pt = await relief.lire(x, y);
+    if (mode === 'selection') afficherSelection(x, y, pt?.altitude ?? null, pt?.hauteur ?? 0);
+    else ajouterPointMesure(x, y, pt?.altitude ?? null, pt?.hauteur ?? 0);
+  });
+
+  // ── Ce que le relief dit sous le curseur ──
+  // Une lecture à la fois : pendant qu'elle revient du worker, seul le dernier
+  // mouvement est retenu.
+  const hud = $('hud-vue');
+  let hudEnCours = false, hudProchain = null;
+  const lireHud = async () => {
+    hudEnCours = true;
+    while (hudProchain) {
+      const ll = hudProchain;
+      hudProchain = null;
+      const { x, y } = PROJ.versLambert93(ll.lng, ll.lat);
+      // La valeur de la couche du côté survolé ; côté carte, aucune.
+      const cle = cotes[reliefCalque.coteSous(ll.px)];
+      const p = await relief.lire(x, y, estRelief(cle) ? cle : undefined);
+      if (!ll.dedans) continue;
+      hud.hidden = false;
+      hud.innerHTML = texteCurseur({ x, y, altitude: null, ...p }, estRelief(cle) ? libelleCouche(cle) : null);
+    }
+    hudEnCours = false;
+  };
+  let dedans = false;
+  carte.map.on('mousemove', (e) => {
+    dedans = true;
+    hudProchain = { lng: e.latlng.lng, lat: e.latlng.lat, px: e.containerPoint.x, get dedans() { return dedans; } };
+    if (!hudEnCours) lireHud();
+  });
+  carte.map.on('mouseout', () => { dedans = false; hud.hidden = true; });
+  majCotes();
+  // Le contraste ne recalcule pas la couche (gardée dans le worker) : seule
+  // l'image est refaite.
+  $('vue-contraste').addEventListener('input', (e) => {
+    contrasteFlux = Number(e.target.value);
+    $('val-vue-contraste').textContent = `×${contrasteFlux.toFixed(1)}`;
+    planifierRelief(0);
+  });
+  // Les classes du sol s'appliquent tout de suite : les points sont dans le
+  // worker, il n'y a rien à retélécharger — contrairement à l'ancien parcours
+  // par dalle, qui ne gardait que ses grilles.
+  $('vue-classes-sol').addEventListener('change', () => {
+    classesSolFlux = new Set([...$('vue-classes-sol').querySelectorAll('input:checked')].map((i) => Number(i.value)));
+    relief.reglages({ classesSol: classesSolFlux });
+    planifierRelief(0);
+  });
+  $('recherche').closest('section').querySelector('h2').textContent = 'Lieu';
+  VUES[0][3] = 'Zoomez sur une zone : le relief se calcule tout seul · glisser le rideau pour comparer';
+  $('aide-vue').textContent = VUES[0][3];
+
+  carte.map.on('moveend', majVueFlux);
+  majVueFlux();
+  // Pour la console et les harnais, en diagnostic seulement.
+  if (diagnostic) {
+    window.fluxDeControle = flux;
+    window.reliefDeControle = relief;
+    window.vue3dDeControle = vue3d;
+  }
+})();
+
 // Un hash non vide veut dire qu'on arrive par un lien qui désigne déjà une
 // destination : s'interposer serait une gêne. Les anciens liens `#d=x,y`, qui
 // ne portaient que la dalle, restent lisibles ; la carte réécrit ensuite le
 // fragment au format courant dès qu'elle bouge.
 function suivreLien() {
   const lien = LIEN.lire(location.hash);
-  if (lien?.dalle) selectionnerDalleParIndices(lien.dalle.x, lien.dalle.y);
+  if (lien?.dalle && MODE_VUE) {
+    // Un ancien lien « #d=x,y » : le centre de la dalle, au zoom où l'on lit.
+    const c = PROJ.versWGS84(lien.dalle.x * 1000 + 500, lien.dalle.y * 1000 + 500);
+    ouvrirLien({ lon: c.lon, lat: c.lat, zoom: 16 });
+  } else if (lien?.dalle) selectionnerDalleParIndices(lien.dalle.x, lien.dalle.y);
   else if (lien) ouvrirLien(lien);
 }
 if (location.hash.length > 1) {

@@ -25,7 +25,7 @@
  * @param {object} p { nbPoints, formatPoint, longueurPoint, echelle, decalage, origine }
  */
 function decoderBloc(lazPerf, octets, p) {
-  const { nbPoints, formatPoint, longueurPoint, echelle, decalage, origine } = p;
+  const { nbPoints, formatPoint, longueurPoint, echelle, decalage, origine, entiers } = p;
 
   // Décalages dans l'enregistrement de point LAS. Deux familles incompatibles :
   // les formats 0-5 (hérités) et 6-10 (LAS 1.4). L'IGN diffuse du format 6.
@@ -41,12 +41,23 @@ function decoderBloc(lazPerf, octets, p) {
   const decodeur = new lazPerf.ChunkDecoder();
   decodeur.open(formatPoint, longueurPoint, src);
 
-  const x = new Float32Array(nbPoints);
-  const y = new Float32Array(nbPoints);
-  const z = new Float32Array(nbPoints);
   const cls = new Uint8Array(nbPoints);
   const intensite = new Uint16Array(nbPoints);
-  const retour = new Uint8Array(nbPoints);
+  // Mètres en Float32 et numéro de retour : pour l'ancien parcours par dalle.
+  // Avec `entiers` (le flux de la vue), seuls les centimètres servent.
+  const x = entiers ? undefined : new Float32Array(nbPoints);
+  const y = entiers ? undefined : new Float32Array(nbPoints);
+  const z = entiers ? undefined : new Float32Array(nbPoints);
+  const retour = entiers ? undefined : new Uint8Array(nbPoints);
+
+  // Centimètres entiers, relatifs à `entiers` (en centimètres) : l'échelle de
+  // l'IGN est 0,01 et le décalage 0, la conversion est donc exacte, et
+  // l'affectation d'un point à une case de grille ne dépend plus d'un arrondi
+  // de flottant (0,03 % des cases différaient sinon entre processeur et carte
+  // graphique, mesuré).
+  const xc = entiers ? new Int32Array(nbPoints) : undefined;
+  const yc = entiers ? new Int32Array(nbPoints) : undefined;
+  const zc = entiers ? new Int32Array(nbPoints) : undefined;
 
   const sx = echelle[0], sy = echelle[1], sz = echelle[2];
   const ox = decalage[0], oy = decalage[1], oz = decalage[2];
@@ -77,12 +88,19 @@ function decoderBloc(lazPerf, octets, p) {
     // en Lambert-93 les Y valent 6,2 millions, ce qu'un flottant 32 bits ne
     // résout qu'à ~0,5 m. Relatives à l'origine de la zone, elles tombent sous
     // le millier de mètres et gardent une précision submillimétrique.
+    intensite[i] = vue.getUint16(dIntensite, true);
+    cls[i] = vue.getUint8(dClasse);
+
+    if (entiers) {
+      xc[i] = Math.round((vue.getInt32(0, true) * sx + ox) * 100) - entiers[0];
+      yc[i] = Math.round((vue.getInt32(4, true) * sy + oy) * 100) - entiers[1];
+      zc[i] = Math.round((vue.getInt32(8, true) * sz + oz) * 100) - entiers[2];
+      continue;
+    }
+
     x[i] = vue.getInt32(0, true) * sx + ox - gx;
     y[i] = vue.getInt32(4, true) * sy + oy - gy;
     z[i] = vue.getInt32(8, true) * sz + oz - gz;
-
-    intensite[i] = vue.getUint16(dIntensite, true);
-    cls[i] = vue.getUint8(dClasse);
 
     const b = vue.getUint8(dRetour);
     retour[i] = bitsRetour === 4
@@ -94,7 +112,7 @@ function decoderBloc(lazPerf, octets, p) {
   lazPerf._free(src);
   lazPerf._free(dst);
 
-  return { nbPoints, x, y, z, cls, intensite, retour };
+  return { nbPoints, x, y, z, cls, intensite, retour, xc, yc, zc };
 }
 
 /**
@@ -125,10 +143,8 @@ function corpsDecodeur() {
 
     try {
       const r = decoderBloc(lazPerf, new Uint8Array(msg.octets), msg);
-      self.postMessage(
-        { type: 'decode', id: msg.id, ...r },
-        [r.x.buffer, r.y.buffer, r.z.buffer, r.cls.buffer, r.intensite.buffer, r.retour.buffer],
-      );
+      const tampons = Object.values(r).filter((v) => ArrayBuffer.isView(v)).map((v) => v.buffer);
+      self.postMessage({ type: 'decode', id: msg.id, ...r }, tampons);
     } catch (e) {
       self.postMessage({ type: 'erreur', id: msg.id, message: (e && e.message) || String(e) });
     }

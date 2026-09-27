@@ -74,7 +74,7 @@ test('les scripts cohabitent dans un seul environnement lexical', () => {
     navigator: { hardwareConcurrency: 4 },
     window: { devicePixelRatio: 1 },
     document: { getElementById: () => null, createElement: () => ({ style: {} }) },
-    L: { Layer: { extend: (o) => o } },
+    L: { Layer: { extend: (o) => o }, LayerGroup: { extend: (o) => o } },
     URL, Blob: class {}, Worker: class {},
     requestAnimationFrame: () => 0, cancelAnimationFrame: () => {},
   });

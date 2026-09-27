@@ -56,3 +56,48 @@ test('sans file précisée, c’est la file des COPC', async () => {
   while (liberer.length) { liberer.splice(0).forEach((f) => f()); await souffler(); }
   await Promise.all(r);
 });
+
+test('fin de fichier : Range « bytes=-n » et taille totale du fichier', async () => {
+  const ctx = chargerScripts(['config.js', 'reseau.js']);
+  const vus = [];
+  ctx.fetch = async (url, init) => {
+    vus.push(init.headers?.Range);
+    return {
+      ok: true, status: 206,
+      headers: new Map([['content-range', 'bytes 212000000-212999999/213000000']]),
+      arrayBuffer: async () => new Uint8Array(1_000_000).buffer,
+    };
+  };
+  const r = await ctx.RESEAU.recuperer('https://x/f.copc.laz', { fin: 1_000_000 });
+  assert.equal(vus[0], 'bytes=-1000000');
+  assert.equal(r.total, 213_000_000);
+  assert.equal(r.octets.length, 1_000_000);
+});
+
+test('fin de fichier : un serveur qui ignore la plage rend quand même la fin', async () => {
+  const ctx = chargerScripts(['config.js', 'reseau.js']);
+  const tout = new Uint8Array(5000).map((_, i) => i % 251);
+  ctx.fetch = async () => ({ ok: true, status: 200, headers: new Map(), arrayBuffer: async () => tout.buffer });
+  const r = await ctx.RESEAU.recuperer('https://x/f', { fin: 1000 });
+  assert.equal(r.total, 5000);
+  assert.equal(r.octets.length, 1000);
+  assert.equal(r.octets[0], tout[4000]);
+});
+
+test('fin de fichier : un 206 sans Content-Range lisible (CORS) rend une taille inconnue', async () => {
+  // L'IGN n'expose pas Content-Range aux pages web : le navigateur le masque.
+  const ctx = chargerScripts(['config.js', 'reseau.js']);
+  ctx.fetch = async () => ({ ok: true, status: 206, headers: new Map(), arrayBuffer: async () => new Uint8Array(1000).buffer });
+  const r = await ctx.RESEAU.recuperer('https://x/f', { fin: 1000 });
+  assert.equal(r.total, null);
+  assert.equal(r.octets.length, 1000);
+});
+
+test('fin de fichier : un 200 servi par le cache HTTP avec juste les octets demandés n’est pas le fichier entier', async () => {
+  // Le cache du navigateur peut servir une plage en 200 sans Content-Range
+  // (voir « Pièges connus » dans CLAUDE.md) : la taille reste inconnue.
+  const ctx = chargerScripts(['config.js', 'reseau.js']);
+  ctx.fetch = async () => ({ ok: true, status: 200, headers: new Map(), arrayBuffer: async () => new Uint8Array(1000).buffer });
+  const r = await ctx.RESEAU.recuperer('https://x/f', { fin: 1000 });
+  assert.equal(r.total, null);
+});

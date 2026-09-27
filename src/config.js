@@ -139,6 +139,61 @@ const CONFIG = {
     budgetOctetsMobile: 40 * 1024 * 1024,
   },
 
+  // ── Chargement piloté par la vue (flux.js) ────────────────────────────────
+  //
+  // Voir « Le chargement piloté par la vue » dans CLAUDE.md et la spec
+  // docs/superpowers/specs/2026-09-26-flux-vue-design.md.
+  flux: {
+    // Au-delà de cette surface affichée, aucun point n'est demandé : le niveau
+    // 0 de chaque dalle est un plancher (~0,6 Mo, une requête), et le temps
+    // croît alors avec le nombre de dalles, plus avec l'écran. La surface et
+    // non la largeur : c'est elle qui fixe le nombre de dalles. 60 km² ≈ les
+    // 10 km de large d'avant sur un écran 16/10 ; à régler à l'usage (la
+    // surface courante s'affiche avec « &debug »).
+    surfaceMaxPointsKm2: 60,
+    // Plancher du pas de la grille, en mètres : jamais plus fin, quel que soit
+    // le zoom. La densité de points sol (2 à 12 par m²) ne justifie pas mieux
+    // tant qu'une mesure ne l'a pas montré.
+    pasMinM: 0.5,
+    // Points (toutes classes) visés par case de grille pour choisir le niveau :
+    // environ un point sol par case sur un sol à 25 %.
+    pointsParCase: 4,
+    // Réglages du terrain exprimés en mètres, pour garder leur sens quel que
+    // soit le pas de la grille de la vue : 3 m de comblement et 50 cm de
+    // lissage valent les 12 passes et 2 cellules de la grille de 25 cm.
+    comblementM: 3,
+    lissageM: 0.5,
+    // Côté maximal de la grille de la vue, en cases. Au-delà, le pas est
+    // relevé : 4096 tient dans toute carte graphique WebGL2 et reste sous le
+    // plafond de cellules du processeur.
+    coteMaxGrille: 4096,
+    // Délai avant de rouvrir une dalle en échec, doublé à chaque nouvel échec
+    // (plafond 60 s, flux.js).
+    delaiReessaiMs: 2000,
+    // Points décompressés gardés à la fois. Sur appareil portatif, le navigateur
+    // ferme un onglet trop gourmand sans prévenir.
+    // Descendu un temps à 6 M, quand chaque recalcul rangeait tous les points
+    // gardés (3 à 5 s à 20 M) : revenu à 20 M depuis que chaque bloc n'est
+    // rangé qu'une fois, et dans un worker (vue-relief.js).
+    budgetPoints: 20_000_000,
+    budgetPointsMobile: 5_000_000,
+    // Octets compressés gardés sur le disque (IndexedDB), les moins récemment
+    // lus effacés d'abord.
+    quotaDisqueOctets: 1_500_000_000,
+    // Fin de fichier lue d'une requête : l'index et le niveau 0 y tiennent
+    // (0,86 Mo au plus sur 12 dalles mesurées). Le secours couvre un index
+    // exceptionnellement gros.
+    octetsFin: 1_000_000,
+    octetsFinSecours: 4_000_000,
+    // File de priorité du réseau : plages en vol à la fois, et taille maximale
+    // d'une plage. Plus de requêtes en vol n'accélère rien — le débit que
+    // l'IGN accorde à un client (~3–4 Mo/s, mesuré) se partage entre elles ;
+    // la borne de taille fait arriver les quarts de dalle (~1,7 Mo) un à un,
+    // du centre vers les bords.
+    plagesEnVol: 3,
+    plageMaxOctets: 2 * 1024 * 1024,
+  },
+
   // ── Carte ─────────────────────────────────────────────────────────────────
   carte: {
     // Vue d'ouverture : **la France entière**, avec ses chantiers LiDAR.
@@ -208,6 +263,15 @@ const CONFIG = {
     // ≈ 114 Mo de VRAM, ce qui passe partout ; la dalle entière à 21 cm en
     // demanderait 708.
     budgetAffichage: 6_000_000,
+    // Ombrage de profondeur (EDL) : les réglages de Potree, force 1 et rayon
+    // 1,4 pixel. Sans lui, un nuage vu de près est une bouillie de points ;
+    // avec, murets et talus ressortent.
+    edl: { actif: true, force: 1.0, rayon: 1.4 },
+    // Plafond de points du nuage 3D en vue normale (vue-relief.js, nuage3d) :
+    // au-delà, un point sur N, tiré au hasard mais toujours le même pour une
+    // même vue. Réglable dans le panneau, de 1 à 20 M.
+    budget3D: 5_000_000,
+    budget3DMobile: 2_000_000,
     fond: '#0b0e13',
     // Colorisation : 'elevation' | 'classification' | 'intensite' | 'hauteur'
     coloration: 'classification',

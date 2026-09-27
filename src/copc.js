@@ -17,6 +17,7 @@
 const TAILLE_ENTETE_MIN = 375;   // en-tête LAS 1.4
 const TAILLE_ENTETE_VLR = 54;
 const TAILLE_ENTREE_HIER = 32;
+const TAILLE_ENTETE_EVLR = 60;
 
 /**
  * En-tête LAS + VLR « copc info ». Une seule requête de plage : 64 Ko couvrent
@@ -115,23 +116,9 @@ async function lireHierarchie(entete, signal) {
     pagesVues.add(jeton);
 
     const buf = await RESEAU.recuperer(entete.url, { plage: [offset, offset + taille - 1], signal });
-    const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-
-    for (let p = 0; p + TAILLE_ENTREE_HIER <= buf.length; p += TAILLE_ENTREE_HIER) {
-      const cle = {
-        n: dv.getInt32(p, true),
-        x: dv.getInt32(p + 4, true),
-        y: dv.getInt32(p + 8, true),
-        z: dv.getInt32(p + 12, true),
-      };
-      const dOffset = Number(dv.getBigUint64(p + 16, true));
-      const dTaille = dv.getInt32(p + 24, true);
-      const nbPoints = dv.getInt32(p + 28, true);
-
-      if (nbPoints < 0) { aVisiter.push([dOffset, dTaille]); continue; }
-      if (nbPoints === 0) continue;   // nœud vide : présent dans l'index, sans données
-      noeuds.set(`${cle.n}-${cle.x}-${cle.y}-${cle.z}`, { cle, offset: dOffset, taille: dTaille, nbPoints });
-    }
+    const lu = lireEntrees(buf);
+    for (const [k, v] of lu.noeuds) noeuds.set(k, v);
+    aVisiter.push(...lu.sousPages);
   }
   return noeuds;
 }
@@ -241,4 +228,151 @@ function coutParNiveau(entete, noeuds, emprise) {
   return cumul;
 }
 
-const COPC = { lireEntete, lireHierarchie, empriseNoeud, espacementNiveau, selectionner, coutParNiveau };
+/**
+ * Entrées de hiérarchie (32 octets chacune) : les nœuds, et les renvois vers
+ * d'autres pages (`nbPoints = -1`). Un nœud vide est présent dans l'index
+ * sans données : ignoré.
+ */
+function lireEntrees(octets) {
+  const dv = new DataView(octets.buffer, octets.byteOffset, octets.byteLength);
+  const noeuds = new Map();
+  const sousPages = [];
+  for (let p = 0; p + TAILLE_ENTREE_HIER <= octets.length; p += TAILLE_ENTREE_HIER) {
+    const cle = {
+      n: dv.getInt32(p, true),
+      x: dv.getInt32(p + 4, true),
+      y: dv.getInt32(p + 8, true),
+      z: dv.getInt32(p + 12, true),
+    };
+    const offset = Number(dv.getBigUint64(p + 16, true));
+    const taille = dv.getInt32(p + 24, true);
+    const nbPoints = dv.getInt32(p + 28, true);
+    if (nbPoints < 0) { sousPages.push([offset, taille]); continue; }
+    if (nbPoints === 0) continue;
+    noeuds.set(`${cle.n}-${cle.x}-${cle.y}-${cle.z}`, { cle, offset, taille, nbPoints });
+  }
+  return { noeuds, sousPages };
+}
+
+/**
+ * L'index d'un COPC lu dans ses derniers octets, sans l'en-tête.
+ *
+ * L'IGN range ses fichiers du plus fin au plus grossier : le niveau 0, puis
+ * l'index (un EVLR « copc » / 1000), puis ~830 octets de projection. Une
+ * requête `Range: bytes=-1000000` ramène donc l'index **et** le niveau 0 —
+ * mesuré sur 12 dalles de toute la France. Sans l'en-tête, on ne sait pas où
+ * commence l'EVLR : on cherche son en-tête de 60 octets en remontant depuis la
+ * fin. Le nom « copc » peut apparaître dans les données compressées ; seul un
+ * enregistrement 1000 dont la longueur tient dans le morceau est retenu.
+ *
+ * **Situer le morceau sans la taille du fichier.** En navigateur, la taille
+ * (`Content-Range`) est masquée : l'IGN n'expose pas cet en-tête aux pages
+ * web, et `debutMorceau` arrive alors `null`. Or juste après le dernier bloc
+ * de points, un LAZ range sa table des blocs : 4 octets nuls (version) puis le
+ * nombre de blocs — vérifié sur 7 dalles réelles, où ce nombre est exactement
+ * celui des nœuds de l'index. La fin absolue du dernier bloc se lit dans
+ * l'index ; retrouver cette signature dans le morceau donne sa position.
+ *
+ * @param {Uint8Array} octets fin du fichier
+ * @param {?number} debutMorceau position de `octets[0]` dans le fichier, ou
+ *   `null` si inconnue
+ * @returns {?{noeuds: Map, sousPages: Array<[number, number]>, debutMorceau: ?number}}
+ *   `null` si l'index n'est pas entièrement dans le morceau ; `debutMorceau`
+ *   reste `null` si ni la taille ni la table des blocs ne permettent de le situer
+ */
+function lireFin(octets, debutMorceau) {
+  const dv = new DataView(octets.buffer, octets.byteOffset, octets.byteLength);
+  for (let p = octets.length - TAILLE_ENTETE_EVLR; p >= 0; p--) {
+    if (octets[p + 2] !== 0x63 || octets[p + 3] !== 0x6f || octets[p + 4] !== 0x70
+        || octets[p + 5] !== 0x63 || octets[p + 6] !== 0) continue;
+    if (dv.getUint16(p + 18, true) !== 1000) continue;
+    const longueur = Number(dv.getBigUint64(p + 20, true));
+    const debut = p + TAILLE_ENTETE_EVLR;
+    if (debut + longueur > octets.length) return null;
+    const lu = lireEntrees(octets.subarray(debut, debut + longueur));
+    return { ...lu, debutMorceau: debutMorceau ?? situerParTableDesBlocs(octets, dv, p, lu) };
+  }
+  return null;
+}
+
+/** Position du morceau dans le fichier, par la table des blocs ; `null` sinon. */
+function situerParTableDesBlocs(octets, dv, finRecherche, lu) {
+  // Avec des sous-pages, l'index lu ici ne compte pas tous les blocs : la
+  // signature serait fausse.
+  if (lu.sousPages.length) return null;
+  let finMax = 0;
+  for (const n of lu.noeuds.values()) finMax = Math.max(finMax, n.offset + n.taille);
+  const nombre = lu.noeuds.size;
+  for (let q = finRecherche - 8; q >= 0; q--) {
+    if (dv.getUint32(q, true) !== 0 || dv.getUint32(q + 4, true) !== nombre) continue;
+    const debut = finMax - q;
+    return debut >= 0 ? debut : null;
+  }
+  return null;
+}
+
+/**
+ * Ce qu'il faut de l'en-tête pour décompresser : format et longueur de point,
+ * échelle et décalage. La longueur varie **par lot de publication** de l'IGN
+ * (30 octets, 46 pour le lot d'avril 2026, qui ajoute des champs) : on lit
+ * 256 octets une fois par lot, pas par dalle.
+ */
+function lireEnteteLot(octets) {
+  if (String.fromCharCode(octets[0], octets[1], octets[2], octets[3]) !== 'LASF') {
+    throw new Error("En-tête LAS absent — le fichier n'est pas un LAS/LAZ");
+  }
+  const dv = new DataView(octets.buffer, octets.byteOffset, octets.byteLength);
+  return {
+    formatPoint: dv.getUint8(104) & 0x7f,
+    longueurPoint: dv.getUint16(105, true),
+    echelle: [dv.getFloat64(131, true), dv.getFloat64(139, true), dv.getFloat64(147, true)],
+    decalage: [dv.getFloat64(155, true), dv.getFloat64(163, true), dv.getFloat64(171, true)],
+  };
+}
+
+/** Lot de publication : le dossier qui contient le fichier. */
+function lotDepuisUrl(url) {
+  const parties = url.split('?')[0].split('/');
+  return parties[parties.length - 2] || '';
+}
+
+/**
+ * Regroupe les nœuds en un petit nombre de plages HTTP contiguës.
+ *
+ * Sans ce regroupement, une dalle entière demande **1554 requêtes de plage** —
+ * et c'est le nombre de requêtes, pas le volume, qui rendait l'opération
+ * interminable face au limiteur de débit de l'IGN.
+ *
+ * Or les nœuds d'une dalle sont rangés **bout à bout** dans le fichier :
+ * mesuré, 0,00 Mo d'espace inutilisé entre nœuds consécutifs sur 184,5 Mo. Une
+ * sélection complète tient donc en une seule plage, et une sélection partielle
+ * en quelques-unes.
+ *
+ * Les plages sont malgré tout redécoupées à `tailleMax` : une réponse unique de
+ * 185 Mo priverait l'utilisateur de toute progression, retarderait le début du
+ * décodage jusqu'au dernier octet, et demanderait un tampon d'un seul tenant.
+ */
+function grouperPlages(noeuds, tolerance = 1 << 20, tailleMax = 8 << 20) {
+  const tri = noeuds.slice().sort((a, b) => a.offset - b.offset);
+  const plages = [];
+
+  for (const n of tri) {
+    const derniere = plages[plages.length - 1];
+    const contigu = derniere
+      && n.offset - derniere.fin <= tolerance
+      && (n.offset + n.taille) - derniere.debut <= tailleMax;
+
+    if (contigu) {
+      derniere.fin = Math.max(derniere.fin, n.offset + n.taille);
+      derniere.noeuds.push(n);
+    } else {
+      plages.push({ debut: n.offset, fin: n.offset + n.taille, noeuds: [n] });
+    }
+  }
+  return plages;
+}
+
+const COPC = {
+  lireEntete, lireHierarchie, lireEntrees, lireFin, lireEnteteLot, lotDepuisUrl,
+  empriseNoeud, espacementNiveau, selectionner, coutParNiveau, grouperPlages,
+};

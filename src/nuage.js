@@ -173,7 +173,7 @@ async function charger(entete, noeuds, emprise, opts = {}) {
   let octetsRecus = 0;
   let octetsResservis = 0;
 
-  const plages = grouperPlages(noeuds);
+  const plages = COPC.grouperPlages(noeuds);
 
   // Une dalle différente de la dernière connue : le cache de l'ancienne ne
   // sert à rien ici, autant le remplacer plutôt que le laisser grossir avec
@@ -250,42 +250,6 @@ async function charger(entete, noeuds, emprise, opts = {}) {
   return assembler(lots, emprise, origine, entete);
 }
 
-/**
- * Regroupe les nœuds en un petit nombre de plages HTTP contiguës.
- *
- * Sans ce regroupement, une dalle entière demande **1554 requêtes de plage** —
- * et c'est le nombre de requêtes, pas le volume, qui rendait l'opération
- * interminable face au limiteur de débit de l'IGN.
- *
- * Or les nœuds d'une dalle sont rangés **bout à bout** dans le fichier :
- * mesuré, 0,00 Mo d'espace inutilisé entre nœuds consécutifs sur 184,5 Mo. Une
- * sélection complète tient donc en une seule plage, et une sélection partielle
- * en quelques-unes.
- *
- * Les plages sont malgré tout redécoupées à `tailleMax` : une réponse unique de
- * 185 Mo priverait l'utilisateur de toute progression, retarderait le début du
- * décodage jusqu'au dernier octet, et demanderait un tampon d'un seul tenant.
- */
-function grouperPlages(noeuds, tolerance = 1 << 20, tailleMax = 8 << 20) {
-  const tri = noeuds.slice().sort((a, b) => a.offset - b.offset);
-  const plages = [];
-
-  for (const n of tri) {
-    const derniere = plages[plages.length - 1];
-    const contigu = derniere
-      && n.offset - derniere.fin <= tolerance
-      && (n.offset + n.taille) - derniere.debut <= tailleMax;
-
-    if (contigu) {
-      derniere.fin = Math.max(derniere.fin, n.offset + n.taille);
-      derniere.noeuds.push(n);
-    } else {
-      plages.push({ debut: n.offset, fin: n.offset + n.taille, noeuds: [n] });
-    }
-  }
-  return plages;
-}
-
 // Concatène les lots en écartant les points hors zone. Deux passes : la
 // première compte, la seconde copie — un seul dimensionnement des tableaux
 // finaux plutôt qu'une croissance par doublement.
@@ -360,7 +324,14 @@ function niveauPourAffichage(couts, budget = CONFIG.rendu.budgetAffichage) {
   return choisi;
 }
 
+/** Décompresse un bloc dans un worker de la grappe, démarrée au besoin. */
+async function decoder(charge) {
+  await grappe.demarrer();
+  return grappe.decoder(charge);
+}
+
 const NUAGE = {
+  decoder,
   charger,
   niveauPourAffichage,
   viderCacheOctets,

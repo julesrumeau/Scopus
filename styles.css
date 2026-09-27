@@ -132,6 +132,10 @@ html, body {
    glissé effectif — le geste de glisser continue toujours de déplacer, quel
    que soit le mode, seul le curseur au repos change. */
 #canvas3d.mode-vise, #canvas-2d.mode-vise { cursor: default; }
+/* Sur la carte (mode vue), Leaflet pose sa main sur le conteneur : il faut
+   au moins sa spécificité pour la remplacer par une visée. */
+#vue-carte.mode-vise.leaflet-container,
+#vue-carte.mode-vise.leaflet-grab { cursor: crosshair; }
 #canvas3d:active, #canvas-2d:active { cursor: grabbing; }
 
 .onglets {
@@ -878,6 +882,25 @@ input[type=range]::-moz-range-thumb {
 .rideau:hover .rideau-poignee, .rideau.tire .rideau-poignee { background: var(--accent); border-color: #fff; }
 .rideau.tire .rideau-poignee::before { color: #06202b; }
 
+/* Le même rideau sur la carte (vue normale) : au-dessus des volets de Leaflet
+   (400 à 450), sous ses contrôles (800 et plus). Les libellés se collent au
+   trait, là où se fait la comparaison. */
+.rideau-flux { z-index: 700; }
+.rideau-flux-libelle {
+  position: absolute;
+  top: 12px;
+  padding: 2px 7px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  color: #dbe1ea;
+  background: rgba(11, 14, 19, 0.8);
+  border-radius: 4px;
+  pointer-events: none;
+}
+.rideau-flux-libelle.gauche { right: 16px; }
+.rideau-flux-libelle.droite { left: 16px; }
+.rideau-flux-libelle:empty { display: none; }
+
 /* Les deux sélecteurs de couche, côte à côte comme les deux moitiés de l'image. */
 .deux-cotes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .deux-cotes .champ { margin-bottom: 8px; }
@@ -1052,3 +1075,47 @@ select:focus { outline: 1px solid var(--accent); }
 @media (max-height: 760px) {
   .accueil-boite { gap: 10px; padding: 20px 24px; }
 }
+
+/* ── Mode vue (par défaut) ──────────────────────────────────────────────────
+   Le relief se calcule pour la vue affichée : l'ancien parcours par dalle se
+   retire. « ?dalle » dans l'adresse le rend, le temps de la transition. */
+body[data-mode="vue"] #bandeau-nuage,
+body[data-mode="vue"] #info-dalle,
+body[data-mode="vue"] #detail-dalle,
+body[data-mode="vue"] #bloc-resolution,
+body[data-mode="vue"] #onglet-2d,
+body[data-mode="vue"] #section-analyse { display: none !important; }
+body[data-mode="dalle"] #section-vue { display: none !important; }
+.classes-sol { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; margin-top: 4px; }
+.classes-sol .case { margin: 0; }
+/* Info-bulle du curseur en mode vue : au-dessus du relief et du rideau, sous
+   les contrôles de Leaflet, et jamais une cible pour la souris. */
+.hud-vue { z-index: 760; pointer-events: none; }
+/* Distances de la mesure sur la carte : une étiquette sobre, comme en 2D. */
+.leaflet-tooltip.etiquette-mesure {
+  padding: 1px 6px;
+  font-size: 11.5px;
+  color: #06202b;
+  background: #ffd24a;
+  border: 1px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.leaflet-tooltip.etiquette-mesure::before { display: none; }
+
+/* Onglet 3D en vue normale : ce qui manque pour avoir un nuage, au milieu. */
+.avis-3d {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 340px;
+  padding: 12px 18px;
+  border-radius: 8px;
+  background: rgba(11, 14, 19, 0.85);
+  border: 1px solid var(--bord);
+  color: #dbe1ea;
+  font-size: 14px;
+  text-align: center;
+}
+/* Le plafond du nuage ne sert qu'en vue normale ; l'ancien parcours a le sien. */
+body[data-mode="dalle"] #champ-budget3d { display: none !important; }
+

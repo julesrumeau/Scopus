@@ -10,8 +10,10 @@ renvois `(#N)` ailleurs dans le document ont été mis à jour en conséquence.
 L'ordre reste celui d'origine ; seuls les *(prioritaire)* sont un jugement de
 priorité explicite, le reste est classé par ancienneté et non par urgence.
 
-**2 tâches restent**, et les deux sont marquées *(prioritaire)* : ce sont les
-seules dont l'issue est incertaine.
+**5 tâches restent.** Les deux premières sont marquées *(prioritaire)* : ce
+sont les seules dont l'issue est incertaine. Les trois suivantes (#3 à #5),
+ajoutées le 26 septembre 2026, sont ce que le relief piloté par la vue laisse
+hors de ses trois plans (spec `docs/superpowers/specs/2026-09-26-flux-vue-design.md`).
 
 ### #1 — Rallumer la détection, ou renoncer *(prioritaire)*
 
@@ -140,4 +142,55 @@ grand-chose de crédible est le pire des choix — ça se lit comme un défaut d
 compacité, le diagnostic à cinq couches et la piste de l'ouverture écartée
 restent acquis pour la prochaine tentative, qui demandera un vrai chemin
 connu pour se calibrer plutôt que d'autres essais à l'aveugle.
+
+### #3 — « Compléter le sol par les non classés » en vue normale
+
+Fait le 27 septembre 2026 : sélection d'un point, mesure en chaîne,
+recherche par coordonnées, info-bulle au curseur, réglages du SVF et
+lissage, sur la carte en vue normale (voir CLAUDE.md, « Le calcul de la
+vue »). Reste la case « Compléter le sol par les retours non classés »,
+masquée : son effet n'a pas convaincu à l'usage. Le réglage par défaut
+(`CONFIG.relief.inclureSursol`, activé) s'applique toujours. À vérifier sur
+une ruine connue avant de la rendre, ou de la retirer pour de bon.
+
+### #4 — La 3D qui télécharge (étape 2)
+
+L'étape 1 est faite (27 septembre 2026, voir CLAUDE.md, « La 3D de la
+vue ») : l'onglet 3D montre le nuage de la zone vue sur la carte, avec les
+points déjà chargés. Reste que la **caméra 3D pilote le téléchargement** :
+blocs les plus gros à l'écran d'abord (taille projetée, comme Potree), du
+fin près de la caméra et du grossier au loin, et la « fourchette » de
+l'utilisateur comme seuil d'hystérésis pour ne pas retélécharger au moindre
+mouvement. À faire après usage de l'étape 1.
+
+### #5 — Un relief de secours rapide, clairement signalé
+
+Au-delà du seuil de surface, rien ne s'affiche (côté relief noir, « zoomez »),
+et en attendant les points non plus. Le MNT de l'IGN en WMS a été essayé puis
+débranché le 26 septembre 2026 : on ne savait plus si ce qu'on voyait venait
+de lui ou des points. `mnt-ign.js` a été retiré (historique git, commit
+`90c7321`, avec ses tests). À reprendre seulement avec
+une distinction visible (flou, teinte, libellé) entre les deux sources.
+
+### #6 — Laissé de côté par l'audit du 27 septembre 2026
+
+Relevé en relisant la branche du relief piloté par la vue, sans y toucher,
+parce que ça changerait un comportement ou demanderait une décision :
+
+- **Les deux côtés du rideau peuvent tomber sur deux surfaces.** Ils sont
+  demandés l'un après l'autre ; un bloc arrivé entre les deux fait refaire
+  la surface, et la couche du premier côté sort du mémo — l'info-bulle n'y
+  lit plus de valeur jusqu'au calcul suivant. Transitoire (vu sous
+  émulation), à régler en demandant les deux côtés dans un seul message.
+- **Le rangement sur la carte graphique** (`GPU_RELIEF.ajouterBloc`,
+  `retirerBloc`, `surfaceVue`, shaders `accuVS`, `accuFS`, `solPrepFS`,
+  `surfaceFS`) ne sert plus qu'avec `&gpu` : juste, pas plus rapide, et il
+  gèle la page. Gardé pour comparer ; à retirer si le plan 3D n'en veut pas.
+- **Décodage et réseau dans `flux.js`** : un bloc attend sa place réseau
+  même quand ses octets sont en cache ; un décodage en parallèle pourrait
+  raccourcir la seconde visite. À mesurer avant.
+- **L'image du worker en PNG** : `ImageBitmap` éviterait l'encodage et le
+  décodage, au prix d'un chemin de plus pour le repli.
+- **`app.js` enveloppe la vue normale** dans un bloc de ~600 lignes : à
+  sortir dans son propre fichier quand l'ancien parcours (`?dalle`) partira.
 
