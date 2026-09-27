@@ -218,11 +218,28 @@ const CONFIG = {
     // tache est rejetée), et contraste de référence en courbure normalisée du
     // SVF (un creux de 0,05 de SVF sur 2 m en vaut ~0,02).
     beta: 0.5,
-    contraste: 0.01,
+    contraste: 0.06,
+    // Sens des traits cherchés : 'sombre' (creux), 'clair' (replat), 'deux'.
+    // Mesuré sur la dalle de référence : les pistes et chemins y sont des
+    // replats taillés dans la pente, des bandes claires bordées d'un talus
+    // sombre ; à 5 % de la dalle couverte, la réponse claire garde 70 % des
+    // points IGN, la sombre 55 %, les deux ensemble 56 %.
+    polarite: 'clair',
+    // Méthode du masque : 'lignes' (hystérésis sur la réponse) ou 'chemins'
+    // (seuil bas, puis seules les cases d'un chemin continu d'au moins
+    // `longueurCheminM` mètres — ouverture par chemins).
+    methode: 'chemins',
+    seuilMasque: 0.06,
+    longueurCheminM: 60,
     // Hystérésis sur la réponse (0 à 1) : un germe au-dessus du seuil haut,
     // étendu à ce qui le touche au-dessus du seuil bas.
-    seuilHaut: 0.3,
+    seuilHaut: 0.25,
     seuilBas: 0.12,
+    // Recentrage des tracés sur l'extremum du SVF, à moins de tant de mètres
+    // en travers (0 : aucun).
+    recentrageM: 4,
+    // Deux tracés à moins de tant de mètres l'un de l'autre sont un doublon.
+    doublonM: 3,
     // Raccordement de deux bouts à moins de `raccordM` dont les directions
     // s'alignent à `angleMaxDeg` près ; puis un tracé plus court que
     // `longueurMinM`, ou qui fait plus de `compaciteMax` fois la distance entre
@@ -232,7 +249,7 @@ const CONFIG = {
     barbuleM: 3,
     raccordM: 12,
     angleMaxDeg: 40,
-    longueurMinM: 25,
+    longueurMinM: 40,
     compaciteMax: 4,
   },
 

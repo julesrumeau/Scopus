@@ -185,10 +185,18 @@ function fabriqueTraces() {
   function reponseLignes(svf, W, H, pas, p) {
     const N = W * H;
     const rep = new Float32Array(N);
+    // Direction en travers du trait (vecteur propre de la plus forte
+    // courbure), à l'échelle qui répond le plus : pour garder le sommet.
+    const nx = new Float32Array(N), ny = new Float32Array(N);
     const b2 = 2 * p.beta * p.beta, c2 = 2 * p.contraste * p.contraste;
-    for (const sM of p.echellesM) {
+    // Sens des traits : un chemin creux est sombre sur le SVF ; une piste
+    // taillée dans la pente est un replat, une bande claire. `polarite` :
+    // 'sombre', 'clair' ou 'deux'.
+    const signes = p.polarite === 'clair' ? [-1] : p.polarite === 'deux' ? [1, -1] : [1];
+    for (const sM of p.echellesM) for (const signe of signes) {
       const s = sM / pas;
       const f = flouGauss(svf, W, H, s);
+      if (signe < 0) for (let i = 0; i < N; i++) f[i] = -f[i];
       const n = s * s;
       for (let y = 1; y < H - 1; y++) {
         for (let x = 1; x < W - 1; x++) {
@@ -204,11 +212,40 @@ function fabriqueTraces() {
           if (l1 <= 0 || Math.abs(l2) > l1) continue;
           const rb = l2 / l1, sc = l1 * l1 + l2 * l2;
           const v = Math.exp(-(rb * rb) / b2) * (1 - Math.exp(-sc / c2));
-          if (v > rep[i]) rep[i] = v;
+          if (v > rep[i]) {
+            rep[i] = v;
+            let ex = dxy, ey = l1 - dxx;
+            if (Math.abs(ex) + Math.abs(ey) < 1e-12) { ex = l1 - dyy; ey = dxy; }
+            const n = Math.hypot(ex, ey) || 1;
+            nx[i] = ex / n; ny[i] = ey / n;
+          }
         }
       }
     }
+    rep.nx = nx; rep.ny = ny;
     return rep;
+  }
+
+  /**
+   * Le sommet des traits (suppression des non-maxima, comme Canny) : une case
+   * n'est gardée que si la réponse y est au moins aussi forte qu'à un pas de
+   * part et d'autre, en travers du trait. Le squelette d'un masque suit le
+   * milieu de la tache — décalé de 3 à 4 m du chemin sur une piste, dont le
+   * talus rend le masque dissymétrique (mesuré sur un chemin synthétique).
+   */
+  function sommets(rep, masque, W, H) {
+    const out = new Uint8Array(W * H);
+    const { nx, ny } = rep;
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        const i = y * W + x;
+        if (!masque[i]) continue;
+        const dx = Math.round(nx[i]), dy = Math.round(ny[i]);
+        const a = rep[i + dy * W + dx], b = rep[i - dy * W - dx];
+        if (rep[i] >= a && rep[i] >= b) out[i] = 1;
+      }
+    }
+    return out;
   }
 
   /** Hystérésis : les germes au-dessus du seuil haut, étendus en 8-connexité au-dessus du bas. */
@@ -228,6 +265,64 @@ function fabriqueTraces() {
       }
     }
     return m;
+  }
+
+  /**
+   * Ouverture par chemins binaire (Talbot & Appleton, 2007) : ne garde que les
+   * cases d'un masque qui appartiennent à un chemin d'au moins `L` cases, dans
+   * l'une des quatre directions générales — nord-sud, est-ouest, et les deux
+   * diagonales — où chaque pas peut dévier de 45° (trois successeurs). Pour
+   * chaque direction, deux passes : la longueur du plus long chemin qui
+   * arrive à la case, et celle du plus long qui en part.
+   *
+   * C'est la longueur qui sépare un chemin de la texture d'une forêt : à
+   * intensité égale, la texture fait des morceaux courts et tortueux.
+   */
+  function ouvertureChemins(m, W, H, L) {
+    const N = W * H;
+    const garde = new Uint8Array(N);
+    const av = new Uint16Array(N), ap = new Uint16Array(N);
+    const plafond = 65535;
+    // Prédécesseurs (dx, dy) de chaque direction ; les successeurs en sont
+    // l'opposé. L'ordre de parcours rend les prédécesseurs déjà calculés.
+    const DIRECTIONS = [
+      { pred: [[-1, -1], [0, -1], [1, -1]], xs: 1 },   // vers le haut
+      { pred: [[-1, -1], [-1, 0], [-1, 1]], xs: 1 },   // vers la droite
+      { pred: [[-1, 0], [-1, -1], [0, -1]], xs: 1 },   // diagonale vers la droite et le haut
+      { pred: [[1, 0], [1, -1], [0, -1]], xs: -1 },    // diagonale vers la gauche et le haut
+    ];
+    for (const { pred, xs } of DIRECTIONS) {
+      // « Vers la droite » : les prédécesseurs sont dans la colonne d'avant,
+      // le parcours se fait donc par colonnes.
+      const parColonnes = pred.every(([dx]) => dx === -1);
+      const passe = (sortie, sens) => {
+        const cases = [];
+        if (parColonnes) {
+          for (let k = 0; k < W; k++) { const x = sens > 0 ? k : W - 1 - k; for (let y = 0; y < H; y++) cases.push(x, y); }
+        } else {
+          for (let k = 0; k < H; k++) {
+            const y = sens > 0 ? k : H - 1 - k;
+            for (let j = 0; j < W; j++) { const x = (xs * sens > 0) ? j : W - 1 - j; cases.push(x, y); }
+          }
+        }
+        for (let c = 0; c < cases.length; c += 2) {
+          const x = cases[c], y = cases[c + 1], i = y * W + x;
+          if (!m[i]) { sortie[i] = 0; continue; }
+          let best = 0;
+          for (const [dx, dy] of pred) {
+            const xx = x + dx * sens, yy = y + dy * sens;
+            if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+            const v = sortie[yy * W + xx];
+            if (v > best) best = v;
+          }
+          sortie[i] = Math.min(plafond, best + 1);
+        }
+      };
+      passe(av, 1);
+      passe(ap, -1);
+      for (let i = 0; i < N; i++) if (m[i] && av[i] + ap[i] - 1 >= L) garde[i] = 1;
+    }
+    return garde;
   }
 
   /** Amincissement de Zhang & Suen (1984) : un squelette d'un pixel, en place. */
@@ -336,6 +431,17 @@ function fabriqueTraces() {
       const n = voisins(i);
       vu[i] = 1;
       out.push([i, ...suivre(i, n[0]).slice(1)]);
+    }
+    return out;
+  }
+
+  /** Un sommet au moins tous les `dM` mètres. */
+  function densifier(l, dM) {
+    const out = [l[0]];
+    for (let i = 1; i < l.length; i++) {
+      const [ax, ay] = l[i - 1], [bx, by] = l[i];
+      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / dM));
+      for (let k = 1; k <= n; k++) out.push([ax + (bx - ax) * (k / n), ay + (by - ay) * (k / n)]);
     }
     return out;
   }
@@ -455,6 +561,69 @@ function fabriqueTraces() {
   }
 
   /**
+   * Recentrage : chaque sommet d'un tracé glisse, en travers du tracé, vers
+   * l'extremum du SVF légèrement lissé à moins de `rayonM` — le plus clair
+   * pour un replat, le plus sombre pour un creux. Aux grandes largeurs, la
+   * réponse du filtre est tirée à l'opposé du talus voisin (2,6 à 4,7 m sur un
+   * chemin synthétique) : le filtre trouve le chemin, le SVF le place.
+   */
+  function recentrer(lignes, f, W, H, pas, emprise, rayonM, signe) {
+    const lire = (x, y) => {
+      const cx = Math.floor((x - emprise.xmin) / pas), cy = Math.floor((y - emprise.ymin) / pas);
+      if (cx < 0 || cy < 0 || cx >= W || cy >= H) return NaN;
+      return f[cy * W + cx];
+    };
+    return lignes.map((l) => l.map(([x, y], k) => {
+      const a = l[Math.max(0, k - 1)], b = l[Math.min(l.length - 1, k + 1)];
+      const tx = b[0] - a[0], ty = b[1] - a[1], n = Math.hypot(tx, ty);
+      if (!n) return [x, y];
+      const px = -ty / n, py = tx / n;
+      let best = [x, y], bv = signe * lire(x, y);
+      for (let d = -rayonM; d <= rayonM; d += pas / 2) {
+        const v = signe * lire(x + px * d, y + py * d);
+        if (v > bv) { bv = v; best = [x + px * d, y + py * d]; }
+      }
+      return best;
+    }));
+  }
+
+  /**
+   * Doublons : du plus long au plus court, les morceaux d'un tracé qui
+   * retombent à moins de `dM` d'un tracé déjà retenu sont retirés (le talus
+   * d'une piste fait naître une seconde crête, que le recentrage ramène sur
+   * la première). Une grille de `dM` sert d'index des sommets retenus.
+   */
+  function sansDoublons(lignes, dM) {
+    const index = new Map();
+    const cle = (cx, cy) => cx * 73856093 ^ cy * 19349663;
+    const pres = (x, y) => {
+      const cx = Math.floor(x / dM), cy = Math.floor(y / dM);
+      for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+        for (const [px, py] of index.get(cle(cx + i, cy + j)) || []) if (Math.hypot(px - x, py - y) < dM) return true;
+      }
+      return false;
+    };
+    const ajouter = (l) => {
+      for (const [x, y] of l) {
+        const k = cle(Math.floor(x / dM), Math.floor(y / dM));
+        if (!index.has(k)) index.set(k, []);
+        index.get(k).push([x, y]);
+      }
+    };
+    const out = [];
+    for (const l of [...lignes].sort((a, b) => longueur([b]) - longueur([a]))) {
+      const d = densifier(l, dM / 2);
+      let morceau = [];
+      const garder = () => { if (morceau.length >= 2) { out.push(morceau); ajouter(morceau); } morceau = []; };
+      for (const p of d) {
+        if (pres(p[0], p[1])) garder(); else morceau.push(p);
+      }
+      garder();
+    }
+    return out;
+  }
+
+  /**
    * Les tracés d'une surface de vue (`t` : `W`, `H`, `pas`, `emprise`,
    * `valide`) et de son SVF (`reglages.svf`, NaN hors données), en polylignes
    * Lambert-93. Réglages : CONFIG.traces, surchargés par `reglages`.
@@ -466,7 +635,18 @@ function fabriqueTraces() {
     const d0 = Date.now();
     const rep = reponseLignes(p.svf, W, H, pas, p);
     const d1 = Date.now();
-    const m = nettoyerEscaliers(amincir(hysteresis(rep, valide, W, H, p.seuilHaut, p.seuilBas), W, H), W, H);
+    // Le masque : par hystérésis (approche 1), ou par un seuil bas filtré par
+    // la longueur des chemins qui le traversent (approche 2).
+    let masque;
+    if (p.methode === 'chemins') {
+      masque = new Uint8Array(W * H);
+      for (let i = 0; i < W * H; i++) if (valide[i] && rep[i] >= p.seuilMasque) masque[i] = 1;
+      masque = ouvertureChemins(masque, W, H, Math.round(p.longueurCheminM / pas));
+    } else {
+      masque = hysteresis(rep, valide, W, H, p.seuilHaut, p.seuilBas);
+    }
+    // Le sommet des traits dans le masque, puis un pixel d'épaisseur.
+    const m = nettoyerEscaliers(amincir(p.sommets === false ? masque : sommets(rep, masque, W, H), W, H), W, H);
     const d2 = Date.now();
     const versL93 = (i) => { const x = i % W; return [emprise.xmin + (x + 0.5) * pas, emprise.ymin + ((i - x) / W + 0.5) * pas]; };
     // Élagage des barbules : l'amincissement d'un trait épais laisse de
@@ -487,7 +667,14 @@ function fabriqueTraces() {
       return !(libres === 1 && c.length * pas < p.barbuleM);
     });
     const brutes = cs.map((c) => simplifier(c.map(versL93), pas)).filter((l) => l.length >= 2);
-    const raccordees = raccorder(brutes, p.raccordM, p.angleMaxDeg);
+    // Recentrées avant le raccordement : les bouts se font face sur le chemin
+    // lui-même, pas sur son décalage.
+    const signe = p.polarite === 'sombre' ? -1 : 1;
+    const recentrees = p.recentrageM > 0
+      ? recentrer(brutes.map((l) => densifier(l, 2)), flouGauss(p.svf, W, H, 1), W, H, pas, emprise, p.recentrageM, signe).map((l) => simplifier(l, pas))
+      : brutes;
+    const uniques = p.doublonM > 0 ? sansDoublons(recentrees, p.doublonM).map((l) => simplifier(l, pas)) : recentrees;
+    const raccordees = raccorder(uniques, p.raccordM, p.angleMaxDeg);
     const lignes = raccordees.filter((l) => {
       const L = longueur([l]);
       const corde = Math.hypot(l[l.length - 1][0] - l[0][0], l[l.length - 1][1] - l[0][1]);
@@ -499,6 +686,6 @@ function fabriqueTraces() {
     };
   }
 
-  return { longueur, decouper, mesurer, distanceCarree, detecter };
+  return { longueur, decouper, mesurer, distanceCarree, detecter, reponseLignes, ouvertureChemins };
 }
 const TRACES = fabriqueTraces();

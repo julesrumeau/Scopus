@@ -29,6 +29,8 @@ const DALLES = [
 const args = process.argv.slice(2);
 const PAS = Number(args[args.indexOf('--pas') + 1]) || 0.5;
 const RECALCULER = args.includes('--recalculer');
+// `--reglages '{"seuilHaut": 0.3}'` : surcharge CONFIG.traces pour ce passage.
+const REGLAGES = args.includes('--reglages') ? JSON.parse(args[args.indexOf('--reglages') + 1]) : {};
 const RACINE = new URL('../.tmp/banc-traces/', import.meta.url);
 mkdirSync(RACINE, { recursive: true });
 const chemin = (...p) => new URL(p.join('/'), RACINE);
@@ -154,7 +156,7 @@ const lignes = [];
 let html = '<!doctype html><meta charset="utf-8"><title>Banc des tracés</title>'
   + '<style>body{font:14px system-ui;background:#111;color:#ddd;margin:16px}img{width:100%;max-width:1000px;display:block}'
   + 'table{border-collapse:collapse}td,th{padding:4px 12px;border-bottom:1px solid #333}.q{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:8px}</style>'
-  + `<h1>Banc des tracés — pas ${PAS} m</h1><p>Gris : SVF. Bleu clair : BD TOPO. Rouge : détection.</p><table><tr><th>Dalle</th><th>Rappel 10 m</th><th>Précision 10 m</th><th>Rappel 20 m</th><th>Précision 20 m</th><th>IGN</th><th>Détecté</th><th>Durée</th></tr>`;
+  + `<h1>Banc des tracés — pas ${PAS} m</h1><p>Réglages : ${JSON.stringify({ ...S.CONFIG.traces, ...REGLAGES })}</p><p>Gris : SVF. Bleu clair : BD TOPO. Rouge : détection.</p><table><tr><th>Dalle</th><th>Rappel 10 m</th><th>Précision 10 m</th><th>Rappel 20 m</th><th>Précision 20 m</th><th>IGN</th><th>Détecté</th><th>Durée</th></tr>`;
 const pct = (v) => (Number.isFinite(v) ? `${(100 * v).toFixed(1)} %` : '—');
 let corps = '';
 for (const d of DALLES) {
@@ -162,7 +164,7 @@ for (const d of DALLES) {
   const s = await svf(d);
   const reference = (await ign(d)).map((l) => l.points);
   const t0 = Date.now();
-  const r = S.TRACES.detecter({ W: s.W, H: s.H, pas: s.pas, emprise: s.emprise, valide: s.valide }, { svf: s.svf });
+  const r = S.TRACES.detecter({ W: s.W, H: s.H, pas: s.pas, emprise: s.emprise, valide: s.valide }, { ...REGLAGES, svf: s.svf });
   const duree = (Date.now() - t0) / 1000;
   const e = empriseDe(d.nom);
   const m10 = S.TRACES.mesurer(r.lignes, reference, e, 10), m20 = S.TRACES.mesurer(r.lignes, reference, e, 20);
