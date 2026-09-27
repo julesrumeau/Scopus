@@ -207,6 +207,35 @@ const CONFIG = {
     fractionCoupe: 0.68,
   },
 
+  // ── Détection des tracés (src/traces.js) ──────────────────────────────────
+  // Réglages en mètres ou en unités du SVF, pour tenir à tous les pas de
+  // grille. Réglés sur le banc (npm run banc-traces) contre la BD TOPO.
+  traces: {
+    // Largeurs (écart type du lissage, m) auxquelles on cherche un trait
+    // sombre : un sentier fait 1 m, une piste 3 à 4 m.
+    echellesM: [1, 1.5, 2.5],
+    // Frangi : tolérance à ce qui n'est pas une ligne (plus petit, plus une
+    // tache est rejetée), et contraste de référence en courbure normalisée du
+    // SVF (un creux de 0,05 de SVF sur 2 m en vaut ~0,02).
+    beta: 0.5,
+    contraste: 0.01,
+    // Hystérésis sur la réponse (0 à 1) : un germe au-dessus du seuil haut,
+    // étendu à ce qui le touche au-dessus du seuil bas.
+    seuilHaut: 0.3,
+    seuilBas: 0.12,
+    // Raccordement de deux bouts à moins de `raccordM` dont les directions
+    // s'alignent à `angleMaxDeg` près ; puis un tracé plus court que
+    // `longueurMinM`, ou qui fait plus de `compaciteMax` fois la distance entre
+    // ses bouts (une pelote), est écarté.
+    // Barbules du squelette (petites branches à bout libre) retirées sous
+    // cette longueur, avant le raccordement.
+    barbuleM: 3,
+    raccordM: 12,
+    angleMaxDeg: 40,
+    longueurMinM: 25,
+    compaciteMax: 4,
+  },
+
   // ── Carte ─────────────────────────────────────────────────────────────────
   carte: {
     // Vue d'ouverture : **la France entière**, avec ses chantiers LiDAR.
