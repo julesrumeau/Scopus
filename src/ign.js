@@ -183,4 +183,39 @@ function gabaritWMTS(cle) {
   return `${CONFIG.ign.wmts}?${p}`.replace(/%7B/g, '{').replace(/%7D/g, '}');
 }
 
-const IGN = { blocs, dalles, dalleAuPoint, batiments, geocoder, gabaritWMTS };
+/**
+ * Tout le linéaire de la BD TOPO sur une emprise Lambert-93 : tronçons de
+ * route de toute nature (routes, chemins, sentiers…) et cours d'eau. Vérité
+ * terrain du banc des tracés (docs/superpowers/specs/2026-09-27-traces-design.md).
+ *
+ * La BBOX, en (lat, lon), englobe les quatre coins : le carré Lambert-93 est
+ * tourné en WGS84, ses coins sud-ouest et nord-est n'en font pas le tour. Les
+ * tronçons arrivent entiers, à découper sur l'emprise (`TRACES.decouper`).
+ *
+ * @returns {Promise<Array<{nature: string, famille: 'route'|'eau', points: number[][]}>>}
+ */
+async function lineaire(emprise, signal) {
+  const coins = [[emprise.xmin, emprise.ymin], [emprise.xmax, emprise.ymin], [emprise.xmin, emprise.ymax], [emprise.xmax, emprise.ymax]]
+    .map(([x, y]) => PROJ.versWGS84(x, y));
+  const lats = coins.map((c) => c.lat), lons = coins.map((c) => c.lon);
+  const bbox = `${Math.min(...lats)},${Math.min(...lons)},${Math.max(...lats)},${Math.max(...lons)},urn:ogc:def:crs:EPSG::4326`;
+  const out = [];
+  for (const [famille, couche] of Object.entries(CONFIG.ign.couchesLineaire)) {
+    for (let debut = 0; ; debut += 1000) {
+      const rep = await RESEAU.recuperer(urlWFS({
+        TYPENAMES: couche, COUNT: '1000', STARTINDEX: String(debut), SRSNAME: 'EPSG:2154', BBOX: bbox,
+      }), { type: 'json', signal });
+      const f = rep.features || [];
+      for (const x of f) {
+        const g = x.geometry;
+        if (!g) continue;
+        const parties = g.type === 'MultiLineString' ? g.coordinates : [g.coordinates];
+        for (const p of parties) out.push({ nature: x.properties?.nature || '', famille, points: p.map((c) => [c[0], c[1]]) });
+      }
+      if (f.length < 1000) break;
+    }
+  }
+  return out;
+}
+
+const IGN = { blocs, dalles, dalleAuPoint, batiments, lineaire, geocoder, gabaritWMTS };

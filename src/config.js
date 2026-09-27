@@ -32,6 +32,9 @@ const CONFIG = {
     geocodage: 'https://data.geopf.fr/geocodage/search',
     // Bâti de la BD TOPO, utilisé pour écarter les détections déjà cartographiées.
     coucheBati: 'BDTOPO_V3:batiment',
+    // Tout le linéaire de la BD TOPO, vérité terrain du banc des tracés
+    // (tools/banc-traces.js) : routes de toute nature et cours d'eau.
+    couchesLineaire: { route: 'BDTOPO_V3:troncon_de_route', eau: 'BDTOPO_V3:troncon_hydrographique' },
     // Fonds WMTS. Le format n'est pas interchangeable : le plan est en png,
     // l'ortho en jpeg, et l'autre combinaison renvoie une erreur XML.
     wmts: 'https://data.geopf.fr/wmts',
