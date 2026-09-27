@@ -13,14 +13,15 @@ const { VUE_RELIEF, VUE_GRILLE, RASTER, RELIEF } = chargerScripts(
 function bloc(cle, x0, y0, { cote = 60, pasCm = 25, zBase = 30000 } = {}) {
   const n = (cote * 100 / pasCm) ** 2;
   const xc = new Int32Array(n), yc = new Int32Array(n), zc = new Int32Array(n), cls = new Uint8Array(n);
+  const intensite = new Uint16Array(n);
   let k = 0;
   for (let y = 0; y < cote * 100; y += pasCm) {
     for (let x = 0; x < cote * 100; x += pasCm) {
       const bosse = 80 * Math.exp(-(((x - 3000) ** 2 + (y - 3000) ** 2) / 2e5));
-      xc[k] = x; yc[k] = y; zc[k] = zBase + Math.round(x * 0.05 + bosse); cls[k] = 2; k++;
+      xc[k] = x; yc[k] = y; zc[k] = zBase + Math.round(x * 0.05 + bosse); cls[k] = 2; intensite[k] = k % 65536; k++;
     }
   }
-  return { cle, emprise: { xmin: x0, ymin: y0, xmax: x0 + cote, ymax: y0 + cote }, origineCm: [x0 * 100, y0 * 100, 0], points: { nbPoints: n, xc, yc, zc, cls } };
+  return { cle, emprise: { xmin: x0, ymin: y0, xmax: x0 + cote, ymax: y0 + cote }, origineCm: [x0 * 100, y0 * 100, 0], points: { nbPoints: n, xc, yc, zc, cls, intensite } };
 }
 
 const vue = { xmin: 1000, xmax: 1060, ymin: 2000, ymax: 2060 };
@@ -277,4 +278,78 @@ test('lire un point : la valeur de la couche demandée', () => {
   assert.equal(m.lire(1030.2, 2030.2, 'svf').valeur, svf.valeurs[i]);
   assert.equal(m.lire(1030.2, 2030.2, 'microrelief').valeur, micro.valeurs[i]);
   assert.equal(m.lire(1030.2, 2030.2, 'hauteur').valeur, null);   // pas calculée
+});
+
+
+// ── Le nuage 3D de la vue ────────────────────────────────────────────────────
+
+test('nuage3d sans bloc : rien', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  assert.equal(m.nuage3d(vue, 1e9), null);
+});
+
+test('nuage3d : tous les points de l’emprise, à leur place, le bord droit exclu', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  const b = bloc('a', 1000, 2000, { cote: 40 });
+  m.ajouter(b);
+  const e = { xmin: 1010, xmax: 1030, ymin: 2010, ymax: 2030 };
+  const r = m.nuage3d(e, 1e9);
+  // 20 m à 25 cm : 80 × 80 points, xmin et ymin compris, xmax et ymax exclus.
+  assert.equal(r.n, 80 * 80);
+  const cm = new Set();
+  for (let i = 0; i < b.points.nbPoints; i++) cm.add(`${b.points.xc[i] + 100000},${b.points.yc[i] + 200000}`);
+  let pire = 0, xmin = Infinity, xmax = -Infinity;
+  for (let i = 0; i < r.n; i++) {
+    const x = Math.round((r.origine[0] + r.x[i]) * 100), y = Math.round((r.origine[1] + r.y[i]) * 100);
+    if (!cm.has(`${x},${y}`)) pire++;
+    xmin = Math.min(xmin, x); xmax = Math.max(xmax, x);
+  }
+  assert.equal(pire, 0);
+  assert.equal(xmin, 101000);   // pile sur xmin : gardé
+  assert.equal(xmax, 102975);   // 103000 = xmax : exclu
+  assert.equal(r.zmin, 0);
+  assert.ok(r.zmax > 0);
+  assert.equal(r.intensite.length, r.n);
+  assert.equal(JSON.stringify(r.parClasse), JSON.stringify([[2, r.n]]));
+});
+
+test('nuage3d : plafond, tirage stable et uniforme', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000, { cote: 40 }));
+  const e = { xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 };
+  const r = m.nuage3d(e, 5000);
+  assert.ok(r.n <= 5000 * 1.05 && r.n >= 4000, `${r.n}`);
+  const r2 = m.nuage3d(e, 5000);
+  assert.equal(r2.n, r.n);
+  for (let i = 0; i < r.n; i += 97) assert.equal(r2.x[i], r.x[i]);
+  const quarts = [0, 0, 0, 0];
+  for (let i = 0; i < r.n; i++) quarts[(r.x[i] >= 20 ? 1 : 0) + (r.y[i] >= 20 ? 2 : 0)]++;
+  for (const q of quarts) assert.ok(q / r.n > 0.2 && q / r.n < 0.3, JSON.stringify(quarts));
+});
+
+test('nuage3d : hauteur au-dessus du sol, intensité et classe suivent leur point', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  const b = bloc('a', 1000, 2000, { cote: 40 });
+  // Un point non classé, 2 m au-dessus du sol, au milieu.
+  const k = b.points.nbPoints - 1;
+  const autre = bloc('b', 1000, 2000, { cote: 1 });
+  autre.cle = 'b';
+  const p = autre.points;
+  p.nbPoints = 1;
+  p.xc[0] = 2000; p.yc[0] = 2000;
+  // Sol de la fabrique en (20 m, 20 m) : la pente seule, la bosse (centrée à
+  // 30 m) y est nulle. Puis 2 m au-dessus.
+  p.zc[0] = 30000 + Math.round(2000 * 0.05 + 80 * Math.exp(-((1000 ** 2) * 2) / 2e5)) + 200;
+  p.cls[0] = 1; p.intensite[0] = 4242;
+  autre.emprise = { xmin: 1000, ymin: 2000, xmax: 1040, ymax: 2040 };
+  m.ajouter(b);
+  m.ajouter(autre);
+  m.calculer(VUE_GRILLE.definir({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 0.5, 0, 4096), 'svf');
+  const r = m.nuage3d({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 1e9);
+  let i = -1;
+  for (let j = 0; j < r.n; j++) if (r.cls[j] === 1) i = j;
+  assert.ok(i >= 0);
+  assert.equal(r.intensite[i], 4242);
+  assert.ok(Math.abs(r.hauteur[i] - 2) < 0.05, `${r.hauteur[i]}`);
+  assert.ok(k > 0);
 });

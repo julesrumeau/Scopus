@@ -223,3 +223,22 @@ test('sur le fil principal, lire un point', async () => {
   const p = await m.lire(1020, 2020, 'svf');
   assert.ok(p.altitude > 300);
 });
+
+
+test('le worker rend le nuage 3D de la vue, comme le moteur', () => {
+  const ctx = chargerScripts(FICHIERS);
+  const w = travailleur(ctx.RELIEF_TRAVAILLEUR.source());
+  w.envoyer({ type: 'demarrer' });
+  const e = { xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 };
+  w.envoyer({ type: 'nuage3d', id: 1, emprise: e, budget: 1e9 });
+  assert.equal(w.recus.at(-1).vide, true);
+  w.envoyer({ type: 'ajouter', bloc: bloc('a', 1000, 2000) });
+  w.envoyer({ type: 'nuage3d', id: 2, emprise: e, budget: 3000 });
+  const r = w.recus.at(-1);
+  assert.equal(r.type, 'nuage3d', r.message);
+  const ref = ctx.VUE_RELIEF.creer({ moteur: 'cpu' });
+  ref.ajouter(bloc('a', 1000, 2000));
+  const attendu = ref.nuage3d(e, 3000);
+  assert.equal(r.n, attendu.n);
+  assert.equal(r.x[5], attendu.x[5]);
+});

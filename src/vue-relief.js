@@ -293,8 +293,75 @@ function fabriqueVueRelief() {
       };
     }
 
+    // Hachage entier d'un point (centimètres absolus) → [0, 1) : le tirage du
+    // plafond est déterministe — même vue, mêmes points, pas de scintillement
+    // d'un passage en 3D à l'autre — et sans état.
+    function hacher(x, y, z) {
+      let h = Math.imul(x ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(y ^ 0xc2b2ae35, 0x27d4eb2f) ^ Math.imul(z, 0x165667b1);
+      h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12; h = Math.imul(h, 0x297a2d39); h ^= h >>> 15;
+      return (h >>> 0) / 4294967296;
+    }
+
+    /** Le nuage de la vue pour l'onglet 3D (spec 2026-09-27-vue-3d-design). */
+    function nuage3d(emprise, budget, actifs) {
+      if (gpu) return { raison: 'Nuage 3D indisponible quand tout le calcul est sur la carte graphique (&gpu).' };
+      const e = { xmin: Math.round(emprise.xmin * 100), xmax: Math.round(emprise.xmax * 100), ymin: Math.round(emprise.ymin * 100), ymax: Math.round(emprise.ymax * 100) };
+      const dedans = [...blocs].filter(([cle, b]) => (!actifs || actifs.has(cle)) && VUE_GRILLE.coupe(b.emprise, { emprise }));
+      // Premier passage : compter, pour connaître le taux à tirer.
+      let total = 0;
+      for (const [, b] of dedans) {
+        const p = b.points, [ox, oy] = b.origineCm;
+        for (let i = 0; i < b.nbPoints; i++) {
+          const x = p.xc[i] + ox, y = p.yc[i] + oy;
+          if (x >= e.xmin && x < e.xmax && y >= e.ymin && y < e.ymax) total++;
+        }
+      }
+      if (!total) return null;
+      const taux = Math.min(1, budget / total);
+      // Second passage : garder, dans des tableaux au plus juste.
+      const cap = Math.min(total, Math.ceil(budget * 1.05) + 1000);
+      let xs = new Int32Array(cap), ys = new Int32Array(cap), zs = new Int32Array(cap);
+      let cls = new Uint8Array(cap), its = new Uint16Array(cap), n = 0;
+      let zminCm = Infinity, zmaxCm = -Infinity;
+      for (const [, b] of dedans) {
+        const p = b.points, [ox, oy, oz] = b.origineCm;
+        for (let i = 0; i < b.nbPoints; i++) {
+          const x = p.xc[i] + ox, y = p.yc[i] + oy;
+          if (x < e.xmin || x >= e.xmax || y < e.ymin || y >= e.ymax) continue;
+          const z = p.zc[i] + oz;
+          if (taux < 1 && hacher(x, y, z) >= taux) continue;
+          if (n === xs.length) {   // tirage au-dessus de la réserve : on agrandit
+            const agrandir = (t) => { const u = new t.constructor(t.length * 2); u.set(t); return u; };
+            xs = agrandir(xs); ys = agrandir(ys); zs = agrandir(zs); cls = agrandir(cls); its = agrandir(its);
+          }
+          xs[n] = x; ys[n] = y; zs[n] = z; cls[n] = p.cls[i]; its[n] = p.intensite ? p.intensite[i] : 0;
+          if (z < zminCm) zminCm = z; if (z > zmaxCm) zmaxCm = z;
+          n++;
+        }
+      }
+      const origine = [e.xmin / 100, e.ymin / 100, zminCm / 100];
+      const X = new Float32Array(n), Y = new Float32Array(n), Z = new Float32Array(n), H = new Float32Array(n);
+      const t = memoCouche && memoCouche.t;
+      const compte = new Map();
+      for (let i = 0; i < n; i++) {
+        X[i] = (xs[i] - e.xmin) / 100; Y[i] = (ys[i] - e.ymin) / 100; Z[i] = (zs[i] - zminCm) / 100;
+        compte.set(cls[i], (compte.get(cls[i]) || 0) + 1);
+        if (t) {
+          const cx = Math.floor((xs[i] / 100 - t.emprise.xmin) / t.pas), cy = Math.floor((ys[i] / 100 - t.emprise.ymin) / t.pas);
+          if (cx >= 0 && cy >= 0 && cx < t.W && cy < t.H && t.valide[cy * t.W + cx]) {
+            H[i] = zs[i] / 100 - (t.mnt[cy * t.W + cx] + t.origine[2]);
+          }
+        }
+      }
+      return {
+        n, x: X, y: Y, z: Z, cls: cls.slice(0, n), intensite: its.slice(0, n), hauteur: H,
+        origine, emprise: { ...emprise }, zmin: 0, zmax: (zmaxCm - zminCm) / 100,
+        parClasse: [...compte].sort((a, b) => a[0] - b[0]),
+      };
+    }
+
     return {
-      ajouter, retirer, reglages, surface, calculer, statistiques, classes, lire,
+      ajouter, retirer, reglages, surface, calculer, statistiques, classes, lire, nuage3d,
       taille: () => blocs.size,
       moteur: gpu ? 'gpu' : 'cpu',
       coteMax: gpu ? Math.min(CONFIG.flux.coteMaxGrille, GPU_RELIEF.coteMax()) : CONFIG.flux.coteMaxGrille,

@@ -66,6 +66,11 @@ function corpsTravailleurRelief() {
         } else {
           pixels();
         }
+      } else if (m.type === 'nuage3d') {
+        const r = moteur.nuage3d(m.emprise, m.budget, m.actifs ? new Set(m.actifs) : undefined);
+        if (!r || r.raison) { self.postMessage({ type: 'nuage3d', id: m.id, vide: true, raison: (r && r.raison) || '' }); return; }
+        self.postMessage({ type: 'nuage3d', id: m.id, ...r },
+          [r.x.buffer, r.y.buffer, r.z.buffer, r.cls.buffer, r.intensite.buffer, r.hauteur.buffer]);
       } else if (m.type === 'lire') {
         self.postMessage({ type: 'lire', id: m.id, point: moteur.lire(m.x, m.y, m.couche) });
       } else if (m.type === 'calculer') {
@@ -152,6 +157,7 @@ const RELIEF_TRAVAILLEUR = (() => {
       attente.delete(m.id);
       if (m.type === 'erreur') a.ko(new Error(m.message));
       else if (m.type === 'lire') a.ok(m.point);
+      else if (m.type === 'nuage3d') a.ok(m.vide ? { vide: true, raison: m.raison } : m);
       else a.ok(m.vide ? null : m);
     };
     // Une erreur non rattrapée dans le worker : tout ce qui attend doit
@@ -169,10 +175,14 @@ const RELIEF_TRAVAILLEUR = (() => {
       /** Les points sont cédés au worker : le fil principal ne les garde pas. */
       ajouter(b) {
         const p = b.points;
-        const tampons = [...new Set([p.xc.buffer, p.yc.buffer, p.zc.buffer, p.cls.buffer])];
+        // L'intensité aussi : la vue 3D la colore (nuage3d).
+        const tampons = [...new Set([p.xc.buffer, p.yc.buffer, p.zc.buffer, p.cls.buffer, ...(p.intensite ? [p.intensite.buffer] : [])])];
         w.postMessage({
           type: 'ajouter',
-          bloc: { cle: b.cle, emprise: b.emprise, origineCm: b.origineCm, points: { nbPoints: p.nbPoints, xc: p.xc, yc: p.yc, zc: p.zc, cls: p.cls } },
+          bloc: {
+            cle: b.cle, emprise: b.emprise, origineCm: b.origineCm,
+            points: { nbPoints: p.nbPoints, xc: p.xc, yc: p.yc, zc: p.zc, cls: p.cls, intensite: p.intensite },
+          },
         }, tampons);
       },
       retirer(cle) { w.postMessage({ type: 'retirer', cle }); },
@@ -182,6 +192,14 @@ const RELIEF_TRAVAILLEUR = (() => {
           const id = ++prochain;
           attente.set(id, { ok, ko });
           w.postMessage({ type: 'calculer', id, geo, couche });
+        });
+      },
+      /** Le nuage 3D de l'emprise, au plus `budget` points ; `{ vide, raison }` sinon. */
+      nuage3d(emprise, budget, actifs) {
+        return new Promise((ok, ko) => {
+          const id = ++prochain;
+          attente.set(id, { ok, ko });
+          w.postMessage({ type: 'nuage3d', id, emprise, budget, actifs });
         });
       },
       /** Altitude, hauteur et valeur de la couche en un point Lambert-93 de la dernière vue calculée. */
@@ -217,6 +235,10 @@ const RELIEF_TRAVAILLEUR = (() => {
       reglages: (r) => moteur.reglages(r),
       calculer: async (geo, couche) => moteur.calculer(geo, couche),
       lire: async (x, y, couche) => moteur.lire(x, y, couche),
+      nuage3d: async (emprise, budget, actifs) => {
+        const r = moteur.nuage3d(emprise, budget, actifs ? new Set(actifs) : undefined);
+        return !r || r.raison ? { vide: true, raison: (r && r.raison) || '' } : r;
+      },
       image: async (geo, couche, ecran, lut, reglages = {}) => {
         if (!(ecran.W > 0 && ecran.H > 0)) return null;
         const t0 = performance.now();
