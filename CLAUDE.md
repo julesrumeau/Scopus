@@ -555,12 +555,22 @@ suivante. Les réglages du balayage (directions, rayon) partent avec chaque
 image ; le rayon agrandit aussi la marge de la grille. La case « Compléter
 le sol par les non classés » est masquée (TODO #3).
 
-Au-delà du seuil de surface, c'est le libellé du rideau, côté relief, qui dit
-« Zoomez pour voir le relief ». Un avis posé au milieu de la carte gênait —
-et sa classe, `.avis-zoom`, était déjà celle de l'avis de zoom maximal de la
-carte, qu'il détournait.
+**Sous le relief, la carte voilée ; rien que du COPC.** Un côté de relief
+n'est plus noir tant que rien n'y est calculé : son volet porte un voile
+(`.voile-relief`) à travers lequel la carte se voit, assombrie, et les
+pixels sans valeur de l'image sont transparents (`VUE_IMAGE.peindre`). À
+l'arrivée sur une zone, le relief recouvre donc le voile à mesure que les
+blocs arrivent. Au-delà du seuil de surface, la **dernière image calculée
+reste** et rétrécit avec la carte — tant qu'elle est bien celle de la
+couche du côté —, le voile couvre le reste, et le libellé du rideau dit
+« Zoomez pour calculer le relief » (un avis au milieu de la carte gênait,
+et sa classe `.avis-zoom` détournait celle de l'avis de zoom maximal).
+Choix de l'utilisateur : ne montrer que ce qui vient des points. L'ombrage
+tout fait de l'IGN (`IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW`,
+WMTS, zooms 0 à 18, `PM_0_18`) aurait comblé les vues larges ; proposé,
+écarté pour cette raison.
 
-**Le MNT de l'IGN, écrit puis débranché** (`mnt-ign.js`). Au-delà du seuil, il donnait le relief de toute la vue ; retiré à l'usage le jour même, parce qu'on ne savait plus si ce qu'on voyait venait de lui ou du calcul sur les points. Au-delà du seuil, le côté relief reste donc noir et le statut dit de zoomer. Le module a ensuite été retiré (il reste dans l'historique git, commit `90c7321`, avec ses tests) ; à reprendre seulement pour un bouche-trou clairement signalé (TODO #5). Ce qu'il faisait : une requête WMS
+**Le MNT de l'IGN, écrit puis débranché** (`mnt-ign.js`). Au-delà du seuil, il donnait le relief de toute la vue ; retiré à l'usage le jour même, parce qu'on ne savait plus si ce qu'on voyait venait de lui ou du calcul sur les points. Le module a ensuite été retiré (il reste dans l'historique git, commit `90c7321`, avec ses tests). Ce qu'il faisait : une requête WMS
 `IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93` en
 `image/x-bil;bits=32` à la taille de la grille (au plus 5010 px de côté), puis
 les mêmes couches. Vérifié sur une vraie réponse : flottants
@@ -2416,7 +2426,7 @@ masquée ».
 | Borne de zoom de la carte | ✅ |
 | Vue d'ouverture sur la France entière | ✅ |
 | Lien partageable | ✅ — la vue, au format osm.org (`#map=zoom/lat/lon`, + angles en 3D) ; voir « Le lien partageable » |
-| Relief piloté par la vue | ✅ vue normale (plans 1 à 3) : relief de ce qui est à l'écran, rideau carte / relief, panneau « Relief » ; ancienne interface derrière `?dalle` ; sélection, mesure, info-bulle et réglages du SVF sur la carte ; 3D du nuage de la vue, avec EDL ; relief de secours et 3D qui télécharge dans TODO (#4, #5) |
+| Relief piloté par la vue | ✅ vue normale (plans 1 à 3) : relief de ce qui est à l'écran, rideau carte / relief, panneau « Relief » ; ancienne interface derrière `?dalle` ; sélection, mesure, info-bulle et réglages du SVF sur la carte ; 3D du nuage de la vue, avec EDL ; carte voilée sous le relief ; 3D qui télécharge dans TODO (#4) |
 
 ## Jalon de publication
 

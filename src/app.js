@@ -2533,7 +2533,7 @@ if (MODE_VUE) (async () => {
     $('vue-etat').textContent = e.attente && !e.tropLarge
       ? `Affinage… ${e.attente} bloc${e.attente > 1 ? 's' : ''} attendu${e.attente > 1 ? 's' : ''}` : '';
     if (!diagnostic) {
-      statut(e.tropLarge ? 'Zoomez pour voir le relief'
+      statut(e.tropLarge ? 'Zoomez pour calculer le relief'
         : e.echecs ? `${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}`
           : erreurRelief ? `Le relief n’a pas pu être calculé — ${erreurRelief}`
             : !['gauche', 'droite'].some((c) => estRelief(cotes[c])) ? 'Aucune couche de relief affichée'
@@ -2589,17 +2589,20 @@ if (MODE_VUE) (async () => {
     // le nuage lui-même peut forcer un calcul, pour lire la bonne surface.
     if (!forcer && !$('vue-3d').hidden) return;
     if (enCalcul) { aRefaire = true; return; }
-    // Au-delà du seuil, aucun point n'est demandé, donc aucun relief : un côté
-    // de relief reste noir, et son libellé sur le rideau dit de zoomer. (Le
-    // MNT de l'IGN y servait un temps, retiré : on ne savait plus quelle
-    // source on regardait.)
+    // Au-delà du seuil, aucun point n'est demandé, donc aucun relief de plus :
+    // la dernière image calculée reste, et rétrécit avec la carte ; ailleurs,
+    // le voile du côté laisse voir la carte, et le libellé du rideau dit de
+    // zoomer. Rien que du COPC (choix de l'utilisateur) : le MNT puis
+    // l'ombrage de l'IGN y ont été essayés, puis écartés.
     const tropLarge = vueCourante && FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2;
     const aCalculer = ['gauche', 'droite'].filter((c) => estRelief(cotes[c]));
     for (const c of ['gauche', 'droite']) {
-      reliefCalque.definirLibelle(c, tropLarge && estRelief(cotes[c]) ? 'Zoomez pour voir le relief' : libelleCouche(cotes[c]));
+      reliefCalque.definirLibelle(c, tropLarge && estRelief(cotes[c]) ? 'Zoomez pour calculer le relief' : libelleCouche(cotes[c]));
     }
     if (!vueCourante || tropLarge || !aCalculer.length) {
-      for (const c of aCalculer) reliefCalque.vider(c);
+      // Gardée seulement si c'est bien la couche du côté : après un
+      // changement de couche, l'ancienne image mentirait sous le libellé.
+      for (const c of aCalculer) if (derniersEtirements[c]?.cle !== cotes[c]) reliefCalque.vider(c);
       texteRelief = '';
       majStatut();
       return;

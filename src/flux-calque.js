@@ -62,14 +62,17 @@ const CalqueFlux = L.LayerGroup.extend({
 // bornes de la carte, elle tombe exactement, sans le glissement vers les bords
 // qu'avait une image Lambert-93 posée sur un rectangle WGS84.
 //
-// Un côté de relief est noir tant que rien n'y est calculé : un relief absent
-// doit se voir comme absent, pas comme la carte qui transparaît.
+// Sous le relief, un côté porte un voile sur la carte : là où rien n'est
+// calculé (vue trop large, blocs pas encore arrivés, case sans sol), la carte
+// se voit, assombrie — un relief absent doit se lire comme absent, sans
+// l'écran noir d'avant. Le relief le recouvre à mesure qu'il se calcule : les
+// pixels sans valeur de l'image sont transparents (VUE_IMAGE.peindre).
 const CalqueRelief = L.Layer.extend({
   onAdd(map) {
     this._carte = map;
     this._part = 0.5;
     // Un volet par côté, découpé à la position du rideau : le relief peut être
-    // à gauche comme à droite, comme dans l'onglet 2D. Le fond noir et l'image
+    // à gauche comme à droite, comme dans l'onglet 2D. Le voile et l'image
     // d'un côté vivent dans son volet : le découpage leur vaut à tous deux.
     // Un côté qui porte la carte a son volet masqué — la carte transparaît.
     this._cotes = {};
@@ -78,11 +81,10 @@ const CalqueRelief = L.Layer.extend({
       const volet = map.getPane(nom) || map.createPane(nom);
       volet.style.zIndex = 450;
       volet.style.pointerEvents = 'none';
-      const noir = L.DomUtil.create('div', '', volet);
-      Object.assign(noir.style, {
-        position: 'absolute', left: '-500000px', top: '-500000px', width: '1000000px', height: '1000000px', background: '#000',
-      });
-      this._cotes[cote] = { nom, volet, noir, image: null, url: null, generation: 0, actif: cote === 'droite', fond: null };
+      // Immense, pour couvrir le volet où que la carte ait glissé ; sa teinte
+      // est dans styles.css (.voile-relief).
+      const voile = L.DomUtil.create('div', 'voile-relief', volet);
+      this._cotes[cote] = { nom, volet, voile, image: null, url: null, generation: 0, actif: cote === 'droite', fond: null };
       volet.style.display = this._cotes[cote].actif ? '' : 'none';
     }
     this._creerRideau(map.getContainer());
@@ -95,7 +97,7 @@ const CalqueRelief = L.Layer.extend({
     for (const cote of ['gauche', 'droite']) {
       this.definirFond(cote, null);
       this.vider(cote);
-      this._cotes[cote].noir.remove();
+      this._cotes[cote].voile.remove();
       this._cotes[cote].volet.style.clipPath = '';
     }
     this._rideau.remove();
@@ -108,7 +110,7 @@ const CalqueRelief = L.Layer.extend({
   },
 
   /**
-   * Un côté porte-t-il du relief (volet visible, noir tant que rien n'est
+   * Un côté porte-t-il du relief (volet visible, voilé tant que rien n'est
    * calculé), ou la carte (volet masqué) ?
    */
   definirActif(cote, actif) {

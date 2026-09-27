@@ -1118,6 +1118,12 @@ body[data-mode="dalle"] #section-vue { display: none !important; }
 }
 /* Le plafond du nuage ne sert qu'en vue normale ; l'ancien parcours a le sien. */
 body[data-mode="dalle"] #champ-budget3d { display: none !important; }
+/* Le voile d'un côté de relief (CalqueRelief) : la carte se voit dessous,
+   assombrie, là où rien n'est calculé. */
+.voile-relief {
+  position: absolute; left: -500000px; top: -500000px; width: 1000000px; height: 1000000px;
+  background: rgba(14, 17, 22, 0.62);
+}
 /* Vue normale : l'intensité n'est plus téléchargée (blocs coupés aux couches lues). */
 body[data-mode="vue"] #coloration [data-mode="intensite"] { display: none !important; }
 

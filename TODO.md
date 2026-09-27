@@ -11,9 +11,12 @@ L'ordre reste celui d'origine ; seuls les *(prioritaire)* sont un jugement de
 priorité explicite, le reste est classé par ancienneté et non par urgence.
 
 **5 tâches restent.** Les deux premières sont marquées *(prioritaire)* : ce
-sont les seules dont l'issue est incertaine. Les trois suivantes (#3 à #5),
-ajoutées le 26 septembre 2026, sont ce que le relief piloté par la vue laisse
-hors de ses trois plans (spec `docs/superpowers/specs/2026-09-26-flux-vue-design.md`).
+sont les seules dont l'issue est incertaine. Les suivantes (#3, #4, #6)
+sont ce que le relief piloté par la vue laisse hors de ses plans (spec
+`docs/superpowers/specs/2026-09-26-flux-vue-design.md`). #5 (un relief de
+secours pour les vues trop larges) est tranché le 27 septembre 2026 : rien
+que du COPC, la carte voilée et la dernière image gardée (CLAUDE.md, « Le
+calcul de la vue »).
 
 ### #1 — Rallumer la détection, ou renoncer *(prioritaire)*
 
@@ -162,15 +165,6 @@ blocs les plus gros à l'écran d'abord (taille projetée, comme Potree), du
 fin près de la caméra et du grossier au loin, et la « fourchette » de
 l'utilisateur comme seuil d'hystérésis pour ne pas retélécharger au moindre
 mouvement. À faire après usage de l'étape 1.
-
-### #5 — Un relief de secours rapide, clairement signalé
-
-Au-delà du seuil de surface, rien ne s'affiche (côté relief noir, « zoomez »),
-et en attendant les points non plus. Le MNT de l'IGN en WMS a été essayé puis
-débranché le 26 septembre 2026 : on ne savait plus si ce qu'on voyait venait
-de lui ou des points. `mnt-ign.js` a été retiré (historique git, commit
-`90c7321`, avec ses tests). À reprendre seulement avec
-une distinction visible (flou, teinte, libellé) entre les deux sources.
 
 ### #6 — Laissé de côté par l'audit du 27 septembre 2026
 

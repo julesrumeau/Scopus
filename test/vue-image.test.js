@@ -51,7 +51,7 @@ test('le haut de l’image est au nord : v décroît quand on descend', () => {
   assert.ok(haut > bas, `${haut} ≤ ${bas}`);
 });
 
-test('peindre : la valeur de la case, étirée sur la palette ; sans valeur, noir', () => {
+test('peindre : la valeur de la case, étirée sur la palette ; sans valeur, transparent (le voile du côté se voit)', () => {
   const W = geo.W, H = geo.H;
   const valeurs = new Float32Array(W * H).fill(1);
   const { u, v } = VUE_IMAGE.cases(geo, ecran, PROJ.versLambert93);
@@ -62,21 +62,21 @@ test('peindre : la valeur de la case, étirée sur la palette ; sans valeur, noi
   for (let i = 0; i < 256; i++) lut.set([i, i, i], i * 3);
   const rgba = VUE_IMAGE.peindre(valeurs, geo, { u, v }, 0, 1, lut, false);
   assert.equal(rgba.length, ecran.W * ecran.H * 4);
-  assert.deepEqual([...rgba.slice(k * 4, k * 4 + 4)], [0, 0, 0, 255]);            // case NaN : noir
+  assert.deepEqual([...rgba.slice(k * 4, k * 4 + 4)], [0, 0, 0, 0]);              // case NaN : transparente
   const loin = 20 * ecran.W + 20;
   assert.deepEqual([...rgba.slice(loin * 4, loin * 4 + 4)], [255, 255, 255, 255]); // valeur 1 = haut de palette
 });
 
-test('peindre : hors de la grille, noir', () => {
+test('peindre : hors de la grille, transparent', () => {
   const petite = VUE_GRILLE.definir({ xmin: geo.emprise.xmin, xmax: geo.emprise.xmin + 50, ymin: geo.emprise.ymin, ymax: geo.emprise.ymin + 50 }, 1, 0, 4096);
   const uv = VUE_IMAGE.cases(petite, ecran, PROJ.versLambert93);
   const lut = new Uint8Array(256 * 3).fill(200);
   const rgba = VUE_IMAGE.peindre(new Float32Array(petite.W * petite.H).fill(0.5), petite, uv, 0, 1, lut, false);
   const centre = 250 * ecran.W + 400;
-  assert.deepEqual([...rgba.slice(centre * 4, centre * 4 + 4)], [0, 0, 0, 255]);
+  assert.deepEqual([...rgba.slice(centre * 4, centre * 4 + 4)], [0, 0, 0, 0]);
 });
 
-test('peindreRGBA : une couche déjà en couleurs (ombrage coloré) garde sa couleur ; case invalide, noir', () => {
+test('peindreRGBA : une couche déjà en couleurs (ombrage coloré) garde sa couleur ; case invalide, transparente', () => {
   const { u, v } = VUE_IMAGE.cases(geo, ecran, PROJ.versLambert93);
   const k = 250 * ecran.W + 400;
   const cx = Math.round(u[k]), cy = Math.round(v[k]);
@@ -84,7 +84,7 @@ test('peindreRGBA : une couche déjà en couleurs (ombrage coloré) garde sa cou
   for (let i = 0; i < geo.W * geo.H; i++) grille.set([10, 200, 30, 255], i * 4);
   grille.set([0, 0, 0, 0], (cy * geo.W + cx) * 4);   // case sans valeur
   const rgba = VUE_IMAGE.peindreRGBA(grille, geo, { u, v }, false);
-  assert.deepEqual([...rgba.slice(k * 4, k * 4 + 4)], [0, 0, 0, 255]);
+  assert.deepEqual([...rgba.slice(k * 4, k * 4 + 4)], [0, 0, 0, 0]);
   const loin = 20 * ecran.W + 20;
   assert.deepEqual([...rgba.slice(loin * 4, loin * 4 + 4)], [10, 200, 30, 255]);
 });
