@@ -289,6 +289,14 @@
         <button id="btn-dessus" class="secondaire" title="Raccourci : t">Vue de dessus</button>
         <button id="btn-cadrer" class="secondaire" title="Raccourci : f">Tout cadrer</button>
       </div>
+      <label class="champ" id="champ-budget3d">
+        <span>Points affichés, au plus <b id="val-vue-budget3d">5 M</b></span>
+        <input type="range" id="vue-budget3d" min="1" max="20" step="0.5" value="5">
+      </label>
+      <label class="case">
+        <input type="checkbox" id="vue-edl" checked>
+        <span>Ombrage de profondeur <small>(EDL : fait ressortir murets et talus)</small></span>
+      </label>
       <div id="legende" class="legende"></div>
     </section>
 
@@ -546,6 +554,8 @@
     </div>
     <div id="vue-3d" class="vue" hidden>
       <canvas id="canvas3d"></canvas>
+      <!-- Vue normale, rien de chargé sur la carte : ce qu'il faut faire. -->
+      <div id="avis-3d" class="avis-3d" hidden></div>
       <!-- Rose des vents projetée : son contenu est dessiné par boussole.js,
            qui la reconstruit à chaque image depuis le repère de la caméra. -->
       <svg id="boussole" class="boussole" viewBox="-50 -50 100 100"

@@ -269,6 +269,11 @@ const CONFIG = {
     // 1,4 pixel. Sans lui, un nuage vu de près est une bouillie de points ;
     // avec, murets et talus ressortent.
     edl: { actif: true, force: 1.0, rayon: 1.4 },
+    // Plafond de points du nuage 3D en vue normale (vue-relief.js, nuage3d) :
+    // au-delà, un point sur N, tiré au hasard mais toujours le même pour une
+    // même vue. Réglable dans le panneau, de 1 à 20 M.
+    budget3D: 5_000_000,
+    budget3DMobile: 2_000_000,
     fond: '#0b0e13',
     // Colorisation : 'elevation' | 'classification' | 'intensite' | 'hauteur'
     coloration: 'classification',

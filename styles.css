@@ -1084,7 +1084,6 @@ body[data-mode="vue"] #info-dalle,
 body[data-mode="vue"] #detail-dalle,
 body[data-mode="vue"] #bloc-resolution,
 body[data-mode="vue"] #onglet-2d,
-body[data-mode="vue"] #onglet-3d,
 body[data-mode="vue"] #section-analyse { display: none !important; }
 body[data-mode="dalle"] #section-vue { display: none !important; }
 .classes-sol { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; margin-top: 4px; }
@@ -1102,4 +1101,21 @@ body[data-mode="dalle"] #section-vue { display: none !important; }
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 .leaflet-tooltip.etiquette-mesure::before { display: none; }
+
+/* Onglet 3D en vue normale : ce qui manque pour avoir un nuage, au milieu. */
+.avis-3d {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 340px;
+  padding: 12px 18px;
+  border-radius: 8px;
+  background: rgba(11, 14, 19, 0.85);
+  border: 1px solid var(--bord);
+  color: #dbe1ea;
+  font-size: 14px;
+  text-align: center;
+}
+/* Le plafond du nuage ne sert qu'en vue normale ; l'ancien parcours a le sien. */
+body[data-mode="dalle"] #champ-budget3d { display: none !important; }
 

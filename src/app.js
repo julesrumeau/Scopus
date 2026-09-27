@@ -217,6 +217,11 @@ let selectionActuelle = null;
 // mode vue, plus bas ; nuls dans l'ancien parcours.
 let carteOutils = null;
 let lireVue = null;
+// Mode vue : ce qui construit le nuage 3D en passant sur l'onglet, et ce qui
+// remplit l'attribut de couleur (hauteur, relief) depuis le worker.
+let surPassage3D = null;
+let surPassageCarte = null;
+let majAttributVue = null;
 
 /**
  * @param {number} x Lambert-93
@@ -323,8 +328,10 @@ $('recherche-point').addEventListener('keydown', (e) => {
 // seuil (clic imprécis, ou zone du terrain sans point rendu tout près),
 // l'enveloppe du MNT en repli plutôt que de rendre la main bredouille.
 function viserPoint3D(rayon) {
+  // Sans grille de dalle (vue normale), pas d'enveloppe de repli : le point
+  // visé est dans le nuage, ou nulle part.
   return vue3d.pointDuNuage(rayon, classesMasquees)
-    || TERRAIN.pointDuTerrain(rayon, etat.reliefGrille, CONFIG.rendu.exagerationZ, vue3d.zmin, classesMasquees);
+    || (etat.reliefGrille ? TERRAIN.pointDuTerrain(rayon, etat.reliefGrille, CONFIG.rendu.exagerationZ, vue3d.zmin, classesMasquees) : null);
 }
 
 if (vue3d) {
@@ -1615,6 +1622,7 @@ $('coloration').addEventListener('click', async (e) => {
  * rideau, ou la gauche si la droite porte la photo.
  */
 async function majAttributNuage() {
+  if (MODE_VUE) { await majAttributVue?.(); return; }
   if (!vue3d || !etat.nuage || !etat.grille) return;
 
   if (CONFIG.rendu.coloration === 'relief') {
@@ -2256,8 +2264,8 @@ function basculerVue(quoi) {
 
   // Leaflet mesure son conteneur à l'initialisation ; masqué, il l'a mesuré à
   // zéro et n'affiche aucune tuile tant qu'on ne le lui redit pas.
-  if (quoi === 'carte') requestAnimationFrame(() => carte.invalider());
-  else if (quoi === '3d') vue3d?.invalider();
+  if (quoi === 'carte') { requestAnimationFrame(() => carte.invalider()); surPassageCarte?.(); }
+  else if (quoi === '3d') { vue3d?.invalider(); surPassage3D?.(); }
   else preparer2D();
   majLien();   // le lien décrit l'onglet affiché
 }
@@ -2398,7 +2406,9 @@ if (MODE_VUE) (async () => {
   // raccourcis clavier, que basculerVue refuse pour un onglet désactivé.
   carte.selectionAuClic = false;
   $('onglet-2d').disabled = true;
-  $('onglet-3d').disabled = true;
+  // La 3D, elle, revient : le nuage de la zone vue sur la carte (spec
+  // 2026-09-27-vue-3d-design). Sans WebGL2, elle reste désactivée.
+  $('onglet-3d').disabled = !vue3d;
 
   // Chronométrage du fil principal, avec « &chrono » dans l'adresse : où part
   // le temps quand la carte ralentit. Chaque morceau de travail mesuré est
@@ -2559,6 +2569,9 @@ if (MODE_VUE) (async () => {
   // fin avec la vue du moment.
   let enCalcul = false, aRefaire = false;
   let contrasteFlux = 1, dernieresClasses = [], erreurRelief = '';
+  // L'étirement de la dernière image de chaque côté : le relief drapé sur le
+  // nuage 3D reprend le même, pour que les deux vues soient la même image.
+  const derniersEtirements = {};
   // Réglages du balayage d'horizons (SVF, ouvertures) et du lissage, comme
   // dans l'onglet 2D.
   let svfDirections = CONFIG.relief.svfDirections, svfRayonM = CONFIG.relief.svfRayonM, lisserFlux = true;
@@ -2581,6 +2594,10 @@ if (MODE_VUE) (async () => {
     return luts.get(cle);
   };
   const calculerRelief = async () => {
+    // En 3D, la carte est masquée : ses images attendront le retour (spec
+    // 2026-09-27, « rien ne suit la carte pendant qu'on est en 3D »). Les
+    // calculer quand même mettait le nuage 3D en file derrière elles.
+    if (!$('vue-3d').hidden) return;
     if (enCalcul) { aRefaire = true; return; }
     // Au-delà du seuil, aucun point n'est demandé, donc aucun relief : le côté
     // droit reste noir et le statut dit de zoomer. Le MNT de l'IGN servait ici
@@ -2624,6 +2641,7 @@ if (MODE_VUE) (async () => {
         if (cotes[c] !== cle) continue;   // le côté a changé pendant le calcul
         if (!r) { reliefCalque.vider(c); continue; }
         reliefCalque.afficher(c, r, bornes);
+        derniersEtirements[c] = { cle, min: r.min, max: r.max };
         textes.push(`${c} ${(r.duree / 1000).toFixed(2)} s (${r.moteurSurface}${r.moteurCouche && r.moteurCouche !== r.moteurSurface ? ' + ' + r.moteurCouche : ''}`
           + `${infoRelief.filPrincipal ? ', fil principal' : ''} ; surface ${(r.dureeSurface / 1000).toFixed(2)} s`
           + `, couche ${r.recalcul ? (r.dureeCouche / 1000).toFixed(2) + ' s' : 'gardée'}, image ${((r.dureeImage || 0) / 1000).toFixed(2)} s)`);
@@ -2751,6 +2769,89 @@ if (MODE_VUE) (async () => {
     $(id).hidden = false;
   }
   lireVue = (x, y) => relief.lire(x, y);
+
+  // ── L'onglet 3D : le nuage de la zone vue sur la carte ──
+  // Rien n'est téléchargé pour lui : ce sont les points déjà là pour le
+  // relief, échantillonnés par le worker sous un plafond. Le nuage reste figé
+  // tant qu'on est en 3D ; revenu en 3D sans que la carte ait bougé, on
+  // garde le même, sinon on le reconstruit (spec 2026-09-27-vue-3d-design).
+  $('section-affichage').hidden = false;
+  $('section-vide-3d').hidden = true;
+  let budget3D = surMobile() ? CONFIG.rendu.budget3DMobile : CONFIG.rendu.budget3D;
+  $('vue-budget3d').value = budget3D / 1e6;
+  $('val-vue-budget3d').textContent = `${budget3D / 1e6} M`;
+  $('vue-edl').checked = CONFIG.rendu.edl.actif;
+  const avis3D = (texte) => {
+    $('avis-3d').hidden = !texte;
+    $('avis-3d').textContent = texte || '';
+  };
+  let empriseNuage = null, construction = null;
+  const construire3D = async () => {
+    if (!vue3d) return;
+    if (construction) return construction;
+    const e = vueCourante;
+    const tropLarge = !e || FLUX_CHOIX.surfaceKm2(e) > CONFIG.flux.surfaceMaxPointsKm2;
+    const cle = e && JSON.stringify([e.xmin, e.xmax, e.ymin, e.ymax].map((v) => Math.round(v)).concat(budget3D));
+    if (!tropLarge && cle === empriseNuage && etat.nuage) return;   // rien n'a bougé
+    vue3d.vider();
+    etat.nuage = null;
+    empriseNuage = null;
+    majLegende();
+    if (tropLarge) { avis3D('Zoomez sur la carte pour afficher le nuage en 3D.'); return; }
+    construction = (async () => {
+      try {
+        const n = await ATTENTE.pendant('Nuage 3D', async (etape) => {
+          await etape('Nuage de la vue…', 'les points déjà chargés pour le relief');
+          const r = await relief.nuage3d(e, budget3D, [...flux.voulues()]);
+          if (r && !r.vide) {
+            await etape('Nuage vers la carte graphique…', `${milliers(r.n)} points`);
+            r.parClasse = new Map(r.parClasse);
+            vue3d.definirNuage(r, r.hauteur);
+          }
+          return r;
+        });
+        if (!n || n.vide) {
+          avis3D(n?.raison || 'Zoomez sur la carte pour afficher le nuage en 3D.');
+          return;
+        }
+        avis3D(null);
+        etat.nuage = n;
+        empriseNuage = cle;
+        vue3d.definirClassesMasquees(classesMasquees);
+        majLegende();
+        await majAttributNuage();
+      } catch (err) {
+        console.error(err);
+        avis3D(`Le nuage 3D n’a pas pu être construit — ${err.message}`);
+      } finally {
+        construction = null;
+      }
+    })();
+    return construction;
+  };
+  surPassage3D = construire3D;
+  surPassageCarte = () => planifierRelief(0);
+
+  // Hauteur au-dessus du sol : venue avec le nuage. Relief : la couche du côté
+  // droit du rideau (ou du gauche si la droite n'en porte pas), drapée par le
+  // worker avec l'étirement de sa dernière image.
+  majAttributVue = async () => {
+    if (!vue3d || !etat.nuage) return;
+    if (CONFIG.rendu.coloration === 'hauteur') { vue3d.definirHauteurs(etat.nuage.hauteur); return; }
+    if (CONFIG.rendu.coloration !== 'relief') return;
+    const cote = estRelief(cotes.droite) && cotes.droite !== 'ombrage-rgb' ? 'droite' : 'gauche';
+    const etirement = derniersEtirements[cote];
+    if (!estRelief(cotes[cote]) || !etirement || etirement.cle !== cotes[cote] || etirement.min == null) return;
+    const valeurs = await relief.drape3d(etirement.cle, { svfDirections, svfRayonM }, etirement.min, etirement.max);
+    if (valeurs && etat.nuage && valeurs.length === etat.nuage.n) vue3d.definirHauteurs(valeurs);
+  };
+
+  $('vue-budget3d').addEventListener('input', (e) => { $('val-vue-budget3d').textContent = `${e.target.value} M`; });
+  $('vue-budget3d').addEventListener('change', (e) => {
+    budget3D = Number(e.target.value) * 1e6;
+    if (!$('vue-3d').hidden) construire3D();
+  });
+  $('vue-edl').addEventListener('change', (e) => vue3d?.definirEDL(e.target.checked));
   // Un volet à part, au-dessus du relief (450) et sous le rideau (700) : les
   // marqueurs restent visibles des deux côtés.
   carte.map.createPane('outilsVue').style.zIndex = 660;
@@ -2856,6 +2957,7 @@ if (MODE_VUE) (async () => {
   if (diagnostic) {
     window.fluxDeControle = flux;
     window.reliefDeControle = relief;
+    window.vue3dDeControle = vue3d;
   }
 })();
 
