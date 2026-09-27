@@ -174,14 +174,11 @@ const CONFIG = {
     pixelsMaxMnt: 5010,
     // Points décompressés gardés à la fois. Sur appareil portatif, le navigateur
     // ferme un onglet trop gourmand sans prévenir.
-    //
-    // 6 M et non 20 : chaque recalcul du relief range **tous** les points
-    // gardés, 3 à 5 s à 20 M (mesuré, carte AMD intégrée), alors qu'un écran de
-    // 2 km n'en demande qu'environ 4 M (≈ 1 M de cases × pointsParCase). Le
-    // surplus n'était que des blocs fins de vues précédentes. À revoir quand
-    // le recalcul ne rangera plus tout à chaque fois.
-    budgetPoints: 6_000_000,
-    budgetPointsMobile: 3_000_000,
+    // Descendu un temps à 6 M, quand chaque recalcul rangeait tous les points
+    // gardés (3 à 5 s à 20 M) : revenu à 20 M depuis que chaque bloc n'est
+    // rangé qu'une fois, et dans un worker (vue-relief.js).
+    budgetPoints: 20_000_000,
+    budgetPointsMobile: 5_000_000,
     // Octets compressés gardés sur le disque (IndexedDB), les moins récemment
     // lus effacés d'abord.
     quotaDisqueOctets: 1_500_000_000,
