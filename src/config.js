@@ -265,6 +265,10 @@ const CONFIG = {
     // ≈ 114 Mo de VRAM, ce qui passe partout ; la dalle entière à 21 cm en
     // demanderait 708.
     budgetAffichage: 6_000_000,
+    // Ombrage de profondeur (EDL) : les réglages de Potree, force 1 et rayon
+    // 1,4 pixel. Sans lui, un nuage vu de près est une bouillie de points ;
+    // avec, murets et talus ressortent.
+    edl: { actif: true, force: 1.0, rayon: 1.4 },
     fond: '#0b0e13',
     // Colorisation : 'elevation' | 'classification' | 'intensite' | 'hauteur'
     coloration: 'classification',

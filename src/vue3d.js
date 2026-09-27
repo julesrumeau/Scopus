@@ -27,6 +27,18 @@ class Vue3D {
 
     this.progPoints = GL.program(gl, SHADERS.pointsVS, SHADERS.pointsFS);
     this.progLignes = GL.program(gl, SHADERS.lignesVS, SHADERS.lignesFS);
+    // Ombrage de profondeur : un triangle plein écran sur le rendu du nuage.
+    this.progEDL = GL.program(gl, SHADERS.reliefVS, SHADERS.edlFS);
+    this.vaoEDL = gl.createVertexArray();
+    gl.bindVertexArray(this.vaoEDL);
+    const tri = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tri);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const locEDL = gl.getAttribLocation(this.progEDL, 'a_p');
+    gl.enableVertexAttribArray(locEDL);
+    gl.vertexAttribPointer(locEDL, 2, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+    this.edl = null;   // { fb, couleur, profondeur, w, h }, à la taille du canevas
     this.palette = GL.paletteClasses(gl, CONFIG.rendu.couleursClasse, CONFIG.rendu.couleurClasseDefaut);
 
     this.nuage = null;
@@ -155,6 +167,39 @@ class Vue3D {
     this.vao = vao;
 
     this.cadrer();   // cadrer() invalide déjà
+  }
+
+  /** Ombrage de profondeur (EDL) actif ou non. */
+  definirEDL(actif) {
+    CONFIG.rendu.edl.actif = !!actif;
+    this.invalider();
+  }
+
+  /** Cible de rendu du nuage pour l'EDL, recréée quand la taille change. */
+  _cibleEDL(w, h) {
+    const gl = this.gl;
+    if (this.edl && this.edl.w === w && this.edl.h === h) return this.edl;
+    if (this.edl) { gl.deleteFramebuffer(this.edl.fb); gl.deleteTexture(this.edl.couleur); gl.deleteTexture(this.edl.profondeur); }
+    const texture = (interne, format, type) => {
+      const t = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texImage2D(gl.TEXTURE_2D, 0, interne, w, h, 0, format, type, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      return t;
+    };
+    const couleur = texture(gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE);
+    const profondeur = texture(gl.DEPTH_COMPONENT24, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT);
+    const fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, couleur, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, profondeur, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    this.edl = { fb, couleur, profondeur, w, h };
+    return this.edl;
   }
 
   /** Met à jour l'attribut de hauteur une fois la rastérisation faite. */
@@ -1029,7 +1074,15 @@ class Vue3D {
 
     const { cible, distance } = this.cam;
     const { oeil } = this._repere();
-    const proj = GL.perspective(FOV_Y_DEG, w / h, Math.max(0.5, distance * 0.002), distance * 12 + 3000);
+    const proche = Math.max(0.5, distance * 0.002), loin = distance * 12 + 3000;
+    const proj = GL.perspective(FOV_Y_DEG, w / h, proche, loin);
+    // Avec l'EDL, le nuage se rend dans une texture, puis une passe plein
+    // écran l'ombre selon la profondeur et l'écrit ici, profondeur comprise.
+    const edl = CONFIG.rendu.edl && CONFIG.rendu.edl.actif ? this._cibleEDL(w, h) : null;
+    if (edl) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, edl.fb);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    }
     const vp = GL.multiply(proj, GL.lookAt(oeil, cible, [0, 1, 0]));
 
     const p = this.progPoints;
@@ -1054,6 +1107,32 @@ class Vue3D {
 
     gl.bindVertexArray(this.vao);
     gl.drawArrays(gl.POINTS, 0, this.nbPoints);
+
+    if (edl) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      const e = this.progEDL;
+      gl.useProgram(e);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, edl.couleur);
+      gl.uniform1i(e.u.u_couleur, 0);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, edl.profondeur);
+      gl.uniform1i(e.u.u_profondeur, 1);
+      gl.uniform2f(e.u.u_taille, w, h);
+      gl.uniform1f(e.u.u_rayon, CONFIG.rendu.edl.rayon * Math.min(2, window.devicePixelRatio || 1));
+      gl.uniform1f(e.u.u_force, CONFIG.rendu.edl.force);
+      gl.uniform1f(e.u.u_proche, proche);
+      gl.uniform1f(e.u.u_loin, loin);
+      // Toujours écrite : la profondeur du nuage remplace celle du tampon,
+      // pour que les tracés qui suivent se cachent derrière lui.
+      gl.depthFunc(gl.ALWAYS);
+      gl.bindVertexArray(this.vaoEDL);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.depthFunc(gl.LESS);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, null);
+      gl.activeTexture(gl.TEXTURE0);
+    }
 
     // Les boîtes passent après, en tenant compte de la profondeur : une
     // détection derrière une crête reste masquée, ce qui donne la bonne lecture

@@ -554,4 +554,42 @@ void main() {
   }
   o = vec4(z, connue ? 1.0 : 0.0, hauteur, c.r == 0.0 ? 1.0 : 0.0);
 }`,
+
+  // Ombrage de profondeur (eye-dome lighting, Boucheny 2009, comme Potree et
+  // Giro3D). Chaque pixel est assombri selon ce que ses huit voisins, à
+  // u_rayon pixels, ont de plus proche que lui, en log2 de la profondeur de
+  // vue : murets, talus et bords de fossés ressortent sans éclairage. Le fond
+  // (profondeur 1) borde le nuage d'un trait sombre, qui détache sa
+  // silhouette. La profondeur est réécrite telle quelle : les tracés dessinés
+  // ensuite (mesure, sélection) gardent leur test de profondeur.
+  edlFS: `#version 300 es
+precision highp float;
+uniform highp sampler2D u_couleur;
+uniform highp sampler2D u_profondeur;
+uniform vec2 u_taille;
+uniform float u_rayon;
+uniform float u_force;
+uniform float u_proche;
+uniform float u_loin;
+out vec4 o;
+float logProf(vec2 uv) {
+  float d = texture(u_profondeur, uv).r;
+  if (d >= 1.0) return 0.0;
+  float z = 2.0 * u_proche * u_loin / (u_loin + u_proche - (2.0 * d - 1.0) * (u_loin - u_proche));
+  return log2(z);
+}
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_taille;
+  float d = texture(u_profondeur, uv).r;
+  float c = logProf(uv);
+  float somme = 0.0;
+  for (int k = 0; k < 8; k++) {
+    float a = float(k) * 0.78539816;
+    float v = logProf(uv + vec2(cos(a), sin(a)) * u_rayon / u_taille);
+    if (v != 0.0) somme += (c == 0.0) ? 100.0 : max(0.0, c - v);
+  }
+  float ombre = exp(-somme / 8.0 * 300.0 * u_force);
+  o = vec4(texture(u_couleur, uv).rgb * ombre, 1.0);
+  gl_FragDepth = d;
+}`,
 };
