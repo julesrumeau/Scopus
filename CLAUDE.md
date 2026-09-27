@@ -996,16 +996,20 @@ cadre. Mesuré ainsi à 380 px, la page tient.
 ## Soutenir
 
 Une section « Soutenir » **tout en bas du panneau**, dans tous les onglets :
-une phrase et un bouton « ♥ Soutenir sur Liberapay » (`CONFIG.soutien.url`,
-section masquée si vide), plus `.github/FUNDING.yml` (bouton « Sponsor » du
+une phrase et un bouton « ♥ Offrir un café » vers Ko-fi, avec en petit
+« ou un soutien régulier sur Liberapay » (`CONFIG.soutien`, section masquée
+si rien n'est configuré ; Liberapay seul prend le bouton), plus `.github/FUNDING.yml` (bouton « Sponsor » du
 dépôt) et une ligne du README. Rien sur l'accueil (choix de l'utilisateur),
 ni fenêtre, ni relance, ni rien de réservé aux donateurs : qui l'utilise
 souvent ne la croise qu'en faisant défiler le panneau jusqu'au bout. Pas de
 « masquer » non plus — placée là, elle ne gêne personne ; si des retours la
 trouvaient envahissante, JabRef a choisi de la faire revenir tous les six
-mois plutôt que de la masquer pour de bon. Liberapay plutôt que Ko-fi ou
-Patreon : aucune commission de la plateforme (seulement Stripe ou PayPal),
-dons sans contrepartie, l'usage du libre et d'OSM.
+mois plutôt que de la masquer pour de bon. Ko-fi pour le bouton, parce que
+l'utilisateur attend peu de dons et surtout ponctuels : Liberapay, choisi
+d'abord (aucune commission, l'usage du libre et d'OSM), ne gère pas vraiment
+le don unique (« One-time donations aren't properly supported yet », sa FAQ)
+et demande un compte au donateur. Ko-fi : don ponctuel sans compte, 0 % de
+commission sur les dons une fois le programme « Contributor » désactivé.
 
 ## Le lien partageable
 

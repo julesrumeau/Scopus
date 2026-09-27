@@ -205,10 +205,13 @@ const CONFIG = {
   },
 
   // ── Soutenir ──────────────────────────────────────────────────────────────
-  // La page de don (Liberapay : aucune commission de la plateforme, seulement
-  // les frais de Stripe ou PayPal). Vide : la section du panneau est masquée.
+  // Les pages de don. Ko-fi pour le bouton : le don ponctuel y est le geste de
+  // base, sans compte à créer (Liberapay ne gère pas vraiment le don unique et
+  // demande un compte au donateur). Liberapay en petit lien, pour qui préfère
+  // un soutien régulier. Vides toutes deux : la section est masquée.
   soutien: {
-    url: 'https://liberapay.com/julesrumeau/donate',
+    kofi: '',
+    liberapay: 'https://liberapay.com/julesrumeau/donate',
   },
 
   // ── Carte ─────────────────────────────────────────────────────────────────

@@ -622,10 +622,19 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape') basculerMenu
 // l'adresse rend l'ancien parcours — choisir une dalle, la charger, la lire en
 // 2D ou en 3D — le temps de la transition. La feuille de style retire ce qui
 // n'a pas cours dans le mode (`body[data-mode]`).
-// Soutenir : la section n'apparaît qu'avec une page de don configurée.
-if (CONFIG.soutien.url) {
-  $('lien-soutien').href = CONFIG.soutien.url;
-  $('section-soutien').hidden = false;
+// Soutenir : le bouton vers Ko-fi (don ponctuel), Liberapay en petit lien
+// dessous ; Liberapay seul, il prend le bouton. Rien de configuré : rien.
+{
+  const { kofi, liberapay } = CONFIG.soutien;
+  if (kofi || liberapay) {
+    $('lien-soutien').href = kofi || liberapay;
+    $('libelle-soutien').textContent = kofi ? 'Offrir un café' : 'Soutenir sur Liberapay';
+    if (kofi && liberapay) {
+      $('lien-liberapay').href = liberapay;
+      $('soutien-regulier').hidden = false;
+    }
+    $('section-soutien').hidden = false;
+  }
 }
 
 const MODE_VUE = !new URLSearchParams(location.search).has('dalle');

@@ -464,12 +464,14 @@
     <!-- Soutenir : tout en bas, dans tous les onglets, jamais ailleurs — ni
          fenêtre, ni relance, ni rien de réservé aux donateurs. Qui l'utilise
          souvent ne la croise qu'en faisant défiler le panneau jusqu'au bout.
-         Masquée tant que CONFIG.soutien.url est vide. -->
+         Masquée tant qu'aucune page de don n'est configurée (CONFIG.soutien). -->
     <section class="etape" id="section-soutien" hidden>
       <h2>Soutenir</h2>
       <p class="note">Scopus est gratuit, sans pub ni compte, et le restera. S'il vous sert,
         un don aide à le faire vivre.</p>
-      <a id="lien-soutien" class="bouton-soutien" href="#" target="_blank" rel="noopener"><span class="coeur" aria-hidden="true">♥</span> Soutenir sur Liberapay</a>
+      <a id="lien-soutien" class="bouton-soutien" href="#" target="_blank" rel="noopener"><span class="coeur" aria-hidden="true">♥</span> <span id="libelle-soutien">Offrir un café</span></a>
+      <p class="note" id="soutien-regulier" hidden>ou un soutien régulier sur
+        <a id="lien-liberapay" href="#" target="_blank" rel="noopener">Liberapay</a></p>
     </section>
 
     <footer class="pied">
