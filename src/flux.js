@@ -60,7 +60,7 @@ const FLUX = (() => {
     const minuteurs = new Set();
     function reessayerPlusTard(d) {
       d.echecs = (d.echecs || 0) + 1;
-      const delai = Math.min(60_000, (config.delaiReessaiMs ?? 2000) * 2 ** (d.echecs - 1));
+      const delai = Math.min(60_000, (config.delaiReessaiMs) * 2 ** (d.echecs - 1));
       const m = setTimeout(() => {
         minuteurs.delete(m);
         if (d.etat === 'echec') { d.etat = 'inconnue'; planifier(); }
@@ -274,7 +274,7 @@ const FLUX = (() => {
         // planification, sans marteler l'IGN.
         console.warn('Flux : blocs non chargés —', e.message);
         derniereErreur = deps.expliquer ? deps.expliquer(e) : e.message;
-        const m = setTimeout(() => { minuteurs.delete(m); planifier(); }, config.delaiReessaiMs ?? 2000);
+        const m = setTimeout(() => { minuteurs.delete(m); planifier(); }, config.delaiReessaiMs);
         minuteurs.add(m);
         return;
       }

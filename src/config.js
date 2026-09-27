@@ -167,11 +167,9 @@ const CONFIG = {
     // relevé : 4096 tient dans toute carte graphique WebGL2 et reste sous le
     // plafond de cellules du processeur.
     coteMaxGrille: 4096,
-    // Points gardés quand la carte graphique est refusée : le calcul de la vue
-    // se fait alors au processeur à chaque recalcul, 3,9 s pour 15 M mesurés.
-    budgetPointsProcesseur: 5_000_000,
-    // Côté maximal d'une image du MNT demandée au WMS de l'IGN.
-    pixelsMaxMnt: 5010,
+    // Délai avant de rouvrir une dalle en échec, doublé à chaque nouvel échec
+    // (plafond 60 s, flux.js).
+    delaiReessaiMs: 2000,
     // Points décompressés gardés à la fois. Sur appareil portatif, le navigateur
     // ferme un onglet trop gourmand sans prévenir.
     // Descendu un temps à 6 M, quand chaque recalcul rangeait tous les points

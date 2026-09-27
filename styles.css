@@ -882,7 +882,7 @@ input[type=range]::-moz-range-thumb {
 .rideau:hover .rideau-poignee, .rideau.tire .rideau-poignee { background: var(--accent); border-color: #fff; }
 .rideau.tire .rideau-poignee::before { color: #06202b; }
 
-/* Le même rideau sur la carte (« ?flux ») : au-dessus des volets de Leaflet
+/* Le même rideau sur la carte (vue normale) : au-dessus des volets de Leaflet
    (400 à 450), sous ses contrôles (800 et plus). Les libellés se collent au
    trait, là où se fait la comparaison. */
 .rideau-flux { z-index: 700; }

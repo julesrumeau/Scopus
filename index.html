@@ -191,13 +191,6 @@
         <input type="checkbox" id="vue-lisser" checked>
         <span>Lisser l'affichage <small>(interpolation entre cases, visible en zoomant)</small></span>
       </label>
-      <!-- Masquée pour l'instant : son effet n'a pas convaincu à l'usage. Le
-           réglage reste celui par défaut (CONFIG.relief.inclureSursol). -->
-      <label class="case" hidden>
-        <input type="checkbox" id="vue-sursol" checked>
-        <span>Compléter le sol par les retours non classés
-          <small>(ruines et tas de pierres, sous 3 m)</small></span>
-      </label>
       <div class="champ"><span>Classes du sol</span><div id="vue-classes-sol" class="classes-sol"></div></div>
       <p class="note" id="vue-etat"></p>
     </section>
@@ -598,7 +591,6 @@
 <script src="src/reseau.js"></script>
 <script src="src/cache-disque.js"></script>
 <script src="src/ign.js"></script>
-<script src="src/mnt-ign.js"></script>
 <script src="src/ortho.js"></script>
 <script src="src/grille.js"></script>
 <script src="src/copc.js"></script>

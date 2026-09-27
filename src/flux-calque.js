@@ -23,13 +23,14 @@ const CalqueFlux = L.LayerGroup.extend({
 });
 
 // Le relief de la vue sur la carte, derrière un rideau comme dans l'onglet
-// 2D : la carte Leaflet à gauche, le relief à droite. L'image arrive du
+// 2D : chaque côté porte la carte, un fond de tuiles ou une couche de relief
+// (app.js, `cotes`). L'image arrive du
 // worker déjà reprojetée au pixel de la carte (Web Mercator) : posée sur les
 // bornes de la carte, elle tombe exactement, sans le glissement vers les bords
 // qu'avait une image Lambert-93 posée sur un rectangle WGS84.
 //
-// Le côté droit est noir tant que rien n'y est calculé : un relief absent doit
-// se voir comme absent, pas comme la carte qui transparaît.
+// Un côté de relief est noir tant que rien n'y est calculé : un relief absent
+// doit se voir comme absent, pas comme la carte qui transparaît.
 const CalqueRelief = L.Layer.extend({
   onAdd(map) {
     this._carte = map;

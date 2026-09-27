@@ -2414,7 +2414,7 @@ if (MODE_VUE) (async () => {
   // le temps quand la carte ralentit. Chaque morceau de travail mesuré est
   // compté (appels, total, pire) ; les « tâches longues » sont celles que le
   // navigateur voit bloquer plus de 50 ms, mesurées ou non. Un tableau dans la
-  // console toutes les 5 s. Provisoire, comme tout ce bloc.
+  // console toutes les 5 s. Un outil de diagnostic, pas une fonction.
   const chrono = new Map();
   const noter = (nom, ms) => {
     const c = chrono.get(nom) || { appels: 0, totalMs: 0, pireMs: 0 };
@@ -2491,10 +2491,9 @@ if (MODE_VUE) (async () => {
   // affichage attendait que le calcul soit passé : gels de 0,5 à 1 s sur la
   // carte AMD, jusqu'à 11 s sous émulation, sans une ligne de script (mesuré
   // avec &chrono, API long-animation-frame).
-  // Surface au processeur, couches (SVF…) sur la carte graphique : un calcul
-  // court, qui ne fait pas geler la page à l'usage (essayé sous « &gpusvf »,
-  // aucun ralentissement ressenti), là où le rangement des points sur la carte
-  // la gelait. « &cpu » : tout au processeur ; « &gpu » : tout sur la carte,
+  // Les couches (SVF…), elles, passent par la carte graphique : un calcul
+  // court, qui ne fait pas geler la page à l'usage (essayé, aucun
+  // ralentissement ressenti), là où le rangement des points la gelait. « &cpu » : tout au processeur ; « &gpu » : tout sur la carte,
   // pour comparer.
   const params = new URLSearchParams(location.search);
   const optionsRelief = params.has('gpu') ? {} : params.has('cpu') ? { moteur: 'cpu' } : { moteur: 'cpu', couches: 'gpu' };
@@ -2512,10 +2511,9 @@ if (MODE_VUE) (async () => {
     infoRelief = { ...(await relief.pret), filPrincipal: true };
   }
   const surAppareilPortatif = surMobile();
-  let budget = surAppareilPortatif ? CONFIG.flux.budgetPointsMobile : CONFIG.flux.budgetPoints;
-  // Sans carte graphique vérifiée, chaque recalcul range tous les points au
-  // processeur (3,9 s pour 15 M, mesuré) : on en garde moins.
-  if (infoRelief.moteur === 'cpu') budget = Math.min(budget, CONFIG.flux.budgetPointsProcesseur);
+  // Le rangement des points est incrémental, dans le worker : chaque bloc n'est
+  // rangé qu'une fois, le budget n'a plus à être réduit pour lui.
+  const budget = surAppareilPortatif ? CONFIG.flux.budgetPointsMobile : CONFIG.flux.budgetPoints;
 
   let dernierEtat = null, texteRelief = '', vueCourante = null, minuteur = null;
   // Ce que porte chaque côté du rideau, comme dans l'onglet 2D : « carte »
@@ -2600,12 +2598,10 @@ if (MODE_VUE) (async () => {
     // le nuage lui-même peut forcer un calcul, pour lire la bonne surface.
     if (!forcer && !$('vue-3d').hidden) return;
     if (enCalcul) { aRefaire = true; return; }
-    // Au-delà du seuil, aucun point n'est demandé, donc aucun relief : le côté
-    // droit reste noir et le statut dit de zoomer. Le MNT de l'IGN servait ici
-    // (mnt-ign.js), retiré à l'usage : on ne savait plus si ce qu'on voyait
-    // venait de lui ou du calcul sur les points.
-    // Trop large : le côté relief reste noir, et son libellé sur le rideau dit
-    // pourquoi — plutôt qu'un avis posé au milieu de la carte.
+    // Au-delà du seuil, aucun point n'est demandé, donc aucun relief : un côté
+    // de relief reste noir, et son libellé sur le rideau dit de zoomer. (Le
+    // MNT de l'IGN y servait un temps, retiré : on ne savait plus quelle
+    // source on regardait.)
     const tropLarge = vueCourante && FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2;
     const aCalculer = ['gauche', 'droite'].filter((c) => estRelief(cotes[c]));
     for (const c of ['gauche', 'droite']) {
@@ -2955,7 +2951,6 @@ if (MODE_VUE) (async () => {
     $('val-vue-contraste').textContent = `×${contrasteFlux.toFixed(1)}`;
     planifierRelief(0);
   });
-  $('vue-sursol').addEventListener('change', (e) => { relief.reglages({ inclureSursol: e.target.checked }); planifierRelief(0); });
   // Les classes du sol s'appliquent tout de suite : les points sont dans le
   // worker, il n'y a rien à retélécharger — contrairement à l'ancien parcours
   // par dalle, qui ne gardait que ses grilles.

@@ -1,7 +1,7 @@
 // Le relief de la vue, depuis les blocs de points que flux.js livre.
 //
-// Les blocs arrivent décodés en centimètres entiers ; ils sont gardés ici — sur
-// la carte graphique quand elle est vérifiée, en mémoire sinon — et la surface
+// Les blocs arrivent décodés en centimètres entiers ; ils sont gardés ici, en
+// mémoire (sur la carte graphique avec « &gpu »), et la surface
 // de la vue se reconstruit à la demande : rangement des points dans la grille,
 // terrain (comblement, repli, lissage), surface affichée (le sol, complété par
 // le non classé là où aucun retour sol). La couche elle-même passe ensuite par
@@ -40,8 +40,9 @@ function fabriqueVueRelief() {
 
   function creer({ moteur = 'auto', couches } = {}) {
     const gpu = moteur !== 'cpu' && gpuVerifie();
-    // Couches sur la carte graphique, surface au processeur (option à l'essai,
-    // « &gpusvf ») ; sinon tout au processeur quand la surface l'est.
+    // Couches sur la carte graphique, surface au processeur (le réglage par
+    // défaut de la vue normale) ; sinon tout au processeur quand la surface
+    // l'est.
     const couchesGpu = couches === 'gpu';
     const calculCouches = gpu || couchesGpu ? {} : { moteur: 'cpu' };
     const blocs = new Map();   // cle → { emprise, origineCm, nbPoints, zminCm, zmaxCm, points, classes }

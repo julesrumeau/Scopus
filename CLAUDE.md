@@ -417,8 +417,8 @@ premier bloc, puis 3 à 5 s une fois le budget de 20 M de points atteint — à
 des blocs fins gardés d'une vue précédente et inutiles au pas courant. C'est
 la stratégie de recalcul, pas le moteur, qui est à reprendre.
 
-Sans carte graphique vérifiée, le processeur calcule, et le budget de points
-tombe à `budgetPointsProcesseur` (5 M).
+Le budget de points n'est plus réduit sans carte graphique : le rangement
+est incrémental et se fait dans le worker, au processeur, dans tous les cas.
 
 **Le calcul tourne dans un worker, et au processeur** (`relief-travailleur.js`).
 Sur le fil principal, chaque recalcul figeait la carte une à plusieurs
@@ -526,7 +526,7 @@ Au-delà du seuil de surface, c'est le libellé du rideau, côté relief, qui di
 et sa classe, `.avis-zoom`, était déjà celle de l'avis de zoom maximal de la
 carte, qu'il détournait.
 
-**Le MNT de l'IGN, écrit puis débranché** (`mnt-ign.js`). Au-delà du seuil, il donnait le relief de toute la vue ; retiré à l'usage le jour même, parce qu'on ne savait plus si ce qu'on voyait venait de lui ou du calcul sur les points. Au-delà du seuil, le côté relief reste donc noir et le statut dit de zoomer. Le module reste, testé, pour un éventuel bouche-trou clairement signalé. Ce qu'il faisait : une requête WMS
+**Le MNT de l'IGN, écrit puis débranché** (`mnt-ign.js`). Au-delà du seuil, il donnait le relief de toute la vue ; retiré à l'usage le jour même, parce qu'on ne savait plus si ce qu'on voyait venait de lui ou du calcul sur les points. Au-delà du seuil, le côté relief reste donc noir et le statut dit de zoomer. Le module a ensuite été retiré (il reste dans l'historique git, commit `90c7321`, avec ses tests) ; à reprendre seulement pour un bouche-trou clairement signalé (TODO #5). Ce qu'il faisait : une requête WMS
 `IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93` en
 `image/x-bil;bits=32` à la taille de la grille (au plus 5010 px de côté), puis
 les mêmes couches. Vérifié sur une vraie réponse : flottants
