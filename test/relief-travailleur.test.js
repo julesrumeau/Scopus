@@ -242,3 +242,18 @@ test('le worker rend le nuage 3D de la vue, comme le moteur', () => {
   assert.equal(r.n, attendu.n);
   assert.equal(r.x[5], attendu.x[5]);
 });
+
+test('le worker drape une couche sur le dernier nuage 3D', () => {
+  const ctx = chargerScripts(FICHIERS);
+  const w = travailleur(ctx.RELIEF_TRAVAILLEUR.source());
+  w.envoyer({ type: 'demarrer' });
+  const geo = ctx.VUE_GRILLE.definir({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 0.5, 0, 4096);
+  w.envoyer({ type: 'ajouter', bloc: bloc('a', 1000, 2000) });
+  w.envoyer({ type: 'calculer', id: 1, geo, couche: 'svf' });
+  w.envoyer({ type: 'nuage3d', id: 2, emprise: { xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, budget: 1e9 });
+  const n = w.recus.at(-1).n;
+  w.envoyer({ type: 'drape3d', id: 3, cle: 'svf', min: 0.8, max: 1 });
+  const r = w.recus.at(-1);
+  assert.equal(r.type, 'drape3d', r.message);
+  assert.equal(r.valeurs.length, n);
+});

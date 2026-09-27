@@ -302,8 +302,14 @@ function fabriqueVueRelief() {
       return (h >>> 0) / 4294967296;
     }
 
+    // Du dernier nuage 3D : la surface lue pour ses hauteurs, et la case de
+    // chaque point dans cette surface (−1 hors d'elle) — le drapé n'a plus
+    // qu'à lire la couche à ces cases.
+    let dernierNuage = null;   // { t, cases: Int32Array }
+
     /** Le nuage de la vue pour l'onglet 3D (spec 2026-09-27-vue-3d-design). */
     function nuage3d(emprise, budget, actifs) {
+      dernierNuage = null;
       if (gpu) return { raison: 'Nuage 3D indisponible quand tout le calcul est sur la carte graphique (&gpu).' };
       const e = { xmin: Math.round(emprise.xmin * 100), xmax: Math.round(emprise.xmax * 100), ymin: Math.round(emprise.ymin * 100), ymax: Math.round(emprise.ymax * 100) };
       const dedans = [...blocs].filter(([cle, b]) => (!actifs || actifs.has(cle)) && VUE_GRILLE.coupe(b.emprise, { emprise }));
@@ -342,17 +348,20 @@ function fabriqueVueRelief() {
       const origine = [e.xmin / 100, e.ymin / 100, zminCm / 100];
       const X = new Float32Array(n), Y = new Float32Array(n), Z = new Float32Array(n), H = new Float32Array(n);
       const t = memoCouche && memoCouche.t;
+      const cases = new Int32Array(n).fill(-1);
       const compte = new Map();
       for (let i = 0; i < n; i++) {
         X[i] = (xs[i] - e.xmin) / 100; Y[i] = (ys[i] - e.ymin) / 100; Z[i] = (zs[i] - zminCm) / 100;
         compte.set(cls[i], (compte.get(cls[i]) || 0) + 1);
         if (t) {
           const cx = Math.floor((xs[i] / 100 - t.emprise.xmin) / t.pas), cy = Math.floor((ys[i] / 100 - t.emprise.ymin) / t.pas);
-          if (cx >= 0 && cy >= 0 && cx < t.W && cy < t.H && t.valide[cy * t.W + cx]) {
-            H[i] = zs[i] / 100 - (t.mnt[cy * t.W + cx] + t.origine[2]);
+          if (cx >= 0 && cy >= 0 && cx < t.W && cy < t.H) {
+            cases[i] = cy * t.W + cx;
+            if (t.valide[cases[i]]) H[i] = zs[i] / 100 - (t.mnt[cases[i]] + t.origine[2]);
           }
         }
       }
+      if (t) dernierNuage = { t, cases };
       return {
         n, x: X, y: Y, z: Z, cls: cls.slice(0, n), intensite: its.slice(0, n), hauteur: H,
         origine, emprise: { ...emprise }, zmin: 0, zmax: (zmaxCm - zminCm) / 100,
@@ -360,8 +369,37 @@ function fabriqueVueRelief() {
       };
     }
 
+    /**
+     * La couche `cle` drapée sur le dernier nuage 3D : sa valeur à la case de
+     * chaque point, ramenée dans [0, 1] par l'étirement (min, max) de l'image
+     * du même côté — les deux vues restent la même image. Sans valeur ou hors
+     * de la surface : 0, le fond de l'échelle (convention de
+     * RELIEF.valeurParPoint). La couche vient du mémo, ou se calcule sur la
+     * surface du nuage.
+     */
+    function drape3d(cle, reglagesCouche, min, max) {
+      if (!dernierNuage) return null;
+      const { t, cases } = dernierNuage;
+      let c = null;
+      if (memoCouche && memoCouche.t === t) {
+        const k = `${cle}|${JSON.stringify(reglagesCouche || {})}`;
+        if (!memoCouche.couches.has(k)) memoCouche.couches.set(k, calculerCouche(t, cle, reglagesCouche));
+        c = memoCouche.couches.get(k);
+      } else {
+        c = calculerCouche(t, cle, reglagesCouche);
+      }
+      const out = new Float32Array(cases.length);
+      if (!c.valeurs) return out;   // une couche en couleurs (ombrage coloré) ne se drape pas
+      const etendue = max - min || 1;
+      for (let i = 0; i < cases.length; i++) {
+        const v = cases[i] < 0 ? NaN : c.valeurs[cases[i]];
+        out[i] = Number.isFinite(v) ? Math.min(1, Math.max(0, (v - min) / etendue)) : 0;
+      }
+      return out;
+    }
+
     return {
-      ajouter, retirer, reglages, surface, calculer, statistiques, classes, lire, nuage3d,
+      ajouter, retirer, reglages, surface, calculer, statistiques, classes, lire, nuage3d, drape3d,
       taille: () => blocs.size,
       moteur: gpu ? 'gpu' : 'cpu',
       coteMax: gpu ? Math.min(CONFIG.flux.coteMaxGrille, GPU_RELIEF.coteMax()) : CONFIG.flux.coteMaxGrille,

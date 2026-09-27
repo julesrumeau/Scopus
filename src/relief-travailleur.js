@@ -71,6 +71,9 @@ function corpsTravailleurRelief() {
         if (!r || r.raison) { self.postMessage({ type: 'nuage3d', id: m.id, vide: true, raison: (r && r.raison) || '' }); return; }
         self.postMessage({ type: 'nuage3d', id: m.id, ...r },
           [r.x.buffer, r.y.buffer, r.z.buffer, r.cls.buffer, r.intensite.buffer, r.hauteur.buffer]);
+      } else if (m.type === 'drape3d') {
+        const valeurs = moteur.drape3d(m.cle, m.reglagesCouche, m.min, m.max);
+        self.postMessage({ type: 'drape3d', id: m.id, valeurs }, valeurs ? [valeurs.buffer] : []);
       } else if (m.type === 'lire') {
         self.postMessage({ type: 'lire', id: m.id, point: moteur.lire(m.x, m.y, m.couche) });
       } else if (m.type === 'calculer') {
@@ -158,6 +161,7 @@ const RELIEF_TRAVAILLEUR = (() => {
       if (m.type === 'erreur') a.ko(new Error(m.message));
       else if (m.type === 'lire') a.ok(m.point);
       else if (m.type === 'nuage3d') a.ok(m.vide ? { vide: true, raison: m.raison } : m);
+      else if (m.type === 'drape3d') a.ok(m.valeurs);
       else a.ok(m.vide ? null : m);
     };
     // Une erreur non rattrapée dans le worker : tout ce qui attend doit
@@ -192,6 +196,14 @@ const RELIEF_TRAVAILLEUR = (() => {
           const id = ++prochain;
           attente.set(id, { ok, ko });
           w.postMessage({ type: 'calculer', id, geo, couche });
+        });
+      },
+      /** Une couche drapée sur le dernier nuage 3D, valeurs dans [0, 1] ; `null` sans nuage. */
+      drape3d(cle, reglagesCouche, min, max) {
+        return new Promise((ok, ko) => {
+          const id = ++prochain;
+          attente.set(id, { ok, ko });
+          w.postMessage({ type: 'drape3d', id, cle, reglagesCouche, min, max });
         });
       },
       /** Le nuage 3D de l'emprise, au plus `budget` points ; `{ vide, raison }` sinon. */
@@ -235,6 +247,7 @@ const RELIEF_TRAVAILLEUR = (() => {
       reglages: (r) => moteur.reglages(r),
       calculer: async (geo, couche) => moteur.calculer(geo, couche),
       lire: async (x, y, couche) => moteur.lire(x, y, couche),
+      drape3d: async (cle, reglagesCouche, min, max) => moteur.drape3d(cle, reglagesCouche, min, max),
       nuage3d: async (emprise, budget, actifs) => {
         const r = moteur.nuage3d(emprise, budget, actifs ? new Set(actifs) : undefined);
         return !r || r.raison ? { vide: true, raison: (r && r.raison) || '' } : r;

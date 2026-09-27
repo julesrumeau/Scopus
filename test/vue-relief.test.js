@@ -353,3 +353,23 @@ test('nuage3d : hauteur au-dessus du sol, intensité et classe suivent leur poin
   assert.ok(Math.abs(r.hauteur[i] - 2) < 0.05, `${r.hauteur[i]}`);
   assert.ok(k > 0);
 });
+
+test('drape3d : la valeur étirée de la couche à la case de chaque point', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  assert.equal(m.drape3d('svf', undefined, 0, 1), null);   // pas de nuage
+  m.ajouter(bloc('a', 1000, 2000));
+  const c = m.calculer(geo, 'svf');
+  const r = m.nuage3d({ xmin: 1010, xmax: 1050, ymin: 2010, ymax: 2050 }, 1e9);
+  const d = m.drape3d('svf', undefined, c.min, c.max);
+  assert.equal(d.length, r.n);
+  for (const i of [0, 17, 999, r.n - 1]) {
+    const x = r.origine[0] + r.x[i], y = r.origine[1] + r.y[i];
+    const k = Math.floor((y - geo.emprise.ymin) / geo.pas) * geo.W + Math.floor((x - geo.emprise.xmin) / geo.pas);
+    const v = c.valeurs[k];
+    const attendu = Number.isFinite(v) ? Math.min(1, Math.max(0, (v - c.min) / (c.max - c.min))) : 0;
+    assert.ok(Math.abs(d[i] - attendu) < 1e-6, `${i} : ${d[i]} ≠ ${attendu}`);
+  }
+  // Une couche pas encore calculée : calculée à la demande, sur la même surface.
+  const micro = m.drape3d('microrelief', undefined, -0.1, 0.1);
+  assert.equal(micro.length, r.n);
+});
