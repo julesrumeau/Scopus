@@ -204,6 +204,13 @@ const CONFIG = {
     fractionCoupe: 0.68,
   },
 
+  // ── Soutenir ──────────────────────────────────────────────────────────────
+  // La page de don (Liberapay : aucune commission de la plateforme, seulement
+  // les frais de Stripe ou PayPal). Vide : la section du panneau est masquée.
+  soutien: {
+    url: 'https://liberapay.com/julesrumeau/donate',
+  },
+
   // ── Carte ─────────────────────────────────────────────────────────────────
   carte: {
     // Vue d'ouverture : **la France entière**, avec ses chantiers LiDAR.

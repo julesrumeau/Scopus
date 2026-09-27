@@ -622,6 +622,12 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape') basculerMenu
 // l'adresse rend l'ancien parcours — choisir une dalle, la charger, la lire en
 // 2D ou en 3D — le temps de la transition. La feuille de style retire ce qui
 // n'a pas cours dans le mode (`body[data-mode]`).
+// Soutenir : la section n'apparaît qu'avec une page de don configurée.
+if (CONFIG.soutien.url) {
+  $('lien-soutien').href = CONFIG.soutien.url;
+  $('section-soutien').hidden = false;
+}
+
 const MODE_VUE = !new URLSearchParams(location.search).has('dalle');
 // « &debug » ou « &chrono » : les chiffres de diagnostic (statut, HUD 3D).
 const DIAGNOSTIC = ['debug', 'chrono'].some((p) => new URLSearchParams(location.search).has(p));
