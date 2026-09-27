@@ -66,19 +66,10 @@
 </section>
 
 <header class="barre">
-  <!-- Sous 900 px, le panneau est un tiroir replié par défaut — la moitié de
-       l'écran pour des curseurs de seuils ne laissait plus de place pour ce
-       qu'on est venu voir. Ce bouton n'existe visuellement qu'à cette
-       largeur (`.btn-menu` masqué au-delà par CSS). -->
-  <button id="btn-menu" class="btn-menu" aria-label="Ouvrir le panneau" aria-expanded="false">☰</button>
   <h1>Scopus</h1>
   <span class="sous-titre">LiDAR HD · lecture du relief</span>
   <span id="etat" class="etat">Cliquez une dalle sur la carte</span>
 </header>
-
-<!-- Estompage derrière le tiroir ouvert : un tapotement dessus le referme.
-     N'existe visuellement que sous 900 px, comme le tiroir lui-même. -->
-<div id="fond-panneau" class="fond-panneau" hidden></div>
 
 <main class="grille">
 
@@ -94,7 +85,12 @@
     L'analyse, elle, vaut dans les deux vues — on lance une détection depuis la
     carte comme depuis la 3D, et la liste sert aux deux.
   -->
-  <aside class="panneau" id="panneau" data-vue="carte">
+  <aside class="panneau" id="panneau" data-vue="carte" data-feuille="replie">
+    <!-- Sous 600 px, le panneau est une feuille tirée du bas (trois hauteurs) :
+         cette poignée la tire, ou d'un appui passe à la hauteur suivante.
+         N'existe visuellement qu'à cette largeur (styles.css). -->
+    <div class="poignee-feuille" id="poignee-panneau" role="button" tabindex="0"
+         aria-label="Agrandir ou réduire le panneau" aria-expanded="false"></div>
 
     <!-- Nuage en mémoire. Épinglé au-dessus des sections, donc visible dans les
          deux onglets : c'est le seul endroit qui dise ce qui est chargé, par
@@ -471,6 +467,9 @@
       Visites comptées anonymement, sans cookie.
     </footer>
   </aside>
+  <!-- De 600 à 900 px, le panneau est latéral et se replie par cette
+       languette, collée à son bord droit (styles.css). -->
+  <button id="languette-panneau" class="languette-panneau" aria-label="Replier le panneau" aria-expanded="true">◀</button>
 
   <section class="scene">
     <!--

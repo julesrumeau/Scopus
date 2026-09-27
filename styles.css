@@ -47,30 +47,9 @@ html, body {
   border-bottom: 1px solid var(--bord);
   height: 46px;
 }
-/* Masqué par défaut : n'apparaît que sous 900 px, où le panneau devient un
-   tiroir (voir le media query plus bas). */
-.btn-menu {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  /* Sans ça, un enfant flex rétrécit sous sa largeur posée dès que ses voisins
-     (titre, sous-titre, état) manquent de place — mesuré à 380 px : 30 px
-     tombait à 15. Le bouton doit garder sa taille tactile quoi qu'il arrive. */
-  flex-shrink: 0;
-  padding: 0;
-  background: var(--fond-3);
-  border: 1px solid var(--bord);
-  border-radius: 6px;
-  color: var(--texte);
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-  align-self: center;
-}
-/* Masqué par défaut, comme `.btn-menu` : n'existe que sous 900 px. */
-.fond-panneau { display: none; }
+/* Poignée de la feuille (sous 600 px) et languette du panneau latéral (600 à
+   900 px) : masquées au-delà, où le panneau est une colonne fixe. */
+.poignee-feuille, .languette-panneau { display: none; }
 .barre h1 {
   margin: 0;
   font-size: 17px;
@@ -773,45 +752,107 @@ input[type=range]::-moz-range-thumb {
    vrai problème externe (IGN indisponible), pas une simple explication. */
 .avis-panne { border-left-color: var(--alerte); }
 
+/* ── Le panneau sous 900 px ────────────────────────────────────────────────
+   Il ne partage plus l'écran avec la scène (un empilement 45 %/55 % laissait
+   la carte écrasée) : il se pose par-dessus, hors du flux de la grille, qui
+   repasse à une colonne. Et il est **non modal** : la carte reste visible et
+   utilisable à côté ou au-dessus, pour voir l'effet d'un réglage pendant
+   qu'on le fait. Le tiroir d'avant (☰, 85 % de l'écran, fond assombri)
+   obligeait à le refermer pour voir ce qu'on venait de régler — retours
+   d'usage. Deux formes, comme Google Maps ou Komoot d'un côté, Géoportail ou
+   osm.org de l'autre (NN/G, Material Design : « bottom sheet », « side
+   sheet ») : */
 @media (max-width: 900px) {
-  /* Sous 900 px, le panneau (380 px) ne laisse plus de place à la scène — un
-     empilement 45 %/55 % essayé d'abord ne réglait rien, la carte comme le
-     nuage restant écrasés sur une bande de quelques centimètres. Le panneau
-     devient donc un tiroir hors du flux de la grille (`position: fixed`),
-     qui se pose *par-dessus* la scène au lieu de partager l'écran avec elle :
-     `.grille` repasse à une seule colonne, entièrement pour la scène. */
   .grille { grid-template-columns: 1fr; }
-  .btn-menu { display: flex; }
-
-  /* Fermé par défaut, glissé hors écran plutôt que masqué par `hidden` : un
-     `display: none` empêcherait toute transition d'ouverture. Sous l'accueil,
-     le voile d'attente et les alertes (2000 et plus), au-dessus de la scène
-     et du rideau d'arrière-plan. */
   .panneau {
     position: fixed;
+    z-index: 1500;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* 600 à 900 px (tablette, téléphone couché) : un panneau latéral, replié
+   d'une languette collée à son bord droit. Ouvert par défaut : la carte en
+   garde plus de la moitié. */
+@media (min-width: 601px) and (max-width: 900px) {
+  .panneau {
     top: 46px;
     left: 0;
     bottom: 0;
-    width: min(85vw, 380px);
+    width: min(85vw, 340px);
     border-right: 1px solid var(--bord);
-    z-index: 1500;
-    transform: translateX(-100%);
     transition: transform 0.22s ease;
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
   }
-  .panneau.ouvert { transform: translateX(0); }
-
-  /* Capte le clic pour refermer le tiroir et assombrit la scène pendant
-     qu'il est ouvert. */
-  .fond-panneau:not([hidden]) {
-    display: block;
+  .panneau.replie { transform: translateX(-100%); }
+  .languette-panneau {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     position: fixed;
-    top: 46px;
+    top: 50%;
+    transform: translateY(-50%);
+    left: min(85vw, 340px);
+    z-index: 1500;
+    width: 26px;
+    height: 56px;
+    padding: 0;
+    background: var(--fond-2);
+    border: 1px solid var(--bord);
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    color: var(--texte);
+    font-size: 13px;
+    cursor: pointer;
+    box-shadow: 4px 0 12px rgba(0, 0, 0, 0.35);
+    transition: left 0.22s ease;
+  }
+  .panneau.replie ~ .languette-panneau { left: 0; }
+}
+
+/* Sous 600 px (téléphone debout) : une feuille tirée du bas, trois
+   hauteurs. Repliée, elle montre la section principale de l'onglet — les
+   listes Gauche / Droite sur la carte, les couleurs en 3D — : l'action la
+   plus fréquente ne demande rien d'ouvrir. */
+:root { --feuille-repliee: 136px; }
+@media (max-width: 600px) {
+  .panneau {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 1400;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--bord);
+    border-radius: 14px 14px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    transition: height 0.22s ease;
+  }
+  .panneau > * { flex-shrink: 0; }
+  .panneau[data-feuille="replie"] { height: var(--feuille-repliee); overflow: hidden; }
+  .panneau[data-feuille="mi"] { height: 50dvh; }
+  .panneau[data-feuille="plein"] { height: calc(100dvh - 46px); }
+  .panneau.tiree { transition: none; }
+  /* La section principale de l'onglet en tête, sous la poignée. */
+  #section-vue, #section-affichage, #section-2d { order: -1; }
+  .poignee-feuille {
+    display: block;
+    order: -2;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    height: 22px;
+    background: var(--fond-2);
+    cursor: grab;
+    touch-action: none;
+  }
+  .poignee-feuille::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 4px;
+    margin: 9px auto 0;
+    border-radius: 2px;
+    background: var(--texte-2);
+    opacity: 0.6;
   }
 }
 
@@ -852,7 +893,8 @@ input[type=range]::-moz-range-thumb {
 .rideau::before {
   content: "";
   position: absolute;
-  left: 10px; top: 0; bottom: 0;
+  /* Centré, quelle que soit la largeur de la bande (44 px au doigt). */
+  left: calc(50% - 1px); top: 0; bottom: 0;
   width: 2px;
   background: #dbe1ea;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
@@ -934,6 +976,7 @@ select:focus { outline: 1px solid var(--accent); }
    `hidden` que `masquerAccueil()` pose, sur le même principe que `data-vue`. */
 #accueil:not([hidden]) ~ .barre,
 #accueil:not([hidden]) ~ .grille .panneau,
+#accueil:not([hidden]) ~ .grille .languette-panneau,
 #accueil:not([hidden]) ~ .grille .onglets {
   visibility: hidden;
 }
@@ -1072,6 +1115,22 @@ select:focus { outline: 1px solid var(--accent); }
 
 /* Fenêtre basse : la carte perd du confort, pas de contenu — il n'y a plus de
    figure à céder, seulement moins de respiration autour du texte. */
+/* Téléphone : le sous-titre passait sur deux lignes sous la barre de titre,
+   et l'aide de la barre des onglets en prenait quatre ou cinq (~110 px de
+   carte en moins) — mesuré à 380 px. Les gestes se découvrent au doigt. */
+@media (max-width: 600px) {
+  .sous-titre, #aide-vue { display: none; }
+  /* L'aide poussait « Partager » à droite ; masquée, c'est lui qui s'y cale. */
+  .onglets .partage { margin-left: auto; }
+}
+/* Au doigt, une bande de 22 px se rate : 44 px, la taille d'une cible tactile. */
+@media (pointer: coarse) {
+  .rideau { width: 44px; margin-left: -22px; }
+  /* Les libellés se posent contre le trait, pas contre la bande élargie. */
+  .rideau-flux-libelle.gauche { right: 38px; }
+  .rideau-flux-libelle.droite { left: 38px; }
+}
+
 @media (max-height: 760px) {
   .accueil-boite { gap: 10px; padding: 20px 24px; }
 }
