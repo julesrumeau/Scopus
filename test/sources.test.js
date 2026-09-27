@@ -116,18 +116,21 @@ test('aucun module ES ne s’est glissé dans les sources', () => {
   assert.ok(!/type="module"/.test(html), 'index.html : type="module" interdit');
 });
 
-test('la section « Point sélectionné » précède « Affichage » dans le panneau', () => {
-  // Une section sans `data-vue`, ou commune aux deux onglets comme
-  // `data-vue="2d 3d"`, s'empile dans l'ordre du HTML — rien ne la
-  // repositionne selon l'onglet actif. `section-affichage` (3D seule) est
-  // haute — cinq boutons, deux curseurs, une légende —, donc la placer avant
-  // « Point sélectionné » pousse cette dernière bien plus bas en 3D qu'en 2D,
-  // où rien ne la précède : la section semblait changer de place selon
-  // l'onglet. Régression du 21 août 2026, corrigée en réordonnant le HTML.
+test('chaque onglet ouvre sur sa section principale, puis Point sélectionné et Mesure', () => {
+  // Les sections s'empilent dans l'ordre du HTML, quel que soit l'onglet.
+  // Août 2026 : « Point sélectionné » semblait changer de place entre 2D et
+  // 3D, Affichage (3D seule) la précédant. Septembre 2026, retour
+  // d'usage : sur la carte, Relief précède « Point sélectionné » et en 3D
+  // Affichage la suivait — l'ordre différait d'un onglet à l'autre. La règle
+  // retenue : la section principale de chaque onglet (Relief, Affichage,
+  // la 2D) d'abord, puis « Point sélectionné », puis « Mesure ».
   const html = readFileSync(fileURLToPath(new URL('index.html', RACINE)), 'utf8');
-  const iSelection = html.indexOf('id="section-selection"');
-  const iAffichage = html.indexOf('id="section-affichage"');
-  assert.ok(iSelection > -1 && iAffichage > -1, 'les deux sections doivent exister');
-  assert.ok(iSelection < iAffichage,
-    'section-selection doit précéder section-affichage dans index.html');
+  const i = (id) => html.indexOf(`id="${id}"`);
+  for (const id of ['section-vue', 'section-affichage', 'section-2d', 'section-selection', 'section-mesure']) {
+    assert.ok(i(id) > -1, `${id} doit exister`);
+  }
+  for (const principale of ['section-vue', 'section-affichage', 'section-2d']) {
+    assert.ok(i(principale) < i('section-selection'), `${principale} doit précéder section-selection`);
+  }
+  assert.ok(i('section-selection') < i('section-mesure'), 'section-selection doit précéder section-mesure');
 });
