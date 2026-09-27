@@ -153,12 +153,15 @@ masquée : son effet n'a pas convaincu à l'usage. Le réglage par défaut
 (`CONFIG.relief.inclureSursol`, activé) s'applique toujours. À vérifier sur
 une ruine connue avant de la rendre, ou de la retirer pour de bon.
 
-### #4 — Le retour de la 3D
+### #4 — La 3D qui télécharge (étape 2)
 
-Masquée pendant le chantier du relief piloté par la vue (plan 3). Elle doit
-revenir sur les points que garde le worker, avant toute fusion dans `main`.
-À garder en tête : la carte graphique employée par un worker fait geler la
-page (§ « Le calcul de la vue ») — la 3D dessine, elle, sur le fil principal.
+L'étape 1 est faite (27 septembre 2026, voir CLAUDE.md, « La 3D de la
+vue ») : l'onglet 3D montre le nuage de la zone vue sur la carte, avec les
+points déjà chargés. Reste que la **caméra 3D pilote le téléchargement** :
+blocs les plus gros à l'écran d'abord (taille projetée, comme Potree), du
+fin près de la caméra et du grossier au loin, et la « fourchette » de
+l'utilisateur comme seuil d'hystérésis pour ne pas retélécharger au moindre
+mouvement. À faire après usage de l'étape 1.
 
 ### #5 — Un relief de secours rapide, clairement signalé
 

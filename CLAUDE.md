@@ -535,6 +535,52 @@ grilles du projet), `-9999` hors couverture. Mesuré : 548 km² en 2,4 s, résea
 compris, sans aucune requête de points. `RESEAU.recuperer` rend un
 `Uint8Array`, parfois vue d'un tampon plus grand : la lecture en tient compte.
 
+## La 3D de la vue
+
+L'onglet 3D de la vue normale montre en nuage de points **ce que la carte
+affichait** au moment d'y passer, sans rien télécharger de plus : le worker
+du relief garde déjà les points (`relief-travailleur.js`), il en tire le
+nuage (`VUE_RELIEF.nuage3d`). Conception : `docs/superpowers/specs/2026-09-27-vue-3d-design.md`,
+fondée sur une veille de Potree, Giro3D (successeur d'iTowns, avec une
+démonstration sur 180 dalles LiDAR HD) et maplibre-gl-lidar.
+
+- **Quels points** : ceux des blocs que la vue demande (`flux.voulues()`),
+  tombant dans l'emprise de la carte — bord gauche et bas compris, droit et
+  haut exclus, pour qu'aucun point ne soit compté deux fois entre deux
+  emprises voisines.
+- **Un plafond** (5 M, 2 M sur téléphone ; curseur de 1 à 20 M). Au-delà,
+  chaque point est gardé avec la probabilité `plafond / total`, tirée d'un
+  **hachage de ses centimètres** : même vue, mêmes points — un aller-retour
+  ne fait pas scintiller le nuage — et une densité régulière partout (chaque
+  quart d'emprise reçoit 20 à 30 % des points, vérifié).
+- **Figé en 3D.** Revenir en 3D sans que la carte ait bougé garde le même
+  nuage, sans voile ; sinon l'ancien est libéré avant que le nouveau soit
+  bâti — jamais deux à la fois. Rien de chargé : « Zoomez sur la carte ».
+- **Le relief de la carte est en pause pendant qu'on est en 3D**, repris au
+  retour. Le calculer quand même faisait attendre le nuage derrière des
+  images que personne ne voyait (plus de 15 s en émulation) : le worker
+  traite ses demandes l'une après l'autre.
+- **Couleurs** : la hauteur au-dessus du sol vient avec le nuage (lue dans
+  la dernière surface calculée) ; le relief drapé est calculé par le worker
+  (`drape3d`), avec l'étirement de la dernière image du même côté du
+  rideau — les deux vues restent la même image. L'intensité suit désormais
+  les points jusqu'au worker.
+- **Sélection et mesure** visent le nuage (`pointDuNuage`) ; sans grille de
+  dalle, il n'y a plus d'enveloppe de repli.
+
+**L'ombrage de profondeur (EDL)**, activé par défaut comme chez Potree et
+Giro3D (`CONFIG.rendu.edl`, force 1 et rayon 1,4 pixel, ceux de Potree) : le
+nuage se rend dans une texture, puis une passe plein écran assombrit chaque
+pixel selon ce que ses huit voisins ont de plus proche, en log2 de la
+profondeur de vue (Boucheny, 2009). La profondeur est réécrite telle
+quelle : sélection et mesure gardent leur test de profondeur. Sur un nuage
+synthétique, un muret de 50 cm ressort en trait net ; aucune erreur GL, et
+les textures suivent la taille du canevas.
+
+Étape 2, non faite (TODO #4) : que la caméra 3D pilote elle-même le
+téléchargement, blocs les plus gros à l'écran d'abord (taille projetée, à la
+Potree), avec la « fourchette » de l'utilisateur en hystérésis.
+
 ## La carte
 
 La grille des dalles n'est pas téléchargée, elle est **calculée**. Une dalle est
@@ -2322,7 +2368,7 @@ masquée ».
 | Borne de zoom de la carte | ✅ |
 | Vue d'ouverture sur la France entière | ✅ |
 | Lien partageable | ✅ — la vue, au format osm.org (`#map=zoom/lat/lon`, + angles en 3D) ; voir « Le lien partageable » |
-| Relief piloté par la vue | ✅ vue normale (plans 1 à 3) : relief de ce qui est à l'écran, rideau carte / relief, panneau « Relief » ; ancienne interface derrière `?dalle` ; sélection, mesure, info-bulle et réglages du SVF sur la carte ; 3D et relief de secours dans TODO (#4, #5) |
+| Relief piloté par la vue | ✅ vue normale (plans 1 à 3) : relief de ce qui est à l'écran, rideau carte / relief, panneau « Relief » ; ancienne interface derrière `?dalle` ; sélection, mesure, info-bulle et réglages du SVF sur la carte ; 3D du nuage de la vue, avec EDL ; relief de secours et 3D qui télécharge dans TODO (#4, #5) |
 
 ## Jalon de publication
 
