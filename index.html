@@ -157,7 +157,16 @@
     <!-- ─── Relief de la vue : la vue normale (sans « ?dalle ») ──────────── -->
     <section class="etape" data-vue="carte" id="section-vue">
       <h2>Relief</h2>
-      <label class="champ"><span>Couche</span><select id="vue-couche"></select></label>
+      <!-- Un côté du rideau chacun, comme dans l'onglet 2D : « Carte » (la carte
+           Leaflet, avec son propre fond) ou une couche de relief. -->
+      <div class="deux-cotes">
+        <label class="champ"><span>Gauche</span><select id="vue-gauche"></select></label>
+        <label class="champ"><span>Droite</span><select id="vue-droite"></select></label>
+      </div>
+      <div class="rangee">
+        <button id="vue-echanger" class="secondaire" title="Permuter les deux côtés">⇄ Échanger</button>
+        <button id="vue-rideau-centre" class="secondaire" title="Remettre le rideau au milieu">Rideau au centre</button>
+      </div>
       <p class="note" id="vue-aide"></p>
       <!-- Propres au balayage d'horizons : SVF et ouvertures seulement. -->
       <div id="vue-svf-reglages">

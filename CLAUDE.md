@@ -491,6 +491,16 @@ couleurs directement (`RELIEF.ombrageRGB`), reprojetées par
 `VUE_IMAGE.peindreRGBA`, sans palette ni contraste. L'ombrage gris ne l'est
 pas : sur une grille au pixel, il sortait pâle et peu lisible.
 
+**Deux côtés, comme en 2D.** Chaque côté du rideau porte soit « Carte » (la
+carte Leaflet, qui remplace ici la photo aérienne, avec son propre choix de
+fond), soit une couche de relief ; par défaut la carte à gauche et le SVF à
+droite. `CalqueRelief` a un volet par côté, découpé à la position du rideau
+(le droit garde ce qui est à droite de la limite, le gauche le reste), avec
+son fond noir ; un côté « Carte » a son volet masqué. Les deux couches se
+calculent sur la même surface, rangée une fois : le worker garde plusieurs
+couches par surface (clé et réglages), et un aller-retour du sélecteur ou
+« Échanger » ne refait rien. L'info-bulle lit la couche du côté survolé.
+
 **Les outils de la 2D sur la carte.** En vue normale, la barre de modes
 (déplacement, sélection, mesure), « Point sélectionné » et la mesure en
 chaîne marchent sur la carte, avec les mêmes sections et le même tableau

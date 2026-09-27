@@ -2507,7 +2507,16 @@ if (MODE_VUE) (async () => {
   // processeur (3,9 s pour 15 M, mesuré) : on en garde moins.
   if (infoRelief.moteur === 'cpu') budget = Math.min(budget, CONFIG.flux.budgetPointsProcesseur);
 
-  let dernierEtat = null, texteRelief = '', vueCourante = null, coucheFlux = 'svf', minuteur = null;
+  let dernierEtat = null, texteRelief = '', vueCourante = null, minuteur = null;
+  // Ce que porte chaque côté du rideau, comme dans l'onglet 2D : « carte »
+  // (la carte Leaflet, qui remplace ici la photo aérienne) ou une couche de
+  // relief. Par défaut, la carte à gauche et le Sky-View Factor à droite.
+  const cotes = { gauche: 'carte', droite: 'svf' };
+  // Les couches de l'onglet 2D, fonds de carte à part (la carte Leaflet les
+  // porte, avec son propre choix de fond) : relief.js, plus l'ombrage coloré.
+  // L'ombrage gris n'y est pas : sur une grille au pixel, il sortait pâle.
+  const COUCHES_VUE = CHOIX_2D.filter((c) => c.cle !== PHOTO && c.cle !== PLAN && c.cle !== 'ombrage');
+  const libelleCouche = (cle) => (cle === 'carte' ? 'Carte' : COUCHES_VUE.find((c) => c.cle === cle).libelle);
   // Le statut dit à l'utilisateur où en est son relief ; le détail chiffré
   // (surface, dalles, blocs, points, durées) ne sert qu'au diagnostic, avec
   // « &debug » ou « &chrono ».
@@ -2571,9 +2580,12 @@ if (MODE_VUE) (async () => {
     // Trop large : le côté relief reste noir, et son libellé sur le rideau dit
     // pourquoi — plutôt qu'un avis posé au milieu de la carte.
     const tropLarge = vueCourante && FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2;
-    reliefCalque.definirLibelle(tropLarge ? 'Zoomez pour voir le relief' : COUCHES_VUE.find((x) => x.cle === coucheFlux).libelle);
-    if (!vueCourante || tropLarge) {
-      reliefCalque.vider();
+    const aCalculer = ['gauche', 'droite'].filter((c) => cotes[c] !== 'carte');
+    for (const c of ['gauche', 'droite']) {
+      reliefCalque.definirLibelle(c, tropLarge && cotes[c] !== 'carte' ? 'Zoomez pour voir le relief' : libelleCouche(cotes[c]));
+    }
+    if (!vueCourante || tropLarge || !aCalculer.length) {
+      for (const c of aCalculer) reliefCalque.vider(c);
       texteRelief = '';
       majStatut();
       return;
@@ -2590,26 +2602,31 @@ if (MODE_VUE) (async () => {
       const pb = carte.map.getPixelBounds();
       const ecran = { x0: pb.min.x, y0: pb.min.y, W: Math.round(pb.max.x - pb.min.x), H: Math.round(pb.max.y - pb.min.y), z };
       const bornes = L.latLngBounds(carte.map.unproject(pb.getBottomLeft(), z), carte.map.unproject(pb.getTopRight(), z));
-      const r = await relief.image(geo, coucheFlux, ecran, lutCouche(coucheFlux), {
-        contraste: contrasteFlux, lisser: lisserFlux, actifs: [...flux.voulues()],
-        couche: { svfDirections, svfRayonM },
-      });
+      const actifs = [...flux.voulues()];
       erreurRelief = '';
-      if (!r) { reliefCalque.vider(); texteRelief = ''; }
-      else {
-        reliefCalque.afficher(r, bornes);
-        // Un point cherché par ses coordonnées avant que le relief n'y soit
-        // calculé : son altitude arrive avec cette image.
-        if (selectionActuelle && selectionActuelle.sol == null) {
-          const pt = await relief.lire(selectionActuelle.x, selectionActuelle.y);
-          if (pt?.altitude != null) afficherSelection(selectionActuelle.x, selectionActuelle.y, pt.altitude, pt.hauteur);
-        }
-        texteRelief = `relief ${(r.duree / 1000).toFixed(2)} s (${r.moteurSurface}${r.moteurCouche && r.moteurCouche !== r.moteurSurface ? ' + ' + r.moteurCouche : ''}`
+      const textes = [];
+      // Un côté après l'autre : la surface est rangée une fois pour les deux,
+      // seule la couche change (gardée par le worker d'un calcul à l'autre).
+      for (const c of aCalculer) {
+        const cle = cotes[c];
+        const r = await relief.image(geo, cle, ecran, lutCouche(cle), {
+          contraste: contrasteFlux, lisser: lisserFlux, actifs, couche: { svfDirections, svfRayonM },
+        });
+        if (cotes[c] !== cle) continue;   // le côté a changé pendant le calcul
+        if (!r) { reliefCalque.vider(c); continue; }
+        reliefCalque.afficher(c, r, bornes);
+        textes.push(`${c} ${(r.duree / 1000).toFixed(2)} s (${r.moteurSurface}${r.moteurCouche && r.moteurCouche !== r.moteurSurface ? ' + ' + r.moteurCouche : ''}`
           + `${infoRelief.filPrincipal ? ', fil principal' : ''} ; surface ${(r.dureeSurface / 1000).toFixed(2)} s`
-          + `, couche ${r.recalcul ? (r.dureeCouche / 1000).toFixed(2) + ' s' : 'gardée'}, image ${((r.dureeImage || 0) / 1000).toFixed(2)} s)`
-          + ` · ${geo.W}×${geo.H} cases de ${geo.pas.toFixed(2)} m`;
+          + `, couche ${r.recalcul ? (r.dureeCouche / 1000).toFixed(2) + ' s' : 'gardée'}, image ${((r.dureeImage || 0) / 1000).toFixed(2)} s)`);
         dernieresClasses = r.classes || [];
-        majClassesSol();
+      }
+      texteRelief = textes.length ? `relief ${textes.join(' · ')} · ${geo.W}×${geo.H} cases de ${geo.pas.toFixed(2)} m` : '';
+      majClassesSol();
+      // Un point cherché par ses coordonnées avant que le relief n'y soit
+      // calculé : son altitude arrive avec cette image.
+      if (selectionActuelle && selectionActuelle.sol == null) {
+        const pt = await relief.lire(selectionActuelle.x, selectionActuelle.y);
+        if (pt?.altitude != null) afficherSelection(selectionActuelle.x, selectionActuelle.y, pt.altitude, pt.hauteur);
       }
     } catch (err) {
       console.error(err);
@@ -2671,20 +2688,31 @@ if (MODE_VUE) (async () => {
   };
 
   // ── Le panneau du relief ──
-  // Sans l'ombrage : sur une grille au pixel, il sortait pâle et peu lisible.
-  // Le Sky-View Factor par défaut, comme la vue que montre l'accueil.
-  const selCouche = $('vue-couche');
-  // Les couches de l'onglet 2D, fonds de carte à part (la carte Leaflet les
-  // porte déjà, à gauche du rideau) : relief.js, plus l'ombrage coloré.
-  const COUCHES_VUE = CHOIX_2D.filter((c) => c.cle !== PHOTO && c.cle !== PLAN && c.cle !== 'ombrage');
-  for (const c of COUCHES_VUE) selCouche.add(new Option(c.libelle, c.cle, c.cle === coucheFlux, c.cle === coucheFlux));
   const BALAYAGE = new Set(['svf', 'ouverture-pos', 'ouverture-neg']);
-  const majCouche = () => {
-    const c = COUCHES_VUE.find((x) => x.cle === coucheFlux);
-    $('vue-aide').textContent = c.aide;
-    reliefCalque.definirLibelle(c.libelle);
-    $('vue-svf-reglages').hidden = !BALAYAGE.has(coucheFlux);
+  const majCotes = () => {
+    for (const c of ['gauche', 'droite']) {
+      $(`vue-${c}`).value = cotes[c];
+      reliefCalque.definirActif(c, cotes[c] !== 'carte');
+      reliefCalque.definirLibelle(c, libelleCouche(cotes[c]));
+    }
+    // L'aide de la couche de relief affichée — celle de droite par défaut,
+    // côté du relief par convention.
+    const cle = cotes.droite !== 'carte' ? cotes.droite : cotes.gauche;
+    $('vue-aide').textContent = cle === 'carte' ? 'Choisissez une couche de relief d’un côté du rideau.' : COUCHES_VUE.find((x) => x.cle === cle).aide;
+    $('vue-svf-reglages').hidden = !(BALAYAGE.has(cotes.gauche) || BALAYAGE.has(cotes.droite));
   };
+  for (const c of ['gauche', 'droite']) {
+    const sel = $(`vue-${c}`);
+    sel.add(new Option('Carte', 'carte'));
+    for (const k of COUCHES_VUE) sel.add(new Option(k.libelle, k.cle));
+    sel.addEventListener('change', () => { cotes[c] = sel.value; majCotes(); planifierRelief(0); });
+  }
+  $('vue-echanger').addEventListener('click', () => {
+    [cotes.gauche, cotes.droite] = [cotes.droite, cotes.gauche];
+    majCotes();
+    planifierRelief(0);
+  });
+  $('vue-rideau-centre').addEventListener('click', () => reliefCalque.placerRideau(0.5));
   // Réglages du balayage : appliqués au relâchement du curseur, un SVF coûte
   // trop cher pour suivre chaque cran.
   $('vue-svf-directions').value = svfDirections;
@@ -2765,26 +2793,26 @@ if (MODE_VUE) (async () => {
       const ll = hudProchain;
       hudProchain = null;
       const { x, y } = PROJ.versLambert93(ll.lng, ll.lat);
-      const p = await relief.lire(x, y);
+      // La valeur de la couche du côté survolé ; côté carte, aucune.
+      const cle = cotes[reliefCalque.coteSous(ll.px)];
+      const p = await relief.lire(x, y, cle === 'carte' ? undefined : cle);
       if (!ll.dedans) continue;
-      const c = COUCHES_VUE.find((k) => k.cle === coucheFlux);
       hud.hidden = false;
       hud.innerHTML = `x ${x.toFixed(0)} · y ${y.toFixed(0)}`
         + (p?.altitude == null ? ' · sol inconnu' : ` · sol ${p.altitude.toFixed(1)} m`)
         + (p?.hauteur > 0.05 ? ` · <b>+${p.hauteur.toFixed(2)} m</b>` : '')
-        + (p?.valeur != null && Number.isFinite(p.valeur) ? ` · ${echapper(c.libelle)} <b>${p.valeur.toFixed(2)}</b>` : '');
+        + (cle !== 'carte' && p?.valeur != null && Number.isFinite(p.valeur) ? ` · ${echapper(libelleCouche(cle))} <b>${p.valeur.toFixed(2)}</b>` : '');
     }
     hudEnCours = false;
   };
   let dedans = false;
   carte.map.on('mousemove', (e) => {
     dedans = true;
-    hudProchain = { lng: e.latlng.lng, lat: e.latlng.lat, get dedans() { return dedans; } };
+    hudProchain = { lng: e.latlng.lng, lat: e.latlng.lat, px: e.containerPoint.x, get dedans() { return dedans; } };
     if (!hudEnCours) lireHud();
   });
   carte.map.on('mouseout', () => { dedans = false; hud.hidden = true; });
-  selCouche.addEventListener('change', () => { coucheFlux = selCouche.value; majCouche(); planifierRelief(0); });
-  majCouche();
+  majCotes();
   // Le contraste ne recalcule pas la couche (gardée dans le worker) : seule
   // l'image est refaite.
   $('vue-contraste').addEventListener('input', (e) => {
