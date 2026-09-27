@@ -23,6 +23,7 @@ const FLUX = (() => {
     const lots = new Map();     // lot → Promise<entête>
     const blocs = new Map();    // cle → { etat, ctrl, niveau, nbPoints, emprise }
     const zones = [];           // rectangles déjà demandés au WFS
+    const zonesRepondues = [];  // ceux dont la réponse est arrivée (un échec en est retiré)
     let vue = null;
     let enCours = 0;
     let attenteCalme = [];
@@ -50,7 +51,12 @@ const FLUX = (() => {
         else if (d.etat === 'echec') echecs++;
       }
       const surfaceKm2 = vue ? FLUX_CHOIX.surfaceKm2(vue) : 0;
-      deps.surEtat?.({ attente, charges, points, dallesOuvertes, tropLarge, echecs, erreur: echecs ? derniereErreur : null, surfaceKm2 });
+      // Sans LiDAR : le WFS a répondu pour toute la vue, et aucune dalle ne la
+      // touche. Ni pendant l'attente de sa réponse, ni après un échec — une
+      // panne n'est pas une absence de données.
+      const sansLidar = !!vue && !tropLarge && zonesRepondues.some((z) => contient(z, vue))
+        && ![...dalles.values()].some((d) => coupe(d.dalle.emprise, vue));
+      deps.surEtat?.({ attente, charges, points, dallesOuvertes, tropLarge, echecs, erreur: echecs ? derniereErreur : null, surfaceKm2, sansLidar });
     }
 
     // Un échec n'est jamais définitif : la dalle est réessayée après un délai
@@ -405,6 +411,7 @@ const FLUX = (() => {
           return [];
         });
         for (const dl of trouvees) if (!dalles.has(dl.url)) dalles.set(dl.url, { dalle: dl, etat: 'inconnue' });
+        if (zones.includes(zone)) zonesRepondues.push(zone);
       }
       // Sans condition, et sur la vue **courante** : une vue arrivée pendant
       // la réponse du WFS avait sauté la requête (zone déjà demandée) et

@@ -2571,19 +2571,36 @@ if (MODE_VUE) (async () => {
   const majStatut = () => {
     const e = dernierEtat;
     if (!e) return;
+    // Pas de LiDAR dans la vue : dit à l'écran, pas seulement dans la console.
+    // Hors de France, ou une zone française pas encore volée ou publiée.
+    let sansLidar = '';
+    if (e.sansLidar) {
+      const c = carte.map.getCenter();
+      // Le « en France » du projet est un rectangle (PROJ.dansEmpriseFrance) :
+      // il déborde sur l'Espagne, la Suisse et la mer. Dedans, la phrase doit
+      // valoir pour les deux cas.
+      sansLidar = PROJ.dansEmpriseFrance(c.lng, c.lat)
+        ? 'Pas de LiDAR HD ici : hors de France, ou zone pas encore volée ou publiée par l’IGN'
+        : 'Hors de France : le LiDAR HD de l’IGN ne couvre que la France';
+      for (const cote of ['gauche', 'droite']) {
+        if (!estRelief(cotes[cote])) continue;
+        reliefCalque.definirLibelle(cote, 'Pas de LiDAR HD ici');
+        reliefCalque.vider(cote);
+      }
+    }
     $('vue-etat').textContent = e.attente && !e.tropLarge
       ? `Affinage… ${e.attente} bloc${e.attente > 1 ? 's' : ''} attendu${e.attente > 1 ? 's' : ''}` : '';
     if (!diagnostic) {
-      statut(e.tropLarge ? 'Zoomez pour calculer le relief'
+      statut(sansLidar || (e.tropLarge ? 'Zoomez pour calculer le relief'
         : e.echecs ? `${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}`
           : erreurRelief ? `Le relief n’a pas pu être calculé — ${erreurRelief}`
             : !['gauche', 'droite'].some((c) => estRelief(cotes[c])) ? 'Aucune couche de relief affichée'
               : e.attente ? 'Relief en cours d’affinage…'
-                : texteRelief ? 'Relief à jour' : 'Relief en calcul…',
+                : texteRelief ? 'Relief à jour' : 'Relief en calcul…'),
       e.echecs || erreurRelief ? 'erreur' : e.attente ? 'travail' : undefined);
       return;
     }
-    statut((e.tropLarge
+    statut(sansLidar ? `Flux : ${sansLidar}` : (e.tropLarge
       ? `Flux : ${e.surfaceKm2.toFixed(0)} km² affichés, trop pour les points (seuil ${CONFIG.flux.surfaceMaxPointsKm2} km²) — zoomez`
       : `Flux : ${e.surfaceKm2.toFixed(1)} km² · ${e.dallesOuvertes} dalles · ${e.charges} blocs · ${milliers(e.points)} points`
         + (e.attente ? ` · ${e.attente} en attente` : '')

@@ -100,6 +100,13 @@ class Carte {
         const img = e.tile;
         const url = img.src;
         if (!url) return;
+        // Hors de France, l'IGN n'a pas de tuile (404) : ni réessai, ni avis
+        // de panne — rien n'est cassé.
+        const { x, y, z } = e.coords;
+        const n2 = 2 ** z;
+        const lon = ((x + 0.5) / n2) * 360 - 180;
+        const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + 0.5)) / n2))) * 180) / Math.PI;
+        if (!PROJ.dansEmpriseFrance(lon, lat)) return;
         const n = (img._reprises = (img._reprises || 0) + 1);
         if (n > 3) { this._majAvisPanne(false); return; }
         img.src = '';
