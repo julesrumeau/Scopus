@@ -79,24 +79,32 @@ const GrilleDalles = L.Layer.extend({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, taille.x, taille.y);
 
-    // Lambert-93 → pixel écran, en une étape.
+    if (map.getZoom() < CONFIG.carte.zoomGrille) return;
+
+    // Les dalles suivent la projection de leur territoire — Lambert-93 en
+    // métropole, UTM outre-mer —, celui sous le centre de la carte. Hors de
+    // tout territoire, pas de dalle, pas de grille.
+    const centre = map.getCenter();
+    const territoire = PROJ.territoireAuPoint(centre.lng, centre.lat);
+    if (!territoire) return;
+    const { versLocal, versGeo } = PROJ.projectionDe(territoire.code);
+
+    // Coordonnées locales → pixel écran, en une étape.
     const versEcran = (x, y) => {
-      const g = PROJ.versWGS84(x, y);
+      const g = versGeo(x, y);
       return map.latLngToContainerPoint([g.lat, g.lon]);
     };
 
-    if (map.getZoom() < CONFIG.carte.zoomGrille) return;
-
     // ── Quadrillage kilométrique ────────────────────────────────────────────
     const b = map.getBounds();
-    // Les quatre coins de la vue, reprojetés : en Lambert-93 la fenêtre n'est
+    // Les quatre coins de la vue, reprojetés : en projection locale la fenêtre n'est
     // pas alignée sur les axes, prendre seulement deux coins amputerait la
     // grille dans les angles.
     const coins = [
-      PROJ.versLambert93(b.getWest(), b.getSouth()),
-      PROJ.versLambert93(b.getEast(), b.getSouth()),
-      PROJ.versLambert93(b.getWest(), b.getNorth()),
-      PROJ.versLambert93(b.getEast(), b.getNorth()),
+      versLocal(b.getWest(), b.getSouth()),
+      versLocal(b.getEast(), b.getSouth()),
+      versLocal(b.getWest(), b.getNorth()),
+      versLocal(b.getEast(), b.getNorth()),
     ];
     const xmin = Math.floor(Math.min(...coins.map((c) => c.x)) / 1000) * 1000;
     const xmax = Math.ceil(Math.max(...coins.map((c) => c.x)) / 1000) * 1000;
@@ -149,7 +157,8 @@ function dalleContenant(x, y) {
 }
 
 /**
- * Contour d'une emprise Lambert-93, en [lat, lon] pour Leaflet.
+ * Contour d'une emprise Lambert-93 — ou d'un autre territoire, par `versGeo`
+ * (PROJ.projectionDe) —, en [lat, lon] pour Leaflet.
  *
  * Les côtés sont échantillonnés et non réduits à leurs extrémités : en WGS84 un
  * carré Lambert-93 n'est ni aligné sur les axes ni tout à fait droit. C'est
@@ -157,9 +166,9 @@ function dalleContenant(x, y) {
  * `L.rectangle` — donc alignée sur l'écran — paraissait de travers par rapport
  * à la dalle qui la contenait.
  */
-function contourEmprise(em, parCote = 8) {
+function contourEmprise(em, parCote = 8, versGeo = PROJ.versWGS84) {
   const pts = [];
-  const ajouter = (x, y) => { const g = PROJ.versWGS84(x, y); pts.push([g.lat, g.lon]); };
+  const ajouter = (x, y) => { const g = versGeo(x, y); pts.push([g.lat, g.lon]); };
   for (let i = 0; i < parCote; i++) ajouter(em.xmin + (em.xmax - em.xmin) * i / parCote, em.ymin);
   for (let i = 0; i < parCote; i++) ajouter(em.xmax, em.ymin + (em.ymax - em.ymin) * i / parCote);
   for (let i = 0; i < parCote; i++) ajouter(em.xmax - (em.xmax - em.xmin) * i / parCote, em.ymax);

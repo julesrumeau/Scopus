@@ -111,6 +111,99 @@ function dansEmpriseFrance(lon, lat) {
   return lon >= -5.6 && lon <= 9.8 && lat >= 41.2 && lat <= 51.2;
 }
 
+// ── Territoires d'outre-mer : Mercator transverse (UTM) ─────────────────────
+//
+// Le LiDAR HD des DROM est publié dans leur projection légale, UTM, avec le
+// même découpage en carrés de 1 km nommés d'après leur coin nord-ouest
+// (LHD_REU_0338_7664…). Les systèmes géodésiques (RGR92, RGAF09, RGM04,
+// RGFG95) coïncident avec WGS84 bien sous le mètre : aucune transformation
+// de datum, seulement la projection, sur l'ellipsoïde GRS80.
+
+/**
+ * Mercator transverse de la zone UTM `zone`, hémisphère sud si `sud` : série
+ * de Krüger à l'ordre 4 en n, sous le micromètre dans la zone (vérifiée contre les
+ * coins de dalles publiés par l'IGN, test/proj.test.js). Ne ferme que sur
+ * les constantes de l'ellipsoïde : le worker du relief la reprend en texte.
+ */
+function projectionUTM(zone, sud) {
+  const k0 = 0.9996, FE = 500000, FN = sud ? 10000000 : 0;
+  const lon0 = ((zone * 6 - 183) * Math.PI) / 180;
+  const n = F / (2 - F), n2 = n * n, n3 = n2 * n, n4 = n3 * n;
+  const Ak = (A / (1 + n)) * (1 + n2 / 4 + (n2 * n2) / 64) * k0;
+  const al = [
+    n / 2 - (2 * n2) / 3 + (5 * n3) / 16 + (41 * n4) / 180,
+    (13 * n2) / 48 - (3 * n3) / 5 + (557 * n4) / 1440,
+    (61 * n3) / 240 - (103 * n4) / 140,
+    (49561 * n4) / 161280,
+  ];
+  const be = [
+    n / 2 - (2 * n2) / 3 + (37 * n3) / 96 - n4 / 360,
+    n2 / 48 + n3 / 15 - (437 * n4) / 1440,
+    (17 * n3) / 480 - (37 * n4) / 840,
+    (4397 * n4) / 161280,
+  ];
+  const de = [
+    2 * n - (2 * n2) / 3 - 2 * n3 + (116 * n4) / 45,
+    (7 * n2) / 3 - (8 * n3) / 5 - (227 * n4) / 45,
+    (56 * n3) / 15 - (136 * n4) / 35,
+    (4279 * n4) / 630,
+  ];
+  const c = (2 * Math.sqrt(n)) / (1 + n);
+  return {
+    versLocal(lon, lat) {
+      const phi = (lat * Math.PI) / 180, dl = (lon * Math.PI) / 180 - lon0;
+      const t = Math.sinh(Math.atanh(Math.sin(phi)) - c * Math.atanh(c * Math.sin(phi)));
+      const xi1 = Math.atan2(t, Math.cos(dl)), eta1 = Math.atanh(Math.sin(dl) / Math.sqrt(1 + t * t));
+      let xi = xi1, eta = eta1;
+      for (let j = 1; j <= 4; j++) {
+        xi += al[j - 1] * Math.sin(2 * j * xi1) * Math.cosh(2 * j * eta1);
+        eta += al[j - 1] * Math.cos(2 * j * xi1) * Math.sinh(2 * j * eta1);
+      }
+      return { x: FE + Ak * eta, y: FN + Ak * xi };
+    },
+    versGeo(x, y) {
+      const xi = (y - FN) / Ak, eta = (x - FE) / Ak;
+      let xi1 = xi, eta1 = eta;
+      for (let j = 1; j <= 4; j++) {
+        xi1 -= be[j - 1] * Math.sin(2 * j * xi) * Math.cosh(2 * j * eta);
+        eta1 -= be[j - 1] * Math.cos(2 * j * xi) * Math.sinh(2 * j * eta);
+      }
+      const chi = Math.asin(Math.sin(xi1) / Math.cosh(eta1));
+      let phi = chi;
+      for (let j = 1; j <= 4; j++) phi += de[j - 1] * Math.sin(2 * j * chi);
+      const lam = lon0 + Math.atan2(Math.sinh(eta1), Math.cos(xi1));
+      return { lon: (lam * 180) / Math.PI, lat: (phi * 180) / Math.PI };
+    },
+  };
+}
+
+/**
+ * Les territoires du LiDAR HD : code des noms de dalle, projection (zone UTM,
+ * ou Lambert-93), et un rectangle englobant [ouest, sud, est, nord] en degrés
+ * — les territoires ne se chevauchent pas. Martinique, Mayotte et Guyane :
+ * aucune dalle publiée à nos points d'essai (27 septembre 2026), prêts pour
+ * le jour où elles le seront.
+ */
+const TERRITOIRES = [
+  { code: 'FXX', nom: 'France métropolitaine', lambert93: true, rectangle: [-5.6, 41.2, 9.8, 51.2] },
+  { code: 'REU', nom: 'La Réunion', zone: 40, sud: true, rectangle: [55.1, -21.5, 56.0, -20.8] },
+  { code: 'GLP', nom: 'Guadeloupe', zone: 20, sud: false, rectangle: [-61.9, 15.8, -60.9, 16.6] },
+  { code: 'MTQ', nom: 'Martinique', zone: 20, sud: false, rectangle: [-61.3, 14.35, -60.75, 14.95] },
+  { code: 'MYT', nom: 'Mayotte', zone: 38, sud: true, rectangle: [44.9, -13.1, 45.35, -12.55] },
+  { code: 'GUF', nom: 'Guyane', zone: 22, sud: false, rectangle: [-54.7, 2.0, -51.5, 5.9] },
+];
+
+/** La projection d'un territoire : `{ versLocal(lon, lat) → {x, y}, versGeo(x, y) → {lon, lat} }`. */
+function projectionDe(code) {
+  const t = TERRITOIRES.find((u) => u.code === code) || TERRITOIRES[0];
+  return t.lambert93 ? { versLocal: versLambert93, versGeo: versWGS84 } : projectionUTM(t.zone, t.sud);
+}
+
+/** Le territoire qui contient ce point, ou `null` (hors de tout territoire couvert). */
+function territoireAuPoint(lon, lat) {
+  return TERRITOIRES.find(({ rectangle: [o, s, e, n] }) => lon >= o && lon <= e && lat >= s && lat <= n) || null;
+}
+
 /**
  * Une paire de coordonnées tapée directement, dans les deux conventions
  * courantes — « 42.74, 1.68 » (latitude, longitude, comme un GPS) ou une
@@ -131,4 +224,7 @@ function depuisTexte(texte) {
   return { lon: b, lat: a };
 }
 
-const PROJ = { versLambert93, versWGS84, versDMS, dansEmpriseFrance, depuisTexte };
+const PROJ = {
+  versLambert93, versWGS84, versDMS, dansEmpriseFrance, depuisTexte,
+  TERRITOIRES, projectionUTM, projectionDe, territoireAuPoint,
+};

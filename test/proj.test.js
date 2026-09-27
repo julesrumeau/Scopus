@@ -89,3 +89,61 @@ test('depuisTexte rend null sur un nom de lieu — à chercher ailleurs, pas ici
   assert.equal(depuisTexte('09220'), null);
   assert.equal(depuisTexte(''), null);
 });
+
+// ── Les territoires d'outre-mer : UTM ───────────────────────────────────────
+// Mêmes références externes : les coins de dalles publiés par le WFS de l'IGN
+// (27 septembre 2026). Réunion : RGR92 / UTM 40 Sud (EPSG:2975), dalle
+// LHD_REU_0338_7664. Guadeloupe : RGAF09 / UTM 20 Nord (EPSG:5490), dalle
+// LHD_GLP_0655_1798.
+
+const { projectionDe, territoireAuPoint, TERRITOIRES } = chargerScripts(['proj.js']);
+
+const COINS_UTM = {
+  REU: [
+    ['NO', 338000, 7664000, 55.44015519, -21.11798417],
+    ['NE', 339000, 7664000, 55.44978119, -21.11807252],
+    ['SE', 339000, 7663000, 55.44968731, -21.12710471],
+    ['SO', 338000, 7663000, 55.44006073, -21.12701633],
+  ],
+  GLP: [
+    ['NO', 655000, 1798000, -61.54954482, 16.25778677],
+    ['NE', 656000, 1798000, -61.54018923, 16.2577225],
+    ['SE', 656000, 1797000, -61.54025596, 16.24868525],
+    ['SO', 655000, 1797000, -61.54961112, 16.24874949],
+  ],
+};
+
+test('UTM → WGS84 reproduit les coins publiés par l’IGN (Réunion, Guadeloupe)', () => {
+  for (const [code, coins] of Object.entries(COINS_UTM)) {
+    const p = projectionDe(code);
+    for (const [nom, x, y, lon, lat] of coins) {
+      const g = p.versGeo(x, y);
+      const ecart = Math.hypot((g.lon - lon) * 111320 * Math.cos(lat * Math.PI / 180), (g.lat - lat) * 111320);
+      assert.ok(ecart < 0.005, `${code} ${nom} : écart ${ecart.toFixed(4)} m`);
+      const r = p.versLocal(lon, lat);
+      assert.ok(Math.hypot(r.x - x, r.y - y) < 0.005, `${code} ${nom} : ${r.x.toFixed(3)}, ${r.y.toFixed(3)}`);
+    }
+  }
+});
+
+test('UTM : l’aller-retour est exact au micromètre', () => {
+  for (const [code, coins] of Object.entries(COINS_UTM)) {
+    const p = projectionDe(code);
+    for (const [nom, x, y] of coins) {
+      const g = p.versGeo(x, y);
+      const r = p.versLocal(g.lon, g.lat);
+      assert.ok(Math.hypot(r.x - x, r.y - y) < 1e-6, `${code} ${nom}`);
+    }
+  }
+});
+
+test('territoireAuPoint : métropole, Réunion, Guadeloupe, et rien au large', () => {
+  assert.equal(territoireAuPoint(2.35, 48.85).code, 'FXX');
+  assert.equal(territoireAuPoint(55.45, -21.12).code, 'REU');
+  assert.equal(territoireAuPoint(-61.55, 16.25).code, 'GLP');
+  assert.equal(territoireAuPoint(-30, 30), null);
+  // La métropole garde sa projection de toujours.
+  const l = projectionDe('FXX').versLocal(3, 46.5);
+  assert.ok(Math.abs(l.x - 700000) < 1e-6 && Math.abs(l.y - 6600000) < 1e-6);
+  assert.ok(TERRITOIRES.every((t) => t.code && t.nom));
+});

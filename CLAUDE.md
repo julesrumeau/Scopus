@@ -674,6 +674,36 @@ donnée et la même limite. Vérifié en temps réel, pas sous
 l'animation de Leaflet ne se pose jamais et les contrôles rapportent des échecs
 qui n'existent pas — même piège que pour les Workers.
 
+## L'outre-mer
+
+La vue normale marche aussi dans les DROM : le WFS des dalles répond partout,
+et un COPC de la Réunion (`LHD_REU_0338_7664_…`) ou de la Guadeloupe
+(`LHD_GLP_…`) se lit exactement comme un de métropole — même découpage en
+carrés de 1 km nommés par leur coin nord-ouest, même cube d'octree calé sur la
+dalle (vérifié sur les deux : demi-côté 499,995 m, centré). **Seule la
+projection change** : UTM 40 S à la Réunion, 20 N aux Antilles, 38 S à
+Mayotte, 22 N en Guyane.
+
+`PROJ.TERRITOIRES` porte le code des noms de dalle, la zone et un rectangle
+englobant ; `PROJ.territoireAuPoint` dit lequel contient un point,
+`PROJ.projectionDe(code)` rend `{ versLocal, versGeo }`. Le Mercator
+transverse est la série de Krüger à l'ordre 4, vérifiée au millimètre contre
+les coins publiés par l'IGN ; l'ordre 3 laissait quelques dizaines de µm à
+l'aller-retour. Aucune transformation de datum : RGR92, RGAF09 et consorts
+coïncident avec WGS84 bien sous le mètre.
+
+En vue normale, `territoireVue` (`app.js`) suit le centre de la carte — en
+mer, le dernier reste — et tout ce qui est en coordonnées locales passe par
+`projVue()` : vue du flux, requêtes de dalles, lecture au clic, marqueurs. Le
+worker reçoit le territoire avec l'écran de chaque image. Pas de remise à zéro
+en changeant de territoire : les plages de coordonnées de Lambert-93 et des
+zones UTM employées ne se recouvrent pas, un bloc gardé d'ailleurs ne tombe
+jamais dans la grille courante. Le parcours `?dalle` reste en métropole.
+
+Martinique, Mayotte et Guyane : aucune dalle aux points d'essai
+(27 septembre 2026) ; la carte le dit (« Pas de LiDAR HD ici »), et elles
+marcheront le jour où l'IGN les publiera.
+
 ---
 
 ## Navigation dans le nuage

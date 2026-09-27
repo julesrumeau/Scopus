@@ -228,6 +228,13 @@ let lireVue = null;
 // Mode vue : ce qui construit le nuage 3D en passant sur l'onglet, et ce qui
 // remplit l'attribut de couleur (hauteur, relief) depuis le worker.
 let surPassage3D = null;
+
+// Le territoire de la vue normale (PROJ.TERRITOIRES) : ses coordonnées locales
+// — Lambert-93 en métropole, UTM outre-mer — sont celles des dalles, des
+// blocs, de la grille du relief et des points lus. Suivi du centre de la carte
+// (majVueFlux) ; l'ancien parcours par dalle reste en métropole.
+let territoireVue = 'FXX';
+const projVue = () => PROJ.projectionDe(territoireVue);
 let surPassageCarte = null;
 let majAttributVue = null;
 
@@ -238,7 +245,7 @@ let majAttributVue = null;
  * @param {number} [hauteur] sursol au-dessus de ce sol (bâtiment, ruine…), 0 si aucun
  */
 function afficherSelection(x, y, sol, hauteur = 0) {
-  const { lon, lat } = PROJ.versWGS84(x, y);
+  const { lon, lat } = projVue().versGeo(x, y);
   // Le sommet est ce qui a été visé — un toit s'il y en a un à cet endroit,
   // le sol sinon — donc c'est lui qui porte le marqueur, pas le sol seul.
   const sommetPoint = MESURE.sommet({ sol, hauteur });
@@ -293,9 +300,15 @@ async function chercherPoint() {
 
   const p = PROJ.depuisTexte(texte);
   if (!p) { alerter('Coordonnées non reconnues — attendu « latitude, longitude ».'); return; }
-  if (!PROJ.dansEmpriseFrance(p.lon, p.lat)) { alerter('Ces coordonnées sont hors de France.'); return; }
-
-  const lambert = PROJ.versLambert93(p.lon, p.lat);
+  // En vue normale, tout territoire couvert ; l'ancien parcours par dalle
+  // reste en Lambert-93, donc en métropole.
+  const terr = PROJ.territoireAuPoint(p.lon, p.lat);
+  if (!terr || (!MODE_VUE && terr.code !== 'FXX')) {
+    alerter(MODE_VUE ? 'Ces coordonnées sont hors des territoires couverts par le LiDAR HD.' : 'Ces coordonnées sont hors de France métropolitaine.');
+    return;
+  }
+  if (MODE_VUE) territoireVue = terr.code;
+  const lambert = projVue().versLocal(p.lon, p.lat);
   // Mode vue : la carte va au point, et l'altitude se lit dans le relief —
   // tout de suite s'il est déjà calculé là, sinon dès la prochaine image.
   if (MODE_VUE && lireVue) {
@@ -462,13 +475,13 @@ function vueCourante() {
   const onglet = $('panneau').dataset.vue;
   if (onglet === '2d' && vue2d.grille) {
     const v = vue2d.vue();
-    const { lon, lat } = PROJ.versWGS84(v.x, v.y);
+    const { lon, lat } = projVue().versGeo(v.x, v.y);
     return { lat, lon, zoom: LIEN.zoomDepuisResolution(v.metresParPixelCss, lat) };
   }
   if (onglet === '3d') {
     const c = vue3d?.camera();
     if (!c) return null;
-    const { lon, lat } = PROJ.versWGS84(c.x, c.y);
+    const { lon, lat } = projVue().versGeo(c.x, c.y);
     return {
       lat, lon, zoom: LIEN.zoomDepuisResolution(c.metresParPixelCss, lat),
       ...LIEN.orientationDepuisCamera(c.azimut, c.elevation),
@@ -2576,12 +2589,12 @@ if (MODE_VUE) (async () => {
     let sansLidar = '';
     if (e.sansLidar) {
       const c = carte.map.getCenter();
-      // Le « en France » du projet est un rectangle (PROJ.dansEmpriseFrance) :
-      // il déborde sur l'Espagne, la Suisse et la mer. Dedans, la phrase doit
-      // valoir pour les deux cas.
-      sansLidar = PROJ.dansEmpriseFrance(c.lng, c.lat)
+      // Un territoire du projet est un rectangle (PROJ.territoireAuPoint) :
+      // celui de la métropole déborde sur l'Espagne, la Suisse et la mer.
+      // Dedans, la phrase doit valoir pour les deux cas.
+      sansLidar = PROJ.territoireAuPoint(c.lng, c.lat)
         ? 'Pas de LiDAR HD ici : hors de France, ou zone pas encore volée ou publiée par l’IGN'
-        : 'Hors de France : le LiDAR HD de l’IGN ne couvre que la France';
+        : 'Hors des territoires couverts : le LiDAR HD de l’IGN ne couvre que la France, métropole et outre-mer';
       for (const cote of ['gauche', 'droite']) {
         if (!estRelief(cotes[cote])) continue;
         reliefCalque.definirLibelle(cote, 'Pas de LiDAR HD ici');
@@ -2676,7 +2689,7 @@ if (MODE_VUE) (async () => {
       // retour, si la carte a bougé entre-temps.
       const z = carte.map.getZoom();
       const pb = carte.map.getPixelBounds();
-      const ecran = { x0: pb.min.x, y0: pb.min.y, W: Math.round(pb.max.x - pb.min.x), H: Math.round(pb.max.y - pb.min.y), z };
+      const ecran = { x0: pb.min.x, y0: pb.min.y, W: Math.round(pb.max.x - pb.min.x), H: Math.round(pb.max.y - pb.min.y), z, territoire: territoireVue };
       const bornes = L.latLngBounds(carte.map.unproject(pb.getBottomLeft(), z), carte.map.unproject(pb.getTopRight(), z));
       const actifs = [...flux.voulues()];
       erreurRelief = '';
@@ -2727,7 +2740,8 @@ if (MODE_VUE) (async () => {
 
   const depsFlux = {
     chercherDalles: (z) => {
-      const so = PROJ.versWGS84(z.xmin, z.ymin), ne = PROJ.versWGS84(z.xmax, z.ymax);
+      const p = projVue();
+      const so = p.versGeo(z.xmin, z.ymin), ne = p.versGeo(z.xmax, z.ymax);
       return IGN.dalles(so.lat, so.lon, ne.lat, ne.lon);
     },
     recuperer: RESEAU.recuperer,
@@ -2735,7 +2749,7 @@ if (MODE_VUE) (async () => {
     decoder: NUAGE.decoder,
     cache: CACHE_DISQUE.creer(CACHE_DISQUE.stockageIndexedDB(), CONFIG.flux.quotaDisqueOctets),
     config: { ...CONFIG.flux, budgetPoints: budget },
-    surBloc: (b) => { calque?.ajouter(b); relief.ajouter(b); planifierRelief(1500); },
+    surBloc: (b) => { calque?.ajouter(b, projVue().versGeo); relief.ajouter(b); planifierRelief(1500); },
     surLibere: (cle) => { calque?.retirer(cle); relief.retirer(cle); },
     surEtat: (e) => { dernierEtat = e; majStatut(); },
   };
@@ -2752,10 +2766,15 @@ if (MODE_VUE) (async () => {
 
   const majVueFlux = () => {
     const b = carte.map.getBounds();
-    const so = PROJ.versLambert93(b.getWest(), b.getSouth());
-    const ne = PROJ.versLambert93(b.getEast(), b.getNorth());
-    const no = PROJ.versLambert93(b.getWest(), b.getNorth());
-    const se = PROJ.versLambert93(b.getEast(), b.getSouth());
+    // Le territoire sous le centre fixe la projection de tout ce qui suit ;
+    // en mer, entre deux, le dernier reste.
+    const c = b.getCenter();
+    territoireVue = PROJ.territoireAuPoint(c.lng, c.lat)?.code ?? territoireVue;
+    const { versLocal } = projVue();
+    const so = versLocal(b.getWest(), b.getSouth());
+    const ne = versLocal(b.getEast(), b.getNorth());
+    const no = versLocal(b.getWest(), b.getNorth());
+    const se = versLocal(b.getEast(), b.getSouth());
     vueCourante = {
       xmin: Math.min(so.x, no.x), xmax: Math.max(ne.x, se.x),
       ymin: Math.min(so.y, se.y), ymax: Math.max(ne.y, no.y),
@@ -2928,7 +2947,7 @@ if (MODE_VUE) (async () => {
   // marqueurs et traits, qui restent ainsi des éléments qu'on peut viser et
   // vérifier.
   const traceOutils = L.svg({ pane: 'outilsVue' });
-  const versLatLng = (x, y) => { const w = PROJ.versWGS84(x, y); return [w.lat, w.lon]; };
+  const versLatLng = (x, y) => { const w = projVue().versGeo(x, y); return [w.lat, w.lon]; };
   let coucheSelection = null, coucheMesure = null;
   carteOutils = {
     selection(p) {
@@ -2963,7 +2982,7 @@ if (MODE_VUE) (async () => {
   carte.map.on('click', async (e) => {
     const mode = vue2d.mode;
     if (mode !== 'selection' && mode !== 'mesure') return;
-    const { x, y } = PROJ.versLambert93(e.latlng.lng, e.latlng.lat);
+    const { x, y } = projVue().versLocal(e.latlng.lng, e.latlng.lat);
     const pt = await relief.lire(x, y);
     if (mode === 'selection') afficherSelection(x, y, pt?.altitude ?? null, pt?.hauteur ?? 0);
     else ajouterPointMesure(x, y, pt?.altitude ?? null, pt?.hauteur ?? 0);
@@ -2979,7 +2998,7 @@ if (MODE_VUE) (async () => {
     while (hudProchain) {
       const ll = hudProchain;
       hudProchain = null;
-      const { x, y } = PROJ.versLambert93(ll.lng, ll.lat);
+      const { x, y } = projVue().versLocal(ll.lng, ll.lat);
       // La valeur de la couche du côté survolé ; côté carte, aucune.
       const cle = cotes[reliefCalque.coteSous(ll.px)];
       const p = await relief.lire(x, y, estRelief(cle) ? cle : undefined);

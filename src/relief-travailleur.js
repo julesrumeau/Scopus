@@ -35,8 +35,10 @@ function peindreVue(moteur, m, memo) {
   if (!r) return null;
   const t1 = performance.now();
   const g = m.geo, e = m.ecran;
-  const cle = `${g.xminCm}|${g.yminCm}|${g.pasCm}|${g.W}|${g.H}|${e.x0}|${e.y0}|${e.W}|${e.H}|${e.z}`;
-  if (memo.cle !== cle) { memo.cle = cle; memo.uv = VUE_IMAGE.cases(g, e, PROJ.versLambert93); }
+  // La grille est dans la projection du territoire de la vue (Lambert-93, ou
+  // UTM outre-mer), que l'écran porte avec lui.
+  const cle = `${g.xminCm}|${g.yminCm}|${g.pasCm}|${g.W}|${g.H}|${e.x0}|${e.y0}|${e.W}|${e.H}|${e.z}|${e.territoire}`;
+  if (memo.cle !== cle) { memo.cle = cle; memo.uv = VUE_IMAGE.cases(g, e, PROJ.projectionDe(e.territoire).versLocal); }
   const lisser = m.lisser ?? true;
   const rgba = r.rgba
     ? VUE_IMAGE.peindreRGBA(r.rgba, g, memo.uv, lisser)
@@ -142,7 +144,9 @@ const RELIEF_TRAVAILLEUR = (() => {
       `const A = ${A}, F = ${F}, E = ${E}, LON0 = ${LON0}, LAT0 = ${LAT0}, LAT1 = ${LAT1}, LAT2 = ${LAT2}, X0 = ${X0}, Y0 = ${Y0};`,
       `const M1 = ${M1}, M2 = ${M2}, T0 = ${T0}, T1 = ${T1}, T2 = ${T2}, N = ${N}, BIGF = ${BIGF}, R0 = ${R0};`,
       String(m), String(t), String(versLambert93), String(versWGS84),
-      'const PROJ = { versLambert93, versWGS84 };',
+      String(projectionUTM), String(projectionDe),
+      `const TERRITOIRES = ${JSON.stringify(TERRITOIRES)};`,
+      'const PROJ = { versLambert93, versWGS84, projectionDe };',
       ...FONCTIONS_RASTER.map(String),
       'const RASTER = { CLASSE, creerGrilles, creerGrillesVue, accumuler, finaliser, rasteriser, signal, hauteurParPoint, centreCellule };',
       `${fabriqueVueGrille}\nconst VUE_GRILLE = fabriqueVueGrille();`,
