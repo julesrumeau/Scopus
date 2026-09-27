@@ -18,8 +18,35 @@
 // Une fonction de raster.js ajoutée sans être listée ici échouerait dans le
 // worker seulement — test/relief-travailleur.test.js compare les deux listes.
 
+/**
+ * L'image d'une couche : calculée par le moteur, reprojetée au pixel de la
+ * carte. Commune au worker et au repli sur le fil principal. `memo` garde le
+ * maillage de reprojection du dernier écran : les deux côtés du rideau
+ * demandent le même, qui coûte un passage sur chaque pixel. Sérialisée avec
+ * le worker : elle ne ferme sur rien. `null` si rien n'est à peindre.
+ */
+function peindreVue(moteur, m, memo) {
+  // Une carte de taille nulle (masquée, pas encore mesurée) : rien à peindre.
+  if (!(m.ecran.W > 0 && m.ecran.H > 0)) return null;
+  const t0 = performance.now();
+  const r = moteur.calculer(m.geo, m.couche, {
+    contraste: m.contraste ?? 1, couche: m.reglagesCouche, actifs: m.actifs ? new Set(m.actifs) : undefined,
+  });
+  if (!r) return null;
+  const t1 = performance.now();
+  const g = m.geo, e = m.ecran;
+  const cle = `${g.xminCm}|${g.yminCm}|${g.pasCm}|${g.W}|${g.H}|${e.x0}|${e.y0}|${e.W}|${e.H}|${e.z}`;
+  if (memo.cle !== cle) { memo.cle = cle; memo.uv = VUE_IMAGE.cases(g, e, PROJ.versLambert93); }
+  const lisser = m.lisser ?? true;
+  const rgba = r.rgba
+    ? VUE_IMAGE.peindreRGBA(r.rgba, g, memo.uv, lisser)
+    : VUE_IMAGE.peindre(r.valeurs, g, memo.uv, r.min, r.max, m.lut, lisser);
+  return { r, rgba, t0, dureeCouche: t1 - t0 - r.dureeSurface, dureeImage: performance.now() - t1 };
+}
+
 /** La boucle de messages du worker. Sérialisée : elle ne ferme sur rien. */
 function corpsTravailleurRelief() {
+  const memoImage = {};
   let moteur = null;
   self.onmessage = (e) => {
     const m = e.data;
@@ -34,32 +61,25 @@ function corpsTravailleurRelief() {
       } else if (m.type === 'reglages') {
         moteur.reglages(m.reglages);
       } else if (m.type === 'image') {
-        const t0 = performance.now();
-        // Une carte de taille nulle (masquée, pas encore mesurée) : rien à peindre.
-        if (!(m.ecran.W > 0 && m.ecran.H > 0)) { self.postMessage({ type: 'image', id: m.id, vide: true, classes: moteur.classes() }); return; }
-        const r = moteur.calculer(m.geo, m.couche, { contraste: m.contraste, couche: m.reglagesCouche, actifs: m.actifs ? new Set(m.actifs) : undefined });
-        if (!r) { self.postMessage({ type: 'image', id: m.id, vide: true, classes: moteur.classes() }); return; }
-        const t1 = performance.now();
-        const uv = VUE_IMAGE.cases(m.geo, m.ecran, PROJ.versLambert93);
-        const rgba = r.rgba
-          ? VUE_IMAGE.peindreRGBA(r.rgba, m.geo, uv, m.lisser)
-          : VUE_IMAGE.peindre(r.valeurs, m.geo, uv, r.min, r.max, m.lut, m.lisser);
+        const p = peindreVue(moteur, m, memoImage);
+        if (!p) { self.postMessage({ type: 'image', id: m.id, vide: true, classes: moteur.classes() }); return; }
+        const { r, rgba, t0 } = p;
         const infos = {
           type: 'image', id: m.id, W: m.ecran.W, H: m.ecran.H, min: r.min, max: r.max, classes: moteur.classes(),
           recalcul: r.recalcul, moteurSurface: r.moteurSurface, moteurCouche: r.moteurCouche,
-          dureeSurface: r.dureeSurface, dureeCouche: t1 - t0 - r.dureeSurface, dureeImage: performance.now() - t1,
+          dureeSurface: r.dureeSurface, dureeCouche: p.dureeCouche, dureeImage: p.dureeImage,
         };
         // Encodée ici quand le navigateur le permet : le fil principal n'a
-        // plus qu'à poser l'image.
-        // Si l'encodage échoue (pas de contexte 2D, refus du navigateur), les
-        // pixels partent tels quels : le fil principal sait les encoder.
+        // plus qu'à poser l'image. Si l'encodage échoue (pas de contexte 2D,
+        // refus du navigateur), les pixels partent tels quels : le fil
+        // principal sait les encoder.
         const pixels = () => self.postMessage({ ...infos, rgba, duree: performance.now() - t0 }, [rgba.buffer]);
-        const ctx2d = typeof OffscreenCanvas !== 'undefined' && typeof ImageData !== 'undefined'
+        const toile = typeof OffscreenCanvas !== 'undefined' && typeof ImageData !== 'undefined'
           ? new OffscreenCanvas(m.ecran.W, m.ecran.H) : null;
-        const contexte2d = ctx2d && ctx2d.getContext('2d');
+        const contexte2d = toile && toile.getContext('2d');
         if (contexte2d) {
           contexte2d.putImageData(new ImageData(rgba, m.ecran.W, m.ecran.H), 0, 0);
-          ctx2d.convertToBlob({ type: 'image/png' }).then(
+          toile.convertToBlob({ type: 'image/png' }).then(
             (blob) => self.postMessage({ ...infos, blob, duree: performance.now() - t0 }),
             pixels,
           );
@@ -130,6 +150,7 @@ const RELIEF_TRAVAILLEUR = (() => {
       `${fabriqueRelief}\nconst RELIEF = fabriqueRelief();`,
       `${fabriqueGpuRelief}\nconst GPU_RELIEF = fabriqueGpuRelief();`,
       `${fabriqueVueRelief}\nconst VUE_RELIEF = fabriqueVueRelief();`,
+      String(peindreVue),
       `(${corpsTravailleurRelief})();`,
     ].join('\n\n');
   }
@@ -140,10 +161,19 @@ const RELIEF_TRAVAILLEUR = (() => {
    * résultat, ou `null` sans bloc dans la vue. `null` si le worker ne peut pas
    * être créé.
    */
+  // Ce que chaque type de réponse rend à qui l'attendait.
+  const REPONSES = {
+    lire: (m) => m.point,
+    nuage3d: (m) => (m.vide ? { vide: true, raison: m.raison } : m),
+    drape3d: (m) => m.valeurs,
+    defaut: (m) => (m.vide ? null : m),
+  };
+
   function creer(options = {}) {
-    let w;
+    let w, url;
     try {
-      w = new Worker(URL.createObjectURL(new Blob([source()], { type: 'text/javascript' })));
+      url = URL.createObjectURL(new Blob([source()], { type: 'text/javascript' }));
+      w = new Worker(url);
     } catch (e) {
       console.warn(`Relief calculé sur le fil principal : ${e.message}`);
       return null;
@@ -154,15 +184,13 @@ const RELIEF_TRAVAILLEUR = (() => {
     const pret = new Promise((ok, ko) => { signalerPret = { ok, ko }; });
     w.onmessage = (e) => {
       const m = e.data;
-      if (m.type === 'pret') { signalerPret.ok(m); return; }
+      // Le source est chargé : l'URL blob ne sert plus.
+      if (m.type === 'pret') { URL.revokeObjectURL(url); signalerPret.ok(m); return; }
       const a = attente.get(m.id);
       if (!a) return;
       attente.delete(m.id);
       if (m.type === 'erreur') a.ko(new Error(m.message));
-      else if (m.type === 'lire') a.ok(m.point);
-      else if (m.type === 'nuage3d') a.ok(m.vide ? { vide: true, raison: m.raison } : m);
-      else if (m.type === 'drape3d') a.ok(m.valeurs);
-      else a.ok(m.vide ? null : m);
+      else a.ok((REPONSES[m.type] || REPONSES.defaut)(m));
     };
     // Une erreur non rattrapée dans le worker : tout ce qui attend doit
     // l'apprendre, sans quoi le relief resterait « en calcul » pour toujours.
@@ -173,6 +201,12 @@ const RELIEF_TRAVAILLEUR = (() => {
       attente.clear();
     };
     w.postMessage({ type: 'demarrer', options });
+    // Une demande au worker : un numéro, une promesse, la réponse du même numéro.
+    const demander = (message) => new Promise((ok, ko) => {
+      const id = ++prochain;
+      attente.set(id, { ok, ko });
+      w.postMessage({ ...message, id });
+    });
 
     return {
       pret,
@@ -191,48 +225,18 @@ const RELIEF_TRAVAILLEUR = (() => {
       },
       retirer(cle) { w.postMessage({ type: 'retirer', cle }); },
       reglages(r) { w.postMessage({ type: 'reglages', reglages: r }); },
-      calculer(geo, couche) {
-        return new Promise((ok, ko) => {
-          const id = ++prochain;
-          attente.set(id, { ok, ko });
-          w.postMessage({ type: 'calculer', id, geo, couche });
-        });
-      },
+      calculer: (geo, couche) => demander({ type: 'calculer', geo, couche }),
       /** Une couche drapée sur le dernier nuage 3D, valeurs dans [0, 1] ; `null` sans nuage. */
-      drape3d(cle, reglagesCouche, min, max) {
-        return new Promise((ok, ko) => {
-          const id = ++prochain;
-          attente.set(id, { ok, ko });
-          w.postMessage({ type: 'drape3d', id, cle, reglagesCouche, min, max });
-        });
-      },
+      drape3d: (cle, reglagesCouche, min, max) => demander({ type: 'drape3d', cle, reglagesCouche, min, max }),
       /** Le nuage 3D de l'emprise, au plus `budget` points ; `{ vide, raison }` sinon. */
-      nuage3d(emprise, budget, actifs) {
-        return new Promise((ok, ko) => {
-          const id = ++prochain;
-          attente.set(id, { ok, ko });
-          w.postMessage({ type: 'nuage3d', id, emprise, budget, actifs });
-        });
-      },
+      nuage3d: (emprise, budget, actifs) => demander({ type: 'nuage3d', emprise, budget, actifs }),
       /** Altitude, hauteur et valeur de la couche en un point Lambert-93 de la dernière vue calculée. */
-      lire(x, y, couche) {
-        return new Promise((ok, ko) => {
-          const id = ++prochain;
-          attente.set(id, { ok, ko });
-          w.postMessage({ type: 'lire', id, x, y, couche });
-        });
-      },
+      lire: (x, y, couche) => demander({ type: 'lire', x, y, couche }),
       /** L'image reprojetée de la couche, `null` sans bloc dans la vue. */
-      image(geo, couche, ecran, lut, reglages = {}) {
-        return new Promise((ok, ko) => {
-          const id = ++prochain;
-          attente.set(id, { ok, ko });
-          w.postMessage({
-            type: 'image', id, geo, couche, ecran, lut, contraste: reglages.contraste ?? 1, lisser: reglages.lisser ?? true,
-            actifs: reglages.actifs, reglagesCouche: reglages.couche,
-          });
-        });
-      },
+      image: (geo, couche, ecran, lut, reglages = {}) => demander({
+        type: 'image', geo, couche, ecran, lut, contraste: reglages.contraste, lisser: reglages.lisser,
+        actifs: reglages.actifs, reglagesCouche: reglages.couche,
+      }),
       arreter() { w.terminate(); },
     };
   }
@@ -240,6 +244,7 @@ const RELIEF_TRAVAILLEUR = (() => {
   /** Le même calcul sur le fil principal, derrière la même interface. */
   function surFilPrincipal(options = {}) {
     const moteur = VUE_RELIEF.creer(options);
+    const memoImage = {};
     return {
       pret: Promise.resolve({ moteur: moteur.moteur, coteMax: moteur.coteMax }),
       ajouter: (b) => moteur.ajouter(b),
@@ -253,18 +258,14 @@ const RELIEF_TRAVAILLEUR = (() => {
         return !r || r.raison ? { vide: true, raison: (r && r.raison) || '' } : r;
       },
       image: async (geo, couche, ecran, lut, reglages = {}) => {
-        if (!(ecran.W > 0 && ecran.H > 0)) return null;
-        const t0 = performance.now();
-        const r = moteur.calculer(geo, couche, { contraste: reglages.contraste ?? 1, couche: reglages.couche, actifs: reglages.actifs ? new Set(reglages.actifs) : undefined });
-        if (!r) return null;
-        const t1 = performance.now();
-        const uv = VUE_IMAGE.cases(geo, ecran, PROJ.versLambert93);
-        const rgba = r.rgba
-          ? VUE_IMAGE.peindreRGBA(r.rgba, geo, uv, reglages.lisser ?? true)
-          : VUE_IMAGE.peindre(r.valeurs, geo, uv, r.min, r.max, lut, reglages.lisser ?? true);
+        const p = peindreVue(moteur, {
+          geo, couche, ecran, lut, contraste: reglages.contraste, lisser: reglages.lisser,
+          actifs: reglages.actifs, reglagesCouche: reglages.couche,
+        }, memoImage);
+        if (!p) return null;
         return {
-          ...r, W: ecran.W, H: ecran.H, classes: moteur.classes(), rgba,
-          dureeCouche: t1 - t0 - r.dureeSurface, dureeImage: performance.now() - t1, duree: performance.now() - t0,
+          ...p.r, W: ecran.W, H: ecran.H, classes: moteur.classes(), rgba: p.rgba,
+          dureeCouche: p.dureeCouche, dureeImage: p.dureeImage, duree: performance.now() - p.t0,
         };
       },
       arreter() {},
