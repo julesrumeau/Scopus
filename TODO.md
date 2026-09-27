@@ -168,6 +168,29 @@ mouvement. À faire après usage de l'étape 1.
 Au-delà du seuil de surface, rien ne s'affiche (côté relief noir, « zoomez »),
 et en attendant les points non plus. Le MNT de l'IGN en WMS a été essayé puis
 débranché le 26 septembre 2026 : on ne savait plus si ce qu'on voyait venait
-de lui ou des points. `mnt-ign.js` reste, testé. À reprendre seulement avec
+de lui ou des points. `mnt-ign.js` a été retiré (historique git, commit
+`90c7321`, avec ses tests). À reprendre seulement avec
 une distinction visible (flou, teinte, libellé) entre les deux sources.
+
+### #6 — Laissé de côté par l'audit du 27 septembre 2026
+
+Relevé en relisant la branche du relief piloté par la vue, sans y toucher,
+parce que ça changerait un comportement ou demanderait une décision :
+
+- **Les deux côtés du rideau peuvent tomber sur deux surfaces.** Ils sont
+  demandés l'un après l'autre ; un bloc arrivé entre les deux fait refaire
+  la surface, et la couche du premier côté sort du mémo — l'info-bulle n'y
+  lit plus de valeur jusqu'au calcul suivant. Transitoire (vu sous
+  émulation), à régler en demandant les deux côtés dans un seul message.
+- **Le rangement sur la carte graphique** (`GPU_RELIEF.ajouterBloc`,
+  `retirerBloc`, `surfaceVue`, shaders `accuVS`, `accuFS`, `solPrepFS`,
+  `surfaceFS`) ne sert plus qu'avec `&gpu` : juste, pas plus rapide, et il
+  gèle la page. Gardé pour comparer ; à retirer si le plan 3D n'en veut pas.
+- **Décodage et réseau dans `flux.js`** : un bloc attend sa place réseau
+  même quand ses octets sont en cache ; un décodage en parallèle pourrait
+  raccourcir la seconde visite. À mesurer avant.
+- **L'image du worker en PNG** : `ImageBitmap` éviterait l'encodage et le
+  décodage, au prix d'un chemin de plus pour le repli.
+- **`app.js` enveloppe la vue normale** dans un bloc de ~600 lignes : à
+  sortir dans son propre fichier quand l'ancien parcours (`?dalle`) partira.
 

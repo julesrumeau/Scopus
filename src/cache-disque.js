@@ -54,7 +54,9 @@ const CACHE_DISQUE = (() => {
       await ouvrir();
       if (enPanne || octets.byteLength > quotaOctets || meta.has(cle)) return;
       try {
-        const parAge = [...meta.entries()].sort((a, b) => a[1].acces - b[1].acces);
+        // Trié seulement s'il faut effacer : la plupart des écritures tiennent.
+        const parAge = total + octets.byteLength > quotaOctets
+          ? [...meta.entries()].sort((a, b) => a[1].acces - b[1].acces) : [];
         while (total + octets.byteLength > quotaOctets && parAge.length) {
           const [vieux, v] = parAge.shift();
           if (!meta.has(vieux)) continue;
