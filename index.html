@@ -198,6 +198,118 @@
         une dalle, puis revenez ici.</p>
     </section>
 
+    <!-- ─── 3D : rendu du nuage ──────────────────────────────────────────── -->
+    <section class="etape" data-vue="3d" id="section-affichage" hidden>
+      <h2>Affichage</h2>
+      <div class="segments" id="coloration">
+        <button data-mode="classification" class="actif">Classification</button>
+        <button data-mode="hauteur">Hauteur/sol</button>
+        <button data-mode="relief">Relief</button>
+        <button data-mode="elevation">Altitude</button>
+        <button data-mode="intensite">Intensité</button>
+      </div>
+      <label class="champ">
+        <span>Taille des points <b id="val-taille">2.0</b></span>
+        <input type="range" id="taille-point" min="0.5" max="24" step="0.5" value="2">
+      </label>
+      <label class="champ">
+        <span>Exagération verticale <b id="val-exag">×1.0</b></span>
+        <input type="range" id="exag" min="0.5" max="4" step="0.1" value="1">
+      </label>
+      <div class="rangee">
+        <button id="btn-dessus" class="secondaire" title="Raccourci : t">Vue de dessus</button>
+        <button id="btn-cadrer" class="secondaire" title="Raccourci : f">Tout cadrer</button>
+      </div>
+      <label class="champ" id="champ-budget3d">
+        <span>Points affichés, au plus <b id="val-vue-budget3d">5 M</b></span>
+        <input type="range" id="vue-budget3d" min="1" max="20" step="0.5" value="5">
+      </label>
+      <label class="case">
+        <input type="checkbox" id="vue-edl" checked>
+        <span>Ombrage de profondeur <small>(EDL : fait ressortir murets et talus)</small></span>
+      </label>
+      <div id="legende" class="legende"></div>
+    </section>
+
+    <!-- ─── 2D : lecture de la dalle, deux couches comparées ─────────────── -->
+    <section class="etape" data-vue="2d" id="section-2d">
+      <h2>Couches comparées</h2>
+      <p class="vide" id="relief-vide">Aucun nuage chargé. Passez à l'onglet
+        <b>Carte</b> pour choisir une dalle, puis revenez ici.</p>
+
+      <div id="relief-controles" hidden>
+        <!-- Deux listes déroulantes plutôt que deux jeux de boutons : huit
+             couches par côté feraient seize boutons pour un choix qui se fait
+             une fois. -->
+        <div class="deux-cotes">
+          <label class="champ">
+            <span>Gauche</span>
+            <select id="couche-gauche"></select>
+          </label>
+          <label class="champ">
+            <span>Droite</span>
+            <select id="couche-droite"></select>
+          </label>
+        </div>
+        <div class="rangee">
+          <button id="btn-echanger" class="secondaire" title="Permuter les deux couches">⇄ Échanger</button>
+          <button id="btn-rideau-centre" class="secondaire" title="Remettre le rideau au milieu">Rideau au centre</button>
+        </div>
+        <p class="note" id="relief-aide"></p>
+        <!-- Réglages du balayage d'horizons, propres au Sky-View Factor : ne
+             s'affichent que si cette couche est choisie d'un côté ou de l'autre,
+             pour ne pas encombrer le panneau des couches qui n'en ont pas besoin. -->
+        <div id="svf-reglages" hidden>
+          <label class="champ">
+            <span>
+              <span class="libelle-aide">Directions Sky-View Factor
+                <button type="button" class="aide-info" title="Nombre de directions balayées pour estimer l’horizon de chaque cellule. En augmenter lisse les formes rondes et atténue les artefacts autour des trous de données, sans changer la finesse spatiale — celle-là dépend de la grille, pas de ce réglage. Coût linéaire : doubler les directions double le temps de calcul.">?</button>
+              </span>
+              <b id="val-svf-directions">8</b>
+            </span>
+            <input type="range" id="svf-directions" min="4" max="24" step="1" value="8">
+          </label>
+          <label class="champ">
+            <span>
+              <span class="libelle-aide">Rayon Sky-View Factor
+                <button type="button" class="aide-info" title="Distance balayée pour chercher l’horizon. Un rayon court isole les petites structures (plus de contraste local) mais ignore le relief plus lointain qui bloquerait réellement une part du ciel — la part visible peut alors être surestimée près d’une vraie pente. Un rayon long est plus fidèle au relief réel mais dilue les petites structures, coûte plus cher, et élargit la marge de bord invalide autour de la dalle (exactement égale à ce rayon).">?</button>
+              </span>
+              <b id="val-svf-rayon">10 m</b>
+            </span>
+            <input type="range" id="svf-rayon" min="3" max="30" step="1" value="10">
+          </label>
+        </div>
+        <!-- Une ruine est opaque au laser : elle ne laisse aucun retour sol, le
+             comblement met une surface lisse à sa place, et elle s'efface de la
+             couche même où on la cherche. Cette case remet la mesure. -->
+        <label class="case">
+          <input type="checkbox" id="inclure-sursol" checked>
+          <span>Compléter le sol par les retours non classés
+            <small>(ruines et tas de pierres, sous 3 m)</small></span>
+        </label>
+        <label class="champ">
+          <span>Contraste <b id="val-contraste">×1.0</b></span>
+          <input type="range" id="contraste-relief" min="0.4" max="5" step="0.1" value="1">
+        </label>
+        <label class="case">
+          <input type="checkbox" id="lisser-2d" checked>
+          <span>Lisser l'affichage <small>(interpolation entre cases, visible en zoomant)</small></span>
+        </label>
+        <div id="relief-stats" class="stats" hidden></div>
+        <label class="case">
+          <input type="checkbox" id="relief-detections" checked>
+          <span>Superposer les détections</span>
+        </label>
+        <label class="case">
+          <input type="checkbox" id="relief-sentiers" checked>
+          <span>Superposer les sentiers</span>
+        </label>
+        <div class="rangee">
+          <button id="btn-relief-cadrer" class="secondaire">Tout cadrer</button>
+        </div>
+      </div>
+    </section>
+
     <!-- ─── 2D et 3D : point sélectionné ──────────────────────────────────
          Commun aux deux onglets (`data-vue="2d 3d"`) : le mode Sélection de la
          sous-barre change ce que fait un clic dans les deux vues à la fois.
@@ -254,39 +366,6 @@
         <button id="btn-classes-sol-appliquer" class="primaire" disabled
                 title="Retélécharge la dalle entière avec la nouvelle sélection">Mettre à jour</button>
       </div>
-    </section>
-
-    <!-- ─── 3D : rendu du nuage ──────────────────────────────────────────── -->
-    <section class="etape" data-vue="3d" id="section-affichage" hidden>
-      <h2>Affichage</h2>
-      <div class="segments" id="coloration">
-        <button data-mode="classification" class="actif">Classification</button>
-        <button data-mode="hauteur">Hauteur/sol</button>
-        <button data-mode="relief">Relief</button>
-        <button data-mode="elevation">Altitude</button>
-        <button data-mode="intensite">Intensité</button>
-      </div>
-      <label class="champ">
-        <span>Taille des points <b id="val-taille">2.0</b></span>
-        <input type="range" id="taille-point" min="0.5" max="24" step="0.5" value="2">
-      </label>
-      <label class="champ">
-        <span>Exagération verticale <b id="val-exag">×1.0</b></span>
-        <input type="range" id="exag" min="0.5" max="4" step="0.1" value="1">
-      </label>
-      <div class="rangee">
-        <button id="btn-dessus" class="secondaire" title="Raccourci : t">Vue de dessus</button>
-        <button id="btn-cadrer" class="secondaire" title="Raccourci : f">Tout cadrer</button>
-      </div>
-      <label class="champ" id="champ-budget3d">
-        <span>Points affichés, au plus <b id="val-vue-budget3d">5 M</b></span>
-        <input type="range" id="vue-budget3d" min="1" max="20" step="0.5" value="5">
-      </label>
-      <label class="case">
-        <input type="checkbox" id="vue-edl" checked>
-        <span>Ombrage de profondeur <small>(EDL : fait ressortir murets et talus)</small></span>
-      </label>
-      <div id="legende" class="legende"></div>
     </section>
 
     <!-- ─── Les deux vues : analyse et résultats ─────────────────────────
@@ -378,85 +457,6 @@
         <div class="rangee exports" id="exports-sentiers" hidden>
           <button id="exp-sent-gpx" class="secondaire">GPX (traces)</button>
           <button id="exp-sent-geojson" class="secondaire">GeoJSON</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- ─── 2D : lecture de la dalle, deux couches comparées ─────────────── -->
-    <section class="etape" data-vue="2d" id="section-2d">
-      <h2>Couches comparées</h2>
-      <p class="vide" id="relief-vide">Aucun nuage chargé. Passez à l'onglet
-        <b>Carte</b> pour choisir une dalle, puis revenez ici.</p>
-
-      <div id="relief-controles" hidden>
-        <!-- Deux listes déroulantes plutôt que deux jeux de boutons : huit
-             couches par côté feraient seize boutons pour un choix qui se fait
-             une fois. -->
-        <div class="deux-cotes">
-          <label class="champ">
-            <span>Gauche</span>
-            <select id="couche-gauche"></select>
-          </label>
-          <label class="champ">
-            <span>Droite</span>
-            <select id="couche-droite"></select>
-          </label>
-        </div>
-        <div class="rangee">
-          <button id="btn-echanger" class="secondaire" title="Permuter les deux couches">⇄ Échanger</button>
-          <button id="btn-rideau-centre" class="secondaire" title="Remettre le rideau au milieu">Rideau au centre</button>
-        </div>
-        <p class="note" id="relief-aide"></p>
-        <!-- Réglages du balayage d'horizons, propres au Sky-View Factor : ne
-             s'affichent que si cette couche est choisie d'un côté ou de l'autre,
-             pour ne pas encombrer le panneau des couches qui n'en ont pas besoin. -->
-        <div id="svf-reglages" hidden>
-          <label class="champ">
-            <span>
-              <span class="libelle-aide">Directions Sky-View Factor
-                <button type="button" class="aide-info" title="Nombre de directions balayées pour estimer l’horizon de chaque cellule. En augmenter lisse les formes rondes et atténue les artefacts autour des trous de données, sans changer la finesse spatiale — celle-là dépend de la grille, pas de ce réglage. Coût linéaire : doubler les directions double le temps de calcul.">?</button>
-              </span>
-              <b id="val-svf-directions">8</b>
-            </span>
-            <input type="range" id="svf-directions" min="4" max="24" step="1" value="8">
-          </label>
-          <label class="champ">
-            <span>
-              <span class="libelle-aide">Rayon Sky-View Factor
-                <button type="button" class="aide-info" title="Distance balayée pour chercher l’horizon. Un rayon court isole les petites structures (plus de contraste local) mais ignore le relief plus lointain qui bloquerait réellement une part du ciel — la part visible peut alors être surestimée près d’une vraie pente. Un rayon long est plus fidèle au relief réel mais dilue les petites structures, coûte plus cher, et élargit la marge de bord invalide autour de la dalle (exactement égale à ce rayon).">?</button>
-              </span>
-              <b id="val-svf-rayon">10 m</b>
-            </span>
-            <input type="range" id="svf-rayon" min="3" max="30" step="1" value="10">
-          </label>
-        </div>
-        <!-- Une ruine est opaque au laser : elle ne laisse aucun retour sol, le
-             comblement met une surface lisse à sa place, et elle s'efface de la
-             couche même où on la cherche. Cette case remet la mesure. -->
-        <label class="case">
-          <input type="checkbox" id="inclure-sursol" checked>
-          <span>Compléter le sol par les retours non classés
-            <small>(ruines et tas de pierres, sous 3 m)</small></span>
-        </label>
-        <label class="champ">
-          <span>Contraste <b id="val-contraste">×1.0</b></span>
-          <input type="range" id="contraste-relief" min="0.4" max="5" step="0.1" value="1">
-        </label>
-        <label class="case">
-          <input type="checkbox" id="lisser-2d" checked>
-          <span>Lisser l'affichage <small>(interpolation entre cases, visible en zoomant)</small></span>
-        </label>
-        <div id="relief-stats" class="stats" hidden></div>
-        <label class="case">
-          <input type="checkbox" id="relief-detections" checked>
-          <span>Superposer les détections</span>
-        </label>
-        <label class="case">
-          <input type="checkbox" id="relief-sentiers" checked>
-          <span>Superposer les sentiers</span>
-        </label>
-        <div class="rangee">
-          <button id="btn-relief-cadrer" class="secondaire">Tout cadrer</button>
         </div>
       </div>
     </section>
