@@ -48,7 +48,7 @@ const CalqueRelief = L.Layer.extend({
       Object.assign(noir.style, {
         position: 'absolute', left: '-500000px', top: '-500000px', width: '1000000px', height: '1000000px', background: '#000',
       });
-      this._cotes[cote] = { nom, volet, noir, image: null, url: null, generation: 0, actif: cote === 'droite' };
+      this._cotes[cote] = { nom, volet, noir, image: null, url: null, generation: 0, actif: cote === 'droite', fond: null };
       volet.style.display = this._cotes[cote].actif ? '' : 'none';
     }
     this._creerRideau(map.getContainer());
@@ -59,6 +59,7 @@ const CalqueRelief = L.Layer.extend({
   onRemove(map) {
     map.off('move zoomend viewreset resize', this._decouper, this);
     for (const cote of ['gauche', 'droite']) {
+      this.definirFond(cote, null);
       this.vider(cote);
       this._cotes[cote].noir.remove();
       this._cotes[cote].volet.style.clipPath = '';
@@ -81,6 +82,17 @@ const CalqueRelief = L.Layer.extend({
     c.actif = actif;
     c.volet.style.display = actif ? '' : 'none';
     if (!actif) this.vider(cote);
+  },
+
+  /**
+   * Un fond de tuiles (le Plan IGN…) posé dans un côté, ou `null` pour le
+   * retirer. La carte principale n'a qu'un fond à la fois ; ainsi un côté
+   * peut montrer la photo et l'autre le plan. Le côté doit être actif.
+   */
+  definirFond(cote, couche) {
+    const c = this._cotes[cote];
+    if (c.fond) { this._carte.removeLayer(c.fond); c.fond = null; }
+    if (couche) { this.vider(cote); c.fond = couche.addTo(this._carte); }
   },
 
   /** Position du rideau, en part de la largeur. */

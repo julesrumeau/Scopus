@@ -2516,7 +2516,12 @@ if (MODE_VUE) (async () => {
   // porte, avec son propre choix de fond) : relief.js, plus l'ombrage coloré.
   // L'ombrage gris n'y est pas : sur une grille au pixel, il sortait pâle.
   const COUCHES_VUE = CHOIX_2D.filter((c) => c.cle !== PHOTO && c.cle !== PLAN && c.cle !== 'ombrage');
-  const libelleCouche = (cle) => (cle === 'carte' ? 'Carte' : COUCHES_VUE.find((c) => c.cle === cle).libelle);
+  // Ce qui n'est pas du relief : la carte telle qu'affichée, et le Plan IGN,
+  // posé dans le côté même — la carte n'a qu'un fond à la fois, et ainsi un
+  // côté peut montrer la photo et l'autre le plan.
+  const FONDS_VUE = { carte: 'Carte', plan: 'Plan IGN' };
+  const estRelief = (cle) => !(cle in FONDS_VUE);
+  const libelleCouche = (cle) => FONDS_VUE[cle] || COUCHES_VUE.find((c) => c.cle === cle).libelle;
   // Le statut dit à l'utilisateur où en est son relief ; le détail chiffré
   // (surface, dalles, blocs, points, durées) ne sert qu'au diagnostic, avec
   // « &debug » ou « &chrono ».
@@ -2580,9 +2585,9 @@ if (MODE_VUE) (async () => {
     // Trop large : le côté relief reste noir, et son libellé sur le rideau dit
     // pourquoi — plutôt qu'un avis posé au milieu de la carte.
     const tropLarge = vueCourante && FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2;
-    const aCalculer = ['gauche', 'droite'].filter((c) => cotes[c] !== 'carte');
+    const aCalculer = ['gauche', 'droite'].filter((c) => estRelief(cotes[c]));
     for (const c of ['gauche', 'droite']) {
-      reliefCalque.definirLibelle(c, tropLarge && cotes[c] !== 'carte' ? 'Zoomez pour voir le relief' : libelleCouche(cotes[c]));
+      reliefCalque.definirLibelle(c, tropLarge && estRelief(cotes[c]) ? 'Zoomez pour voir le relief' : libelleCouche(cotes[c]));
     }
     if (!vueCourante || tropLarge || !aCalculer.length) {
       for (const c of aCalculer) reliefCalque.vider(c);
@@ -2689,21 +2694,29 @@ if (MODE_VUE) (async () => {
 
   // ── Le panneau du relief ──
   const BALAYAGE = new Set(['svf', 'ouverture-pos', 'ouverture-neg']);
+  const fondsPoses = { gauche: false, droite: false };
   const majCotes = () => {
     for (const c of ['gauche', 'droite']) {
       $(`vue-${c}`).value = cotes[c];
       reliefCalque.definirActif(c, cotes[c] !== 'carte');
+      // Reposé seulement s'il change : recréer la couche rechargerait toutes
+      // ses tuiles à chaque changement de l'autre côté.
+      if (fondsPoses[c] !== (cotes[c] === 'plan')) {
+        fondsPoses[c] = cotes[c] === 'plan';
+        reliefCalque.definirFond(c, fondsPoses[c]
+          ? carte.nouveauFond('plan', { pane: c === 'gauche' ? 'reliefGauche' : 'reliefDroite' }) : null);
+      }
       reliefCalque.definirLibelle(c, libelleCouche(cotes[c]));
     }
     // L'aide de la couche de relief affichée — celle de droite par défaut,
     // côté du relief par convention.
-    const cle = cotes.droite !== 'carte' ? cotes.droite : cotes.gauche;
-    $('vue-aide').textContent = cle === 'carte' ? 'Choisissez une couche de relief d’un côté du rideau.' : COUCHES_VUE.find((x) => x.cle === cle).aide;
+    const cle = estRelief(cotes.droite) ? cotes.droite : cotes.gauche;
+    $('vue-aide').textContent = estRelief(cle) ? COUCHES_VUE.find((x) => x.cle === cle).aide : 'Choisissez une couche de relief d’un côté du rideau.';
     $('vue-svf-reglages').hidden = !(BALAYAGE.has(cotes.gauche) || BALAYAGE.has(cotes.droite));
   };
   for (const c of ['gauche', 'droite']) {
     const sel = $(`vue-${c}`);
-    sel.add(new Option('Carte', 'carte'));
+    for (const [cle, libelle] of Object.entries(FONDS_VUE)) sel.add(new Option(libelle, cle));
     for (const k of COUCHES_VUE) sel.add(new Option(k.libelle, k.cle));
     sel.addEventListener('change', () => { cotes[c] = sel.value; majCotes(); planifierRelief(0); });
   }
@@ -2795,13 +2808,13 @@ if (MODE_VUE) (async () => {
       const { x, y } = PROJ.versLambert93(ll.lng, ll.lat);
       // La valeur de la couche du côté survolé ; côté carte, aucune.
       const cle = cotes[reliefCalque.coteSous(ll.px)];
-      const p = await relief.lire(x, y, cle === 'carte' ? undefined : cle);
+      const p = await relief.lire(x, y, estRelief(cle) ? cle : undefined);
       if (!ll.dedans) continue;
       hud.hidden = false;
       hud.innerHTML = `x ${x.toFixed(0)} · y ${y.toFixed(0)}`
         + (p?.altitude == null ? ' · sol inconnu' : ` · sol ${p.altitude.toFixed(1)} m`)
         + (p?.hauteur > 0.05 ? ` · <b>+${p.hauteur.toFixed(2)} m</b>` : '')
-        + (cle !== 'carte' && p?.valeur != null && Number.isFinite(p.valeur) ? ` · ${echapper(libelleCouche(cle))} <b>${p.valeur.toFixed(2)}</b>` : '');
+        + (estRelief(cle) && p?.valeur != null && Number.isFinite(p.valeur) ? ` · ${echapper(libelleCouche(cle))} <b>${p.valeur.toFixed(2)}</b>` : '');
     }
     hudEnCours = false;
   };

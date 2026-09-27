@@ -75,6 +75,13 @@ class Carte {
       maxZoom: CONFIG.carte.zoomMax,
       maxNativeZoom: CONFIG.carte.zoomTuilesMax,
     };
+    // Une couche de fond IGN, avec ses réglages et ses réessais — aussi pour
+    // un côté du rideau en vue normale (app.js), qui en pose une dans son volet.
+    this.nouveauFond = (cle, options = {}) => {
+      const couche = L.tileLayer(IGN.gabaritWMTS(cle), { ...tuiles, ...options });
+      reessayer(couche);
+      return couche;
+    };
     const plan = L.tileLayer(IGN.gabaritWMTS('plan'), tuiles);
     const ortho = L.tileLayer(IGN.gabaritWMTS('ortho'), tuiles);
     // Une tuile refusée est redemandée, jusqu'à trois fois.
@@ -87,7 +94,7 @@ class Carte {
     //
     // Le `src` est vidé avant d'être réécrit : réaffecter la même chaîne ne
     // relance pas forcément le chargement.
-    for (const couche of [plan, ortho]) {
+    const reessayer = (couche) => {
       couche.on('tileload', () => this._majAvisPanne(true));
       couche.on('tileerror', (e) => {
         const img = e.tile;
@@ -98,7 +105,8 @@ class Carte {
         img.src = '';
         setTimeout(() => { img.src = url; }, 350 * n * (0.7 + Math.random() * 0.6));
       });
-    }
+    };
+    for (const couche of [plan, ortho]) reessayer(couche);
 
     ortho.addTo(this.map);
     L.control.layers({ 'Photo aérienne': ortho, 'Plan IGN': plan }, null, { collapsed: true }).addTo(this.map);
