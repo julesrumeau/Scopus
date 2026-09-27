@@ -363,18 +363,25 @@ void main() {
   lissageFS: `#version 300 es
 precision highp float; precision highp int;
 uniform highp sampler2D u_src;
-uniform highp sampler2D u_valide;
-uniform int u_W; uniform int u_H; uniform int u_r; uniform bool u_horizontal; uniform bool u_repli; uniform float u_valeurRepli;
+uniform int u_W; uniform int u_H; uniform int u_r; uniform bool u_horizontal; uniform float u_valeurRepli;
 out vec4 o;
-float lire(int x, int y) {
-  vec2 v = texelFetch(u_src, ivec2(clamp(x, 0, u_W - 1), clamp(y, 0, u_H - 1)), 0).rg;
-  return (u_repli && v.g < 0.5) ? u_valeurRepli : v.r;
-}
 void main() {
   int x = int(gl_FragCoord.x), y = int(gl_FragCoord.y);
-  float somme = 0.0;
-  for (int k = -u_r; k <= u_r; k++) somme += u_horizontal ? lire(x + k, y) : lire(x, y + k);
-  o = vec4(somme / float(2 * u_r + 1), texelFetch(u_valide, ivec2(x, y), 0).g, 0.0, 0.0);
+  float a = 0.0, b = 0.0;
+  if (u_horizontal) {
+    for (int k = -u_r; k <= u_r; k++) {
+      vec2 v = texelFetch(u_src, ivec2(clamp(x + k, 0, u_W - 1), y), 0).rg;
+      float w = v.g > 0.5 ? 1.0 : 0.0;
+      a += v.r * w; b += w;
+    }
+    o = vec4(a, b, texelFetch(u_src, ivec2(x, y), 0).g, 0.0);
+  } else {
+    for (int k = -u_r; k <= u_r; k++) {
+      vec4 v = texelFetch(u_src, ivec2(x, clamp(y + k, 0, u_H - 1)), 0);
+      a += v.r; b += v.g;
+    }
+    o = vec4(b > 0.0 ? a / b : u_valeurRepli, texelFetch(u_src, ivec2(x, y), 0).b, 0.0, 0.0);
+  }
 }`,
 
   // Modèle de terrain, pente : gradient de Sobel à lectures bornées, en degrés

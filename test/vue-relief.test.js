@@ -418,3 +418,39 @@ test('drape3d : plus rien après que la grille a changé (surface lâchée)', ()
   m.calculer(VUE_GRILLE.definir({ xmin: 1000, xmax: 1060, ymin: 2000, ymax: 2060 }, 1, 0, 4096), 'svf');   // autre pas : grille neuve
   assert.equal(m.drape3d('svf', undefined, c.min, c.max), null);
 });
+
+// ── Les étoiles autour des trous ────────────────────────────────────────────
+// Vu sur une dalle de forêt dense (banc des tracés, 27 septembre 2026) : autour
+// des trous sans point de sol, le SVF de la vue dessinait des étoiles sombres à
+// huit branches, autant de faux traits pour un détecteur de lignes.
+
+test('un trou sans sol n’assombrit pas le SVF de ses voisines', () => {
+  // Un plan à 30 % de pente, un trou de 10 × 10 m sans aucun point, loin du
+  // milieu de la zone : l'altitude médiane de la zone y est bien plus haute
+  // que le terrain.
+  const cote = 80, pasCm = 25;
+  const pts = [];
+  for (let y = 0; y < cote * 100; y += pasCm) for (let x = 0; x < cote * 100; x += pasCm) {
+    if (x >= 1000 && x < 2000 && y >= 3500 && y < 4500) continue;
+    pts.push([x, y, 30000 + Math.round(x * 0.3)]);
+  }
+  const n = pts.length;
+  const p = { nbPoints: n, xc: new Int32Array(n), yc: new Int32Array(n), zc: new Int32Array(n), cls: new Uint8Array(n).fill(2) };
+  pts.forEach(([x, y, z], i) => { p.xc[i] = x; p.yc[i] = y; p.zc[i] = z; });
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter({ cle: 'plan', emprise: { xmin: 1000, ymin: 2000, xmax: 1000 + cote, ymax: 2000 + cote }, origineCm: [100000, 200000, 0], points: p });
+  const g = VUE_GRILLE.definir({ xmin: 1000, xmax: 1080, ymin: 2000, ymax: 2080 }, 0.5, 0, 4096);
+  const r = m.calculer(g, 'svf');
+  const t = r.t;
+  const lire = (x, y) => r.valeurs[Math.floor((y - t.emprise.ymin) / t.pas) * t.W + Math.floor((x - t.emprise.xmin) / t.pas)];
+  // La référence : le même plan loin du trou et des bords.
+  const plan = lire(1050, 2040);
+  assert.ok(Number.isFinite(plan));
+  // Trou : x 1010–1020, y 2035–2045. À 3 m de son bord, dans les huit directions.
+  const cx = 1015, cy = 2040;
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+    const x = cx + dx * 8, y = cy + dy * 8;
+    const v = lire(x, y);
+    assert.ok(!Number.isFinite(v) || Math.abs(v - plan) < 0.01, `SVF à (${x}, ${y}) : ${v?.toFixed(4)} au lieu de ${plan.toFixed(4)}`);
+  }
+});

@@ -404,21 +404,23 @@ function fabriqueGpuRelief() {
       for (let k = 0; k < nb; k++) if (px[k * 4 + 1] > 0.5) valeurs.push(px[k * 4]);
       const repli = valeurs.length ? valeurs.sort((u, v) => u - v)[valeurs.length >> 1] : 0;
 
-      // Lissage horizontal (avec le repli) puis vertical.
-      const lisse = comble === a ? b : a;   // la cible libre
+      // Lissage des seules cellules connues (RASTER.flouNormalise) :
+      // horizontal vers une cible RGBA (somme pondérée, poids, validité),
+      // puis vertical, qui divise et rend le repli sans voisine connue.
+      liberer(gl, comble === a ? b : a);
+      const inter = cible(gl, W, H);
+      a = comble; b = inter;
       gl.useProgram(P.lissage);
       gl.uniform1i(P.lissage.u.u_W, W);
       gl.uniform1i(P.lissage.u.u_H, H);
       gl.uniform1i(P.lissage.u.u_r, rayonLissage);
       gl.uniform1i(P.lissage.u.u_horizontal, 1);
-      gl.uniform1i(P.lissage.u.u_repli, 1);
       gl.uniform1f(P.lissage.u.u_valeurRepli, repli);
-      passe(e, P.lissage, lisse, W, H, { u_src: comble.tex, u_valide: comble.tex });
+      passe(e, P.lissage, inter, W, H, { u_src: comble.tex });
       gl.useProgram(P.lissage);
       gl.uniform1i(P.lissage.u.u_horizontal, 0);
-      gl.uniform1i(P.lissage.u.u_repli, 0);
-      passe(e, P.lissage, comble, W, H, { u_src: lisse.tex, u_valide: lisse.tex });
-      return { comble, libre: lisse, repli };
+      passe(e, P.lissage, comble, W, H, { u_src: inter.tex });
+      return { comble, libre: inter, repli };
     } catch (err) {
       liberer(gl, a, b);
       throw err;

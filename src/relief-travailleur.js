@@ -118,7 +118,7 @@ const RELIEF_TRAVAILLEUR = (() => {
   // appellent.
   const FONCTIONS_RASTER = [
     creerGrilles, tableaux, creerGrillesVue, accumuler, accumulerCm, verser, finaliser,
-    rasteriser, signal, modeleTerrain, flouBoite, pente, hauteurParPoint, centreCellule,
+    rasteriser, signal, modeleTerrain, flouBoite, flouNormalise, pente, hauteurParPoint, centreCellule,
   ];
 
   /** GL est un objet de méthodes : chacune reprend son texte, clé comprise. */

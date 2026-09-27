@@ -325,7 +325,29 @@ function modeleTerrain(g, passes = CONFIG.raster.rayonComblementSol, rayon = CON
   for (let i = 0; i < N; i++) if (!valide[i] || !Number.isFinite(cour[i])) cour[i] = repli;
 
   g.solConnu = valide;
-  return flouBoite(cour, W, H, rayon);
+  return flouNormalise(cour, valide, W, H, rayon, repli);
+}
+
+/**
+ * Lissage des seules cellules connues : flou de la valeur pondérée par la
+ * validité, divisé par le flou de la validité (convolution normalisée). Une
+ * cellule sans sol ne prête donc rien à ses voisines ; elle prend la moyenne
+ * de ses voisines connues, ou le repli si elle n'en a aucune.
+ *
+ * Avec un flou ordinaire, la première couronne de cellules connues autour
+ * d'un trou recevait une part de l'altitude de repli — la médiane de toute la
+ * zone, à des dizaines de mètres du terrain en montagne : un mur d'une cellule
+ * que le SVF voyait de loin, en étoile à huit branches (banc des tracés,
+ * forêt dense, 27 septembre 2026). Même leçon que `sentiers.js`.
+ */
+function flouNormalise(valeurs, valide, W, H, rayon, repli) {
+  if (rayon <= 0) return valeurs;
+  const N = W * H;
+  const pondere = new Float32Array(N), poids = new Float32Array(N);
+  for (let i = 0; i < N; i++) if (valide[i]) { pondere[i] = valeurs[i]; poids[i] = 1; }
+  const a = flouBoite(pondere, W, H, rayon), b = flouBoite(poids, W, H, rayon);
+  for (let i = 0; i < N; i++) a[i] = b[i] > 1e-6 ? a[i] / b[i] : repli;
+  return a;
 }
 
 /**
