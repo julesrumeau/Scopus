@@ -330,6 +330,55 @@ function lireEnteteLot(octets) {
   };
 }
 
+/**
+ * Un bloc LAZ 1.4 (formats de point 6 à 8) est compressé **en couches** :
+ * après le premier point brut et le nombre de points, la taille de chaque
+ * couche, puis les couches bout à bout — XY, Z, classe, drapeaux, intensité,
+ * angle, utilisateur, source, temps GPS, puis couleur, infrarouge et un par
+ * octet supplémentaire. Le relief ne lit que les quatre premières : elles
+ * font 49 à 66 % d'un bloc (mesuré sur 4 lots, 530 blocs, 60 % en moyenne),
+ * et elles sont **au début**. Un seul début de bloc suffit donc.
+ *
+ * Nombre de couches d'un format, `null` s'il n'est pas en couches.
+ */
+function nbCouchesBloc(formatPoint, longueurPoint) {
+  const base = { 6: 30, 7: 36, 8: 38 }[formatPoint];
+  if (!base || longueurPoint < base) return null;
+  return 9 + (formatPoint - 6) + (longueurPoint - base);
+}
+const COUCHES_LUES = 4;   // XY, Z, classe, drapeaux
+
+/**
+ * Octets du début d'un bloc qu'il faut pour le décoder sans les couches
+ * inutiles ; lisible dès l'en-tête du bloc reçu. `null` si cet en-tête n'est
+ * pas là ou si le format n'est pas en couches.
+ */
+function tailleUtileBloc(octets, formatPoint, longueurPoint) {
+  const nb = nbCouchesBloc(formatPoint, longueurPoint);
+  const entete = longueurPoint + 4 + 4 * (nb || 0);
+  if (!nb || octets.length < entete) return null;
+  const dv = new DataView(octets.buffer, octets.byteOffset, entete);
+  let n = entete;
+  for (let i = 0; i < COUCHES_LUES; i++) n += dv.getUint32(longueurPoint + 4 + 4 * i, true);
+  return n;
+}
+
+/**
+ * Le bloc réduit aux couches lues : les autres y sont déclarées vides, ce que
+ * laz-perf décode sans erreur — XYZ et classes identiques au point près,
+ * vérifié sur de vrais blocs ; l'intensité, le temps GPS et le reste n'y ont
+ * plus de sens. `null` si les couches lues ne sont pas toutes dans `octets`.
+ */
+function reduireBloc(octets, formatPoint, longueurPoint) {
+  const utile = tailleUtileBloc(octets, formatPoint, longueurPoint);
+  if (utile == null || octets.length < utile) return null;
+  const r = octets.slice(0, utile);
+  const dv = new DataView(r.buffer);
+  const nb = nbCouchesBloc(formatPoint, longueurPoint);
+  for (let i = COUCHES_LUES; i < nb; i++) dv.setUint32(longueurPoint + 4 + 4 * i, 0, true);
+  return r;
+}
+
 /** Lot de publication : le dossier qui contient le fichier. */
 function lotDepuisUrl(url) {
   const parties = url.split('?')[0].split('/');
@@ -374,5 +423,6 @@ function grouperPlages(noeuds, tolerance = 1 << 20, tailleMax = 8 << 20) {
 
 const COPC = {
   lireEntete, lireHierarchie, lireEntrees, lireFin, lireEnteteLot, lotDepuisUrl,
+  tailleUtileBloc, reduireBloc,
   empriseNoeud, espacementNiveau, selectionner, coutParNiveau, grouperPlages,
 };

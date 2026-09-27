@@ -50,3 +50,20 @@ export function fabriquerEntete({ longueurPoint = 30 } = {}) {
   for (let k = 0; k < 3; k++) dv.setFloat64(155 + 8 * k, 0, true);
   return o;
 }
+
+/**
+ * Un bloc LAZ 1.4 « en couches » (formats 6 à 8) : le premier point brut
+ * (`longueurPoint` octets, remplis de 7), le nombre de points, la taille de
+ * chaque couche, puis les couches bout à bout, la couche i remplie de i + 1.
+ */
+export function fabriquerBloc({ longueurPoint = 30, tailles, nbPoints = 1000 }) {
+  const entete = longueurPoint + 4 + 4 * tailles.length;
+  const o = new Uint8Array(entete + tailles.reduce((a, t) => a + t, 0));
+  const dv = new DataView(o.buffer);
+  o.fill(7, 0, longueurPoint);
+  dv.setUint32(longueurPoint, nbPoints, true);
+  tailles.forEach((t, i) => dv.setUint32(longueurPoint + 4 + 4 * i, t, true));
+  let p = entete;
+  tailles.forEach((t, i) => { o.fill(i + 1, p, p + t); p += t; });
+  return o;
+}

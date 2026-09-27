@@ -362,7 +362,7 @@ function fabriqueVueRelief() {
       // Second passage : garder, dans des tableaux au plus juste.
       const cap = Math.min(total, Math.ceil(budget * 1.05) + 1000);
       let xs = new Int32Array(cap), ys = new Int32Array(cap), zs = new Int32Array(cap);
-      let cls = new Uint8Array(cap), its = new Uint16Array(cap), n = 0;
+      let cls = new Uint8Array(cap), n = 0;
       let zminCm = Infinity, zmaxCm = -Infinity;
       for (const [, b] of dedans) {
         const p = b.points, [ox, oy, oz] = b.origineCm;
@@ -373,9 +373,9 @@ function fabriqueVueRelief() {
           if (taux < 1 && hacher(x, y, z) >= taux) continue;
           if (n === xs.length) {   // tirage au-dessus de la réserve : on agrandit
             const agrandir = (t) => { const u = new t.constructor(t.length * 2); u.set(t); return u; };
-            xs = agrandir(xs); ys = agrandir(ys); zs = agrandir(zs); cls = agrandir(cls); its = agrandir(its);
+            xs = agrandir(xs); ys = agrandir(ys); zs = agrandir(zs); cls = agrandir(cls);
           }
-          xs[n] = x; ys[n] = y; zs[n] = z; cls[n] = p.cls[i]; its[n] = p.intensite ? p.intensite[i] : 0;
+          xs[n] = x; ys[n] = y; zs[n] = z; cls[n] = p.cls[i];
           if (z < zminCm) zminCm = z; if (z > zmaxCm) zmaxCm = z;
           n++;
         }
@@ -404,7 +404,7 @@ function fabriqueVueRelief() {
       }
       if (t) dernierNuage = { t, cases };
       return {
-        n, x: X, y: Y, z: Z, cls: cls.slice(0, n), intensite: its.slice(0, n), hauteur: H,
+        n, x: X, y: Y, z: Z, cls: cls.slice(0, n), hauteur: H,
         origine, emprise: { ...emprise }, zmin: 0, zmax: (zmaxCm - zminCm) / 100,
         parClasse: [...histogramme(parCode)],
       };

@@ -319,11 +319,34 @@ plus `plagesEnVol` plages à la fois (3), toujours celle du bloc le plus
 prioritaire, bornées à `plageMaxOctets` (2 Mo). Avant, les blocs partaient par
 dalle entière (les quatre quarts en une plage de ~7 Mo), dans l'ordre où les
 dalles s'ouvraient : l'arrivée paraissait aléatoire (retour d'usage). Mesuré
-après : les quarts arrivent à 354 m du centre, puis 791, 1 061, 1 275 m. Plus de
-requêtes en vol n'accélère rien : l'IGN accorde à un client ~3–4 Mo/s au total,
-qui se partagent (mesuré : 0,54 plage de 8 Mo/s à 2 ou 3 en vol, 0,32 à 10).
-C'est le débit, pas le quota de requêtes, qui fixe la durée — ~30 s pour les
-~105 Mo de niveau 1 d'une vue de 3 km. Un bloc se décode **dès que ses octets sont là** — la fin de fichier
+après : les quarts arrivent à 354 m du centre, puis 791, 1 061, 1 275 m. C'est
+le débit, pas le quota de requêtes, qui fixe la durée : mesuré le 27 septembre
+2026 depuis la machine de l'utilisateur, la ligne plafonne vers 3,4 Mo/s
+(Cloudflare et OVH comme l'IGN) ; une requête IGN seule en tire ~2 Mo/s, 3 en
+vol 2,4 Mo/s, 5 à 10 en vol la ligne pleine. D'où 5 en vol
+(`plagesEnVol`, et la file de `reseau.js`). Le quota ne mord que les petites
+requêtes : sous ~500 Ko, des dizaines de 429 ; au-dessus, aucun.
+
+**Seules les couches lues.** Un bloc LAZ 1.4 est compressé en couches rangées
+bout à bout — XY, Z, classe, drapeaux, intensité, angle, utilisateur, source,
+temps GPS, octets supplémentaires —, et le relief ne lit que les quatre
+premières : 49 à 66 % du bloc, 60 % en moyenne (4 lots, 530 blocs). Un bloc
+d'au moins `coupeMinOctets` part donc seul, et seul son début est demandé
+(`fractionCoupe`, 68 %) ; l'en-tête du bloc dit où couper, et le reste des
+couches lues est redemandé dans les rares cas où il dépasse
+(`COPC.tailleUtileBloc`). Le bloc est ensuite **réduit** (`COPC.reduireBloc`) :
+les autres couches y sont déclarées vides, ce que laz-perf décode sans erreur
+— XYZ et classes identiques au point près, vérifié sur les lots à 30 et à 46
+octets par point. Le cache disque garde le bloc réduit. Les petits blocs
+restent groupés entiers, pour le quota. Les points arrivent dans l'ordre du
+vol (temps GPS croissant) : un début de bloc est une bande, pas un
+échantillon — un aperçu par « x % d'un bloc » n'est pas possible.
+
+Prix : l'intensité n'est plus téléchargée, et la couleur « Intensité » est
+retirée de la 3D de la vue (elle reste derrière `?dalle`, qui télécharge les
+blocs entiers). Gain mesuré dans Chromium, profil vierge, vue de Verdun au
+zoom 16 : 118 Mo en 40 à 46 s avant, 83 Mo en 23,5 s après (coupe et 5 en
+vol), soit 1,8 fois plus rapide ; aucun 429, y compris au zoom 18. Un bloc se décode **dès que ses octets sont là** — la fin de fichier
 et le cache d'abord, chaque plage réseau à son arrivée : tout attendre faisait
 patienter le niveau 0 du centre derrière les 7 Mo du niveau 1 de sa dalle.
 
@@ -563,8 +586,8 @@ démonstration sur 180 dalles LiDAR HD) et maplibre-gl-lidar.
 - **Couleurs** : la hauteur au-dessus du sol vient avec le nuage (lue dans
   la dernière surface calculée) ; le relief drapé est calculé par le worker
   (`drape3d`), avec l'étirement de la dernière image du même côté du
-  rideau — les deux vues restent la même image. L'intensité suit désormais
-  les points jusqu'au worker.
+  rideau — les deux vues restent la même image. L'intensité n'est plus
+  téléchargée (« Seules les couches lues ») : pas de couleur « Intensité ».
 - **Sélection et mesure** visent le nuage (`pointDuNuage`) ; sans grille de
   dalle, il n'y a plus d'enveloppe de repli.
 
