@@ -14,6 +14,24 @@ const SURELEVATION_MARQUEUR = 0.15;
 // systématiquement à côté de ce que l'écran montre.
 const FOV_Y_DEG = 52;
 
+/**
+ * La part du nuage à dessiner pendant un geste, d'après le `retard` (ms)
+ * entre la demande d'une image et son rendu. Une carte graphique saturée
+ * retarde l'image suivante : c'est le seul signal que le navigateur donne, et
+ * une pause dans le geste ne l'allonge pas (rien n'est demandé). En retard,
+ * la part baisse d'autant (au plus au quart d'un coup) ; rapide, elle
+ * remonte doucement ; sans retard mesuré, elle ne bouge pas.
+ */
+function partEnMouvement(part, retard, m) {
+  if (retard == null) return part;
+  if (retard > m.imageLenteMs) {
+    const cible = (m.imageLenteMs + m.imageRapideMs) / 2;
+    return Math.max(m.partMin, part * Math.max(0.25, cible / retard));
+  }
+  if (retard < m.imageRapideMs) return Math.min(1, part * 1.1);
+  return part;
+}
+
 class Vue3D {
   constructor(canvas, elementBoussole = null) {
     this.canvas = canvas;
@@ -45,6 +63,16 @@ class Vue3D {
     this.vao = null;
     this.buffers = [];
     this.nbPoints = 0;
+    // Pendant un geste, seule une part du nuage est dessinée (le nuage est
+    // rangé pour que n'importe quel début en soit un échantillon régulier),
+    // à au plus un pixel physique par pixel ; à l'arrêt, tout.
+    this._arrete = true;              // faux pendant un geste
+    this._finGeste = 0;               // minuteur de l'image complète
+    this._partMouvement = 1;
+    this._demandee = 0;               // instant de la demande de l'image en attente
+    this._etaitEnMouvement = false;
+    this.statsRendu = { dessines: 0, total: 0, enMouvement: false };
+    this.dernierMouvement = null;     // points dessinés à la dernière image d'un geste
     this.zmin = 0;
     this.zref = 1;
 
@@ -125,7 +153,18 @@ class Vue3D {
   invalider() {
     if (!this.actif || this._planifie) return;
     this._planifie = true;
+    this._demandee = performance.now();
     requestAnimationFrame(() => { this._planifie = false; this._rendre(); });
+  }
+
+  /** Un geste de caméra : images allégées, puis une complète à l'arrêt. */
+  _bouger() {
+    this._arrete = false;
+    clearTimeout(this._finGeste);
+    // À l'arrêt, l'image complète. Si une image est déjà en attente, c'est
+    // elle qui le sera : le drapeau, pas l'heure, décide.
+    this._finGeste = setTimeout(() => { this._arrete = true; this.invalider(); }, CONFIG.rendu.mouvement.arretMs);
+    this.invalider();
   }
 
   /** Charge un nuage dans le GPU. Remplace le précédent. */
@@ -774,7 +813,7 @@ class Vue3D {
         this.cam.elevation = Math.max(-1.553, Math.min(1.553, this.cam.elevation + (m.y - pince.cy) * 0.006));
         pince.cx = m.x; pince.cy = m.y;
 
-        this.invalider();
+        this._bouger();
         return;
       }
 
@@ -792,7 +831,7 @@ class Vue3D {
         this._deplacer(glisse, e, dx, dy);
       }
       glisse.x = e.clientX; glisse.y = e.clientY;
-      this.invalider();
+      this._bouger();
     });
 
     const relacher = (e) => {
@@ -818,7 +857,7 @@ class Vue3D {
       const avant = this._pointSousCurseur(e);
       const ancienne = this.cam.distance;
       this._zoomVers(avant, ancienne, ancienne * Math.exp(e.deltaY * 0.0012));
-      this.invalider();
+      this._bouger();
     }, { passive: false });
 
     c.addEventListener('click', (e) => {
@@ -893,7 +932,7 @@ class Vue3D {
       const k = u * u * (3 - 2 * u);   // départ et arrivée amortis
       this.cam.cible[0] = x0 + dx * k;
       this.cam.cible[2] = z0 + dz * k;
-      this.invalider();
+      this._bouger();
       this._animationPivot = u < 1 ? requestAnimationFrame(pas) : 0;
     };
     pas();
@@ -1018,7 +1057,7 @@ class Vue3D {
       const k = u * u * (3 - 2 * u);   // départ et arrivée amortis
       this.cam.azimut = a0 + da * k;
       this.cam.elevation = e0 + de * k;
-      this.invalider();
+      this._bouger();
       this._animation = u < 1 ? requestAnimationFrame(pas) : 0;
     };
     pas();
@@ -1054,7 +1093,17 @@ class Vue3D {
     const gl = this.gl;
     const c = this.canvas;
 
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const mv = CONFIG.rendu.mouvement;
+    const enMouvement = !this._arrete;
+    // Le retard ne compte qu'entre deux images d'un même geste : la première
+    // attend peut-être la fin d'une image complète, qui n'est pas en cause.
+    if (enMouvement && this._etaitEnMouvement) {
+      this._partMouvement = partEnMouvement(this._partMouvement, performance.now() - this._demandee, mv);
+    }
+    // En mouvement, un pixel physique au plus : sur un écran dense, jusqu'à
+    // quatre fois moins de pixels à remplir. Avec l'atténuation, la taille
+    // des points suit la hauteur du canevas et ne change pas à l'œil.
+    const dpr = Math.min(enMouvement ? 1 : 2, window.devicePixelRatio || 1);
     const w = Math.max(1, Math.round(c.clientWidth * dpr));
     const h = Math.max(1, Math.round(c.clientHeight * dpr));
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
@@ -1107,7 +1156,12 @@ class Vue3D {
     gl.uniform4fv(p.u.u_focus, this.focus || [0, 0, 0, 0]);
 
     gl.bindVertexArray(this.vao);
-    gl.drawArrays(gl.POINTS, 0, this.nbPoints);
+    const dessines = enMouvement ? Math.max(1, Math.round(this.nbPoints * this._partMouvement)) : this.nbPoints;
+    gl.drawArrays(gl.POINTS, 0, dessines);
+    this.statsRendu = { dessines, total: this.nbPoints, enMouvement };
+    if (enMouvement) this.dernierMouvement = { dessines, total: this.nbPoints };
+    else if (this._etaitEnMouvement) this.onFinGeste?.();
+    this._etaitEnMouvement = enMouvement;
 
     if (edl) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);

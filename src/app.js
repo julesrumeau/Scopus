@@ -145,6 +145,8 @@ let vue3d = null;
 try {
   vue3d = new Vue3D($('canvas3d'), $('boussole'));
   vue3d.onVue = () => majLien();
+  // Une fois le geste fini, en diagnostic : ce qu'il a pu dessiner.
+  vue3d.onFinGeste = () => { if (DIAGNOSTIC) majHUD(); };
   vue3d.demarrer();
 } catch (e) {
   $('onglet-3d').disabled = true;
@@ -621,6 +623,8 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape') basculerMenu
 // 2D ou en 3D — le temps de la transition. La feuille de style retire ce qui
 // n'a pas cours dans le mode (`body[data-mode]`).
 const MODE_VUE = !new URLSearchParams(location.search).has('dalle');
+// « &debug » ou « &chrono » : les chiffres de diagnostic (statut, HUD 3D).
+const DIAGNOSTIC = ['debug', 'chrono'].some((p) => new URLSearchParams(location.search).has(p));
 document.body.dataset.mode = MODE_VUE ? 'vue' : 'dalle';
 
 // ── Carte ───────────────────────────────────────────────────────────────────
@@ -1744,7 +1748,11 @@ function majHUD() {
   const e = etat.nuage.emprise;
   $('hud').innerHTML = `${milliers(etat.nuage.n)} points · ${Math.round(e.xmax - e.xmin)} × ${Math.round(e.ymax - e.ymin)} m<br>`
     + `altitudes ${(etat.nuage.origine[2] + etat.nuage.zmin).toFixed(0)} – ${(etat.nuage.origine[2] + etat.nuage.zmax).toFixed(0)} m`
-    + (etat.grille ? ` · grille ${etat.grille.pas.toFixed(2)} m` : '');
+    + (etat.grille ? ` · grille ${etat.grille.pas.toFixed(2)} m` : '')
+    // Avec &debug ou &chrono : la part dessinée pendant le dernier geste.
+    + (DIAGNOSTIC && vue3d?.dernierMouvement
+      ? `<br>en mouvement : ${milliers(vue3d.dernierMouvement.dessines)} points`
+        + ` (${Math.round((100 * vue3d.dernierMouvement.dessines) / vue3d.dernierMouvement.total)} %)` : '');
 }
 
 // ── Étape 3 : détection ─────────────────────────────────────────────────────
@@ -2518,7 +2526,7 @@ if (MODE_VUE) (async () => {
   // Le statut dit à l'utilisateur où en est son relief ; le détail chiffré
   // (surface, dalles, blocs, points, durées) ne sert qu'au diagnostic, avec
   // « &debug » ou « &chrono ».
-  const diagnostic = params.has('debug') || params.has('chrono');
+  const diagnostic = DIAGNOSTIC;
   const majStatut = () => {
     const e = dernierEtat;
     if (!e) return;
@@ -2789,6 +2797,7 @@ if (MODE_VUE) (async () => {
     etat.nuage = null;
     empriseNuage = null;
     majLegende();
+    majHUD();
     if (tropLarge) { avis3D('Zoomez sur la carte pour afficher le nuage en 3D.'); return; }
     construction = (async () => {
       try {
@@ -2817,6 +2826,7 @@ if (MODE_VUE) (async () => {
         empriseNuage = cle;
         vue3d.definirClassesMasquees(classesMasquees);
         majLegende();
+        majHUD();
         await majAttributNuage();
       } catch (err) {
         console.error(err);

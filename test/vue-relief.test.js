@@ -338,6 +338,20 @@ test('nuage3d : plafond, tirage stable et uniforme', () => {
   for (const q of quarts) assert.ok(q / r.n > 0.2 && q / r.n < 0.3, JSON.stringify(quarts));
 });
 
+test('nuage3d : n’importe quel début du nuage est un échantillon régulier de l’emprise', () => {
+  // La 3D n'en dessine qu'un début pendant qu'on bouge : rangé bloc par bloc
+  // ou ligne par ligne, ce début serait une bande.
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000, { cote: 40 }));
+  const r = m.nuage3d({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 1e9);
+  for (const part of [0.05, 0.2]) {
+    const k = Math.round(r.n * part);
+    const quarts = [0, 0, 0, 0];
+    for (let i = 0; i < k; i++) quarts[(r.x[i] >= 20 ? 1 : 0) + (r.y[i] >= 20 ? 2 : 0)]++;
+    for (const q of quarts) assert.ok(q / k > 0.18 && q / k < 0.32, `${part} : ${JSON.stringify(quarts)}`);
+  }
+});
+
 test('nuage3d : hauteur au-dessus du sol et classe suivent leur point', () => {
   const m = VUE_RELIEF.creer({ moteur: 'cpu' });
   const b = bloc('a', 1000, 2000, { cote: 40 });

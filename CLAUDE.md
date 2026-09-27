@@ -892,6 +892,20 @@ s'arrête. Un saut instantané d'un quart de tour désoriente — sans le mouvem
 rien ne dit de quel côté on a tourné, et il faut relire la scène entière. Tout
 geste de l'utilisateur interrompt l'animation (`_arreterAnimation`).
 
+**Pendant un geste, une part du nuage seulement.** Retour d'usage : la 3D
+ramait sur la carte AMD du portable, à 5 M de points. Le nuage de la vue
+arrive rangé par paquets de hachage (`VUE_RELIEF.nuage3d`) : n'importe quel
+début en est un échantillon régulier, et `drawArrays(0, k)` dessine moins
+sans rien téléverser. Pendant un geste (`_bouger` : glisser, pivoter,
+molette, animation), `k` suit le **retard** des images — entre la demande
+(`invalider`) et le rendu —, que la carte saturée allonge et qu'une pause
+dans le geste ne touche pas (`partEnMouvement`) ; la résolution y est
+plafonnée à un pixel physique. 150 ms sans geste : une image complète, à
+pleine densité. L'intervalle entre deux images, essayé d'abord, prenait une
+image de 250 ms pour une pause et ne baissait jamais : sous émulation, la
+part tombe maintenant de 100 à 5 % en trois images. `&debug` affiche dans
+le HUD 3D ce qu'a dessiné le dernier geste.
+
 Corollaire côté interface : un seul conteneur défilant. La liste de résultats
 avait le sien (`max-height` + `overflow`), ce qui piégeait la molette dès que le
 curseur la survolait.
