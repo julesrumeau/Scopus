@@ -2519,7 +2519,10 @@ if (MODE_VUE) (async () => {
   // Ce qui n'est pas du relief : la carte telle qu'affichée, et le Plan IGN,
   // posé dans le côté même — la carte n'a qu'un fond à la fois, et ainsi un
   // côté peut montrer la photo et l'autre le plan.
-  const FONDS_VUE = { carte: 'Carte', plan: 'Plan IGN' };
+  const FONDS_VUE = { carte: 'Photo aérienne', plan: 'Plan IGN' };
+  // Les listes Gauche / Droite choisissent le fond de chaque côté : le
+  // sélecteur de fond de Leaflet ferait doublon. La carte garde la photo.
+  carte.controleFonds.remove();
   const estRelief = (cle) => !(cle in FONDS_VUE);
   const libelleCouche = (cle) => FONDS_VUE[cle] || COUCHES_VUE.find((c) => c.cle === cle).libelle;
   // Le statut dit à l'utilisateur où en est son relief ; le détail chiffré

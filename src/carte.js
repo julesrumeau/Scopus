@@ -109,7 +109,7 @@ class Carte {
     for (const couche of [plan, ortho]) reessayer(couche);
 
     ortho.addTo(this.map);
-    L.control.layers({ 'Photo aérienne': ortho, 'Plan IGN': plan }, null, { collapsed: true }).addTo(this.map);
+    this.controleFonds = L.control.layers({ 'Photo aérienne': ortho, 'Plan IGN': plan }, null, { collapsed: true }).addTo(this.map);
 
     this.grille = new GRILLE.GrilleDalles().addTo(this.map);
     this.coucheDetections = L.layerGroup().addTo(this.map);

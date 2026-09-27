@@ -491,9 +491,10 @@ couleurs directement (`RELIEF.ombrageRGB`), reprojetées par
 `VUE_IMAGE.peindreRGBA`, sans palette ni contraste. L'ombrage gris ne l'est
 pas : sur une grille au pixel, il sortait pâle et peu lisible.
 
-**Deux côtés, comme en 2D.** Chaque côté du rideau porte soit « Carte » (la
-carte Leaflet, qui remplace ici la photo aérienne, avec son propre choix de
-fond), soit « Plan IGN » — une couche de tuiles posée dans le volet du côté
+**Deux côtés, comme en 2D.** Chaque côté du rideau porte soit « Photo
+aérienne » (la carte Leaflet elle-même, dont le sélecteur de fond est retiré
+en vue normale : les listes Gauche / Droite le rendaient redondant), soit
+« Plan IGN » — une couche de tuiles posée dans le volet du côté
 (`carte.nouveauFond`, mêmes réglages et réessais que les fonds de la carte),
 pour avoir la photo d'un côté et le plan de l'autre alors que la carte n'a
 qu'un fond à la fois —, soit une couche de relief ; par défaut la carte à gauche et le SVF à
