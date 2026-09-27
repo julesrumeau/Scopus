@@ -1072,6 +1072,19 @@ select:focus { outline: 1px solid var(--accent); }
 
 /* Fenêtre basse : la carte perd du confort, pas de contenu — il n'y a plus de
    figure à céder, seulement moins de respiration autour du texte. */
+/* Téléphone : le sous-titre passait sur deux lignes sous la barre de titre,
+   et l'aide de la barre des onglets en prenait quatre ou cinq (~110 px de
+   carte en moins) — mesuré à 380 px. Les gestes se découvrent au doigt. */
+@media (max-width: 600px) {
+  .sous-titre, #aide-vue { display: none; }
+  /* L'aide poussait « Partager » à droite ; masquée, c'est lui qui s'y cale. */
+  .onglets .partage { margin-left: auto; }
+}
+/* Au doigt, une bande de 22 px se rate : 44 px, la taille d'une cible tactile. */
+@media (pointer: coarse) {
+  .rideau { width: 44px; margin-left: -22px; }
+}
+
 @media (max-height: 760px) {
   .accueil-boite { gap: 10px; padding: 20px 24px; }
 }

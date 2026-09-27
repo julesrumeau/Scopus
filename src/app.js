@@ -2228,6 +2228,12 @@ const VUES = [
   ['3d', 'vue-3d', 'onglet-3d',
     'Glisser : déplacer · molette : zoom sous le curseur · Maj+glisser : pivoter · double-clic : recentrer le pivot'],
 ];
+// Sur écran tactile, l'aide parle des doigts : « molette » et « Maj » n'y
+// existent pas. (Sous 600 px, l'aide est masquée — styles.css.)
+const TACTILE = window.matchMedia?.('(pointer: coarse)').matches;
+const AIDE_TACTILE = {
+  '3d': 'Un doigt : déplacer · pincer : zoomer · deux doigts : pivoter',
+};
 
 function basculerVue(quoi) {
   // Un onglet désactivé ne se visite pas : sans WebGL2, la 3D n'a qu'un canevas
@@ -2245,7 +2251,7 @@ function basculerVue(quoi) {
   for (const [nom, vue, onglet, aide] of VUES) {
     $(vue).hidden = nom !== quoi;
     $(onglet).classList.toggle('actif', nom === quoi);
-    if (nom === quoi) $('aide-vue').textContent = aide;
+    if (nom === quoi) $('aide-vue').textContent = (TACTILE && AIDE_TACTILE[nom]) || aide;
   }
   // Le mode sélection n'a de sens qu'en 2D et en 3D — « cliquer un point » sur
   // la carte n'en est pas un.

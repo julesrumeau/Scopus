@@ -1183,6 +1183,17 @@ Changer d'onglet referme le tiroir automatiquement, câblé dans `basculerVue`
 penser séparément : sans ça, choisir un onglet depuis le tiroir laisserait
 la scène cachée derrière le panneau qu'on venait de quitter.
 
+**Sous 600 px**, le sous-titre de la barre de titre et l'aide de la barre des
+onglets sont masqués : à 380 px, le premier passait sur deux lignes sous la
+barre et la seconde en prenait quatre ou cinq, ~110 px de carte en moins —
+et elle parlait de molette et de Maj à qui n'a qu'un doigt. `.partage` prend
+alors le `margin-left: auto` que portait l'aide. Sur écran tactile
+(`pointer: coarse`), l'aide de la 3D décrit les gestes du doigt
+(`AIDE_TACTILE`) et la bande du rideau passe de 22 à 44 px. Vérifié en
+émulation de téléphone (Playwright, `isMobile`, `hasTouch`, 380 × 800) et de
+tablette (820 × 1180) : aucun débordement horizontal, tiroir, rideau,
+« Partager » et 3D en place.
+
 Piège mesuré en vrai navigateur, pas supposé : `.btn-menu` est un enfant flex
 de `.barre` aux côtés du titre et de l'état, et sans `flex-shrink: 0` il se
 faisait écraser à 380 px — 30 px de large posés en CSS, 15 px mesurés à
