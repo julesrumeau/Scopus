@@ -394,3 +394,36 @@ test('le niveau 2 attend que tout le niveau 1 soit arrivé, même avec des place
   const recusAvant = recus.slice(0, recus.findIndex(niveau2));
   assert.equal(recusAvant.filter((o) => !niveau2(o)).length, 4, 'les quatre blocs du niveau 1 reçus avant le premier du niveau 2');
 });
+
+// ── Pas de LiDAR dans la vue ────────────────────────────────────────────────
+
+test('sans aucune dalle dans la vue, l’état le dit ; pas avant la réponse du WFS, ni sur un échec', async () => {
+  const etats = [];
+  const { flux } = monter();
+  flux._deps.surEtat = (e) => etats.push(e);
+  let repondre;
+  flux._deps.chercherDalles = () => new Promise((r) => { repondre = r; });
+  const fini = flux.majVue({ xmin: 50_000, xmax: 51_000, ymin: 50_000, ymax: 51_000, largeurPx: 1400 });
+  await pause(5);
+  assert.ok(!etats.some((e) => e.sansLidar), 'rien d’affirmé avant la réponse');
+  repondre([]);
+  await fini;
+  assert.equal(etats.at(-1).sansLidar, true);
+
+  // Un échec du WFS n'est pas une absence de LiDAR.
+  const b = monter();
+  const vus = [];
+  b.flux._deps.surEtat = (e) => vus.push(e);
+  b.flux._deps.chercherDalles = async () => { throw new Error('panne'); };
+  await b.flux.majVue({ xmin: 60_000, xmax: 61_000, ymin: 60_000, ymax: 61_000, largeurPx: 1400 });
+  assert.ok(!vus.some((e) => e.sansLidar));
+});
+
+test('des dalles dans la vue : pas de « sans LiDAR »', async () => {
+  const etats = [];
+  const { flux } = monter();
+  flux._deps.surEtat = (e) => etats.push(e);
+  await flux.majVue(VUE);
+  await flux.attendreCalme();
+  assert.ok(etats.length && etats.every((e) => !e.sansLidar));
+});

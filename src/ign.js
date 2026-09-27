@@ -12,28 +12,6 @@ function urlWFS(params) {
 }
 
 /**
- * Emprises des chantiers d'acquisition LiDAR HD.
- *
- * C'est la couche que cartes.gouv.fr affiche de loin — elle annonce elle-même
- * `zoom_start: 0, zoom_stop: 10`. 210 polygones couvrent la France entière et
- * une fenêtre donnée n'en intersecte qu'une poignée : contrairement aux dalles,
- * elle n'est jamais tronquée, et elle montre d'un coup d'œil où il y a du
- * LiDAR — partout en France, pas seulement en Ariège.
- */
-async function blocs(sud, ouest, nord, est, signal) {
-  const rep = await RESEAU.recuperer(urlWFS({
-    TYPENAMES: CONFIG.ign.coucheBlocs,
-    COUNT: '300',
-    BBOX: `${sud},${ouest},${nord},${est},urn:ogc:def:crs:EPSG::4326`,
-  }), { type: 'json', signal });
-
-  return (rep.features || []).map((f) => ({
-    nom: f.properties?.name || '',
-    anneaux: tousAnneaux(f.geometry),
-  })).filter((b) => b.anneaux.length);
-}
-
-/**
  * La dalle qui contient un point donné. Une requête, une entité.
  *
  * C'est ce qui rend la sélection fiable. Interroger par **fenêtre** est piégeux :
@@ -183,4 +161,4 @@ function gabaritWMTS(cle) {
   return `${CONFIG.ign.wmts}?${p}`.replace(/%7B/g, '{').replace(/%7D/g, '}');
 }
 
-const IGN = { blocs, dalles, dalleAuPoint, batiments, geocoder, gabaritWMTS };
+const IGN = { dalles, dalleAuPoint, batiments, geocoder, gabaritWMTS };

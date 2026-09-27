@@ -59,7 +59,7 @@ test('hors ligne prime sur tout autre diagnostic', () => {
 });
 
 test('l’emprise France sépare « pas encore volé » de « pas en France »', () => {
-  // Deux messages qui n'ont rien à voir : l'un invite à chercher une zone bleue,
+  // Deux messages qui n'ont rien à voir : l'un dit que la zone n'est pas encore volée,
   // l'autre à revenir sur le territoire. Le rectangle est grossier — il déborde
   // sur la mer et les pays voisins — et c'est assumé : il ne sert qu'à ce tri.
   const { PROJ } = charger();

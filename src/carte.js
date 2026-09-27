@@ -47,7 +47,7 @@ class Carte {
 
     // Les tuiles ne se chargent qu'une fois le geste fini, et pas pendant.
     //
-    // Tout le projet tape sur le **même hôte** — tuiles WMTS, WFS des blocs,
+    // Tout le projet tape sur le **même hôte** — tuiles WMTS, WFS des dalles,
     // dalle au point, BD TOPO, et les centaines de requêtes de plage du COPC —
     // donc sur une seule connexion HTTP/2. Leaflet, lui, ne passe pas par la
     // file bornée de `reseau.js` : un déplacement de carte lance des dizaines de
@@ -100,6 +100,13 @@ class Carte {
         const img = e.tile;
         const url = img.src;
         if (!url) return;
+        // Hors de France, l'IGN n'a pas de tuile (404) : ni réessai, ni avis
+        // de panne — rien n'est cassé.
+        const { x, y, z } = e.coords;
+        const n2 = 2 ** z;
+        const lon = ((x + 0.5) / n2) * 360 - 180;
+        const lat = (Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + 0.5)) / n2))) * 180) / Math.PI;
+        if (!PROJ.dansEmpriseFrance(lon, lat)) return;
         const n = (img._reprises = (img._reprises || 0) + 1);
         if (n > 3) { this._majAvisPanne(false); return; }
         img.src = '';
@@ -119,18 +126,7 @@ class Carte {
     this.rectChargee = null;
     this.dalleChargee = null;
     this.marqueurs = new Map();
-    this.chargementBlocs = null;
 
-    // Le rafraîchissement est différé : un déplacement continu déclencherait
-    // une requête WFS par image.
-    let minuteur = null;
-    this.map.on('moveend zoomend', () => {
-      clearTimeout(minuteur);
-      // 300 ms suffisaient tant que la carte était seule à parler à l'IGN. Une
-      // demi-seconde évite qu'un enchaînement de petits déplacements ne mette
-      // trois requêtes WFS en vol au moment précis où les tuiles repartent.
-      minuteur = setTimeout(() => this.rafraichirBlocs(), 500);
-    });
     this.selectionAuClic = true;
     this.map.on('click', (e) => this._surClic(e));
 
@@ -170,8 +166,6 @@ class Carte {
       return d;
     };
     this._avisPanne.addTo(this.map);
-
-    this.rafraichirBlocs();
   }
 
   _majAvisZoom() {
@@ -184,30 +178,6 @@ class Carte {
     this._echecsTuilesConsecutifs = succes ? 0 : this._echecsTuilesConsecutifs + 1;
     const el = this._avisPanne.getContainer();
     if (el) el.hidden = this._echecsTuilesConsecutifs < CONFIG.carte.echecsTuilesPourAvis;
-  }
-
-  /** Charge les emprises de chantier couvrant la fenêtre courante. */
-  async rafraichirBlocs() {
-    const b = this.map.getBounds();
-    // Une seule requête à la fois : pendant un déplacement rapide, les réponses
-    // arriveraient dans le désordre et la dernière affichée ne serait pas celle
-    // de la vue courante.
-    this.chargementBlocs?.abort();
-    const ctrl = new AbortController();
-    this.chargementBlocs = ctrl;
-
-    try {
-      const liste = await IGN.blocs(b.getSouth(), b.getWest(), b.getNorth(), b.getEast(), ctrl.signal);
-      if (ctrl.signal.aborted) return;
-      this.grille.definirBlocs(liste);
-      this.cb.surCouverture?.(liste.length, this.map.getZoom());
-    } catch (e) {
-      // Pas d'alerte utilisateur ici : `coucheBlocs` (CONFIG.ign) est cassée côté
-      // IGN sans remplacement connu, l'erreur reviendrait à chaque déplacement
-      // de la carte sans rien que l'utilisateur puisse y faire — juste un
-      // repère silencieux pour qui développe.
-      if (e.name !== 'AbortError') console.warn('Couverture LiDAR indisponible :', e);
-    }
   }
 
   async _surClic(e) {
@@ -231,7 +201,7 @@ class Carte {
     // défini que pour la France.
     if (!PROJ.dansEmpriseFrance(lon, lat)) {
       this.cb.surErreur?.('Le LiDAR HD de l’IGN ne couvre que la France. '
-        + 'Revenez sur le territoire, puis cliquez dans une zone bleue.');
+        + 'Revenez sur le territoire, puis cliquez sur la carte.');
       return;
     }
 
@@ -244,7 +214,7 @@ class Carte {
     }
     if (!dalle) {
       this.cb.surErreur?.('Pas de LiDAR HD à cet endroit : cette zone n’a pas encore été volée, '
-        + 'ou n’est pas encore publiée. Les zones bleues sont celles qui en ont.');
+        + 'ou n’est pas encore publiée.');
       return;
     }
     this.selectionnerDalle(dalle);

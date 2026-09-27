@@ -644,21 +644,6 @@ const carte = new Carte($('vue-carte'), {
     // place, sans dupliquer cette lecture.
     etat.promesseIndex = ouvrirDalle(d);
   },
-  surCouverture: (nb, zoom) => {
-    if (etat.dalle) return;   // ne pas écraser l'état d'une dalle déjà choisie
-    // Vue normale : le statut appartient au relief de la vue, et « cliquez une
-    // dalle » y serait faux. Seule l'absence de LiDAR mérite d'être dite.
-    if (MODE_VUE && nb > 0) return;
-    // Le message dit **quoi faire**, et pas seulement ce qu'il y a : à l'échelle
-    // de la France, « 208 chantiers » ne mène nulle part si l'on ne sait pas que
-    // le champ de recherche accepte un nom de commune.
-    const n = (mot) => `${milliers(nb)} chantier${nb > 1 ? 's' : ''} ${mot}`;
-    statut(nb === 0
-      ? 'Aucune couverture LiDAR dans cette vue — déplacez-vous ou dézoomez'
-      : zoom < CONFIG.carte.zoomGrille
-        ? `${n('LiDAR')} en vue — zoomez sur une zone bleue, ou cherchez une commune`
-        : `${n('LiDAR')} — cliquez une dalle`);
-  },
   surRecherche: (m) => statut(m, 'travail'),
   surErreur: alerter,
 });
@@ -2222,7 +2207,7 @@ $('exp-csv').addEventListener('click', () =>
 
 const VUES = [
   ['carte', 'vue-carte', 'onglet-carte',
-    'Cliquez dans une zone bleue · vert : dalle chargée · jaune : sélection'],
+    'Cliquez pour choisir une dalle · vert : dalle chargée · jaune : sélection'],
   ['2d', 'vue-2d', 'onglet-2d',
     'Glisser la poignée du milieu pour comparer · glisser l’image : déplacer · molette : zoom sous le curseur'],
   ['3d', 'vue-3d', 'onglet-3d',
@@ -2586,19 +2571,36 @@ if (MODE_VUE) (async () => {
   const majStatut = () => {
     const e = dernierEtat;
     if (!e) return;
+    // Pas de LiDAR dans la vue : dit à l'écran, pas seulement dans la console.
+    // Hors de France, ou une zone française pas encore volée ou publiée.
+    let sansLidar = '';
+    if (e.sansLidar) {
+      const c = carte.map.getCenter();
+      // Le « en France » du projet est un rectangle (PROJ.dansEmpriseFrance) :
+      // il déborde sur l'Espagne, la Suisse et la mer. Dedans, la phrase doit
+      // valoir pour les deux cas.
+      sansLidar = PROJ.dansEmpriseFrance(c.lng, c.lat)
+        ? 'Pas de LiDAR HD ici : hors de France, ou zone pas encore volée ou publiée par l’IGN'
+        : 'Hors de France : le LiDAR HD de l’IGN ne couvre que la France';
+      for (const cote of ['gauche', 'droite']) {
+        if (!estRelief(cotes[cote])) continue;
+        reliefCalque.definirLibelle(cote, 'Pas de LiDAR HD ici');
+        reliefCalque.vider(cote);
+      }
+    }
     $('vue-etat').textContent = e.attente && !e.tropLarge
       ? `Affinage… ${e.attente} bloc${e.attente > 1 ? 's' : ''} attendu${e.attente > 1 ? 's' : ''}` : '';
     if (!diagnostic) {
-      statut(e.tropLarge ? 'Zoomez pour calculer le relief'
+      statut(sansLidar || (e.tropLarge ? 'Zoomez pour calculer le relief'
         : e.echecs ? `${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}`
           : erreurRelief ? `Le relief n’a pas pu être calculé — ${erreurRelief}`
             : !['gauche', 'droite'].some((c) => estRelief(cotes[c])) ? 'Aucune couche de relief affichée'
               : e.attente ? 'Relief en cours d’affinage…'
-                : texteRelief ? 'Relief à jour' : 'Relief en calcul…',
+                : texteRelief ? 'Relief à jour' : 'Relief en calcul…'),
       e.echecs || erreurRelief ? 'erreur' : e.attente ? 'travail' : undefined);
       return;
     }
-    statut((e.tropLarge
+    statut(sansLidar ? `Flux : ${sansLidar}` : (e.tropLarge
       ? `Flux : ${e.surfaceKm2.toFixed(0)} km² affichés, trop pour les points (seuil ${CONFIG.flux.surfaceMaxPointsKm2} km²) — zoomez`
       : `Flux : ${e.surfaceKm2.toFixed(1)} km² · ${e.dallesOuvertes} dalles · ${e.charges} blocs · ${milliers(e.points)} points`
         + (e.attente ? ` · ${e.attente} en attente` : '')
