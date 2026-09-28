@@ -174,8 +174,8 @@ class Carte {
     this._avisIGN = L.control({ position: 'topright' });
     this._avisIGN.onAdd = () => {
       const d = L.DomUtil.create('div', 'avis-zoom avis-ign');
-      d.textContent = 'Le serveur de l’IGN est lent en ce moment : le relief arrive plus '
-        + 'lentement que d’habitude. Scopus réessaie tout seul, rien à faire de votre côté.';
+      d.textContent = 'Les serveurs de l’IGN semblent un peu chargés en ce moment : le relief '
+        + 'peut mettre plus de temps à s’afficher. Scopus réessaie automatiquement, merci de votre patience.';
       d.hidden = true;
       return d;
     };

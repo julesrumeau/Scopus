@@ -25,7 +25,7 @@ const PANNES = [
   ['HTTP 429 sur https://data.geopf.fr/wmts?…', /attendez|attendre/i, 'limite de requêtes'],
   ['HTTP 503 sur https://data.geopf.fr/wfs/ows', /réessayez/i, 'erreur serveur'],
   ['HTTP 404 sur https://data.geopf.fr/wmts?…', /couverte/i, 'donnée absente'],
-  ['délai dépassé sur https://data.geopf.fr/… : pas de réponse de l’IGN', /réessayez/i, 'délai dépassé'],
+  ['délai dépassé sur https://data.geopf.fr/… : pas de réponse de l’IGN', /réessayer/i, 'délai dépassé'],
   ['Failed to fetch', /réseau/i, 'connexion impossible'],
 ];
 

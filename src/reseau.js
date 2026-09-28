@@ -235,8 +235,8 @@ function expliquer(e) {
     return 'L’IGN ne trouve pas cette donnée (404). La zone n’est peut-être pas couverte.';
   }
   if (/délai dépassé/.test(m)) {
-    return 'Le serveur de l’IGN est très lent en ce moment et n’a pas répondu à temps. '
-      + 'Rien à corriger de votre côté : réessayez dans quelques minutes.';
+    return 'Les serveurs de l’IGN semblent très sollicités en ce moment et n’ont pas pu répondre à temps. '
+      + 'Rien à faire de votre côté : vous pouvez réessayer d’ici quelques minutes.';
   }
   if (/Failed to fetch|NetworkError|network error|Load failed/i.test(m)) {
     return 'La connexion à data.geopf.fr a échoué. Vérifiez votre réseau — '

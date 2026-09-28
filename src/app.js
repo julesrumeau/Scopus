@@ -2635,7 +2635,7 @@ if (MODE_VUE) (async () => {
         : e.echecs ? `${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}`
           : erreurRelief ? `Le relief n’a pas pu être calculé — ${erreurRelief}`
             : !['gauche', 'droite'].some((c) => estRelief(cotes[c])) ? 'Aucune couche de relief affichée'
-              : e.attente && lenteIGN ? 'L’IGN est lent'
+              : e.attente && lenteIGN ? 'Chargement ralenti'
               : e.attente ? 'Relief en cours d’affinage…'
                 : texteRelief ? 'Relief à jour' : 'Relief en calcul…'),
       e.echecs || erreurRelief ? 'erreur' : e.attente ? 'travail' : undefined);
