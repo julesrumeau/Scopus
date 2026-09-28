@@ -1,18 +1,42 @@
 # Scopus
 
-![Comparaison photo aérienne / relief calculé sur le Bois des Caures (Verdun) : la photo ne montre qu'une forêt, le relief révèle des centaines de trous d'obus et un fortin bastionné](docs/capture-2d.png)
+![Bois des Caures (Verdun) : à gauche la photo aérienne ne montre qu'une forêt ; à droite, derrière le rideau, le Sky-View Factor révèle un fortin bastionné et des centaines de trous d'obus](docs/capture-verdun.png)
 
 Explorer le **LiDAR HD de l'IGN** dans le navigateur, sans rien installer :
-cabanes, ruines, sentiers, terrasses — tout ce que la végétation cache,
-partout en France.
+cabanes, ruines, sentiers, terrasses — tout ce que la végétation cache, en
+métropole comme à la Réunion et en Guadeloupe.
 
 **Ouvrir `index.html` — c'est tout.** Ou essayer directement en ligne :
 **[julesrumeau.github.io/Scopus](https://julesrumeau.github.io/Scopus/)**
 
-> La détection automatique de structures existe dans le code mais reste
-> masquée dans l'interface : elle n'a jamais été confrontée à une ruine
-> réelle connue. L'outil sert aujourd'hui à *lire* le relief à l'œil — voir
-> `CLAUDE.md`.
+> Aucune détection automatique : l'outil calcule le relief, à vous de repérer
+> ce qui vous intéresse, comme le fait la prospection LiDAR depuis toujours.
+> Une détection existe dans le code, masquée tant qu'elle n'a pas été
+> confrontée à des ruines réelles connues — voir `CLAUDE.md`.
+
+## Utilisation
+
+1. **Aller quelque part** — déplacer la carte, chercher une commune ou des
+   coordonnées (`42.74, 1.68`), ou ouvrir un lien partagé.
+2. **Zoomer** — le relief de ce qui est à l'écran se calcule tout seul, sans
+   dalle à choisir ni rien à lancer : les points arrivent du plus grossier au
+   plus fin, et l'image s'affine à mesure.
+3. **Comparer** — un rideau sépare deux côtés : photo aérienne, plan IGN,
+   ombrage, ombrage coloré, micro-relief, Sky-View Factor, ouvertures positive
+   et négative. On le glisse pour voir ce que la photo ne montre pas.
+
+Sur la carte, sélectionner un point donne son altitude, et la mesure en chaîne
+donne distances et dénivelés. L'onglet **3D** montre en nuage de points ce que
+la carte affichait ; la navigation y est celle d'une carte : glisser déplace,
+la molette zoome sous le curseur, Maj+glisser pivote.
+
+**Partager** copie le lien de la vue, au format d'OpenStreetMap
+(`#map=zoom/lat/lon`) : il s'ouvre tel quel dans osm.org, iD ou JOSM.
+
+Sur téléphone, le panneau devient une feuille tirée du bas, et la carte reste
+utilisable au-dessus.
+
+![Intérieur montagneux de la Réunion : photo aérienne à gauche, Sky-View Factor à droite](docs/capture-reunion.png)
 
 ## Pourquoi entièrement statique
 
@@ -20,26 +44,11 @@ Aucun serveur, aucune base de données, aucun compte : le dépôt **est** le
 site. `index.html` s'ouvre en double-cliquant depuis le disque exactement
 comme il se publie sur GitHub Pages — le même fichier, sans rien changer.
 
-Le nuage de points (jusqu'à 30 millions de points par dalle) est lu
-directement depuis les serveurs de l'IGN par requêtes HTTP de plage, sans
-jamais passer par un serveur intermédiaire. Tout le reste — décompression,
-calcul du relief, détection — se fait dans l'onglet, sur la machine de qui
-regarde.
-
-![La carte de France, chantiers LiDAR HD en bleu](docs/capture-carte.png)
-
-## Utilisation
-
-1. **Choisir une dalle** — cliquer une zone bleue sur la carte, ou chercher
-   une commune ou des coordonnées (`42.74, 1.68`).
-2. **Choisir la résolution, puis charger** — la dalle entière (1 km²), coût
-   en Mo affiché avant tout téléchargement.
-3. **Lire en 2D** — deux couches (photo aérienne, ombrage, micro-relief,
-   Sky-View Factor, ouverture) de part et d'autre d'un rideau qu'on glisse.
-
-Dans le nuage 3D, la navigation est celle d'une carte, pas d'un logiciel 3D :
-glisser déplace, la molette zoome sous le curseur, Maj+glisser pivote.
-Raccourcis `c` / `r` / `v` pour changer d'onglet, `f` pour tout cadrer.
+Les points sont lus directement sur les serveurs de l'IGN par requêtes HTTP
+de plage — seuls les blocs de la vue, et seulement les parties utiles de
+chacun —, sans jamais passer par un serveur intermédiaire, puis gardés dans
+le cache du navigateur pour la visite suivante. Tout le reste — décompression,
+calcul du relief — se fait dans l'onglet, sur la machine de qui regarde.
 
 ## Lancer, tester, publier
 
@@ -48,12 +57,13 @@ npm test                  # tests unitaires et de sources, aucune dépendance
 ```
 
 Publié sur GitHub Pages : chaque `git push` sur `main` redéploie tout seul.
-Détail des réglages (`.nojekyll`, chemins relatifs) dans `CLAUDE.md`.
+L'ancienne interface, par dalle d'1 km² à charger d'un bloc, reste accessible
+en ajoutant `?dalle` à l'adresse.
 
 ## En savoir plus
 
 - **`CLAUDE.md`** — architecture complète, décisions techniques, pièges
-  rencontrés, résultats de validation.
+  rencontrés, mesures.
 - **`TODO.md`** — ce qu'il reste à faire.
 
 ## Licences
