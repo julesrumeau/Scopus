@@ -2602,8 +2602,15 @@ if (MODE_VUE) (async () => {
   const diagnostic = DIAGNOSTIC;
   // Une requête restée sans réponse (reseau.js) : l'avis dure le temps de la
   // fenêtre de lenteur, puis le statut se redit tout seul.
-  let lenteIGN = false, minuteurLenteur = null;
+  // L'avis sur la carte, lui, ne reste que `dureeAvisLenteurMs` par épisode
+  // de lenteur : une fois lu, il gênerait. Le statut « Chargement ralenti »
+  // reste, discret, tant que dure l'épisode ; un nouvel épisode le remontre.
+  let lenteIGN = false, minuteurLenteur = null, debutAvisLenteur = 0;
   RESEAU.surLenteur(() => {
+    if (!lenteIGN) {
+      debutAvisLenteur = Date.now();
+      setTimeout(() => majStatut(), CONFIG.reseau.dureeAvisLenteurMs + 50);
+    }
     lenteIGN = true;
     clearTimeout(minuteurLenteur);
     minuteurLenteur = setTimeout(() => { lenteIGN = RESEAU.lenteRecente(); majStatut(); }, CONFIG.reseau.fenetreLenteurMs + 50);
@@ -2614,7 +2621,8 @@ if (MODE_VUE) (async () => {
     if (!e) return;
     // Seulement pendant qu'on attend des blocs : une fois tout arrivé, la
     // lenteur passée n'a plus rien à expliquer.
-    carte.avisLenteurIGN(lenteIGN && !!e.attente && !e.tropLarge && !e.sansLidar);
+    carte.avisLenteurIGN(lenteIGN && !!e.attente && !e.tropLarge && !e.sansLidar
+      && Date.now() - debutAvisLenteur < CONFIG.reseau.dureeAvisLenteurMs);
     // Pas de LiDAR dans la vue : dit à l'écran, pas seulement dans la console.
     // Hors de France, ou une zone française pas encore volée ou publiée.
     let sansLidar = '';

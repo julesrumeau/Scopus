@@ -132,6 +132,9 @@ const CONFIG = {
     // Durée pendant laquelle une requête restée sans réponse fait dire que
     // l'IGN est lent (RESEAU.lenteRecente).
     fenetreLenteurMs: 30000,
+    // Durée maximale de l'avis de lenteur sur la carte, par épisode : le
+    // temps de le lire. Le statut de la barre, lui, reste tant que ça dure.
+    dureeAvisLenteurMs: 12000,
   },
 
   // ── Chargement du nuage ───────────────────────────────────────────────────
