@@ -2464,6 +2464,10 @@ if (MODE_VUE) (async () => {
   // retour sur le relief de la vue (TODO #3, #4) — désactivées, y compris aux
   // raccourcis clavier, que basculerVue refuse pour un onglet désactivé.
   carte.selectionAuClic = false;
+  // Ni le quadrillage kilométrique : il servait à choisir une dalle, et sur
+  // le relief il ne faisait que rayer l'image. Gardé avec « &debug », où il
+  // aide à lire les contours des blocs.
+  if (!new URLSearchParams(location.search).has('debug')) carte.grille.remove();
   $('onglet-2d').disabled = true;
   // La 3D, elle, revient : le nuage de la zone vue sur la carte (spec
   // 2026-09-27-vue-3d-design). Sans WebGL2, elle reste désactivée.

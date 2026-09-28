@@ -648,7 +648,10 @@ découpé sur les **emprises de chantier** (`IGNF_NUAGES-DE-POINTS-LIDAR-HD:bloc
 comme couche LiDAR. Les zones bleues ont été retirées plutôt que remplacées : la
 notion de dalle est appelée à quitter l'interface (« Le chargement piloté par
 la vue »). Le quadrillage est désormais tracé partout, et un clic hors LiDAR le
-dit (« pas encore volée »).
+dit (« pas encore volée »). En vue normale, il n'est plus tracé du tout
+(28 septembre 2026) : il servait à choisir une dalle, et sur le relief il ne
+faisait que rayer l'image. Il reste derrière `?dalle`, et avec `&debug`, où il
+aide à lire les contours des blocs.
 
 Enfin, **un carré Lambert-93 n'est pas aligné sur les axes en WGS84** : il
 apparaît légèrement tourné. Toute emprise doit donc être tracée en polygone de
