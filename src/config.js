@@ -212,6 +212,16 @@ const CONFIG = {
     fractionCoupe: 0.68,
   },
 
+  // ── Soutenir ──────────────────────────────────────────────────────────────
+  // Les pages de don. Ko-fi pour le bouton : le don ponctuel y est le geste de
+  // base, sans compte à créer (Liberapay ne gère pas vraiment le don unique et
+  // demande un compte au donateur). Liberapay en petit lien, pour qui préfère
+  // un soutien régulier. Vides toutes deux : la section est masquée.
+  soutien: {
+    kofi: 'https://ko-fi.com/julesrumeau',
+    liberapay: 'https://liberapay.com/julesrumeau/donate',
+  },
+
   // ── Carte ─────────────────────────────────────────────────────────────────
   carte: {
     // Vue d'ouverture : **la France entière**, avec ses chantiers LiDAR.
