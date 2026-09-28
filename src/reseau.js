@@ -36,6 +36,23 @@ function enfiler(run, nom = 'defaut') {
 
 const sommeil = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// La dernière requête restée sans réponse, et qui le demande. L'IGN laisse
+// parfois pendre une requête près d'une minute (mesuré le 28 septembre 2026 :
+// deux fins de fichier sur trois à 50–59 s avant le premier octet, la
+// troisième à 0,5 s). Le réessai repart vite, mais le relief arrive quand
+// même par à-coups : mieux vaut le dire que laisser croire à une panne de
+// Scopus.
+let derniereLenteur = -Infinity;
+const ecouteursLenteur = [];
+function noterLenteur() {
+  derniereLenteur = Date.now();
+  for (const f of ecouteursLenteur) f();
+}
+/** Une requête est-elle restée sans réponse ces `CONFIG.reseau.fenetreLenteurMs` dernières ms ? */
+const lenteRecente = () => Date.now() - derniereLenteur < CONFIG.reseau.fenetreLenteurMs;
+/** `f` est appelée à chaque requête restée sans réponse. */
+const surLenteur = (f) => { ecouteursLenteur.push(f); };
+
 /**
  * Recul exponentiel avec dispersion aléatoire.
  *
@@ -78,11 +95,26 @@ function recuperer(url, opts = {}) {
         // Couper et reprendre vaut mieux qu'attendre : le recul exponentiel
         // laisse au serveur le temps de se dégager, et la place en vol repart
         // servir une autre requête entre-temps.
+        //
+        // Deux délais : `delaiReponseMs` jusqu'à la réponse (les en-têtes),
+        // `delaiMaxMs` pour la requête entière. Une requête qui pend ne dit
+        // rien avant d'avoir répondu : c'est là qu'on la coupe tôt. Un corps
+        // lent à arriver, lui, est une grosse plage sur une connexion lente,
+        // qu'il ne faut pas couper pour autant.
         const limite = AbortSignal.timeout(CONFIG.reseau.delaiMaxMs);
-        const rep = await fetch(url, {
-          headers: entetes,
-          signal: signal ? AbortSignal.any([signal, limite]) : limite,
-        });
+        const sansReponse = new AbortController();
+        const minuteur = setTimeout(
+          () => sansReponse.abort(new DOMException('pas de réponse', 'TimeoutError')),
+          CONFIG.reseau.delaiReponseMs);
+        let rep;
+        try {
+          rep = await fetch(url, {
+            headers: entetes,
+            signal: AbortSignal.any([limite, sansReponse.signal, ...(signal ? [signal] : [])]),
+          });
+        } finally {
+          clearTimeout(minuteur);
+        }
 
         // 429, 5xx **et 400** sont transitoires : on recule et on repart.
         //
@@ -158,9 +190,9 @@ function recuperer(url, opts = {}) {
         // contraire être réessayé — les confondre rendait un chargement
         // définitivement perdu pour une seule requête trop lente.
         if (signal?.aborted) throw e;
-        dernierEchec = e.name === 'TimeoutError' || e.name === 'AbortError'
-          ? new Error(`délai de ${CONFIG.reseau.delaiMaxMs} ms dépassé sur ${url}`)
-          : e;
+        const delai = e.name === 'TimeoutError' || e.name === 'AbortError';
+        if (delai) noterLenteur();
+        dernierEchec = delai ? new Error(`délai dépassé sur ${url} : pas de réponse de l’IGN`) : e;
         // Une panne réseau franche mérite aussi un réessai : le Wi-Fi qui
         // hoquette au milieu de 400 requêtes est le cas nominal, pas l'exception.
         if (essai < CONFIG.reseau.tentatives - 1) await sommeil(recul(essai));
@@ -202,9 +234,9 @@ function expliquer(e) {
   if (/HTTP 404/.test(m)) {
     return 'L’IGN ne trouve pas cette donnée (404). La zone n’est peut-être pas couverte.';
   }
-  if (/délai de \d+ ms dépassé/.test(m)) {
-    return 'L’IGN n’a pas répondu à temps. C’est fréquent aux heures chargées : '
-      + 'relancez, ou choisissez une résolution plus grossière.';
+  if (/délai dépassé/.test(m)) {
+    return 'Le serveur de l’IGN est très lent en ce moment et n’a pas répondu à temps. '
+      + 'Rien à corriger de votre côté : réessayez dans quelques minutes.';
   }
   if (/Failed to fetch|NetworkError|network error|Load failed/i.test(m)) {
     return 'La connexion à data.geopf.fr a échoué. Vérifiez votre réseau — '
@@ -213,4 +245,4 @@ function expliquer(e) {
   return m;
 }
 
-const RESEAU = { recuperer, expliquer };
+const RESEAU = { recuperer, expliquer, lenteRecente, surLenteur };

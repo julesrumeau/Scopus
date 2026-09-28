@@ -752,6 +752,10 @@ input[type=range]::-moz-range-thumb {
    vrai problème externe (IGN indisponible), pas une simple explication. */
 .avis-panne { border-left-color: var(--alerte); }
 
+/* Avis de lenteur de l'IGN : en haut à droite, sous les libellés du rideau
+   (collés en haut de la carte), qu'il ne doit pas recouvrir. */
+.avis-ign { margin: 44px 10px 0 0 !important; }
+
 /* ── Le panneau sous 900 px ────────────────────────────────────────────────
    Il ne partage plus l'écran avec la scène (un empilement 45 %/55 % laissait
    la carte écrasée) : il se pose par-dessus, hors du flux de la grille, qui

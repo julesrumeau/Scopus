@@ -166,6 +166,26 @@ class Carte {
       return d;
     };
     this._avisPanne.addTo(this.map);
+
+    // L'IGN laisse pendre des requêtes (reseau.js, `RESEAU.lenteRecente`) :
+    // le relief arrive par à-coups, et sans un mot on croirait Scopus en
+    // panne. En haut à droite, sous les libellés du rideau : en bas, la
+    // feuille du téléphone le cacherait.
+    this._avisIGN = L.control({ position: 'topright' });
+    this._avisIGN.onAdd = () => {
+      const d = L.DomUtil.create('div', 'avis-zoom avis-ign');
+      d.textContent = 'Le serveur de l’IGN est lent en ce moment : le relief arrive plus '
+        + 'lentement que d’habitude. Scopus réessaie tout seul, rien à faire de votre côté.';
+      d.hidden = true;
+      return d;
+    };
+    this._avisIGN.addTo(this.map);
+  }
+
+  /** Montre ou retire l'avis de lenteur de l'IGN. */
+  avisLenteurIGN(visible) {
+    const el = this._avisIGN.getContainer();
+    if (el) el.hidden = !visible;
   }
 
   _majAvisZoom() {

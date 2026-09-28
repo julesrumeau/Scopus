@@ -101,3 +101,63 @@ test('fin de fichier : un 200 servi par le cache HTTP avec juste les octets dema
   const r = await ctx.RESEAU.recuperer('https://x/f', { fin: 1000 });
   assert.equal(r.total, null);
 });
+
+// Un serveur qui laisse pendre une requête, sans jamais répondre : mesuré le
+// 28 septembre 2026 sur data.geopf.fr, deux fins de fichier sur trois restaient
+// 50 à 59 s sans premier octet, la troisième répondait en 0,5 s. Attendre la
+// réponse au plus `delaiReponseMs`, puis réessayer — et le faire savoir.
+function serveurQuiPend(ctx, pendues) {
+  let appels = 0;
+  ctx.fetch = (url, init) => {
+    appels++;
+    if (appels <= pendues) {
+      return new Promise((_, ko) => init.signal.addEventListener('abort', () => ko(init.signal.reason)));
+    }
+    return Promise.resolve({ ok: true, status: 200, headers: new Map(), arrayBuffer: async () => new ArrayBuffer(4) });
+  };
+  return () => appels;
+}
+
+test('une requête sans réponse est abandonnée au délai de réponse, puis réessayée', async () => {
+  const ctx = chargerScripts(['config.js', 'reseau.js']);
+  ctx.CONFIG.reseau.delaiReponseMs = 30;
+  ctx.CONFIG.reseau.reculInitialMs = 1;
+  const appels = serveurQuiPend(ctx, 1);
+  const t0 = Date.now();
+  const r = await ctx.RESEAU.recuperer('https://x/f.copc.laz');
+  assert.equal(r.length, 4);
+  assert.equal(appels(), 2);
+  assert.ok(Date.now() - t0 < 1000, `abandon au délai de réponse, pas au délai maximal (${Date.now() - t0} ms)`);
+});
+
+test('l’IGN est dit lent après une requête restée sans réponse, et seulement alors', async () => {
+  const ctx = chargerScripts(['config.js', 'reseau.js']);
+  ctx.CONFIG.reseau.delaiReponseMs = 30;
+  ctx.CONFIG.reseau.reculInitialMs = 1;
+  serveurQuiPend(ctx, 0);
+  await ctx.RESEAU.recuperer('https://x/a');
+  assert.equal(ctx.RESEAU.lenteRecente(), false);
+  let prevenu = 0;
+  ctx.RESEAU.surLenteur(() => { prevenu++; });
+  serveurQuiPend(ctx, 1);
+  await ctx.RESEAU.recuperer('https://x/b');
+  assert.equal(ctx.RESEAU.lenteRecente(), true);
+  assert.equal(prevenu, 1);
+});
+
+test('une réponse lente à arriver mais qui arrive n’est pas coupée par le délai de réponse', async () => {
+  const ctx = chargerScripts(['config.js', 'reseau.js']);
+  ctx.CONFIG.reseau.delaiReponseMs = 30;
+  // Les en-têtes arrivent tout de suite, le corps après le délai de réponse :
+  // une grosse plage sur une connexion lente, qui ne doit pas être coupée.
+  ctx.fetch = async (url, init) => ({
+    ok: true, status: 200, headers: new Map(),
+    arrayBuffer: () => new Promise((ok, ko) => {
+      const t = setTimeout(() => ok(new ArrayBuffer(4)), 80);
+      init.signal.addEventListener('abort', () => { clearTimeout(t); ko(init.signal.reason); });
+    }),
+  });
+  const r = await ctx.RESEAU.recuperer('https://x/grosse-plage');
+  assert.equal(r.length, 4);
+  assert.equal(ctx.RESEAU.lenteRecente(), false);
+});
