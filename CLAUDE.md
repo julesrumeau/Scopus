@@ -2173,6 +2173,13 @@ désagréable que l'attente.
   l'annulation de l'utilisateur — les confondre rend un chargement définitivement
   perdu pour une seule requête trop lente. Le verdict se prend sur
   `signal.aborted`, jamais sur le nom de l'erreur.
+  Deux délais depuis le 28 septembre 2026 : 10 s jusqu'à la réponse
+  (`delaiReponseMs`), 30 s pour la requête entière. Ce jour-là, deux fins de
+  fichier sur trois restaient 50 à 180 s sans un octet, quand la même,
+  relancée, répondait en 0,5 s : couper tôt ce qui pend, sans couper un corps
+  lent à arriver. Chaque requête coupée ainsi fait dire à l'écran que l'IGN
+  est lent (`RESEAU.lenteRecente`, avis en haut à droite de la carte) tant
+  que des blocs sont attendus.
 - **Le tas WASM détache ses vues quand il grandit.** laz-perf alloue ses tampons
   internes en cours de décompression ; une croissance remplace l'ArrayBuffer
   sous-jacent et toute `DataView` mise en cache devient inutilisable

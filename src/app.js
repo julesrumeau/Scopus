@@ -2581,9 +2581,21 @@ if (MODE_VUE) (async () => {
   // (surface, dalles, blocs, points, durées) ne sert qu'au diagnostic, avec
   // « &debug » ou « &chrono ».
   const diagnostic = DIAGNOSTIC;
+  // Une requête restée sans réponse (reseau.js) : l'avis dure le temps de la
+  // fenêtre de lenteur, puis le statut se redit tout seul.
+  let lenteIGN = false, minuteurLenteur = null;
+  RESEAU.surLenteur(() => {
+    lenteIGN = true;
+    clearTimeout(minuteurLenteur);
+    minuteurLenteur = setTimeout(() => { lenteIGN = RESEAU.lenteRecente(); majStatut(); }, CONFIG.reseau.fenetreLenteurMs + 50);
+    majStatut();
+  });
   const majStatut = () => {
     const e = dernierEtat;
     if (!e) return;
+    // Seulement pendant qu'on attend des blocs : une fois tout arrivé, la
+    // lenteur passée n'a plus rien à expliquer.
+    carte.avisLenteurIGN(lenteIGN && !!e.attente && !e.tropLarge && !e.sansLidar);
     // Pas de LiDAR dans la vue : dit à l'écran, pas seulement dans la console.
     // Hors de France, ou une zone française pas encore volée ou publiée.
     let sansLidar = '';
@@ -2608,6 +2620,7 @@ if (MODE_VUE) (async () => {
         : e.echecs ? `${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}`
           : erreurRelief ? `Le relief n’a pas pu être calculé — ${erreurRelief}`
             : !['gauche', 'droite'].some((c) => estRelief(cotes[c])) ? 'Aucune couche de relief affichée'
+              : e.attente && lenteIGN ? 'L’IGN est lent'
               : e.attente ? 'Relief en cours d’affinage…'
                 : texteRelief ? 'Relief à jour' : 'Relief en calcul…'),
       e.echecs || erreurRelief ? 'erreur' : e.attente ? 'travail' : undefined);

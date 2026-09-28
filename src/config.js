@@ -123,6 +123,15 @@ const CONFIG = {
     // et le chargement s'arrête en silence. 30 s laissent passer un bloc de
     // 8 Mo sur une connexion lente, tout en coupant court à ce qui pend.
     delaiMaxMs: 30000,
+    // Délai jusqu'à la réponse (les en-têtes). L'IGN laisse parfois pendre une
+    // requête près d'une minute sans rien envoyer, quand la même, relancée,
+    // répond en 0,5 s (mesuré le 28 septembre 2026) : couper à 10 s plutôt
+    // qu'à 30 fait repartir plus vite. Assez large pour une réponse
+    // simplement lente — le WFS met 0,3 à 1,5 s, une fin de fichier 0,5 s.
+    delaiReponseMs: 10000,
+    // Durée pendant laquelle une requête restée sans réponse fait dire que
+    // l'IGN est lent (RESEAU.lenteRecente).
+    fenetreLenteurMs: 30000,
   },
 
   // ── Chargement du nuage ───────────────────────────────────────────────────
