@@ -1667,7 +1667,7 @@ const NOMS_CLASSES = {
  */
 function majLegende() {
   const l = $('legende');
-  if (!etat.nuage) { l.innerHTML = ''; return; }
+  if (!etat.nuage) { l.innerHTML = ''; majExportLAS(); return; }
 
   const echelle = {
     hauteur: 'Sombre = sol · jaune = 1–3 m · rouge = &gt; 5 m',
@@ -1688,7 +1688,34 @@ function majLegende() {
         + `<i style="background:${couleur}"></i>${NOMS_CLASSES[cls] || `classe ${cls}`}`
         + `<b>${part} %</b></button>`;
     }).join('');
+  majExportLAS();
 }
+
+/**
+ * Export des points de la 3D en LAS. Les classes exportées sont celles que la
+ * légende laisse affichées : ce qu'on voit est ce qu'on exporte. Un seul
+ * fichier, chaque point y garde son numéro de classe — on ne choisit que
+ * lesquelles y entrent, pas de fichier par classe.
+ */
+function majExportLAS() {
+  const bloc = $('export-las');
+  bloc.hidden = !etat.nuage;
+  if (!etat.nuage) return;
+  const { n, octets: o } = LAS.compter(etat.nuage, classesMasquees);
+  const presentes = etat.nuage.parClasse.size;
+  const gardees = [...etat.nuage.parClasse.keys()].filter((c) => !classesMasquees.has(c)).length;
+  $('exp-las').disabled = n === 0;
+  $('exp-las-info').textContent = n
+    ? `Un seul fichier, avec les classes cochées ci-dessus (${gardees} sur ${presentes}) : `
+      + `${milliers(n)} points, ~${octets(o)}. Chaque point garde son numéro de classe.`
+    : 'Aucune classe cochée : rien à exporter.';
+}
+
+$('exp-las').addEventListener('click', () => {
+  if (!etat.nuage) return;
+  const r = LAS.ecrire(etat.nuage, classesMasquees);
+  SORTIE.telecharger('scopus_nuage_3d.las', new Blob(r.parties), 'application/octet-stream');
+});
 
 $('legende').addEventListener('click', (e) => {
   const b = e.target.closest('button.cls');
@@ -1697,6 +1724,7 @@ $('legende').addEventListener('click', (e) => {
   if (classesMasquees.has(cls)) classesMasquees.delete(cls); else classesMasquees.add(cls);
   b.classList.toggle('off', classesMasquees.has(cls));
   vue3d?.definirClassesMasquees(classesMasquees);
+  majExportLAS();
 });
 
 // ── Classes du sol ────────────────────────────────────────────────────────
