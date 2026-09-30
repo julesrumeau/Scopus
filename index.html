@@ -229,11 +229,10 @@
         <span>Ombrage de profondeur <small>(EDL : fait ressortir murets et talus)</small></span>
       </label>
       <div id="legende" class="legende"></div>
-      <div id="export-las" hidden>
+      <div id="export-points" hidden>
         <div class="rangee exports">
-          <button id="exp-las" class="secondaire">Exporter les points (LAS)</button>
+          <button id="exp-ouvrir" class="secondaire">Exporter les points…</button>
         </div>
-        <p class="vide" id="exp-las-info"></p>
       </div>
     </section>
 
@@ -603,6 +602,32 @@
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/lazperf/lazperf-embarque.js"></script>
 
+<dialog id="dlg-export" class="fenetre" aria-labelledby="dlg-export-titre">
+  <h2 id="dlg-export-titre">Exporter les points</h2>
+  <p class="vide">Les points affichés en 3D, en coordonnées locales (mètres). Choisissez un format.</p>
+  <label class="case choix-format">
+    <input type="radio" name="fmt-export" value="las">
+    <span><b>LAS</b> — tous les points, avec leur classe dans le fichier.
+      <small>Pour Blender, CloudCompare, QGIS.</small></span>
+  </label>
+  <label class="case choix-format">
+    <input type="radio" name="fmt-export" value="ply">
+    <span><b>PLY</b> — les classes de votre choix.
+      <small>Pour FreeCAD, Blender, CloudCompare.</small></span>
+  </label>
+  <div id="exp-classes" hidden>
+    <p class="vide">Choisissez les classes à mettre dans le fichier. FreeCAD ignore la
+      classe : pour ne garder qu’une couche (sol, bâti…), décochez les autres,
+      téléchargez, puis recommencez pour la suivante.</p>
+    <div id="exp-liste-classes" class="legende"></div>
+  </div>
+  <p class="vide" id="exp-info">Choisissez un format.</p>
+  <div class="rangee">
+    <button id="exp-fermer" class="secondaire" type="button">Fermer</button>
+    <button id="exp-telecharger" class="primaire" type="button" disabled>Télécharger</button>
+  </div>
+</dialog>
+
 <script src="src/config.js"></script>
 <script src="src/attente.js"></script>
 <script src="src/proj.js"></script>
@@ -625,6 +650,7 @@
 <script src="src/sentiers.js"></script>
 <script src="src/sortie.js"></script>
 <script src="src/las.js"></script>
+<script src="src/ply.js"></script>
 <script src="src/gl.js"></script>
 <script src="src/shaders.js"></script>
 <script src="src/gpu-relief.js"></script>

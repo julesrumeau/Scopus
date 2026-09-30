@@ -1209,3 +1209,21 @@ body[data-mode="dalle"] #champ-budget3d { display: none !important; }
 /* Vue normale : l'intensité n'est plus téléchargée (blocs coupés aux couches lues). */
 body[data-mode="vue"] #coloration [data-mode="intensite"] { display: none !important; }
 
+
+/* Fenêtre d'export des points. Pas de `display` posé sur le <dialog> : une
+   règle d'auteur l'afficherait même fermé (voir `[hidden]` en tête de fichier). */
+dialog.fenetre {
+  background: var(--fond-2);
+  color: var(--texte);
+  border: 1px solid var(--bord);
+  border-radius: 10px;
+  padding: 18px 20px;
+  width: min(460px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+}
+dialog.fenetre::backdrop { background: rgba(0, 0, 0, 0.6); }
+dialog.fenetre h2 { margin: 0 0 8px; font-size: 15px; }
+dialog.fenetre .choix-format { align-items: flex-start; margin-bottom: 10px; color: var(--texte); }
+dialog.fenetre .choix-format small { display: block; color: var(--texte-2); margin-top: 2px; }
+dialog.fenetre .legende button.cls { cursor: pointer; }

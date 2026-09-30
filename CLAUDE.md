@@ -621,22 +621,36 @@ quelle : sélection et mesure gardent leur test de profondeur. Sur un nuage
 synthétique, un muret de 50 cm ressort en trait net ; aucune erreur GL, et
 les textures suivent la taille du canevas.
 
-**L'export LAS** (`las.js`, bouton sous la légende 3D) écrit le nuage affiché en
-LAS 1.4, point de format 6, pour Blender (extension Point Cloud I/O),
-CloudCompare ou QGIS — demande d'un utilisateur : garder la classification
-pour importer « par couche » (bâti, sol). Format 6 et non 0 à 5, parce que ces
-derniers rangent la classe sur 5 bits (0 à 31) alors que le LiDAR HD emploie
-la 64 et la 66. Un seul fichier ; les classes qui y entrent sont celles que la
-légende laisse cochées, et chaque point garde son numéro de classe : on choisit
-lesquelles, pas un fichier par classe. Coordonnées **locales**, celles de la
-3D, au centimètre (échelle 0,01, décalage 0) : ni Lambert-93 ni CRS dans le
-fichier — en absolu, Blender (simple précision) perdrait ~50 cm sur des Y à
-6,2 millions. FreeCAD ne lit pas le LAS (`.asc`, `.pcd`, `.ply` seulement) ;
-un PLY avec la classe en propriété de point est l'ajout naturel si on le
-demande. Relu dans `test/las.test.js` par un lecteur écrit d'après la spec, et
-vérifié avec laspy (1.4, format 6, classes 2/6/64/66 intactes). Pas d'intensité
-(non téléchargée, voir « Seules les couches lues »). Coût : 30 octets par
-point, ~150 Mo pour 5 M de points.
+**L'export des points** (`las.js`, `ply.js`, fenêtre `#dlg-export` ouverte par
+« Exporter les points… » sous la légende 3D) part d'une demande d'utilisateur :
+garder la classification pour importer « par couche » (bâti, sol) dans Blender,
+FreeCAD, etc. Deux formats, deux comportements :
+
+- **LAS 1.4, point de format 6** : tous les points, la classe est un champ du
+  fichier et on trie ensuite dans l'outil (Blender avec l'extension Point Cloud
+  I/O, CloudCompare, QGIS). Format 6 et non 0 à 5, parce que ces derniers
+  rangent la classe sur 5 bits (0 à 31) alors que le LiDAR HD emploie la 64 et
+  la 66. Sans lien avec les cases de la légende.
+- **PLY binaire** : x, y, z en flottants et la classe en `uchar`, mais **les
+  classes cochées dans la fenêtre seulement** (toutes au départ, à chaque
+  ouverture, indépendamment de la légende). Lu dans le code de FreeCAD
+  (`PlyReader`, Mod/Points) : il lit toutes les propriétés d'un sommet mais
+  n'en retient que celles qu'il connaît (x y z, normales, `intensity`,
+  couleurs) — la classe passe donc sans erreur et y est **ignorée**. D'où le
+  choix de classes : qui veut une couche à la fois dans FreeCAD (sol, puis
+  bâti) fait un export par sélection. L'en-tête doit rester
+  `binary_little_endian 1.0` et en ASCII pur. Non essayé dans FreeCAD lui-même.
+
+Coordonnées **locales**, celles de la 3D (LAS au centimètre, échelle 0,01 et
+décalage 0) : ni Lambert-93 ni CRS — en absolu, Blender (simple précision)
+perdrait ~50 cm sur des Y à 6,2 millions. La logique de la fenêtre (quoi
+écrire, bouton actif ou non) vit dans `SORTIE.resumerExport` /
+`exporterPoints`, testée sans navigateur ; `app.js` ne fait que le câblage.
+Relus dans `test/las.test.js` et `test/ply.test.js` par des lecteurs écrits
+d'après les spécifications, le LAS aussi avec laspy (1.4, format 6, classes
+2/6/64/66 intactes). Pas d'intensité (non téléchargée, voir « Seules les couches
+lues »). Coût : 30 octets par point en LAS, 13 en PLY — ~150 Mo et ~65 Mo pour
+5 M de points.
 
 Étape 2, non faite (TODO #4) : que la caméra 3D pilote elle-même le
 téléchargement, blocs les plus gros à l'écran d'abord (taille projetée, à la
