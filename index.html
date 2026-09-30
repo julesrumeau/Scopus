@@ -229,6 +229,12 @@
         <span>Ombrage de profondeur <small>(EDL : fait ressortir murets et talus)</small></span>
       </label>
       <div id="legende" class="legende"></div>
+      <div id="export-las" hidden>
+        <div class="rangee exports">
+          <button id="exp-las" class="secondaire">Exporter les points (LAS)</button>
+        </div>
+        <p class="vide" id="exp-las-info"></p>
+      </div>
     </section>
 
     <!-- ─── 2D : lecture de la dalle, deux couches comparées ─────────────── -->
@@ -618,6 +624,7 @@
 <script src="src/lignes.js"></script>
 <script src="src/sentiers.js"></script>
 <script src="src/sortie.js"></script>
+<script src="src/las.js"></script>
 <script src="src/gl.js"></script>
 <script src="src/shaders.js"></script>
 <script src="src/gpu-relief.js"></script>
