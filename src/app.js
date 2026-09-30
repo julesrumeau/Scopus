@@ -1667,7 +1667,7 @@ const NOMS_CLASSES = {
  */
 function majLegende() {
   const l = $('legende');
-  if (!etat.nuage) { l.innerHTML = ''; majExportLAS(); return; }
+  if (!etat.nuage) { l.innerHTML = ''; majExportPoints(); return; }
 
   const echelle = {
     hauteur: 'Sombre = sol · jaune = 1–3 m · rouge = &gt; 5 m',
@@ -1688,33 +1688,68 @@ function majLegende() {
         + `<i style="background:${couleur}"></i>${NOMS_CLASSES[cls] || `classe ${cls}`}`
         + `<b>${part} %</b></button>`;
     }).join('');
-  majExportLAS();
+  majExportPoints();
 }
 
 /**
- * Export des points de la 3D en LAS. Les classes exportées sont celles que la
- * légende laisse affichées : ce qu'on voit est ce qu'on exporte. Un seul
- * fichier, chaque point y garde son numéro de classe — on ne choisit que
- * lesquelles y entrent, pas de fichier par classe.
+ * Export des points de la 3D : le bouton ouvre une fenêtre (`#dlg-export`) où
+ * l'on choisit le format. LAS : tous les points, la classe est dans le fichier.
+ * PLY : les classes cochées dans la fenêtre — toutes au départ, et sans lien
+ * avec les cases de la légende. La logique (quoi écrire, bouton actif ou non)
+ * est dans `SORTIE.resumerExport` / `exporterPoints`, testée sans navigateur.
  */
-function majExportLAS() {
-  const bloc = $('export-las');
-  bloc.hidden = !etat.nuage;
-  if (!etat.nuage) return;
-  const { n, octets: o } = LAS.compter(etat.nuage, classesMasquees);
-  const presentes = etat.nuage.parClasse.size;
-  const gardees = [...etat.nuage.parClasse.keys()].filter((c) => !classesMasquees.has(c)).length;
-  $('exp-las').disabled = n === 0;
-  $('exp-las-info').textContent = n
-    ? `Un seul fichier, avec les classes cochées ci-dessus (${gardees} sur ${presentes}) : `
-      + `${milliers(n)} points, ~${octets(o)}. Chaque point garde son numéro de classe.`
-    : 'Aucune classe cochée : rien à exporter.';
+const exportExclues = new Set();
+
+function majExportPoints() {
+  $('export-points').hidden = !etat.nuage;
+  if (!etat.nuage && $('dlg-export').open) $('dlg-export').close();
 }
 
-$('exp-las').addEventListener('click', () => {
+function formatExport() {
+  return document.querySelector('input[name="fmt-export"]:checked')?.value || null;
+}
+
+function majFenetreExport() {
+  const format = formatExport();
+  $('exp-classes').hidden = format !== 'ply';
+  const r = SORTIE.resumerExport(etat.nuage, format, exportExclues);
+  $('exp-telecharger').disabled = !r.actif;
+  $('exp-info').textContent = r.actif ? `${milliers(r.n)} points, ~${octets(r.octets)}.` : r.message;
+}
+
+function listerClassesExport() {
+  const presentes = [...etat.nuage.parClasse.entries()].sort((a, b) => b[1] - a[1]);
+  $('exp-liste-classes').innerHTML = presentes.map(([cls, n]) => {
+    const couleur = CONFIG.rendu.couleursClasse[cls] || CONFIG.rendu.couleurClasseDefaut;
+    return `<label class="case"><input type="checkbox" data-cls="${cls}" checked>`
+      + `<i style="background:${couleur};width:11px;height:11px;border-radius:2px;flex:none"></i>`
+      + `<span>${NOMS_CLASSES[cls] || `classe ${cls}`} <small>${milliers(n)} points</small></span></label>`;
+  }).join('');
+}
+
+$('exp-ouvrir').addEventListener('click', () => {
   if (!etat.nuage) return;
-  const r = LAS.ecrire(etat.nuage, classesMasquees);
-  SORTIE.telecharger('scopus_nuage_3d.las', new Blob(r.parties), 'application/octet-stream');
+  exportExclues.clear();          // toutes les classes cochées, à chaque ouverture
+  for (const r of document.querySelectorAll('input[name="fmt-export"]')) r.checked = false;
+  listerClassesExport();
+  majFenetreExport();
+  $('dlg-export').showModal();
+});
+$('exp-fermer').addEventListener('click', () => $('dlg-export').close());
+$('dlg-export').addEventListener('change', (e) => {
+  const c = e.target.closest('input[data-cls]');
+  if (c) {
+    const cls = Number(c.dataset.cls);
+    if (c.checked) exportExclues.delete(cls); else exportExclues.add(cls);
+  }
+  majFenetreExport();
+});
+$('exp-telecharger').addEventListener('click', () => {
+  const format = formatExport();
+  if (!etat.nuage || !format) return;
+  const f = SORTIE.exporterPoints(etat.nuage, format, exportExclues);
+  SORTIE.telecharger(f.nom, new Blob(f.parties), 'application/octet-stream');
+  $('dlg-export').close();
 });
 
 $('legende').addEventListener('click', (e) => {
@@ -1724,7 +1759,6 @@ $('legende').addEventListener('click', (e) => {
   if (classesMasquees.has(cls)) classesMasquees.delete(cls); else classesMasquees.add(cls);
   b.classList.toggle('off', classesMasquees.has(cls));
   vue3d?.definirClassesMasquees(classesMasquees);
-  majExportLAS();
 });
 
 // ── Classes du sol ────────────────────────────────────────────────────────

@@ -223,5 +223,34 @@ function telecharger(nom, contenu, type) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+// ── Export des points de la 3D ─────────────────────────────────────────────
+//
+// LAS : tous les points, la classe est un champ du fichier et on trie ensuite
+// dans l'outil. PLY : les classes cochées seulement — FreeCAD ignore la classe,
+// et qui veut une couche à la fois (sol, puis bâti) fait un export par
+// sélection.
+
+const FORMATS_POINTS = {
+  las: { nom: 'scopus_nuage_3d.las', ecriveur: () => LAS, toutesClasses: true },
+  ply: { nom: 'scopus_nuage_3d.ply', ecriveur: () => PLY, toutesClasses: false },
+};
+
+/** Ce que la fenêtre annonce, et si le bouton de téléchargement est actif. */
+function resumerExport(nuage, format, exclues) {
+  const f = FORMATS_POINTS[format];
+  if (!f) return { actif: false, n: 0, octets: 0, message: 'Choisissez un format.' };
+  const { n, octets } = f.ecriveur().compter(nuage, f.toutesClasses ? undefined : exclues);
+  if (!n) return { actif: false, n, octets, message: 'Aucune classe cochée : rien à exporter.' };
+  return { actif: true, n, octets, message: '' };
+}
+
+/** Le fichier à télécharger : `{ nom, parties, n, octets }`. */
+function exporterPoints(nuage, format, exclues) {
+  const f = FORMATS_POINTS[format];
+  if (!f) throw new Error(`Format d’export inconnu : ${format}`);
+  const r = f.ecriveur().ecrire(nuage, f.toutesClasses ? undefined : exclues);
+  return { nom: f.nom, ...r };
+}
+
 const SORTIE = { rapprocher, liens, versGeoJSON, versCSV, versGPX,
-  tracesVersGPX, tracesVersGeoJSON, telecharger };
+  tracesVersGPX, tracesVersGeoJSON, resumerExport, exporterPoints, telecharger };
