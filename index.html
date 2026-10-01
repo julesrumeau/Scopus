@@ -546,10 +546,30 @@
           </g>
         </svg>
       </button>
+      <button id="mode-profil" class="btn-mode" title="Profil : cliquez deux points pour la coupe verticale entre eux"
+              aria-label="Profil">
+        <svg class="icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <polyline points="3,17 8,9 12,13 16,5 21,17" fill="none" stroke="currentColor" stroke-width="1.8"
+                    stroke-linejoin="round" stroke-linecap="round"/>
+          <line x1="3" y1="20.5" x2="21" y2="20.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </button>
     </nav>
     <div id="vue-carte" class="vue">
       <!-- Ce que le relief dit sous le curseur (mode vue). -->
       <div id="hud-vue" class="hud hud-vue" hidden></div>
+      <!-- Mode Profil : la bande se choisit ici, le graphique s'ouvre à la validation. -->
+      <div id="fenetre-profil" class="fenetre-profil" hidden>
+        <p class="vide" id="profil-consigne">Cliquez le premier point sur la carte.</p>
+        <label class="profil-largeur">Largeur
+          <input type="range" id="profil-largeur" min="0.5" max="30" step="0.5" value="3">
+          <input type="number" id="profil-largeur-n" min="0.5" max="30" step="0.5" value="3"> m
+        </label>
+        <div class="rangee">
+          <button id="profil-effacer" class="secondaire" type="button" disabled>Effacer</button>
+          <button id="profil-valider" class="primaire" type="button" disabled>Valider</button>
+        </div>
+      </div>
     </div>
     <div id="vue-2d" class="vue" hidden>
       <canvas id="canvas-2d"></canvas>
@@ -625,6 +645,27 @@
     <button id="exp-fermer" class="secondaire" type="button">Fermer</button>
     <button id="exp-telecharger" class="primaire" type="button" disabled>Télécharger</button>
   </div>
+</dialog>
+
+<dialog id="dlg-profil" class="fenetre fenetre-profil-grande" aria-labelledby="dlg-profil-titre">
+  <div class="profil-entete">
+    <h2 id="dlg-profil-titre">Profil topographique</h2>
+    <button id="profil-fermer" class="secondaire" type="button" aria-label="Fermer">✕</button>
+  </div>
+  <div class="rangee profil-reglages">
+    <label class="profil-largeur">Largeur de la bande
+      <input type="number" id="profil-largeur-modale" min="0.5" max="30" step="0.5" value="3"> m
+    </label>
+    <span class="vide" id="profil-etat"></span>
+  </div>
+  <canvas id="profil-canvas"></canvas>
+  <div class="double-curseur" aria-label="Tronçon affiché">
+    <input type="range" id="profil-s0" min="0" max="1000" value="0" aria-label="Début du tronçon">
+    <input type="range" id="profil-s1" min="0" max="1000" value="1000" aria-label="Fin du tronçon">
+  </div>
+  <div class="vide profil-portee" id="profil-portee"></div>
+  <div id="profil-classes" class="legende"></div>
+  <div id="profil-mesure" class="profil-mesure"></div>
 </dialog>
 
 <script src="src/config.js"></script>

@@ -1227,3 +1227,79 @@ dialog.fenetre h2 { margin: 0 0 8px; font-size: 15px; }
 dialog.fenetre .choix-format { align-items: flex-start; margin-bottom: 10px; color: var(--texte); }
 dialog.fenetre .choix-format small { display: block; color: var(--texte-2); margin-top: 2px; }
 dialog.fenetre .legende button.cls { cursor: pointer; }
+
+/* ── Profil topographique ─────────────────────────────────────────────────── */
+
+/* Le bouton n'a de sens qu'en vue normale : `?dalle` n'a pas de profil. */
+body:not([data-mode="vue"]) #mode-profil { display: none !important; }
+
+/* La petite fenêtre de choix de la bande : sur la carte, en bas au centre (en
+   haut sous 600 px, pour ne pas passer sous la feuille du panneau). */
+.fenetre-profil {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+  z-index: 780;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 14px;
+  max-width: calc(100% - 24px);
+  padding: 10px 14px;
+  background: var(--fond-2); color: var(--texte);
+  border: 1px solid var(--bord); border-radius: 10px;
+}
+.fenetre-profil .vide { margin: 0; }
+.profil-largeur { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--texte-2); }
+.profil-largeur input[type="range"] { width: 120px; }
+.profil-largeur input[type="number"] { width: 64px; }
+@media (max-width: 600px) { .fenetre-profil { bottom: auto; top: 12px; } }
+
+/* Les poignées A et B de la bande, glissables. */
+.poignee-profil {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; box-sizing: border-box;
+  background: #4ad0ff; color: #0b0e13;
+  border: 2px solid #fff; border-radius: 50%;
+  font: 700 12px system-ui, sans-serif;
+  cursor: grab;
+}
+
+/* La modale du profil : presque plein écran. `display` seulement sous `[open]`
+   (voir la note sur dialog.fenetre). */
+dialog.fenetre-profil-grande {
+  width: min(1100px, calc(100% - 24px));
+  height: calc(100% - 24px);
+}
+dialog.fenetre-profil-grande[open] { display: flex; flex-direction: column; gap: 8px; }
+.profil-entete { display: flex; align-items: center; justify-content: space-between; }
+.profil-entete h2 { margin: 0; }
+.profil-reglages { align-items: center; gap: 14px; }
+#profil-canvas { flex: 1 1 auto; min-height: 200px; width: 100%; display: block; background: #0b0e13; border-radius: 6px; }
+.profil-portee { margin: 0; }
+.profil-mesure { display: flex; flex-wrap: wrap; gap: 8px 28px; min-height: 44px; align-items: center; }
+.profil-mesure > div { display: flex; flex-direction: column; }
+.profil-mesure small { font-size: 11px; color: var(--texte-2); }
+.profil-mesure b { font-size: 22px; color: #ffd24a; text-shadow: 0 0 2px #000; }
+#profil-classes { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 0; }
+#profil-classes .case { margin: 0; }
+
+/* Le double curseur du tronçon : deux curseurs superposés, seuls les pouces
+   reçoivent le pointeur. Aligné sur les marges du graphique (56 px à gauche,
+   16 à droite — voir ProfilGraphique.marge). */
+.double-curseur { position: relative; height: 26px; margin: 4px 16px 0 56px; }
+.double-curseur::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 11px; height: 4px;
+  background: var(--bord); border-radius: 2px;
+}
+.double-curseur input[type="range"] {
+  position: absolute; left: 0; top: 0; width: 100%; height: 26px; margin: 0;
+  background: none; pointer-events: none;
+  -webkit-appearance: none; appearance: none;
+}
+.double-curseur input[type="range"]::-webkit-slider-runnable-track { background: none; }
+.double-curseur input[type="range"]::-moz-range-track { background: none; }
+.double-curseur input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; pointer-events: auto;
+  width: 16px; height: 22px; border-radius: 4px; cursor: ew-resize;
+  background: var(--accent); border: 2px solid #fff; box-sizing: border-box;
+}
+.double-curseur input[type="range"]::-moz-range-thumb {
+  pointer-events: auto; width: 16px; height: 22px; border-radius: 4px; cursor: ew-resize;
+  background: var(--accent); border: 2px solid #fff; box-sizing: border-box;
+}
