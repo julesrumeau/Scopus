@@ -199,3 +199,13 @@ parce que ça changerait un comportement ou demanderait une décision :
 - **`app.js` enveloppe la vue normale** dans un bloc de ~600 lignes : à
   sortir dans son propre fichier quand l'ancien parcours (`?dalle`) partira.
 
+- **Le panneau latéral recouvre la barre d'outils entre 600 et 900 px**, ouvert
+  par défaut : le bouton Profil (comme Déplacement, Sélection et Mesure) est
+  inaccessible tant qu'on ne l'a pas replié avec la languette. Vu en paysage sur
+  un téléphone (800 × 380) et sur tablette.
+- **Petits points du profil**, relevés à la relecture : sur une bande en
+  diagonale, un point exactement sur le bord peut être écarté par arrondi de
+  flottant (`vue-relief.js`) ; le champ de largeur de la modale n'a pas de
+  garde si A ou B est nul ; pendant « Calcul… », l'ancien graphique reste
+  cliquable ; le glisser des poignées A et B et le pincement sur le graphique
+  n'ont pas été essayés au doigt.
