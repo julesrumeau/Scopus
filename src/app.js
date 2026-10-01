@@ -3188,8 +3188,119 @@ if (MODE_VUE) (async () => {
   L.DomEvent.disableScrollPropagation($('fenetre-profil'));
   majFenetreProfil();
 
-  // La modale du profil : tâche suivante.
-  function validerProfil() {}
+  // ── Le profil : lire la coupe ──
+  // La validation ouvre la modale et demande les points de la bande au worker ;
+  // changer la largeur dans la modale recalcule sur place (au `change`, pas à
+  // l'`input` : l'essai le plus fréquent sur un arbre est « un peu plus large »).
+  let graphique = null;
+
+  /** Les classes affichées : toutes celles de la bande, sauf les décochées dans la modale. */
+  const visiblesProfil = () => new Set([...profil.donnees.parClasse.keys()].filter((c) => !profil.masquees.has(c)));
+
+  function listerClassesProfil() {
+    const d = profil.donnees;
+    $('profil-classes').innerHTML = !d ? '' : [...d.parClasse.entries()].sort((a, b) => b[1] - a[1]).map(([cls, n]) => {
+      const couleur = CONFIG.rendu.couleursClasse[cls] || CONFIG.rendu.couleurClasseDefaut;
+      return `<label class="case"><input type="checkbox" data-cls="${cls}"${profil.masquees.has(cls) ? '' : ' checked'}>`
+        + `<i style="background:${couleur};width:11px;height:11px;border-radius:2px;flex:none"></i>`
+        + `<span>${NOMS_CLASSES[cls] || `classe ${cls}`} <small>${milliers(n)} points</small></span></label>`;
+    }).join('');
+  }
+
+  /** Le tronçon des deux curseurs, en mètres le long de l'axe ; recadre le graphique. */
+  function appliquerPorteeProfil() {
+    const d = profil.donnees;
+    if (!d || !graphique) { $('profil-portee').textContent = ''; return; }
+    const s0 = (d.longueur * Number($('profil-s0').value)) / 1000;
+    const s1 = (d.longueur * Number($('profil-s1').value)) / 1000;
+    graphique.definirPortee(s0, s1);
+    $('profil-portee').textContent = `Tronçon affiché : de ${s0.toFixed(1)} à ${s1.toFixed(1)} m sur ${d.longueur.toFixed(1)} m`;
+  }
+
+  /** Les valeurs de la mesure, en gros et à fort contraste (le texte orange du plugin QGIS se lisait mal). */
+  function afficherMesureProfil(p, q) {
+    const el = $('profil-mesure');
+    if (!p) { el.innerHTML = '<span class="vide">Cliquez deux points du graphique pour mesurer (le clic s’accroche au point le plus proche).</span>'; return; }
+    if (!q) { el.innerHTML = `<span class="vide">Premier repère à ${p.z.toFixed(2)} m d’altitude. Cliquez le second.</span>`; return; }
+    const m = PROFIL.mesurer(p, q);
+    const signe = (v) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)} m`;
+    el.innerHTML = [
+      ['Distance horizontale', `${m.horizontale.toFixed(2)} m`],
+      ['Dénivelé', signe(m.denivele)],
+      ['Distance 3D', `${m.totale.toFixed(2)} m`],
+      ['Pente', m.pente == null ? '—' : `${m.pente.toFixed(1)}°`],
+    ].map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('');
+  }
+
+  /** La ligne d'état : combien de points, quelle bande, et ce qui peut tromper. */
+  function texteEtatProfil(r) {
+    const densite = r.total / (r.longueur * r.largeur);
+    const avis = [];
+    if (r.plafonne) avis.push('échantillon : plafond de points atteint');
+    if (r.longueur > CONFIG.profil.longueurAvertM) avis.push('bande longue : la densité dépend du zoom');
+    if (densite < CONFIG.profil.densiteMinPtsM2) avis.push('peu de points — zoomez sur la zone puis revalidez');
+    return `${milliers(r.n)} points · ${Math.round(r.longueur)} m × ${r.largeur} m · ≈ ${densite.toFixed(1)} pt/m²`
+      + (avis.length ? ` · ${avis.join(' · ')}` : '');
+  }
+
+  async function calculerProfil() {
+    const num = ++profil.numero;
+    $('profil-etat').textContent = 'Calcul…';
+    let r;
+    try {
+      r = await relief.profil(profil.A, profil.B, profil.largeur, CONFIG.profil.budgetPoints, [...flux.voulues()]);
+    } catch (err) {
+      console.error(err);
+      if (num === profil.numero) $('profil-etat').textContent = `Le profil n’a pas pu être calculé — ${err.message}`;
+      return;
+    }
+    if (num !== profil.numero) return;   // un calcul plus récent a pris la suite
+    graphique ??= new ProfilGraphique($('profil-canvas'), afficherMesureProfil);
+    $('profil-s0').value = 0;
+    $('profil-s1').value = 1000;
+    if (r.vide) {
+      profil.donnees = null;
+      graphique.definir(null);
+      $('profil-etat').textContent = r.raison;
+    } else {
+      profil.donnees = { ...r, parClasse: new Map(r.parClasse) };
+      graphique.definir(profil.donnees);
+      graphique.definirVisibles(visiblesProfil());
+      $('profil-etat').textContent = texteEtatProfil(r);
+    }
+    listerClassesProfil();
+    appliquerPorteeProfil();
+    afficherMesureProfil(null, null);
+  }
+
+  function validerProfil() {
+    if (!profil.A || !profil.B || !PROFIL.verdict(profil.A, profil.B).ok) return;
+    // Les classes de départ sont celles de la légende 3D ; les changer ici ne
+    // touche pas la légende.
+    profil.masquees = new Set(classesMasquees);
+    $('dlg-profil').showModal();
+    calculerProfil();
+  }
+
+  $('profil-fermer').addEventListener('click', () => $('dlg-profil').close());
+  $('profil-largeur-modale').addEventListener('change', (e) => { fixerLargeur(e.target.value); calculerProfil(); });
+  $('profil-classes').addEventListener('change', (e) => {
+    const c = e.target.closest('input[data-cls]');
+    if (!c || !profil.donnees) return;
+    const cls = Number(c.dataset.cls);
+    if (c.checked) profil.masquees.delete(cls); else profil.masquees.add(cls);
+    graphique.definirVisibles(visiblesProfil());
+  });
+  // Les deux curseurs du tronçon ne se croisent pas : au moins 1 % d'écart.
+  for (const id of ['profil-s0', 'profil-s1']) {
+    $(id).addEventListener('input', () => {
+      let a = Number($('profil-s0').value), b = Number($('profil-s1').value);
+      if (id === 'profil-s0' && a > b - 10) { a = Math.max(0, b - 10); $('profil-s0').value = a; }
+      if (id === 'profil-s1' && b < a + 10) { b = Math.min(1000, a + 10); $('profil-s1').value = b; }
+      appliquerPorteeProfil();
+    });
+  }
+  window.addEventListener('resize', () => { if ($('dlg-profil').open) graphique?.rendre(); });
 
   // ── Ce que le relief dit sous le curseur ──
   // Une lecture à la fois : pendant qu'elle revient du worker, seul le dernier

@@ -1270,7 +1270,7 @@ dialog.fenetre-profil-grande[open] { display: flex; flex-direction: column; gap:
 .profil-entete { display: flex; align-items: center; justify-content: space-between; }
 .profil-entete h2 { margin: 0; }
 .profil-reglages { align-items: center; gap: 14px; }
-#profil-canvas { flex: 1 1 auto; min-height: 200px; width: 100%; display: block; background: #0b0e13; border-radius: 6px; }
+#profil-canvas { flex: 1 1 0; min-height: 200px; width: 100%; display: block; background: #0b0e13; border-radius: 6px; }
 .profil-portee { margin: 0; }
 .profil-mesure { display: flex; flex-wrap: wrap; gap: 8px 28px; min-height: 44px; align-items: center; }
 .profil-mesure > div { display: flex; flex-direction: column; }
