@@ -235,6 +235,9 @@ let selectionActuelle = null;
 // mode vue, plus bas ; nuls dans l'ancien parcours.
 let carteOutils = null;
 let lireVue = null;
+// Mode vue : la dalle (avec sa date d'acquisition) qui contient un point local, d'après
+// celles que le flux a trouvées. Nul dans l'ancien parcours.
+let dalleAuPointVue = null;
 // Mode vue : ce qui construit le nuage 3D en passant sur l'onglet, et ce qui
 // remplit l'attribut de couleur (hauteur, relief) depuis le worker.
 let surPassage3D = null;
@@ -265,10 +268,21 @@ function afficherSelection(x, y, sol, hauteur = 0) {
   selectionActuelle = { x, y, lon, lat, sol, hauteur, sommet: sommetPoint };
   $('selection-vide').hidden = true;
   $('detail-selection').hidden = false;
+  // Quand le point a été pris : la plage de vol de la dalle qui le contient. Deux
+  // dalles voisines ont des plages différentes, d'où le nom de la dalle à côté.
+  // Sans date publiée : « — », jamais une date inventée.
+  let acquisition = null;
+  if (dalleAuPointVue) {
+    const dl = dalleAuPointVue(x, y);
+    const date = dl && IGN.formaterAcquisition(dl.dateDebutAcquisition, dl.dateAcquisition);
+    const code = /_(\d{4}_\d{4})_/.exec(dl?.nom || '')?.[1];
+    acquisition = (date || '—') + (code ? `\ndalle ${code}` : '');
+  }
   $('detail-selection').innerHTML = ligneDetail('Longitude', `${lon.toFixed(6)}°`)
     + ligneDetail('Latitude', `${lat.toFixed(6)}°`)
     + ligneDetail('Altitude', sommetPoint == null ? '—' : `${sommetPoint.toFixed(1)} m`)
-    + (hauteur > 0.05 ? ligneDetail('Hauteur au-dessus du sol', `+${hauteur.toFixed(2)} m`) : '');
+    + (hauteur > 0.05 ? ligneDetail('Hauteur au-dessus du sol', `+${hauteur.toFixed(2)} m`) : '')
+    + (acquisition != null ? ligneDetail('Acquisition', acquisition) : '');
   $('selection-liens').hidden = false;
 
   // Même point dans les deux vues : sélectionner en 2D puis passer en 3D (ou
@@ -2872,6 +2886,7 @@ if (MODE_VUE) (async () => {
     for (const n of ['ajouter', 'retirer', 'reglages', 'image']) relief[n] = mesurer(`worker du relief : ${n} (envoi)`, relief[n]);
   }
   const flux = FLUX.creer(depsFlux);
+  dalleAuPointVue = (x, y) => flux.dalleAu(x, y);
   if (chronometrer) for (const n of ['majVue']) flux[n] = mesurer(`flux : ${n}`, flux[n]);
 
   const majVueFlux = () => {

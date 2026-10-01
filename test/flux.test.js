@@ -427,3 +427,16 @@ test('des dalles dans la vue : pas de « sans LiDAR »', async () => {
   await flux.attendreCalme();
   assert.ok(etats.length && etats.every((e) => !e.sansLidar));
 });
+
+test('dalleAu : la dalle qui contient un point, parmi celles que la vue a trouvées', async () => {
+  const { flux } = monter();
+  assert.equal(flux.dalleAu(1500, 1500), null);   // rien n'a encore été demandé
+  await flux.majVue(VUE);
+  await flux.attendreCalme();
+  assert.equal(flux.dalleAu(1500, 1500).nom, '1_1');
+  assert.equal(flux.dalleAu(0, 0).nom, '0_0');       // pile sur le coin sud-ouest : cette dalle
+  assert.equal(flux.dalleAu(1000, 1000).nom, '1_1'); // pile sur une limite : la dalle de droite et du haut
+  assert.equal(flux.dalleAu(2999.9, 2999.9).nom, '2_2');
+  assert.equal(flux.dalleAu(-5, 500), null);          // hors des dalles connues
+  assert.equal(flux.dalleAu(3000, 500), null);        // bord est exclu
+});
