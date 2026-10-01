@@ -197,12 +197,21 @@ vue2d.demarrer();
 // approximation délibérée) mais d'une marche du rayon caméra contre le MNT
 // affiché — `etat.reliefGrille`, déjà calculé pour l'onglet 2D.
 
-function definirModeInteraction(mode) {
+// Le mode Profil quitté en passant en 3D (où il n'a pas de sens), à reprendre au
+// retour sur la carte : sans cela, la bande restait dessinée sans sa fenêtre.
+let profilAReprendre = false;
+
+function definirModeInteraction(mode, parOnglet = false) {
+  // Un choix de mode explicite annule la reprise ; seul le changement d'onglet la garde.
+  if (!parOnglet) profilAReprendre = false;
   vue2d.mode = mode;
   if (vue3d) vue3d.mode = mode;
   $('mode-deplacement').classList.toggle('actif', mode === 'deplacement');
   $('mode-selection').classList.toggle('actif', mode === 'selection');
   $('mode-mesure').classList.toggle('actif', mode === 'mesure');
+  $('mode-profil').classList.toggle('actif', mode === 'profil');
+  // La petite fenêtre de choix de la bande n'existe que dans ce mode.
+  $('fenetre-profil').hidden = mode !== 'profil';
   // La flèche plutôt que la main : un curseur qui dit « cliquer un point »
   // plutôt que « glisser pour déplacer ». Une classe, pas un style en ligne —
   // un style en ligne l'emporterait aussi sur `:active { cursor: grabbing }`
@@ -215,6 +224,7 @@ function definirModeInteraction(mode) {
 $('mode-deplacement').addEventListener('click', () => definirModeInteraction('deplacement'));
 $('mode-selection').addEventListener('click', () => definirModeInteraction('selection'));
 $('mode-mesure').addEventListener('click', () => definirModeInteraction('mesure'));
+$('mode-profil').addEventListener('click', () => definirModeInteraction('profil'));
 
 // Coordonnées du point actuellement affiché — lues par les liens « Ouvrir
 // dans » au clic, pas mémorisées dans `etat` : rien d'autre n'en a besoin.
@@ -234,6 +244,9 @@ let surPassage3D = null;
 // blocs, de la grille du relief et des points lus. Suivi du centre de la carte
 // (majVueFlux) ; l'ancien parcours par dalle reste en métropole.
 let territoireVue = 'FXX';
+// Appelé quand le territoire change par une recherche de lieu (chercherPoint) :
+// la bande du profil, posée dans l'autre projection, n'aurait plus de sens.
+let surChangementTerritoire = null;
 const projVue = () => PROJ.projectionDe(territoireVue);
 let surPassageCarte = null;
 let majAttributVue = null;
@@ -307,7 +320,10 @@ async function chercherPoint() {
     alerter(MODE_VUE ? 'Ces coordonnées sont hors des territoires couverts par le LiDAR HD.' : 'Ces coordonnées sont hors de France métropolitaine.');
     return;
   }
-  if (MODE_VUE) territoireVue = terr.code;
+  if (MODE_VUE) {
+    if (terr.code !== territoireVue) surChangementTerritoire?.();
+    territoireVue = terr.code;
+  }
   const lambert = projVue().versLocal(p.lon, p.lat);
   // Mode vue : la carte va au point, et l'altitude se lit dans le relief —
   // tout de suite s'il est déjà calculé là, sinon dès la prochaine image.
@@ -402,25 +418,8 @@ function afficherMesure() {
     return;
   }
 
-  const lettre = (i) => (i < 26 ? String.fromCharCode(65 + i) : String(i + 1));
-  const m = (v) => (v == null ? '—' : `${v.toFixed(1)} m`);
-  const signe = (v) => (v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(1)} m`);
-
-  const segs = MESURE.segments(pointsMesure);
-  const { totaleHorizontale, totale3D } = MESURE.totaux(segs);
-
-  const rangees = segs.map((s, i) => `<tr>
-      <td>${lettre(i)}→${lettre(i + 1)}</td>
-      <td>${m(s.horizontale)}</td>
-      <td>${signe(s.denivele)}</td>
-      <td>${m(s.totale)}</td>
-    </tr>`).join('');
-
-  $('detail-mesure').innerHTML = `<div class="mesure-scroll"><table class="tableau-mesure">
-      <thead><tr><th>Segment</th><th>Horizontale</th><th>Dénivelé</th><th>3D</th></tr></thead>
-      <tbody>${rangees}</tbody>
-      <tfoot><tr><td>Total</td><td>${m(totaleHorizontale)}</td><td></td><td>${m(totale3D)}</td></tr></tfoot>
-    </table></div>`;
+  // Le même tableau que dans la modale du profil : un seul outil de mesure.
+  $('detail-mesure').innerHTML = MESURE.tableauHtml(pointsMesure);
   $('detail-mesure').hidden = false;
 }
 
@@ -2327,6 +2326,13 @@ function basculerVue(quoi) {
   // la carte n'en est pas un.
   // En mode vue, la carte porte le relief : sélection et mesure s'y font.
   $('barre-mode').hidden = quoi === 'carte' && !MODE_VUE;
+  // Le profil se pose sur la carte : en 3D le bouton est grisé, et le mode
+  // quitté s'il était actif.
+  $('mode-profil').disabled = quoi !== 'carte';
+  if (quoi !== 'carte' && vue2d.mode === 'profil') { definirModeInteraction('deplacement', true); profilAReprendre = true; }
+  // Retour sur la carte : le mode Profil revient, avec sa fenêtre, si rien d'autre n'a été choisi entre-temps.
+  if (quoi === 'carte' && profilAReprendre && vue2d.mode === 'deplacement') definirModeInteraction('profil', true);
+  if (quoi === 'carte') profilAReprendre = false;
 
   // Leaflet mesure son conteneur à l'initialisation ; masqué, il l'a mesuré à
   // zéro et n'affiche aucune tuile tant qu'on ne le lui redit pas.
@@ -2410,6 +2416,7 @@ function replierLateral(replie) {
 $('languette-panneau').addEventListener('click', () => replierLateral(!$('panneau').classList.contains('replie')));
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
+  if ($('dlg-profil').open) return;   // Échap ferme la modale, pas le panneau
   poserFeuille('replie');
   replierLateral(true);
 });
@@ -2417,6 +2424,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (!$('accueil').hidden) return;   // l'accueil couvre tout : rien à piloter dessous
+  if ($('dlg-profil').open) return;   // la modale du profil couvre tout aussi
   // Un chiffre par vue, plus les initiales d'avant : 'r' pour le relief est
   // devenu la 2D, et le désapprendre n'apporterait rien.
   if (e.key === 'c' || e.key === '1') basculerVue('carte');
@@ -2871,7 +2879,10 @@ if (MODE_VUE) (async () => {
     // Le territoire sous le centre fixe la projection de tout ce qui suit ;
     // en mer, entre deux, le dernier reste.
     const c = b.getCenter();
+    const territoireAvant = territoireVue;
     territoireVue = PROJ.territoireAuPoint(c.lng, c.lat)?.code ?? territoireVue;
+    // Une bande posée dans un territoire n'a pas de sens dans l'autre (autre projection).
+    if (territoireVue !== territoireAvant) effacerProfil();
     const { versLocal } = projVue();
     const so = versLocal(b.getWest(), b.getSouth());
     const ne = versLocal(b.getEast(), b.getNorth());
@@ -3080,15 +3091,235 @@ if (MODE_VUE) (async () => {
     },
   };
   // Un clic (pas un glisser : Leaflet ne l'émet pas après un déplacement)
-  // vise un point en mode Sélection ou Mesure.
+  // vise un point en mode Sélection ou Mesure, et pose un point de la bande en mode Profil.
   carte.map.on('click', async (e) => {
     const mode = vue2d.mode;
+    if (mode === 'profil') { poserPointProfil(e.latlng); return; }
     if (mode !== 'selection' && mode !== 'mesure') return;
     const { x, y } = projVue().versLocal(e.latlng.lng, e.latlng.lat);
     const pt = await relief.lire(x, y);
     if (mode === 'selection') afficherSelection(x, y, pt?.altitude ?? null, pt?.hauteur ?? 0);
     else ajouterPointMesure(x, y, pt?.altitude ?? null, pt?.hauteur ?? 0);
   });
+
+  // ── Le profil : choisir la bande ──
+  // Deux points A et B (coordonnées locales de la vue), une largeur ; la bande
+  // se dessine dans le volet SVG des outils, le graphique ne s'ouvre qu'à la
+  // validation. Pas de calcul tant qu'on n'a pas validé.
+  const profil = {
+    A: null, B: null, largeur: CONFIG.profil.largeurDefautM,
+    donnees: null,          // le dernier profil calculé
+    masquees: new Set(),    // classes décochées dans la modale
+    numero: 0,              // un calcul plus récent invalide les réponses en retard
+  };
+  let profilGroupe = null;
+  const iconePoignee = (lettre) => L.divIcon({ className: '', html: `<div class="poignee-profil">${lettre}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] });
+
+  /** (Re)dessine A, B et la bande. Pendant un glissé, seules la bande et l'axe bougent. */
+  function dessinerProfil() {
+    profilGroupe?.remove();
+    profilGroupe = null;
+    if (!profil.A) return;
+    profilGroupe = L.layerGroup().addTo(carte.map);
+    const bande = L.polygon([], { pane: 'outilsVue', renderer: traceOutils, color: '#4ad0ff', weight: 1.5, fillOpacity: 0.16, interactive: false, className: 'bande-profil' }).addTo(profilGroupe);
+    const axe = L.polyline([], { pane: 'outilsVue', renderer: traceOutils, color: '#4ad0ff', weight: 1.5, dashArray: '5 5', interactive: false, className: 'axe-profil' }).addTo(profilGroupe);
+    const tracer = () => {
+      if (!profil.B || !PROFIL.axe(profil.A, profil.B)) { bande.setLatLngs([]); axe.setLatLngs([]); return; }
+      bande.setLatLngs(PROFIL.coins(profil.A, profil.B, profil.largeur).map(([x, y]) => versLatLng(x, y)));
+      axe.setLatLngs([versLatLng(profil.A[0], profil.A[1]), versLatLng(profil.B[0], profil.B[1])]);
+    };
+    tracer();
+    [['A', profil.A], ['B', profil.B]].forEach(([cle, p]) => {
+      if (!p) return;
+      const m = L.marker(versLatLng(p[0], p[1]), { pane: 'outilsVue', draggable: true, keyboard: false, icon: iconePoignee(cle) }).addTo(profilGroupe);
+      m.on('drag', () => {
+        const ll = m.getLatLng();
+        const q = projVue().versLocal(ll.lng, ll.lat);
+        profil[cle] = [q.x, q.y];
+        tracer();
+      });
+      m.on('dragend', majFenetreProfil);
+    });
+  }
+
+  /** La consigne, les boutons et les champs de largeur suivent l'état. */
+  function majFenetreProfil() {
+    const v = profil.A && profil.B ? PROFIL.verdict(profil.A, profil.B) : null;
+    // La part « glissez A ou B » est masquée sur écran bas (`.profil-conseil`) : la fenêtre n'y tient qu'en une ligne.
+    $('profil-consigne').innerHTML = !profil.A ? 'Cliquez le premier point sur la carte.'
+      : !profil.B ? 'Cliquez le second point.'
+      : v.ok ? `Axe de ${Math.round(PROFIL.axe(profil.A, profil.B).longueur)} m<span class="profil-conseil"> — glissez A ou B pour l’ajuster.</span>`
+      : v.raison;
+    $('profil-valider').disabled = !(v && v.ok);
+    $('profil-effacer').disabled = !profil.A;
+    $('profil-largeur').value = PROFIL.curseurDepuisLargeur(profil.largeur);
+    $('profil-largeur-n').value = profil.largeur;
+    $('profil-largeur-modale').value = profil.largeur;
+  }
+
+  function effacerProfil() {
+    profil.A = profil.B = null;
+    dessinerProfil();
+    majFenetreProfil();
+  }
+  surChangementTerritoire = effacerProfil;
+
+  /** Un clic en mode Profil : A, puis B ; avec les deux posés, un clic recommence en A (voir `PROFIL.pointSuivant`). */
+  function poserPointProfil(ll) {
+    const q = projVue().versLocal(ll.lng, ll.lat);
+    ({ A: profil.A, B: profil.B } = PROFIL.pointSuivant(profil.A, profil.B, [q.x, q.y]));
+    dessinerProfil();
+    majFenetreProfil();
+  }
+
+  /** Une largeur saisie (curseur ou champ) : bornée, la bande suit. */
+  function fixerLargeur(valeur) {
+    profil.largeur = PROFIL.largeurValide(Number(valeur));
+    dessinerProfil();
+    majFenetreProfil();
+  }
+
+  $('profil-largeur').addEventListener('input', (e) => fixerLargeur(PROFIL.largeurDepuisCurseur(Number(e.target.value))));
+  $('profil-largeur-n').addEventListener('change', (e) => fixerLargeur(e.target.value));
+  $('profil-effacer').addEventListener('click', effacerProfil);
+  $('profil-valider').addEventListener('click', () => validerProfil());
+  // Un clic ou une molette sur la fenêtre ne doit pas arriver à la carte
+  // (il poserait un point, ou zoomerait).
+  L.DomEvent.disableClickPropagation($('fenetre-profil'));
+  L.DomEvent.disableScrollPropagation($('fenetre-profil'));
+  majFenetreProfil();
+
+  // ── Le profil : lire la coupe ──
+  // La validation ouvre la modale et demande les points de la bande au worker ;
+  // changer la largeur dans la modale recalcule sur place (au `change`, pas à
+  // l'`input` : l'essai le plus fréquent sur un arbre est « un peu plus large »).
+  let graphique = null;
+
+  /** Les classes affichées : toutes celles de la bande, sauf les décochées dans la modale. */
+  const visiblesProfil = () => new Set([...profil.donnees.parClasse.keys()].filter((c) => !profil.masquees.has(c)));
+
+  function listerClassesProfil() {
+    const d = profil.donnees;
+    $('profil-classes').innerHTML = !d ? '' : [...d.parClasse.entries()].sort((a, b) => b[1] - a[1]).map(([cls, n]) => {
+      const couleur = CONFIG.rendu.couleursClasse[cls] || CONFIG.rendu.couleurClasseDefaut;
+      return `<label class="case"><input type="checkbox" data-cls="${cls}"${profil.masquees.has(cls) ? '' : ' checked'}>`
+        + `<i style="background:${couleur};width:11px;height:11px;border-radius:2px;flex:none"></i>`
+        + `<span>${NOMS_CLASSES[cls] || `classe ${cls}`} <small>${milliers(n)} points</small></span></label>`;
+    }).join('');
+  }
+
+  /**
+   * La tranche de la largeur de la bande que choisissent les deux curseurs :
+   * le curseur de gauche est le côté gauche de l'axe (A→B), celui de droite le
+   * côté droit. Aux deux extrémités, toute la bande — sans borne, pour qu'un
+   * point à l'arrondi près du bord ne soit jamais écarté. Recadre le
+   * graphique, ne recalcule rien.
+   */
+  function appliquerTrancheProfil() {
+    const d = profil.donnees;
+    if (!d || !graphique) { $('profil-tranche').textContent = ''; return; }
+    const a0 = Number($('profil-d0').value), a1 = Number($('profil-d1').value);
+    const demi = d.largeur / 2;
+    const max = a0 <= 0 ? Infinity : demi - (d.largeur * a0) / 1000;
+    const min = a1 >= 1000 ? -Infinity : demi - (d.largeur * a1) / 1000;
+    graphique.definirLateral(min, max);
+    const cote = (v, defaut) => {
+      const x = Number.isFinite(v) ? v : defaut;
+      return Math.abs(x) < 0.005 ? 'l’axe' : x > 0 ? `${x.toFixed(1)} m à gauche` : `${(-x).toFixed(1)} m à droite`;
+    };
+    $('profil-tranche').textContent = `Tranche de la bande : de ${cote(max, demi)} à ${cote(min, -demi)}`;
+  }
+
+  /** La chaîne de mesure du graphique, au même tableau que la carte (`MESURE.tableauHtml`). */
+  function afficherMesureProfil(pts) {
+    // Le graphique en (distance le long de l'axe, altitude) devient des points de la mesure :
+    // l'horizontale est alors l'écart de distance, le dénivelé celui d'altitude.
+    const chaine = pts.map((p) => ({ x: p.s, y: 0, sol: p.z, hauteur: 0 }));
+    $('profil-mesure-vide').hidden = chaine.length > 0;
+    $('profil-mesure-detail').hidden = !chaine.length;
+    $('profil-mesure-actions').hidden = !chaine.length;
+    $('profil-mesure-detail').innerHTML = chaine.length < 2
+      ? '<p class="vide">Point A posé — cliquez un second point pour mesurer.</p>'
+      : MESURE.tableauHtml(chaine);
+  }
+
+  /** La ligne d'état : combien de points, quelle bande, et ce qui peut tromper. */
+  function texteEtatProfil(r) {
+    const densite = r.total / (r.longueur * r.largeur);
+    const avis = [];
+    if (r.plafonne) avis.push('échantillon : plafond de points atteint');
+    if (r.longueur > CONFIG.profil.longueurAvertM) avis.push('bande longue : la densité dépend du zoom');
+    if (densite < CONFIG.profil.densiteMinPtsM2) avis.push('peu de points — zoomez sur la zone puis revalidez');
+    return `${milliers(r.n)} points · ${Math.round(r.longueur)} m × ${r.largeur} m · ≈ ${densite.toFixed(1)} pt/m²`
+      + (avis.length ? ` · ${avis.join(' · ')}` : '');
+  }
+
+  async function calculerProfil() {
+    const num = ++profil.numero;
+    $('profil-etat').textContent = 'Calcul…';
+    let r;
+    try {
+      r = await relief.profil(profil.A, profil.B, profil.largeur, CONFIG.profil.budgetPoints, [...flux.voulues()]);
+    } catch (err) {
+      console.error(err);
+      if (num === profil.numero) $('profil-etat').textContent = `Le profil n’a pas pu être calculé — ${err.message}`;
+      return;
+    }
+    if (num !== profil.numero) return;   // un calcul plus récent a pris la suite
+    graphique ??= new ProfilGraphique($('profil-canvas'), afficherMesureProfil);
+    $('profil-d0').value = 0;
+    $('profil-d1').value = 1000;
+    if (r.vide) {
+      profil.donnees = null;
+      graphique.definir(null);
+      $('profil-etat').textContent = r.raison;
+    } else {
+      profil.donnees = { ...r, parClasse: new Map(r.parClasse) };
+      graphique.definir(profil.donnees);
+      graphique.definirVisibles(visiblesProfil());
+      $('profil-etat').textContent = texteEtatProfil(r);
+    }
+    listerClassesProfil();
+    appliquerTrancheProfil();
+    afficherMesureProfil([]);
+  }
+
+  function validerProfil() {
+    if (!profil.A || !profil.B || !PROFIL.verdict(profil.A, profil.B).ok) return;
+    // Les classes de départ sont celles de la légende 3D ; les changer ici ne
+    // touche pas la légende.
+    profil.masquees = new Set(classesMasquees);
+    $('dlg-profil').showModal();
+    calculerProfil();
+  }
+
+  $('profil-fermer').addEventListener('click', () => $('dlg-profil').close());
+  $('profil-largeur-modale').addEventListener('change', (e) => { fixerLargeur(e.target.value); calculerProfil(); });
+  $('profil-classes').addEventListener('change', (e) => {
+    const c = e.target.closest('input[data-cls]');
+    if (!c || !profil.donnees) return;
+    const cls = Number(c.dataset.cls);
+    if (c.checked) profil.masquees.delete(cls); else profil.masquees.add(cls);
+    graphique.definirVisibles(visiblesProfil());
+  });
+  // Les deux curseurs de la tranche ne se croisent pas : au moins 1 % d'écart.
+  for (const id of ['profil-d0', 'profil-d1']) {
+    $(id).addEventListener('input', () => {
+      let a = Number($('profil-d0').value), b = Number($('profil-d1').value);
+      if (id === 'profil-d0' && a > b - 10) { a = Math.max(0, b - 10); $('profil-d0').value = a; }
+      if (id === 'profil-d1' && b < a + 10) { b = Math.min(1000, a + 10); $('profil-d1').value = b; }
+      appliquerTrancheProfil();
+    });
+  }
+  // La chaîne de mesure se corrige comme sur la carte : bouton, ou Retour arrière / Suppr.
+  $('profil-recadrer').addEventListener('click', () => graphique?.recadrer());
+  $('profil-mesure-annuler').addEventListener('click', () => graphique?.retirerDernier());
+  $('profil-mesure-effacer').addEventListener('click', () => graphique?.effacerMesure());
+  window.addEventListener('keydown', (e) => {
+    if (!$('dlg-profil').open || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); graphique?.retirerDernier(); }
+  });
+  window.addEventListener('resize', () => { if ($('dlg-profil').open) graphique?.rendre(); });
 
   // ── Ce que le relief dit sous le curseur ──
   // Une lecture à la fois : pendant qu'elle revient du worker, seul le dernier

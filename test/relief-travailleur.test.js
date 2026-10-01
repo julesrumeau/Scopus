@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { chargerScripts } from './charger.js';
 
-const FICHIERS = ['config.js', 'proj.js', 'vue-grille.js', 'vue-image.js', 'raster.js', 'relief.js', 'gl.js', 'shaders.js', 'gpu-relief.js', 'vue-relief.js', 'relief-travailleur.js'];
+const FICHIERS = ['config.js', 'proj.js', 'vue-grille.js', 'vue-image.js', 'raster.js', 'relief.js', 'gl.js', 'shaders.js', 'gpu-relief.js', 'profil.js', 'vue-relief.js', 'relief-travailleur.js'];
 
 function bloc(cle, x0, y0) {
   const cote = 40, pasCm = 25, n = (cote * 100 / pasCm) ** 2;
@@ -256,4 +256,28 @@ test('le worker drape une couche sur le dernier nuage 3D', () => {
   const r = w.recus.at(-1);
   assert.equal(r.type, 'drape3d', r.message);
   assert.equal(r.valeurs.length, n);
+});
+
+test('le worker rend le profil de la bande, comme le moteur', () => {
+  const ctx = chargerScripts(FICHIERS);
+  const w = travailleur(ctx.RELIEF_TRAVAILLEUR.source());
+  w.envoyer({ type: 'demarrer' });
+  // Sans bloc : une réponse vide qui dit pourquoi.
+  w.envoyer({ type: 'profil', id: 1, a: [1005, 2020], b: [1035, 2020], largeur: 4, budget: 1e9 });
+  assert.equal(w.recus.at(-1).type, 'profil');
+  assert.equal(w.recus.at(-1).vide, true);
+  assert.match(w.recus.at(-1).raison, /zoomez/i);
+
+  w.envoyer({ type: 'ajouter', bloc: bloc('a', 1000, 2000) });
+  w.envoyer({ type: 'profil', id: 2, a: [1005, 2020], b: [1035, 2020], largeur: 4, budget: 1e9 });
+  const r = w.recus.at(-1);
+  assert.equal(r.type, 'profil', r.message);
+  const ref = ctx.VUE_RELIEF.creer({ moteur: 'cpu' });
+  ref.ajouter(bloc('a', 1000, 2000));
+  const attendu = ref.profil([1005, 2020], [1035, 2020], 4, 1e9);
+  assert.ok(attendu.n > 0);
+  assert.equal(r.n, attendu.n);
+  assert.equal(r.s[5], attendu.s[5]);
+  assert.equal(r.z[5], attendu.z[5]);
+  assert.equal(r.longueur, 30);
 });

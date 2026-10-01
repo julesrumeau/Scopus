@@ -93,6 +93,10 @@ function corpsTravailleurRelief() {
         if (!r || r.raison) { self.postMessage({ type: 'nuage3d', id: m.id, vide: true, raison: (r && r.raison) || '' }); return; }
         self.postMessage({ type: 'nuage3d', id: m.id, ...r },
           [r.x.buffer, r.y.buffer, r.z.buffer, r.cls.buffer, r.hauteur.buffer]);
+      } else if (m.type === 'profil') {
+        const r = moteur.profil(m.a, m.b, m.largeur, m.budget, m.actifs ? new Set(m.actifs) : undefined);
+        if (r.raison) { self.postMessage({ type: 'profil', id: m.id, vide: true, raison: r.raison }); return; }
+        self.postMessage({ type: 'profil', id: m.id, ...r }, [r.s.buffer, r.z.buffer, r.d.buffer, r.cls.buffer]);
       } else if (m.type === 'drape3d') {
         const valeurs = moteur.drape3d(m.cle, m.reglagesCouche, m.min, m.max);
         self.postMessage({ type: 'drape3d', id: m.id, valeurs }, valeurs ? [valeurs.buffer] : []);
@@ -153,6 +157,7 @@ const RELIEF_TRAVAILLEUR = (() => {
       `${fabriqueVueImage}\nconst VUE_IMAGE = fabriqueVueImage();`,
       `${fabriqueRelief}\nconst RELIEF = fabriqueRelief();`,
       `${fabriqueGpuRelief}\nconst GPU_RELIEF = fabriqueGpuRelief();`,
+      `${fabriqueProfil}\nconst PROFIL = fabriqueProfil();`,
       `${fabriqueVueRelief}\nconst VUE_RELIEF = fabriqueVueRelief();`,
       String(peindreVue),
       `(${corpsTravailleurRelief})();`,
@@ -169,6 +174,7 @@ const RELIEF_TRAVAILLEUR = (() => {
   const REPONSES = {
     lire: (m) => m.point,
     nuage3d: (m) => (m.vide ? { vide: true, raison: m.raison } : m),
+    profil: (m) => (m.vide ? { vide: true, raison: m.raison } : m),
     drape3d: (m) => m.valeurs,
     defaut: (m) => (m.vide ? null : m),
   };
@@ -234,6 +240,8 @@ const RELIEF_TRAVAILLEUR = (() => {
       drape3d: (cle, reglagesCouche, min, max) => demander({ type: 'drape3d', cle, reglagesCouche, min, max }),
       /** Le nuage 3D de l'emprise, au plus `budget` points ; `{ vide, raison }` sinon. */
       nuage3d: (emprise, budget, actifs) => demander({ type: 'nuage3d', emprise, budget, actifs }),
+      /** Les points de la bande A→B ; `{ vide, raison }` sinon. */
+      profil: (a, b, largeur, budget, actifs) => demander({ type: 'profil', a, b, largeur, budget, actifs }),
       /** Altitude, hauteur et valeur de la couche en un point Lambert-93 de la dernière vue calculée. */
       lire: (x, y, couche) => demander({ type: 'lire', x, y, couche }),
       /** L'image reprojetée de la couche, `null` sans bloc dans la vue. */
@@ -260,6 +268,10 @@ const RELIEF_TRAVAILLEUR = (() => {
       nuage3d: async (emprise, budget, actifs) => {
         const r = moteur.nuage3d(emprise, budget, actifs ? new Set(actifs) : undefined);
         return !r || r.raison ? { vide: true, raison: (r && r.raison) || '' } : r;
+      },
+      profil: async (a, b, largeur, budget, actifs) => {
+        const r = moteur.profil(a, b, largeur, budget, actifs ? new Set(actifs) : undefined);
+        return r.raison ? { vide: true, raison: r.raison } : r;
       },
       image: async (geo, couche, ecran, lut, reglages = {}) => {
         const p = peindreVue(moteur, {
