@@ -203,6 +203,9 @@ function definirModeInteraction(mode) {
   $('mode-deplacement').classList.toggle('actif', mode === 'deplacement');
   $('mode-selection').classList.toggle('actif', mode === 'selection');
   $('mode-mesure').classList.toggle('actif', mode === 'mesure');
+  $('mode-profil').classList.toggle('actif', mode === 'profil');
+  // La petite fenêtre de choix de la bande n'existe que dans ce mode.
+  $('fenetre-profil').hidden = mode !== 'profil';
   // La flèche plutôt que la main : un curseur qui dit « cliquer un point »
   // plutôt que « glisser pour déplacer ». Une classe, pas un style en ligne —
   // un style en ligne l'emporterait aussi sur `:active { cursor: grabbing }`
@@ -215,6 +218,7 @@ function definirModeInteraction(mode) {
 $('mode-deplacement').addEventListener('click', () => definirModeInteraction('deplacement'));
 $('mode-selection').addEventListener('click', () => definirModeInteraction('selection'));
 $('mode-mesure').addEventListener('click', () => definirModeInteraction('mesure'));
+$('mode-profil').addEventListener('click', () => definirModeInteraction('profil'));
 
 // Coordonnées du point actuellement affiché — lues par les liens « Ouvrir
 // dans » au clic, pas mémorisées dans `etat` : rien d'autre n'en a besoin.
@@ -2327,6 +2331,10 @@ function basculerVue(quoi) {
   // la carte n'en est pas un.
   // En mode vue, la carte porte le relief : sélection et mesure s'y font.
   $('barre-mode').hidden = quoi === 'carte' && !MODE_VUE;
+  // Le profil se pose sur la carte : en 3D le bouton est grisé, et le mode
+  // quitté s'il était actif.
+  $('mode-profil').disabled = quoi !== 'carte';
+  if (quoi !== 'carte' && vue2d.mode === 'profil') definirModeInteraction('deplacement');
 
   // Leaflet mesure son conteneur à l'initialisation ; masqué, il l'a mesuré à
   // zéro et n'affiche aucune tuile tant qu'on ne le lui redit pas.
@@ -2871,7 +2879,10 @@ if (MODE_VUE) (async () => {
     // Le territoire sous le centre fixe la projection de tout ce qui suit ;
     // en mer, entre deux, le dernier reste.
     const c = b.getCenter();
+    const territoireAvant = territoireVue;
     territoireVue = PROJ.territoireAuPoint(c.lng, c.lat)?.code ?? territoireVue;
+    // Une bande posée dans un territoire n'a pas de sens dans l'autre (autre projection).
+    if (territoireVue !== territoireAvant) effacerProfil();
     const { versLocal } = projVue();
     const so = versLocal(b.getWest(), b.getSouth());
     const ne = versLocal(b.getEast(), b.getNorth());
@@ -3080,15 +3091,105 @@ if (MODE_VUE) (async () => {
     },
   };
   // Un clic (pas un glisser : Leaflet ne l'émet pas après un déplacement)
-  // vise un point en mode Sélection ou Mesure.
+  // vise un point en mode Sélection ou Mesure, et pose un point de la bande en mode Profil.
   carte.map.on('click', async (e) => {
     const mode = vue2d.mode;
+    if (mode === 'profil') { poserPointProfil(e.latlng); return; }
     if (mode !== 'selection' && mode !== 'mesure') return;
     const { x, y } = projVue().versLocal(e.latlng.lng, e.latlng.lat);
     const pt = await relief.lire(x, y);
     if (mode === 'selection') afficherSelection(x, y, pt?.altitude ?? null, pt?.hauteur ?? 0);
     else ajouterPointMesure(x, y, pt?.altitude ?? null, pt?.hauteur ?? 0);
   });
+
+  // ── Le profil : choisir la bande ──
+  // Deux points A et B (coordonnées locales de la vue), une largeur ; la bande
+  // se dessine dans le volet SVG des outils, le graphique ne s'ouvre qu'à la
+  // validation. Pas de calcul tant qu'on n'a pas validé.
+  const profil = {
+    A: null, B: null, largeur: CONFIG.profil.largeurDefautM,
+    donnees: null,          // le dernier profil calculé
+    masquees: new Set(),    // classes décochées dans la modale
+    numero: 0,              // un calcul plus récent invalide les réponses en retard
+  };
+  let profilGroupe = null;
+  const iconePoignee = (lettre) => L.divIcon({ className: '', html: `<div class="poignee-profil">${lettre}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] });
+
+  /** (Re)dessine A, B et la bande. Pendant un glissé, seules la bande et l'axe bougent. */
+  function dessinerProfil() {
+    profilGroupe?.remove();
+    profilGroupe = null;
+    if (!profil.A) return;
+    profilGroupe = L.layerGroup().addTo(carte.map);
+    const bande = L.polygon([], { pane: 'outilsVue', renderer: traceOutils, color: '#4ad0ff', weight: 1.5, fillOpacity: 0.16, interactive: false, className: 'bande-profil' }).addTo(profilGroupe);
+    const axe = L.polyline([], { pane: 'outilsVue', renderer: traceOutils, color: '#4ad0ff', weight: 1.5, dashArray: '5 5', interactive: false, className: 'axe-profil' }).addTo(profilGroupe);
+    const tracer = () => {
+      if (!profil.B || !PROFIL.axe(profil.A, profil.B)) { bande.setLatLngs([]); axe.setLatLngs([]); return; }
+      bande.setLatLngs(PROFIL.coins(profil.A, profil.B, profil.largeur).map(([x, y]) => versLatLng(x, y)));
+      axe.setLatLngs([versLatLng(profil.A[0], profil.A[1]), versLatLng(profil.B[0], profil.B[1])]);
+    };
+    tracer();
+    [['A', profil.A], ['B', profil.B]].forEach(([cle, p]) => {
+      if (!p) return;
+      const m = L.marker(versLatLng(p[0], p[1]), { pane: 'outilsVue', draggable: true, keyboard: false, icon: iconePoignee(cle) }).addTo(profilGroupe);
+      m.on('drag', () => {
+        const ll = m.getLatLng();
+        const q = projVue().versLocal(ll.lng, ll.lat);
+        profil[cle] = [q.x, q.y];
+        tracer();
+      });
+      m.on('dragend', majFenetreProfil);
+    });
+  }
+
+  /** La consigne, les boutons et les champs de largeur suivent l'état. */
+  function majFenetreProfil() {
+    const v = profil.A && profil.B ? PROFIL.verdict(profil.A, profil.B) : null;
+    $('profil-consigne').textContent = !profil.A ? 'Cliquez le premier point sur la carte.'
+      : !profil.B ? 'Cliquez le second point.'
+      : v.ok ? `Axe de ${Math.round(PROFIL.axe(profil.A, profil.B).longueur)} m — glissez A ou B pour l’ajuster.`
+      : v.raison;
+    $('profil-valider').disabled = !(v && v.ok);
+    $('profil-effacer').disabled = !profil.A;
+    $('profil-largeur').value = profil.largeur;
+    $('profil-largeur-n').value = profil.largeur;
+    $('profil-largeur-modale').value = profil.largeur;
+  }
+
+  function effacerProfil() {
+    profil.A = profil.B = null;
+    dessinerProfil();
+    majFenetreProfil();
+  }
+
+  /** Un clic en mode Profil : A, puis B ; un troisième clic est ignoré (on glisse les poignées). */
+  function poserPointProfil(ll) {
+    if (profil.A && profil.B) return;
+    const q = projVue().versLocal(ll.lng, ll.lat);
+    if (!profil.A) profil.A = [q.x, q.y]; else profil.B = [q.x, q.y];
+    dessinerProfil();
+    majFenetreProfil();
+  }
+
+  /** Une largeur saisie (curseur ou champ) : bornée, la bande suit. */
+  function fixerLargeur(valeur) {
+    profil.largeur = PROFIL.largeurValide(Number(valeur));
+    dessinerProfil();
+    majFenetreProfil();
+  }
+
+  $('profil-largeur').addEventListener('input', (e) => fixerLargeur(e.target.value));
+  $('profil-largeur-n').addEventListener('change', (e) => fixerLargeur(e.target.value));
+  $('profil-effacer').addEventListener('click', effacerProfil);
+  $('profil-valider').addEventListener('click', () => validerProfil());
+  // Un clic ou une molette sur la fenêtre ne doit pas arriver à la carte
+  // (il poserait un point, ou zoomerait).
+  L.DomEvent.disableClickPropagation($('fenetre-profil'));
+  L.DomEvent.disableScrollPropagation($('fenetre-profil'));
+  majFenetreProfil();
+
+  // La modale du profil : tâche suivante.
+  function validerProfil() {}
 
   // ── Ce que le relief dit sous le curseur ──
   // Une lecture à la fois : pendant qu'elle revient du worker, seul le dernier
