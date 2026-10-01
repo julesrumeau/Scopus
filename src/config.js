@@ -336,6 +336,24 @@ const CONFIG = {
     couleurClasseDefaut: '#9aa4b2',
   },
 
+  // ── Profil topographique ──────────────────────────────────────────────────
+  profil: {
+    // Largeur de la bande autour de l'axe, en mètres. Une cime d'arbre ne se
+    // localise pas à quelques décimètres : la bande en donne le maximum réel.
+    largeurDefautM: 3,
+    largeurMinM: 0.5,
+    largeurMaxM: 30,
+    // Longueur de l'axe. Sous 1 m, deux clics sur le même point ; au-dessus de
+    // 2 km, la densité chargée ne permettrait plus de lire un profil.
+    longueurMinM: 1,
+    longueurMaxM: 2000,
+    longueurAvertM: 500,
+    // Plafond de points rendus (tirage par hachage au-delà, comme la 3D).
+    budgetPoints: 1e6,
+    // Sous cette densité, le zoom n'a chargé que des niveaux grossiers.
+    densiteMinPtsM2: 2,
+  },
+
   // ── Rastérisation ─────────────────────────────────────────────────────────
   raster: {
     // Pas de la grille en mètres. 25 cm : en dessous, la densité LiDAR HD
