@@ -238,6 +238,9 @@ let surPassage3D = null;
 // blocs, de la grille du relief et des points lus. Suivi du centre de la carte
 // (majVueFlux) ; l'ancien parcours par dalle reste en métropole.
 let territoireVue = 'FXX';
+// Appelé quand le territoire change par une recherche de lieu (chercherPoint) :
+// la bande du profil, posée dans l'autre projection, n'aurait plus de sens.
+let surChangementTerritoire = null;
 const projVue = () => PROJ.projectionDe(territoireVue);
 let surPassageCarte = null;
 let majAttributVue = null;
@@ -311,7 +314,10 @@ async function chercherPoint() {
     alerter(MODE_VUE ? 'Ces coordonnées sont hors des territoires couverts par le LiDAR HD.' : 'Ces coordonnées sont hors de France métropolitaine.');
     return;
   }
-  if (MODE_VUE) territoireVue = terr.code;
+  if (MODE_VUE) {
+    if (terr.code !== territoireVue) surChangementTerritoire?.();
+    territoireVue = terr.code;
+  }
   const lambert = projVue().versLocal(p.lon, p.lat);
   // Mode vue : la carte va au point, et l'altitude se lit dans le relief —
   // tout de suite s'il est déjà calculé là, sinon dès la prochaine image.
@@ -2418,6 +2424,7 @@ function replierLateral(replie) {
 $('languette-panneau').addEventListener('click', () => replierLateral(!$('panneau').classList.contains('replie')));
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
+  if ($('dlg-profil').open) return;   // Échap ferme la modale, pas le panneau
   poserFeuille('replie');
   replierLateral(true);
 });
@@ -2425,6 +2432,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (!$('accueil').hidden) return;   // l'accueil couvre tout : rien à piloter dessous
+  if ($('dlg-profil').open) return;   // la modale du profil couvre tout aussi
   // Un chiffre par vue, plus les initiales d'avant : 'r' pour le relief est
   // devenu la 2D, et le désapprendre n'apporterait rien.
   if (e.key === 'c' || e.key === '1') basculerVue('carte');
@@ -3161,6 +3169,7 @@ if (MODE_VUE) (async () => {
     dessinerProfil();
     majFenetreProfil();
   }
+  surChangementTerritoire = effacerProfil;
 
   /** Un clic en mode Profil : A, puis B ; un troisième clic est ignoré (on glisse les poignées). */
   function poserPointProfil(ll) {

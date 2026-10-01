@@ -39,14 +39,14 @@ class ProfilGraphique {
   /** Les classes affichées (un `Set`), ou `null` pour toutes. */
   definirVisibles(visibles) {
     this.visibles = visibles;
-    this.rendre();
+    this.planifier();
   }
 
   /** Le tronçon affiché, en mètres le long de l'axe : recadre le graphique, ne recalcule rien. */
   definirPortee(s0, s1) {
     this.s0 = s0;
     this.s1 = s1;
-    this.rendre();
+    this.planifier();
   }
 
   effacerMesure() {
@@ -130,7 +130,21 @@ class ProfilGraphique {
     if (this.mesure.length === 2) this.mesure = [];
     this.mesure.push(p);
     this.rappel(this.mesure[0], this.mesure[1] || null);
-    this.rendre();
+    this.planifier();
+  }
+
+  /**
+   * Un dessin à la prochaine image : plusieurs changements dans la même image
+   * (un curseur qu'on glisse en émet des dizaines par seconde, à jusqu'à un
+   * million de points chacun) n'en font qu'un. Sans `requestAnimationFrame`
+   * (les tests), tout de suite.
+   */
+  planifier() {
+    const raf = globalThis.requestAnimationFrame;
+    if (typeof raf !== 'function') { this.rendre(); return; }
+    if (this._enAttente) return;
+    this._enAttente = true;
+    raf.call(globalThis, () => { this._enAttente = false; this.rendre(); });
   }
 
   /** Dessine tout : fond, graduations, points par classe, repères. */
@@ -138,8 +152,11 @@ class ProfilGraphique {
     const c = this.c, ctx = this.ctx;
     const dpr = globalThis.devicePixelRatio || 1;
     const r = c.getBoundingClientRect();
-    c.width = Math.max(1, Math.round(r.width * dpr));
-    c.height = Math.max(1, Math.round(r.height * dpr));
+    // Fixer la taille d'un canevas réalloue son tampon, même à l'identique :
+    // seulement si elle a changé.
+    const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+    if (c.width !== w) c.width = w;
+    if (c.height !== h) c.height = h;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, r.width, r.height);
     const e = this._echelles(), m = this.marge;

@@ -95,3 +95,46 @@ test('definir(null) vide le graphique sans erreur et efface la mesure', () => {
   assert.deepEqual(vus.at(-1).map((v) => v ?? null), [null, null]);
   g.clic(100, 100);   // clic sur un graphique vide : rien, pas d'exception
 });
+
+// ── Le coût d'un cran de curseur (relecture finale) ──────────────────────────
+
+/** Un canevas dont on compte les dessins (clearRect) et les écritures de taille. */
+function canevasCompte() {
+  const c = { clear: 0, largeurEcrite: 0, hauteurEcrite: 0, _w: 0, _h: 0, style: {}, addEventListener() {} };
+  const ctx = new Proxy({}, { get: (_, nom) => (nom === 'clearRect' ? () => { c.clear++; } : () => {}), set: () => true });
+  Object.defineProperty(c, 'width', { get: () => c._w, set: (v) => { c._w = v; c.largeurEcrite++; } });
+  Object.defineProperty(c, 'height', { get: () => c._h, set: (v) => { c._h = v; c.hauteurEcrite++; } });
+  c.getContext = () => ctx;
+  c.getBoundingClientRect = () => ({ left: 0, top: 0, width: 600, height: 300 });
+  return c;
+}
+
+test('plusieurs changements dans la même image ne dessinent qu’une fois', () => {
+  const page = chargerScripts(['config.js', 'profil.js', 'profil-graphique.js']);
+  const file = [];
+  page.requestAnimationFrame = (f) => { file.push(f); return file.length; };
+  const c = canevasCompte();
+  const g = new page.ProfilGraphique(c, () => {});
+  g.definir(donnees());
+  c.clear = 0;
+  g.definirPortee(10, 90);
+  g.definirPortee(20, 80);
+  g.definirVisibles(null);
+  assert.equal(c.clear, 0);          // rien n'est dessiné avant l'image
+  assert.equal(file.length, 1);      // une seule image demandée
+  file[0]();
+  assert.equal(c.clear, 1);          // et un seul dessin
+  g.definirPortee(30, 70);           // l'image suivante peut en demander une autre
+  assert.equal(file.length, 2);
+});
+
+test('la taille du canevas n’est refixée que si elle change', () => {
+  const c = canevasCompte();
+  const g = new ProfilGraphique(c, () => {});
+  g.definir(donnees());
+  const l = c.largeurEcrite, h = c.hauteurEcrite;
+  g.rendre();
+  g.rendre();
+  assert.equal(c.largeurEcrite, l);
+  assert.equal(c.hauteurEcrite, h);
+});
