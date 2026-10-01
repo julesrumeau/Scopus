@@ -106,3 +106,11 @@ test('largeur : le curseur est logarithmique, de 0,5 à 100 m, et se relit sans 
     assert.equal(PROFIL.largeurDepuisCurseur(PROFIL.curseurDepuisLargeur(w)), w, `${w} m`);
   }
 });
+
+test('pointSuivant : A, puis B, puis un nouveau clic efface et recommence en A', () => {
+  const p1 = [1, 1], p2 = [2, 2], p3 = [3, 3];
+  assert.deepEqual(plat(PROFIL.pointSuivant(null, null, p1)), { A: p1, B: null });
+  assert.deepEqual(plat(PROFIL.pointSuivant(p1, null, p2)), { A: p1, B: p2 });
+  // Les deux sont posés : le clic suivant devient le nouveau A, B est vidé.
+  assert.deepEqual(plat(PROFIL.pointSuivant(p1, p2, p3)), { A: p3, B: null });
+});

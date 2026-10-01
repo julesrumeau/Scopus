@@ -1303,10 +1303,14 @@ dialog.fenetre-profil-grande {
   height: calc(100% - 24px);
 }
 dialog.fenetre-profil-grande[open] { display: flex; flex-direction: column; gap: 8px; }
+/* Rien ne rétrécit : le graphique garde sa taille, et ce qui s'ajoute dessous
+   (le tableau de mesure, qui s'allonge à chaque point) se lit en faisant
+   défiler la fenêtre — `dialog.fenetre` porte déjà `overflow-y: auto`. */
+dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
 .profil-entete { display: flex; align-items: center; justify-content: space-between; }
 .profil-entete h2 { margin: 0; }
 .profil-reglages { align-items: center; gap: 14px; }
-#profil-canvas { flex: 1 1 0; min-height: 200px; width: 100%; display: block; background: #0b0e13; border-radius: 6px; touch-action: none; cursor: crosshair; }
+#profil-canvas { height: clamp(280px, 55vh, 560px); width: 100%; display: block; background: #0b0e13; border-radius: 6px; touch-action: none; cursor: crosshair; }
 .profil-gestes { margin-left: auto; font-size: 11.5px; color: var(--texte-2); }
 .profil-tranche { margin: 0; }
 .profil-mesure { min-height: 44px; }

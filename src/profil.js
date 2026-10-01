@@ -38,6 +38,17 @@ function fabriqueProfil() {
     return Math.round((1000 * Math.log(largeurValide(w) / largeurMinM)) / Math.log(largeurMaxM / largeurMinM));
   }
 
+  /**
+   * Un clic en mode Profil : le premier point est A, le deuxième B ; avec les
+   * deux déjà posés, le clic suivant efface la bande et devient le nouveau A —
+   * recommencer ne demande pas de passer par « Effacer ».
+   */
+  function pointSuivant(a, b, p) {
+    if (!a) return { A: p, B: null };
+    if (!b) return { A: a, B: p };
+    return { A: p, B: null };
+  }
+
   /** Peut-on calculer un profil entre ces deux points ? Sinon, la consigne à afficher. */
   function verdict(a, b) {
     const { longueurMinM, longueurMaxM } = CONFIG.profil;
@@ -99,6 +110,6 @@ function fabriqueProfil() {
     return n ? { zmin, zmax, n } : null;
   }
 
-  return { axe, largeurValide, largeurDepuisCurseur, curseurDepuisLargeur, verdict, coins, emprise, graduations, etendueZ };
+  return { axe, largeurValide, largeurDepuisCurseur, curseurDepuisLargeur, pointSuivant, verdict, coins, emprise, graduations, etendueZ };
 }
 const PROFIL = fabriqueProfil();

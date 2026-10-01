@@ -197,7 +197,13 @@ vue2d.demarrer();
 // approximation délibérée) mais d'une marche du rayon caméra contre le MNT
 // affiché — `etat.reliefGrille`, déjà calculé pour l'onglet 2D.
 
-function definirModeInteraction(mode) {
+// Le mode Profil quitté en passant en 3D (où il n'a pas de sens), à reprendre au
+// retour sur la carte : sans cela, la bande restait dessinée sans sa fenêtre.
+let profilAReprendre = false;
+
+function definirModeInteraction(mode, parOnglet = false) {
+  // Un choix de mode explicite annule la reprise ; seul le changement d'onglet la garde.
+  if (!parOnglet) profilAReprendre = false;
   vue2d.mode = mode;
   if (vue3d) vue3d.mode = mode;
   $('mode-deplacement').classList.toggle('actif', mode === 'deplacement');
@@ -2323,7 +2329,10 @@ function basculerVue(quoi) {
   // Le profil se pose sur la carte : en 3D le bouton est grisé, et le mode
   // quitté s'il était actif.
   $('mode-profil').disabled = quoi !== 'carte';
-  if (quoi !== 'carte' && vue2d.mode === 'profil') definirModeInteraction('deplacement');
+  if (quoi !== 'carte' && vue2d.mode === 'profil') { definirModeInteraction('deplacement', true); profilAReprendre = true; }
+  // Retour sur la carte : le mode Profil revient, avec sa fenêtre, si rien d'autre n'a été choisi entre-temps.
+  if (quoi === 'carte' && profilAReprendre && vue2d.mode === 'deplacement') definirModeInteraction('profil', true);
+  if (quoi === 'carte') profilAReprendre = false;
 
   // Leaflet mesure son conteneur à l'initialisation ; masqué, il l'a mesuré à
   // zéro et n'affiche aucune tuile tant qu'on ne le lui redit pas.
@@ -3154,11 +3163,10 @@ if (MODE_VUE) (async () => {
   }
   surChangementTerritoire = effacerProfil;
 
-  /** Un clic en mode Profil : A, puis B ; un troisième clic est ignoré (on glisse les poignées). */
+  /** Un clic en mode Profil : A, puis B ; avec les deux posés, un clic recommence en A (voir `PROFIL.pointSuivant`). */
   function poserPointProfil(ll) {
-    if (profil.A && profil.B) return;
     const q = projVue().versLocal(ll.lng, ll.lat);
-    if (!profil.A) profil.A = [q.x, q.y]; else profil.B = [q.x, q.y];
+    ({ A: profil.A, B: profil.B } = PROFIL.pointSuivant(profil.A, profil.B, [q.x, q.y]));
     dessinerProfil();
     majFenetreProfil();
   }
