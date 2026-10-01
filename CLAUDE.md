@@ -215,6 +215,35 @@ Nuage de ce que la carte affichait, sans rien télécharger de plus
   absolu). Logique dans `SORTIE.resumerExport` / `exporterPoints`.
 - Non fait (TODO #4) : caméra 3D qui pilote le téléchargement.
 
+## Le profil
+
+Demande OSM (forum OSM-FR, « Hauteur depuis LidarHD IGN ») : la coupe
+verticale des points d'une bande tracée sur la carte, pour mesurer la hauteur
+d'arbres et de bâtiments sans QGIS. Conception :
+`docs/superpowers/specs/2026-10-01-profil-design.md`.
+
+- **Deux temps, jamais affichés ensemble.** Le mode Profil (icône à côté de la
+  règle) pose deux points A et B sur la carte, déplaçables, avec une petite
+  fenêtre flottante (largeur, Effacer, Valider) ; « Valider » ouvre la modale
+  `#dlg-profil`. Aucun calcul avant la validation.
+- **Les points viennent du worker** (`VUE_RELIEF.profil`, message `profil`) :
+  balayage linéaire des blocs gardés, comparaisons **en centimètres entiers**
+  (un point pile sur le bord de la bande est gardé), tirage par hachage de
+  `nuage3d` au-delà de `CONFIG.profil.budgetPoints`. L'altitude est vraie
+  (`zc / 100` : les blocs du flux portent `origineCm[2] = 0`).
+- **La géométrie est pure** (`profil.js`, `fabriqueProfil`) pour se tester à
+  froid et se composer dans le worker.
+- **Le graphique** (`profil-graphique.js`) est un canevas 2D : classes par
+  couleur, sol dessiné en dernier, repères de mesure accrochés au point visible
+  le plus proche (14 px) — pour mesurer la cime, pas l'endroit où la souris est
+  tombée. Le double curseur **recadre**, il ne recalcule pas.
+- **La largeur est aussi dans la modale** et recalcule au `change` (pas à
+  l'`input`). Les classes de la modale partent de la légende 3D mais lui sont
+  **locales**.
+- Pas de hauteur automatique (la valeur d'une cime et du sol se lit sur le
+  graphique), pas de profil en 3D, pas d'export : voir `TODO.md` #7 pour la
+  date d'acquisition (`source:height:date`).
+
 ## La carte
 
 - **La grille des dalles est calculée, pas téléchargée** : une dalle est
@@ -633,6 +662,7 @@ détection automatique (voir « Code existant mais masqué »).
 | Carte, dalles, LAZ, rendu, Lambert-93 → WGS84, liens, exports | ✅ |
 | Relief piloté par la vue (carte + rideau, panneau « Relief », outils, 3D avec EDL) | ✅ — ancienne interface derrière `?dalle` |
 | Lien partageable, accueil, DROM, états vides, borne de zoom | ✅ |
+| Profil topographique (bande, coupe, mesure) | ✅ vue normale, contrôle navigateur à faire à l'œil ; date d'acquisition dans TODO (#7) |
 | Détection de structures / de sentiers | 🙈 masquées (`ANALYSE_MASQUEE`, `SENTIERS_MASQUES`) |
 | Contrôle positif sur ruine connue | ❌ en attente de coordonnées |
 | 3D qui pilote le téléchargement | TODO #4 |
