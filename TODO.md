@@ -166,16 +166,15 @@ fin près de la caméra et du grossier au loin, et la « fourchette » de
 l'utilisateur comme seuil d'hystérésis pour ne pas retélécharger au moindre
 mouvement. À faire après usage de l'étape 1.
 
-### #7 — Date d'acquisition pour le profil (hauteur d'arbres)
+### #7 — Jour exact d'acquisition (reste de la demande OSM)
 
-Demande OSM (forum OSM-FR, « Hauteur depuis LidarHD IGN ») : qui mesure une
-hauteur dans le profil la tague ensuite `height`, `source:height=IGN Lidar HD`
-et `source:height:date=AAAA-MM`. La date vient aujourd'hui du **GpsTime** des
-points, converti à la main. Or `COPC.reduireBloc` déclare vide la couche de
-temps GPS (« Seules les couches lues ») : elle n'est plus téléchargée. À
-étudier : lire la date dans les métadonnées ou le nom de la dalle (lot de
-publication), ou garder la couche de temps pour les blocs du profil. Hors de
-la v1 du profil (`feat/profil`).
+La date d'acquisition est faite (« Point sélectionné » : plage de vol de la
+dalle, voir CLAUDE.md). Reste le **jour exact** : l'IGN ne publie qu'une plage
+de un à trois jours par dalle, alors que le tag `height:AAAA-MM-JJ` proposé
+sur le forum OSM-FR en demande un. Il ne se lirait que dans le temps GPS de
+chaque point (`COPC.reduireBloc` déclare cette couche vide : ~40 % de volume
+en plus à télécharger) ; le mois, lui, est fiable avec la plage. À décider si
+des retours le demandent.
 
 ### #6 — Laissé de côté par l'audit du 27 septembre 2026
 

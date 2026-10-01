@@ -247,8 +247,16 @@ d'arbres et de bâtiments sans QGIS. Conception :
   aussi dans la modale et recalcule au `change`. Les classes de la modale
   partent de la légende 3D mais lui sont **locales**.
 - Pas de hauteur automatique (la valeur d'une cime et du sol se lit sur le
-  graphique), pas de profil en 3D, pas d'export : voir `TODO.md` #7 pour la
-  date d'acquisition (`source:height:date`).
+  graphique), pas de profil en 3D, pas d'export.
+- **La date d'acquisition se lit dans « Point sélectionné »**, pas dans le
+  profil : on y sélectionne le point (l'arbre), et la fiche donne ses
+  coordonnées, ses boutons « ouvrir ailleurs » et la **plage de vol de la dalle
+  qui le contient** (`flux.dalleAu`, `IGN.formaterAcquisition`). Le WFS
+  publie `date_debut_acquisition` / `date_fin_acquisition` par dalle : une plage
+  de un à trois jours, **différente d'une dalle voisine à l'autre** (vu en
+  Ariège : 12–13, 12–14 juillet 2022). Le jour exact exigerait le temps GPS de
+  chaque point, retiré des blocs (TODO #7) ; le mois suffit au tag OSM. Sans
+  date publiée : « — », jamais une date inventée.
 
 ## La carte
 

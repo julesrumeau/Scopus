@@ -69,6 +69,9 @@ async function dalles(sud, ouest, nord, est, signal) {
       emprise,
       anneau: anneauExterieur(f.geometry),
       nbPoints: meta.nombre_points ?? null,
+      // La plage de vol de la dalle : un à quelques jours, pas un instant. Deux
+      // dalles voisines peuvent avoir des plages différentes.
+      dateDebutAcquisition: meta.date_debut_acquisition ?? null,
       dateAcquisition: meta.date_fin_acquisition ?? null,
       systemeAltimetrique: meta.systeme_altimetrique ?? null,
     };
@@ -161,4 +164,31 @@ function gabaritWMTS(cle) {
   return `${CONFIG.ign.wmts}?${p}`.replace(/%7B/g, '{').replace(/%7D/g, '}');
 }
 
-const IGN = { dalles, dalleAuPoint, batiments, geocoder, gabaritWMTS };
+const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+/**
+ * La plage d'acquisition d'une dalle en français, depuis les deux dates
+ * `AAAA-MM-JJ` de l'IGN : « 13 juillet 2022 », « 12–13 juillet 2022 »,
+ * « 28 juin – 2 juillet 2022 ». Un bout manquant garde l'autre ; sans date
+ * lisible, `null` — jamais une date inventée. Des bornes inversées sont
+ * remises dans l'ordre.
+ */
+function formaterAcquisition(debut, fin) {
+  const lire = (t) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t || '');
+    if (!m) return null;
+    const a = +m[1], mo = +m[2], j = +m[3];
+    return mo >= 1 && mo <= 12 && j >= 1 && j <= 31 ? { a, mo, j, brut: t } : null;
+  };
+  let d = lire(debut), f = lire(fin);
+  if (!d && !f) return null;
+  if (d && f && d.brut > f.brut) [d, f] = [f, d];
+  const jour = (x) => (x.j === 1 ? '1er' : String(x.j));
+  const complet = (x) => `${jour(x)} ${MOIS_FR[x.mo - 1]} ${x.a}`;
+  if (!d || !f || d.brut === f.brut) return complet(f || d);
+  if (d.a === f.a && d.mo === f.mo) return `${jour(d)}–${jour(f)} ${MOIS_FR[f.mo - 1]} ${f.a}`;
+  if (d.a === f.a) return `${jour(d)} ${MOIS_FR[d.mo - 1]} – ${jour(f)} ${MOIS_FR[f.mo - 1]} ${f.a}`;
+  return `${complet(d)} – ${complet(f)}`;
+}
+
+const IGN = { dalles, dalleAuPoint, batiments, geocoder, gabaritWMTS, formaterAcquisition };

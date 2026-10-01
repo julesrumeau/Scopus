@@ -435,7 +435,21 @@ const FLUX = (() => {
     // Les blocs que la vue demande, en copie : le relief ne range que ceux-là
     // dans une grille neuve (vue-relief.js), pas les blocs fins gardés d'une
     // vue précédente.
-    return { majVue, attendreCalme, arreter, voulues: () => new Set(voulues), _deps: deps };
+    /**
+     * La dalle (telle que le WFS l'a décrite : nom, emprise, date d'acquisition…)
+     * qui contient le point (x, y), en coordonnées locales ; `null` si la vue n'a
+     * pas encore trouvé de dalle là. Les bords sud et ouest appartiennent à la
+     * dalle, les bords nord et est à sa voisine.
+     */
+    function dalleAu(x, y) {
+      for (const { dalle: dl } of dalles.values()) {
+        const e = dl.emprise;
+        if (x >= e.xmin && x < e.xmax && y >= e.ymin && y < e.ymax) return dl;
+      }
+      return null;
+    }
+
+    return { majVue, attendreCalme, arreter, dalleAu, voulues: () => new Set(voulues), _deps: deps };
   }
 
   return { creer };
