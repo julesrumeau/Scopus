@@ -95,9 +95,9 @@ Un message `profil` au worker (`relief-travailleur.js`), sur le modèle de
   par la file du worker (un calcul à la fois, comme `calculer`).
 - Densité : la bande ne contient que ce que le flux a chargé. À 100 m le zoom
   demandé est fin ; à large échelle le profil est pauvre, d'où l'avis.
-- **À vérifier à l'écriture** : que `origineCm[2]` donne bien l'altitude
-  absolue (les grilles sont relatives, `origine[2]` retiré au décodage) ; le
-  profil doit sortir des altitudes **vraies**.
+- **Altitude vraie, vérifié** : les blocs du flux portent `origineCm[2] = 0`
+  (`flux.js:200`, échelle 0,01 et décalage 0 chez l'IGN) : `zc` est déjà l'altitude
+  absolue en centimètres, `z = zc / 100`.
 
 ## Composants
 
