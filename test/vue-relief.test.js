@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { chargerScripts } from './charger.js';
 
 const { VUE_RELIEF, VUE_GRILLE, RASTER, RELIEF } = chargerScripts(
-  ['config.js', 'vue-grille.js', 'raster.js', 'relief.js', 'vue-relief.js']);
+  ['config.js', 'vue-grille.js', 'raster.js', 'relief.js', 'profil.js', 'vue-relief.js']);
 
 /** Bloc d'une dalle au coin (x0, y0) en mètres : un plan à 300 m, une bosse, des points tous les 25 cm. */
 function bloc(cle, x0, y0, { cote = 60, pasCm = 25, zBase = 30000 } = {}) {
@@ -417,4 +417,123 @@ test('drape3d : plus rien après que la grille a changé (surface lâchée)', ()
   assert.ok(m.drape3d('svf', undefined, c.min, c.max));
   m.calculer(VUE_GRILLE.definir({ xmin: 1000, xmax: 1060, ymin: 2000, ymax: 2060 }, 1, 0, 4096), 'svf');   // autre pas : grille neuve
   assert.equal(m.drape3d('svf', undefined, c.min, c.max), null);
+});
+
+// ── Le profil topographique ──────────────────────────────────────────────────
+
+/**
+ * Un bloc de 40 m, sol plat à 300 m (classe 2) et un « arbre » : les points à
+ * moins de 1,5 m du centre (20 m, 20 m) sont de classe 5, à 300 + 25 m − leur
+ * distance au centre — la cime vaut donc exactement 325 m, au centre.
+ */
+function blocArbre(cle, x0, y0) {
+  const cote = 40, pasCm = 25, n = (cote * 100 / pasCm) ** 2;
+  const xc = new Int32Array(n), yc = new Int32Array(n), zc = new Int32Array(n), cls = new Uint8Array(n);
+  let k = 0;
+  for (let y = 0; y < cote * 100; y += pasCm) {
+    for (let x = 0; x < cote * 100; x += pasCm) {
+      const dist = Math.hypot(x - 2000, y - 2000);
+      xc[k] = x; yc[k] = y;
+      if (dist <= 150) { cls[k] = 5; zc[k] = 32500 - Math.round(dist); } else { cls[k] = 2; zc[k] = 30000; }
+      k++;
+    }
+  }
+  return { cle, emprise: { xmin: x0, ymin: y0, xmax: x0 + cote, ymax: y0 + cote }, origineCm: [x0 * 100, y0 * 100, 0], points: { nbPoints: n, xc, yc, zc, cls } };
+}
+
+test('profil sans bloc : un message qui dit quoi faire (Review Focus 1)', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  const r = m.profil([1010, 2020], [1030, 2020], 4, 1e9);
+  assert.match(r.raison, /zoomez/i);
+});
+
+test('profil : une bande qui touche un bloc mais ne contient aucun point', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(blocArbre('a', 1000, 2000));
+  // Dans la boîte du bloc (x < 1040) par son début, mais à 0,5 m du bord : la
+  // bande de 2 m de large part de 1039,9 vers l'extérieur.
+  const r = m.profil([1040.5, 2020], [1060, 2020], 2, 1e9);
+  assert.ok(r.raison);
+});
+
+test('profil : bande qui coupe la boîte du bloc sans point dedans', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  const b = blocArbre('a', 1000, 2000);
+  // Un bloc vidé : même emprise, aucun point.
+  b.points = { nbPoints: 0, xc: new Int32Array(0), yc: new Int32Array(0), zc: new Int32Array(0), cls: new Uint8Array(0) };
+  m.ajouter(b);
+  assert.match(m.profil([1010, 2020], [1030, 2020], 4, 1e9).raison, /aucun point/i);
+});
+
+test('profil : les points de la bande, leur distance le long de l’axe, leur altitude vraie', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(blocArbre('a', 1000, 2000));
+  // De (1010, 2020) à (1030, 2020), 4 m de large : x de 1000 à 3000 cm locaux
+  // (81 colonnes), y de 1800 à 2200 (17 lignes), bords compris.
+  const r = m.profil([1010, 2020], [1030, 2020], 4, 1e9);
+  assert.equal(r.raison, undefined);
+  assert.equal(r.n, 81 * 17);
+  assert.equal(r.total, r.n);
+  assert.equal(r.plafonne, false);
+  assert.equal(r.longueur, 20);
+  assert.equal(r.largeur, 4);
+  let smin = Infinity, smax = -Infinity, zmax = -Infinity, zsol = null;
+  for (let i = 0; i < r.n; i++) {
+    smin = Math.min(smin, r.s[i]); smax = Math.max(smax, r.s[i]); zmax = Math.max(zmax, r.z[i]);
+    if (r.cls[i] === 2) zsol = r.z[i];
+  }
+  assert.equal(smin, 0);          // pile sur A : gardé (Review Focus 4)
+  assert.equal(smax, 20);         // pile sur B : gardé
+  assert.equal(zmax, 325);        // la cime de l'arbre, en altitude absolue
+  assert.equal(zsol, 300);
+  assert.ok(r.parClasse.some(([c, n]) => c === 2 && n > 0));
+  assert.ok(r.parClasse.some(([c, n]) => c === 5 && n > 0));
+});
+
+test('profil : les points pile sur le bord de la largeur sont gardés, un centimètre plus loin non', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(blocArbre('a', 1000, 2000));
+  // Largeur 4 : demi-largeur 2 m ; les lignes à y = 1800 et 2200 cm (écart 200 cm) en sont.
+  const juste = m.profil([1010, 2020], [1030, 2020], 4, 1e9);
+  const trop = m.profil([1010, 2020], [1030, 2020], 3.98, 1e9);   // demi-largeur 1,99 m
+  assert.equal(juste.n, 81 * 17);
+  assert.equal(trop.n, 81 * 15);   // les lignes à ±200 cm tombent dehors
+});
+
+test('profil : bande oblique à 45°, mêmes points quel que soit le sens', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(blocArbre('a', 1000, 2000));
+  const ab = m.profil([1010, 2010], [1030, 2030], 3, 1e9);
+  const ba = m.profil([1030, 2030], [1010, 2010], 3, 1e9);
+  assert.equal(ab.n, ba.n);
+  assert.ok(ab.n > 0);
+  let zmax = -Infinity;
+  for (let i = 0; i < ab.n; i++) zmax = Math.max(zmax, ab.z[i]);
+  assert.equal(zmax, 325);   // l'axe passe par le centre de l'arbre
+  assert.ok(Math.abs(ab.longueur - 20 * Math.SQRT2) < 1e-9);
+});
+
+test('profil : plafond atteint, tirage stable d’un appel à l’autre (Review Focus 4)', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(blocArbre('a', 1000, 2000));
+  const r1 = m.profil([1010, 2020], [1030, 2020], 4, 500);
+  const r2 = m.profil([1010, 2020], [1030, 2020], 4, 500);
+  assert.equal(r1.plafonne, true);
+  assert.ok(r1.n <= 500 * 1.05 + 1000);
+  assert.ok(r1.n < r1.total);
+  assert.equal(r1.n, r2.n);
+  for (let i = 0; i < r1.n; i += 37) assert.equal(r1.s[i], r2.s[i]);
+});
+
+test('profil : les blocs que la vue ne demande plus (actifs) sont ignorés', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(blocArbre('a', 1000, 2000));
+  const r = m.profil([1010, 2020], [1030, 2020], 4, 1e9, new Set(['autre']));
+  assert.ok(r.raison);
+});
+
+test('profil : deux points confondus', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(blocArbre('a', 1000, 2000));
+  assert.match(m.profil([1010, 2020], [1010, 2020], 4, 1e9).raison, /confondus/);
 });
