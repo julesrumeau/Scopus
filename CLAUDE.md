@@ -668,7 +668,7 @@ détection automatique (voir « Code existant mais masqué »).
 | Carte, dalles, LAZ, rendu, Lambert-93 → WGS84, liens, exports | ✅ |
 | Relief piloté par la vue (carte + rideau, panneau « Relief », outils, 3D avec EDL) | ✅ — ancienne interface derrière `?dalle` |
 | Lien partageable, accueil, DROM, états vides, borne de zoom | ✅ |
-| Profil topographique (bande, coupe, mesure) | ✅ vue normale, contrôle navigateur à faire à l'œil ; date d'acquisition dans TODO (#7) |
+| Profil topographique (bande, coupe, mesure) | ✅ vue normale, vérifié en Chromium (bureau, tablette, téléphone, paysage) ; poignées au doigt et pincement non essayés ; date d'acquisition dans TODO (#7) |
 | Détection de structures / de sentiers | 🙈 masquées (`ANALYSE_MASQUEE`, `SENTIERS_MASQUES`) |
 | Contrôle positif sur ruine connue | ❌ en attente de coordonnées |
 | 3D qui pilote le téléchargement | TODO #4 |
