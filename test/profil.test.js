@@ -63,22 +63,6 @@ test('emprise : la boîte englobante de la bande', () => {
   assert.deepEqual(plat(e), { xmin: 10, xmax: 30, ymin: 18, ymax: 22 });
 });
 
-test('mesurer : un triangle 3-4-5 sur le graphique, pente signée', () => {
-  const m = PROFIL.mesurer({ s: 0, z: 100 }, { s: 4, z: 103 });
-  proche(m.horizontale, 4); proche(m.denivele, 3); proche(m.totale, 5);
-  proche(m.pente, 36.8698976, 1e-6);
-  const d = PROFIL.mesurer({ s: 0, z: 103 }, { s: 4, z: 100 });
-  proche(d.denivele, -3); proche(d.pente, -36.8698976, 1e-6);
-  // Dans l'autre sens sur l'axe : l'horizontale reste positive.
-  proche(PROFIL.mesurer({ s: 4, z: 100 }, { s: 0, z: 100 }).horizontale, 4);
-});
-
-test('mesurer : deux repères à la même abscisse → pas de pente inventée', () => {
-  const m = PROFIL.mesurer({ s: 7, z: 100 }, { s: 7, z: 130 });
-  proche(m.denivele, 30);
-  assert.equal(m.pente, null);
-});
-
 test('graduations : des valeurs rondes qui encadrent l’intervalle', () => {
   assert.deepEqual(plat(PROFIL.graduations(0, 100, 5)), [0, 20, 40, 60, 80, 100]);
   assert.deepEqual(plat(PROFIL.graduations(139.9, 170.2, 6)), [140, 145, 150, 155, 160, 165, 170]);
@@ -91,4 +75,34 @@ test('etendueZ : le tronçon et les classes visibles seulement', () => {
   assert.deepEqual(plat(PROFIL.etendueZ(d, 0, 20, null)), { zmin: 100, zmax: 130, n: 3 });
   assert.deepEqual(plat(PROFIL.etendueZ(d, 0, 30, new Set([2]))), { zmin: 100, zmax: 105, n: 2 });
   assert.equal(PROFIL.etendueZ(d, 0, 30, new Set([9])), null);   // rien de visible
+});
+
+test('etendueZ : la tranche latérale ne garde que les points de cette part de la largeur', () => {
+  const d = {
+    n: 4, s: Float32Array.of(0, 10, 20, 30), z: Float32Array.of(100, 130, 105, 200),
+    d: Float32Array.of(-1.5, -0.5, 0.5, 1.5), cls: Uint8Array.of(2, 5, 2, 5),
+  };
+  assert.deepEqual(plat(PROFIL.etendueZ(d, 0, 30, null, { min: -1, max: 1 })), { zmin: 105, zmax: 130, n: 2 });
+  assert.deepEqual(plat(PROFIL.etendueZ(d, 0, 30, null, { min: -2, max: 2 })), { zmin: 100, zmax: 200, n: 4 });
+  assert.equal(PROFIL.etendueZ(d, 0, 30, null, { min: 5, max: 6 }), null);   // tranche vide
+  // Sans tranche : tout, comme avant.
+  assert.equal(PROFIL.etendueZ(d, 0, 30, null).n, 4);
+});
+
+test('largeur : le curseur est logarithmique, de 0,5 à 100 m, et se relit sans dérive', () => {
+  assert.equal(PROFIL.largeurDepuisCurseur(0), 0.5);
+  assert.equal(PROFIL.largeurDepuisCurseur(1000), 100);
+  assert.equal(CONFIG.profil.largeurMaxM, 100);
+  let precedente = 0;
+  for (let t = 0; t <= 1000; t += 50) {
+    const w = PROFIL.largeurDepuisCurseur(t);
+    assert.ok(w >= precedente, `croissante à ${t}`);
+    precedente = w;
+  }
+  // La moitié du curseur tombe à l'échelle des arbres, pas à 50 m.
+  assert.ok(PROFIL.largeurDepuisCurseur(500) < 10);
+  // Une largeur retrouve son curseur, et le curseur sa largeur (arrondie).
+  for (const w of [0.5, 1, 3, 7.5, 20, 100]) {
+    assert.equal(PROFIL.largeurDepuisCurseur(PROFIL.curseurDepuisLargeur(w)), w, `${w} m`);
+  }
 });

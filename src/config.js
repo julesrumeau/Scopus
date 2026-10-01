@@ -340,9 +340,11 @@ const CONFIG = {
   profil: {
     // Largeur de la bande autour de l'axe, en mètres. Une cime d'arbre ne se
     // localise pas à quelques décimètres : la bande en donne le maximum réel.
+    // 100 m au plus : au-delà, la bande dépasserait ce que la vue a chargé, et
+    // le plafond de points l'éclaircirait.
     largeurDefautM: 3,
     largeurMinM: 0.5,
-    largeurMaxM: 30,
+    largeurMaxM: 100,
     // Longueur de l'axe. Sous 1 m, deux clics sur le même point ; au-dessus de
     // 2 km, la densité chargée ne permettrait plus de lire un profil.
     longueurMinM: 1,

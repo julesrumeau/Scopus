@@ -537,3 +537,20 @@ test('profil : deux points confondus', () => {
   m.ajouter(blocArbre('a', 1000, 2000));
   assert.match(m.profil([1010, 2020], [1010, 2020], 4, 1e9).raison, /confondus/);
 });
+
+test('profil : l’écart latéral de chaque point, positif à gauche de l’axe A→B', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(blocArbre('a', 1000, 2000));
+  // Axe vers l'est : la gauche est le nord (y croissant).
+  const r = m.profil([1010, 2020], [1030, 2020], 4, 1e9);
+  assert.equal(r.d.length, r.n);
+  let dmin = Infinity, dmax = -Infinity;
+  for (let i = 0; i < r.n; i++) { dmin = Math.min(dmin, r.d[i]); dmax = Math.max(dmax, r.d[i]); }
+  assert.equal(dmin, -2);   // bord sud = à droite
+  assert.equal(dmax, 2);    // bord nord = à gauche
+  // Dans l'autre sens, les côtés s'échangent mais l'étendue reste celle de la bande.
+  const inverse = m.profil([1030, 2020], [1010, 2020], 4, 1e9);
+  let g = -Infinity;
+  for (let i = 0; i < inverse.n; i++) if (inverse.s[i] === 0) g = Math.max(g, inverse.d[i]);
+  assert.equal(g, 2);
+});

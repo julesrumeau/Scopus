@@ -97,3 +97,31 @@ test('totaux — un seul segment à altitude inconnue met le total 3D à null, j
   assert.equal(totaleHorizontale, 5);   // l'horizontale du segment inconnu (0 ici) compte toujours
   assert.equal(totale3D, null);
 });
+
+test('tableauHtml — une chaîne de trois points : deux segments nommés et un total', () => {
+  const pts = [
+    { x: 0, y: 0, sol: 100, hauteur: 0 },
+    { x: 3, y: 4, sol: 100, hauteur: 12 },      // A→B : 5 m, +12 m, 13 m en 3D
+    { x: 3, y: 4, sol: 100, hauteur: 0 },       // B→C : 0 m, −12 m, 12 m en 3D
+  ];
+  const h = MESURE.tableauHtml(pts);
+  assert.match(h, /tableau-mesure/);
+  assert.match(h, /A→B/);
+  assert.match(h, /B→C/);
+  assert.match(h, /5\.0 m/);
+  assert.match(h, /\+12\.0 m/);
+  assert.match(h, /13\.0 m/);
+  assert.match(h, /-12\.0 m/);
+  assert.match(h, /<tfoot><tr><td>Total<\/td><td>5\.0 m<\/td><td><\/td><td>25\.0 m<\/td>/);
+});
+
+test('tableauHtml — sous deux points, rien à tabuler', () => {
+  assert.equal(MESURE.tableauHtml([]), '');
+  assert.equal(MESURE.tableauHtml([{ x: 0, y: 0, sol: 1 }]), '');
+});
+
+test('tableauHtml — une altitude inconnue s’écrit « — », jamais un nombre inventé', () => {
+  const h = MESURE.tableauHtml([{ x: 0, y: 0, sol: null }, { x: 3, y: 4, sol: 10 }]);
+  assert.match(h, /5\.0 m/);
+  assert.match(h, /—/);
+});

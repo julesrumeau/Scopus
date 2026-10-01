@@ -20,6 +20,24 @@ function fabriqueProfil() {
     return Math.min(largeurMaxM, Math.max(largeurMinM, l));
   }
 
+  /**
+   * La largeur que donne un curseur de 0 à 1000. Logarithmique : un curseur
+   * linéaire de 0,5 à 100 m n'aurait aucune finesse à l'échelle d'un arbre
+   * (2 à 5 m), qui est l'usage courant. Arrondie à 0,5 m sous 10 m, au mètre
+   * au-dessus.
+   */
+  function largeurDepuisCurseur(t) {
+    const { largeurMinM, largeurMaxM } = CONFIG.profil;
+    const w = largeurMinM * (largeurMaxM / largeurMinM) ** (Math.min(1000, Math.max(0, t)) / 1000);
+    return largeurValide(w < 10 ? Math.round(w * 2) / 2 : Math.round(w));
+  }
+
+  /** La position du curseur (0 à 1000) d'une largeur : l'inverse de `largeurDepuisCurseur`. */
+  function curseurDepuisLargeur(w) {
+    const { largeurMinM, largeurMaxM } = CONFIG.profil;
+    return Math.round((1000 * Math.log(largeurValide(w) / largeurMinM)) / Math.log(largeurMaxM / largeurMinM));
+  }
+
   /** Peut-on calculer un profil entre ces deux points ? Sinon, la consigne à afficher. */
   function verdict(a, b) {
     const { longueurMinM, longueurMaxM } = CONFIG.profil;
@@ -47,21 +65,6 @@ function fabriqueProfil() {
     return { xmin: Math.min(...xs), xmax: Math.max(...xs), ymin: Math.min(...ys), ymax: Math.max(...ys) };
   }
 
-  /**
-   * Ce que deux repères posés sur le graphique mesurent (`s` = distance le long
-   * de l'axe, `z` = altitude, en mètres). `pente` en degrés, signée comme le
-   * dénivelé ; `null` si les deux repères sont à la même abscisse (une pente
-   * verticale n'a pas de valeur à afficher).
-   */
-  function mesurer(p, q) {
-    const horizontale = Math.abs(q.s - p.s);
-    const denivele = q.z - p.z;
-    return {
-      horizontale, denivele, totale: Math.hypot(horizontale, denivele),
-      pente: horizontale > 1e-9 ? Math.atan2(denivele, horizontale) * 180 / Math.PI : null,
-    };
-  }
-
   /** Des graduations rondes (1, 2, 5 × 10ⁿ) dans [min, max], une `cible` à peu près. */
   function graduations(min, max, cible = 6) {
     const etendue = max - min;
@@ -75,13 +78,19 @@ function fabriqueProfil() {
     return sortie;
   }
 
-  /** L'étendue verticale des points du tronçon [s0, s1] dont la classe est visible (`null` = toutes). */
-  function etendueZ(d, s0, s1, visibles) {
+  /**
+   * L'étendue verticale des points du tronçon [s0, s1] dont la classe est
+   * visible (`null` = toutes) et dont l'écart latéral tombe dans la tranche
+   * `lat` ({ min, max } en mètres, positif à gauche de l'axe ; absente = toute
+   * la bande).
+   */
+  function etendueZ(d, s0, s1, visibles, lat) {
     let zmin = Infinity, zmax = -Infinity, n = 0;
     for (let i = 0; i < d.n; i++) {
       const s = d.s[i];
       if (s < s0 || s > s1) continue;
       if (visibles && !visibles.has(d.cls[i])) continue;
+      if (lat && d.d && (d.d[i] < lat.min || d.d[i] > lat.max)) continue;
       const z = d.z[i];
       if (z < zmin) zmin = z;
       if (z > zmax) zmax = z;
@@ -90,6 +99,6 @@ function fabriqueProfil() {
     return n ? { zmin, zmax, n } : null;
   }
 
-  return { axe, largeurValide, verdict, coins, emprise, mesurer, graduations, etendueZ };
+  return { axe, largeurValide, largeurDepuisCurseur, curseurDepuisLargeur, verdict, coins, emprise, graduations, etendueZ };
 }
 const PROFIL = fabriqueProfil();

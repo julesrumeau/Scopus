@@ -412,25 +412,8 @@ function afficherMesure() {
     return;
   }
 
-  const lettre = (i) => (i < 26 ? String.fromCharCode(65 + i) : String(i + 1));
-  const m = (v) => (v == null ? '—' : `${v.toFixed(1)} m`);
-  const signe = (v) => (v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(1)} m`);
-
-  const segs = MESURE.segments(pointsMesure);
-  const { totaleHorizontale, totale3D } = MESURE.totaux(segs);
-
-  const rangees = segs.map((s, i) => `<tr>
-      <td>${lettre(i)}→${lettre(i + 1)}</td>
-      <td>${m(s.horizontale)}</td>
-      <td>${signe(s.denivele)}</td>
-      <td>${m(s.totale)}</td>
-    </tr>`).join('');
-
-  $('detail-mesure').innerHTML = `<div class="mesure-scroll"><table class="tableau-mesure">
-      <thead><tr><th>Segment</th><th>Horizontale</th><th>Dénivelé</th><th>3D</th></tr></thead>
-      <tbody>${rangees}</tbody>
-      <tfoot><tr><td>Total</td><td>${m(totaleHorizontale)}</td><td></td><td>${m(totale3D)}</td></tr></tfoot>
-    </table></div>`;
+  // Le même tableau que dans la modale du profil : un seul outil de mesure.
+  $('detail-mesure').innerHTML = MESURE.tableauHtml(pointsMesure);
   $('detail-mesure').hidden = false;
 }
 
@@ -3159,7 +3142,7 @@ if (MODE_VUE) (async () => {
       : v.raison;
     $('profil-valider').disabled = !(v && v.ok);
     $('profil-effacer').disabled = !profil.A;
-    $('profil-largeur').value = profil.largeur;
+    $('profil-largeur').value = PROFIL.curseurDepuisLargeur(profil.largeur);
     $('profil-largeur-n').value = profil.largeur;
     $('profil-largeur-modale').value = profil.largeur;
   }
@@ -3187,7 +3170,7 @@ if (MODE_VUE) (async () => {
     majFenetreProfil();
   }
 
-  $('profil-largeur').addEventListener('input', (e) => fixerLargeur(e.target.value));
+  $('profil-largeur').addEventListener('input', (e) => fixerLargeur(PROFIL.largeurDepuisCurseur(Number(e.target.value))));
   $('profil-largeur-n').addEventListener('change', (e) => fixerLargeur(e.target.value));
   $('profil-effacer').addEventListener('click', effacerProfil);
   $('profil-valider').addEventListener('click', () => validerProfil());
@@ -3216,29 +3199,39 @@ if (MODE_VUE) (async () => {
     }).join('');
   }
 
-  /** Le tronçon des deux curseurs, en mètres le long de l'axe ; recadre le graphique. */
-  function appliquerPorteeProfil() {
+  /**
+   * La tranche de la largeur de la bande que choisissent les deux curseurs :
+   * le curseur de gauche est le côté gauche de l'axe (A→B), celui de droite le
+   * côté droit. Aux deux extrémités, toute la bande — sans borne, pour qu'un
+   * point à l'arrondi près du bord ne soit jamais écarté. Recadre le
+   * graphique, ne recalcule rien.
+   */
+  function appliquerTrancheProfil() {
     const d = profil.donnees;
-    if (!d || !graphique) { $('profil-portee').textContent = ''; return; }
-    const s0 = (d.longueur * Number($('profil-s0').value)) / 1000;
-    const s1 = (d.longueur * Number($('profil-s1').value)) / 1000;
-    graphique.definirPortee(s0, s1);
-    $('profil-portee').textContent = `Tronçon affiché : de ${s0.toFixed(1)} à ${s1.toFixed(1)} m sur ${d.longueur.toFixed(1)} m`;
+    if (!d || !graphique) { $('profil-tranche').textContent = ''; return; }
+    const a0 = Number($('profil-d0').value), a1 = Number($('profil-d1').value);
+    const demi = d.largeur / 2;
+    const max = a0 <= 0 ? Infinity : demi - (d.largeur * a0) / 1000;
+    const min = a1 >= 1000 ? -Infinity : demi - (d.largeur * a1) / 1000;
+    graphique.definirLateral(min, max);
+    const cote = (v, defaut) => {
+      const x = Number.isFinite(v) ? v : defaut;
+      return Math.abs(x) < 0.005 ? 'l’axe' : x > 0 ? `${x.toFixed(1)} m à gauche` : `${(-x).toFixed(1)} m à droite`;
+    };
+    $('profil-tranche').textContent = `Tranche de la bande : de ${cote(max, demi)} à ${cote(min, -demi)}`;
   }
 
-  /** Les valeurs de la mesure, en gros et à fort contraste (le texte orange du plugin QGIS se lisait mal). */
-  function afficherMesureProfil(p, q) {
-    const el = $('profil-mesure');
-    if (!p) { el.innerHTML = '<span class="vide">Cliquez deux points du graphique pour mesurer (le clic s’accroche au point le plus proche).</span>'; return; }
-    if (!q) { el.innerHTML = `<span class="vide">Premier repère à ${p.z.toFixed(2)} m d’altitude. Cliquez le second.</span>`; return; }
-    const m = PROFIL.mesurer(p, q);
-    const signe = (v) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)} m`;
-    el.innerHTML = [
-      ['Distance horizontale', `${m.horizontale.toFixed(2)} m`],
-      ['Dénivelé', signe(m.denivele)],
-      ['Distance 3D', `${m.totale.toFixed(2)} m`],
-      ['Pente', m.pente == null ? '—' : `${m.pente.toFixed(1)}°`],
-    ].map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('');
+  /** La chaîne de mesure du graphique, au même tableau que la carte (`MESURE.tableauHtml`). */
+  function afficherMesureProfil(pts) {
+    // Le graphique en (distance le long de l'axe, altitude) devient des points de la mesure :
+    // l'horizontale est alors l'écart de distance, le dénivelé celui d'altitude.
+    const chaine = pts.map((p) => ({ x: p.s, y: 0, sol: p.z, hauteur: 0 }));
+    $('profil-mesure-vide').hidden = chaine.length > 0;
+    $('profil-mesure-detail').hidden = !chaine.length;
+    $('profil-mesure-actions').hidden = !chaine.length;
+    $('profil-mesure-detail').innerHTML = chaine.length < 2
+      ? '<p class="vide">Point A posé — cliquez un second point pour mesurer.</p>'
+      : MESURE.tableauHtml(chaine);
   }
 
   /** La ligne d'état : combien de points, quelle bande, et ce qui peut tromper. */
@@ -3265,8 +3258,8 @@ if (MODE_VUE) (async () => {
     }
     if (num !== profil.numero) return;   // un calcul plus récent a pris la suite
     graphique ??= new ProfilGraphique($('profil-canvas'), afficherMesureProfil);
-    $('profil-s0').value = 0;
-    $('profil-s1').value = 1000;
+    $('profil-d0').value = 0;
+    $('profil-d1').value = 1000;
     if (r.vide) {
       profil.donnees = null;
       graphique.definir(null);
@@ -3278,8 +3271,8 @@ if (MODE_VUE) (async () => {
       $('profil-etat').textContent = texteEtatProfil(r);
     }
     listerClassesProfil();
-    appliquerPorteeProfil();
-    afficherMesureProfil(null, null);
+    appliquerTrancheProfil();
+    afficherMesureProfil([]);
   }
 
   function validerProfil() {
@@ -3300,15 +3293,23 @@ if (MODE_VUE) (async () => {
     if (c.checked) profil.masquees.delete(cls); else profil.masquees.add(cls);
     graphique.definirVisibles(visiblesProfil());
   });
-  // Les deux curseurs du tronçon ne se croisent pas : au moins 1 % d'écart.
-  for (const id of ['profil-s0', 'profil-s1']) {
+  // Les deux curseurs de la tranche ne se croisent pas : au moins 1 % d'écart.
+  for (const id of ['profil-d0', 'profil-d1']) {
     $(id).addEventListener('input', () => {
-      let a = Number($('profil-s0').value), b = Number($('profil-s1').value);
-      if (id === 'profil-s0' && a > b - 10) { a = Math.max(0, b - 10); $('profil-s0').value = a; }
-      if (id === 'profil-s1' && b < a + 10) { b = Math.min(1000, a + 10); $('profil-s1').value = b; }
-      appliquerPorteeProfil();
+      let a = Number($('profil-d0').value), b = Number($('profil-d1').value);
+      if (id === 'profil-d0' && a > b - 10) { a = Math.max(0, b - 10); $('profil-d0').value = a; }
+      if (id === 'profil-d1' && b < a + 10) { b = Math.min(1000, a + 10); $('profil-d1').value = b; }
+      appliquerTrancheProfil();
     });
   }
+  // La chaîne de mesure se corrige comme sur la carte : bouton, ou Retour arrière / Suppr.
+  $('profil-recadrer').addEventListener('click', () => graphique?.recadrer());
+  $('profil-mesure-annuler').addEventListener('click', () => graphique?.retirerDernier());
+  $('profil-mesure-effacer').addEventListener('click', () => graphique?.effacerMesure());
+  window.addEventListener('keydown', (e) => {
+    if (!$('dlg-profil').open || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); graphique?.retirerDernier(); }
+  });
   window.addEventListener('resize', () => { if ($('dlg-profil').open) graphique?.rendre(); });
 
   // ── Ce que le relief dit sous le curseur ──

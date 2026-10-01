@@ -6,8 +6,9 @@
 class ProfilGraphique {
   /**
    * @param {HTMLCanvasElement} canvas
-   * @param {(p: ?{s: number, z: number}, q: ?{s: number, z: number}) => void} rappel
-   *        appelé à chaque changement de la mesure : aucun repère, un, ou deux
+   * @param {(points: Array<{s: number, z: number}>) => void} rappel
+   *        appelé à chaque changement de la chaîne de mesure, avec ses points
+   *        dans l'ordre du clic (vide : aucun)
    */
   constructor(canvas, rappel) {
     this.c = canvas;
@@ -18,21 +19,47 @@ class ProfilGraphique {
     this.visibles = null;
     this.s0 = 0;
     this.s1 = 1;
+    this.lat = { min: -Infinity, max: Infinity };   // la tranche de largeur gardée
     this.mesure = [];
-    canvas.addEventListener('pointerdown', (e) => {
+    this.zv = null;       // l'étendue verticale choisie en zoomant ; absente : ajustée aux points
+    this.geste = null;    // un appui en cours : clic ou déplacement, selon qu'on a bougé
+    const pos = (e) => {
       const r = canvas.getBoundingClientRect();
-      this.clic(e.clientX - r.left, e.clientY - r.top);
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+    canvas.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      canvas.setPointerCapture?.(e.pointerId);
+      const p = pos(e);
+      this.debutGeste(p.x, p.y);
     });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!this.geste) return;
+      const p = pos(e);
+      this.deplacerGeste(p.x, p.y);
+    });
+    canvas.addEventListener('pointerup', (e) => {
+      const p = pos(e);
+      this.finGeste(p.x, p.y);
+    });
+    canvas.addEventListener('pointercancel', () => { this.geste = null; });
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const p = pos(e);
+      this.zoomer(p.x, p.y, e.deltaY < 0 ? 1.25 : 0.8);
+    }, { passive: false });
   }
 
-  /** Les points du profil (ou `null`). Remet le tronçon à toute la bande et efface la mesure. */
+  /** Les points du profil (ou `null`). Remet toute la bande et efface la mesure. */
   definir(d) {
     this.d = d;
     this.s0 = 0;
     this.s1 = d ? d.longueur : 1;
+    this.lat = { min: -Infinity, max: Infinity };
+    this.zv = null;
     this.mesure = [];
     this._ranger();
-    this.rappel(null, null);
+    this.rappel([]);
     this.rendre();
   }
 
@@ -42,17 +69,103 @@ class ProfilGraphique {
     this.planifier();
   }
 
-  /** Le tronçon affiché, en mètres le long de l'axe : recadre le graphique, ne recalcule rien. */
-  definirPortee(s0, s1) {
-    this.s0 = s0;
-    this.s1 = s1;
+  /**
+   * La tranche de la largeur de la bande qu'on regarde, en mètres de part et
+   * d'autre de l'axe (positif à gauche de A→B) : les points hors tranche ne
+   * sont ni dessinés ni visés. Ne recalcule rien.
+   */
+  definirLateral(min, max) {
+    this.lat = { min, max };
+    this.planifier();
+  }
+
+  /** Rend la vue entière : toute la bande, l'étendue verticale ajustée aux points. */
+  recadrer() {
+    this.s0 = 0;
+    this.s1 = this.d ? this.d.longueur : 1;
+    this.zv = null;
+    this.planifier();
+  }
+
+  /** Cale un tronçon [a, b] dans la bande en gardant sa largeur ; plus large qu'elle : la bande entière. */
+  _caler(a, b) {
+    const L = this.d ? this.d.longueur : 1, span = b - a;
+    if (span >= L) return [0, L];
+    if (a < 0) return [0, span];
+    if (b > L) return [L - span, L];
+    return [a, b];
+  }
+
+  /**
+   * Zoom d'un facteur `f` (plus de 1 : on s'approche) autour du pixel (x, y) :
+   * le point sous le curseur reste en place, comme le zoom de la 3D. Jamais
+   * au-delà de la bande, ni sous 0,5 m de côté.
+   */
+  zoomer(x, y, f) {
+    if (!this.d) return;
+    const e = this._echelles();
+    const sc = e.s(x), zc = e.z(y);
+    const span = Math.max(0.5, (this.s1 - this.s0) / f);
+    if (span >= this.d.longueur) { this.recadrer(); return; }
+    const r = span / (this.s1 - this.s0);
+    [this.s0, this.s1] = this._caler(sc - (sc - this.s0) * r, sc - (sc - this.s0) * r + span);
+    const zspan = Math.max(0.5, (e.zmax - e.zmin) / f), rz = zspan / (e.zmax - e.zmin);
+    const z0 = zc - (zc - e.zmin) * rz;
+    this.zv = { z0, z1: z0 + zspan };
+    this.planifier();
+  }
+
+  /** Fait glisser le contenu de (dx, dy) pixels, comme la main qui le tire ; sans sortir de la bande. */
+  deplacer(dx, dy) {
+    if (!this.d) return;
+    const e = this._echelles(), m = this.marge;
+    const largeur = Math.max(1, e.W - m.g - m.d), hauteur = Math.max(1, e.H - m.h - m.b);
+    const ds = -(dx / largeur) * (this.s1 - this.s0);
+    [this.s0, this.s1] = this._caler(this.s0 + ds, this.s1 + ds);
+    if (dy !== 0 || this.zv) {
+      const dz = (dy / hauteur) * (e.zmax - e.zmin);
+      this.zv = { z0: e.zmin + dz, z1: e.zmax + dz };
+    }
+    this.planifier();
+  }
+
+  /** Un appui : clic ou déplacement, selon qu'on bouge de plus de 4 px avant de relâcher. */
+  debutGeste(x, y) { this.geste = { x0: x, y0: y, x, y, deplace: false }; }
+
+  deplacerGeste(x, y) {
+    const g = this.geste;
+    if (!g) return;
+    if (!g.deplace && Math.hypot(x - g.x0, y - g.y0) < 4) return;
+    g.deplace = true;
+    this.deplacer(x - g.x, y - g.y);
+    g.x = x; g.y = y;
+  }
+
+  finGeste(x, y) {
+    const g = this.geste;
+    this.geste = null;
+    if (g && !g.deplace) this.clic(x, y);
+  }
+
+  /** Retire le dernier point de la chaîne de mesure. */
+  retirerDernier() {
+    if (!this.mesure.length) return;
+    this.mesure.pop();
+    this.rappel(this.mesure.slice());
     this.planifier();
   }
 
   effacerMesure() {
     this.mesure = [];
-    this.rappel(null, null);
+    this.rappel([]);
     this.rendre();
+  }
+
+  /** Le point `i` est-il à l'écran : dans le tronçon et dans la tranche de largeur ? */
+  _dedans(i) {
+    const d = this.d, s = d.s[i];
+    if (s < this.s0 || s > this.s1) return false;
+    return !d.d || (d.d[i] >= this.lat.min && d.d[i] <= this.lat.max);
   }
 
   /** Les indices des points rangés par classe : `debut[c]` à `debut[c + 1]` dans `ordre`. */
@@ -83,9 +196,12 @@ class ProfilGraphique {
   _echelles() {
     const r = this.c.getBoundingClientRect();
     const W = r.width, H = r.height, m = this.marge;
-    const e = this.d && PROFIL.etendueZ(this.d, this.s0, this.s1, this.visibles);
+    const e = this.d && PROFIL.etendueZ(this.d, this.s0, this.s1, this.visibles, this.lat);
     let zmin = 0, zmax = 1;
-    if (e) {
+    if (this.zv) {
+      zmin = this.zv.z0;
+      zmax = this.zv.z1;
+    } else if (e) {
       const marge = Math.max(0.5, (e.zmax - e.zmin) * 0.06);
       zmin = e.zmin - marge;
       zmax = e.zmax + marge;
@@ -109,8 +225,8 @@ class ProfilGraphique {
   /**
    * Un clic au pixel (x, y) du canevas : il s'accroche au point visible le plus
    * proche s'il en est à moins de 14 px — pour mesurer la cime, pas l'endroit
-   * où la souris est tombée —, sinon il pose un repère au curseur. Le
-   * troisième clic recommence.
+   * où la souris est tombée —, sinon il pose un repère au curseur. Chaque
+   * clic ajoute un point à la chaîne, comme l'outil de mesure de la carte.
    */
   clic(x, y) {
     const d = this.d;
@@ -119,17 +235,16 @@ class ProfilGraphique {
     let meilleur = -1, dmin = 14 * 14;
     for (const c of this._classes()) {
       for (let k = this.debut[c]; k < this.debut[c + 1]; k++) {
-        const i = this.ordre[k], s = d.s[i];
-        if (s < this.s0 || s > this.s1) continue;
-        const dx = e.x(s) - x, dy = e.y(d.z[i]) - y;
+        const i = this.ordre[k];
+        if (!this._dedans(i)) continue;
+        const dx = e.x(d.s[i]) - x, dy = e.y(d.z[i]) - y;
         const q = dx * dx + dy * dy;
         if (q < dmin) { dmin = q; meilleur = i; }
       }
     }
     const p = meilleur >= 0 ? { s: d.s[meilleur], z: d.z[meilleur] } : { s: e.s(x), z: e.z(y) };
-    if (this.mesure.length === 2) this.mesure = [];
     this.mesure.push(p);
-    this.rappel(this.mesure[0], this.mesure[1] || null);
+    this.rappel(this.mesure.slice());
     this.planifier();
   }
 
@@ -180,31 +295,39 @@ class ProfilGraphique {
       ctx.fillText(`${s} m`, x, e.H - m.b + 6);
     }
     if (!this.d) return;
+    // Zoomé, ni points ni mesure ne débordent sur les graduations.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(m.g, m.h, e.W - m.g - m.d, e.H - m.h - m.b);
+    ctx.clip();
     // Les points, classe par classe, le sol en dernier.
     for (const cls of this._classes()) {
       ctx.fillStyle = CONFIG.rendu.couleursClasse[cls] || CONFIG.rendu.couleurClasseDefaut;
       for (let k = this.debut[cls]; k < this.debut[cls + 1]; k++) {
-        const i = this.ordre[k], s = this.d.s[i];
-        if (s < this.s0 || s > this.s1) continue;
-        ctx.fillRect(e.x(s) - 1.25, e.y(this.d.z[i]) - 1.25, 2.5, 2.5);
+        const i = this.ordre[k];
+        if (!this._dedans(i)) continue;
+        ctx.fillRect(e.x(this.d.s[i]) - 1.25, e.y(this.d.z[i]) - 1.25, 2.5, 2.5);
       }
     }
-    // Les repères de mesure : un anneau cerné de noir pour se lire sur tout fond, et le trait qui les relie.
+    // La chaîne de mesure : un trait cerné de noir pour se lire sur tout fond, et des anneaux lettrés A, B, C… comme sur la carte.
     const pts = this.mesure.map((p) => ({ x: e.x(p.s), y: e.y(p.z) }));
-    if (pts.length === 2) {
-      ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y); ctx.stroke();
-      ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y); ctx.stroke();
+    if (pts.length > 1) {
+      for (const [couleur, largeur] of [['#000', 4], ['#ffd24a', 2]]) {
+        ctx.strokeStyle = couleur; ctx.lineWidth = largeur;
+        ctx.beginPath();
+        pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+        ctx.stroke();
+      }
     }
     pts.forEach((p, i) => {
-      ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, 2 * Math.PI); ctx.stroke();
-      ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, 2 * Math.PI); ctx.stroke();
+      for (const [couleur, largeur] of [['#000', 4], ['#ffd24a', 2]]) {
+        ctx.strokeStyle = couleur; ctx.lineWidth = largeur;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, 2 * Math.PI); ctx.stroke();
+      }
       ctx.fillStyle = '#ffd24a'; ctx.font = 'bold 12px system-ui, sans-serif';
       ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
-      ctx.fillText(String(i + 1), p.x + 9, p.y - 7);
+      ctx.fillText(i < 26 ? String.fromCharCode(65 + i) : String(i + 1), p.x + 9, p.y - 7);
     });
+    ctx.restore();
   }
 }

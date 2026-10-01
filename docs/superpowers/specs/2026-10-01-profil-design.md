@@ -41,7 +41,7 @@ Deux temps, jamais affichés ensemble.
   voir « La carte ») et l'axe A→B.
 - Une **petite fenêtre flottante** sur la carte (en bas au centre ; en haut au
   centre sous 600 px, pour ne pas passer sous la feuille du panneau) :
-  largeur (curseur + champ, 0,5 à 30 m, 3 m par défaut), **Effacer**,
+  largeur (curseur logarithmique + champ, 0,5 à 100 m, 3 m par défaut), **Effacer**,
   **Valider** (inactif tant qu'il n'y a pas deux points). Elle n'existe que
   dans le mode Profil ; quitter le mode la masque, la bande reste, revenir la
   rouvre.
@@ -65,13 +65,21 @@ Contenu :
   la bande. Initialisées avec les classes cochées de la légende 3D ; les
   changer dans la modale **ne touche pas** la légende (un état local,
   sans effet de bord).
-- **Double curseur** sous le graphique : deux poignées sur l'axe de la bande.
-  Aux deux extrémités = toute la bande ; rapprochées = on ne garde que ce
-  tronçon (le graphique se recadre, la mesure ne porte que dessus). Il ne
-  change **pas** la bande ni son calcul : seulement ce qu'on regarde.
-- **Mesure** : deux clics sur le graphique posent deux repères ; affichés :
-  distance horizontale, dénivelé (signé), distance 3D, pente. Les valeurs sont
-  écrites en gros, à fort contraste. Un troisième clic recommence.
+- **Zoom** du graphique : molette (zoom sous le curseur), glisser pour déplacer,
+  « Vue entière » pour recadrer ; jamais au-delà de la bande. Un appui qui bouge
+  de moins de 4 px est un clic de mesure, au-delà c'est un déplacement.
+- **Double curseur** sous le graphique : il choisit une **tranche de la largeur
+  de la bande** (de la gauche à la droite de l'axe A→B), pas une portion de la
+  longueur. Aux deux extrémités, toute la bande ; rapprochés, seuls les points
+  de la tranche (par exemple le centre, ou un seul côté) sont dessinés et
+  visables. Il ne recalcule rien : le worker rend l'écart latéral de chaque
+  point (positif à gauche).
+- **Mesure** : **la même que sur la carte**, pas un second outil — la chaîne
+  A→B→C avec le tableau Segment / Horizontale / Dénivelé / 3D et son total
+  (`MESURE.tableauHtml`, partagé), « Annuler le dernier point », « Effacer »,
+  Retour arrière / Suppr. Les points du graphique deviennent des points de la
+  mesure (`x` = distance le long de l'axe, `sol` = altitude). Le clic s'accroche
+  au point visible le plus proche.
 - Compteur de points de la bande, et un avis si la bande est longue (> 500 m)
   ou si la densité est faible (niveau d'octree grossier).
 
@@ -86,7 +94,7 @@ Un message `profil` au worker (`relief-travailleur.js`), sur le modèle de
   linéaire de ses points (centimètres entiers, `p.xc + ox`…). Pour un point :
   `s = (P − A)·u` (distance le long de l'axe), `d = (P − A)·n` (écart latéral),
   gardé si `0 ≤ s ≤ |AB|` et `|d| ≤ largeur/2`.
-- Sortie : `s` (Float32, m), `z` (Float32, altitude absolue en m), `cls`
+- Sortie : `s` (Float32, m), `d` (écart latéral, m, positif à gauche), `z` (Float32, altitude absolue en m), `cls`
   (Uint8), `n`, longueur de l'axe, histogramme par classe. Tout est rendu : le
   filtrage par classe se fait côté modale (cocher ne redemande rien).
 - Plafond de 1 M de points avec le même tirage par hachage que `nuage3d`

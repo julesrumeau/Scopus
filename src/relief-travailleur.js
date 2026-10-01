@@ -96,7 +96,7 @@ function corpsTravailleurRelief() {
       } else if (m.type === 'profil') {
         const r = moteur.profil(m.a, m.b, m.largeur, m.budget, m.actifs ? new Set(m.actifs) : undefined);
         if (r.raison) { self.postMessage({ type: 'profil', id: m.id, vide: true, raison: r.raison }); return; }
-        self.postMessage({ type: 'profil', id: m.id, ...r }, [r.s.buffer, r.z.buffer, r.cls.buffer]);
+        self.postMessage({ type: 'profil', id: m.id, ...r }, [r.s.buffer, r.z.buffer, r.d.buffer, r.cls.buffer]);
       } else if (m.type === 'drape3d') {
         const valeurs = moteur.drape3d(m.cle, m.reglagesCouche, m.min, m.max);
         self.postMessage({ type: 'drape3d', id: m.id, valeurs }, valeurs ? [valeurs.buffer] : []);

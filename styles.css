@@ -1233,22 +1233,58 @@ dialog.fenetre .legende button.cls { cursor: pointer; }
 /* Le bouton n'a de sens qu'en vue normale : `?dalle` n'a pas de profil. */
 body:not([data-mode="vue"]) #mode-profil { display: none !important; }
 
-/* La petite fenêtre de choix de la bande : sur la carte, en bas au centre (en
-   haut sous 600 px, pour ne pas passer sous la feuille du panneau). */
+/* La carte de choix de la bande : flottante sur la carte, en bas au centre
+   (en haut sous 600 px, pour ne pas passer sous la feuille du panneau). Sombre
+   et un peu translucide, comme le reste de l'interface, avec une seule action
+   colorée — Valider. */
 .fenetre-profil {
-  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+  position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
   z-index: 780;
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 14px;
+  display: flex; align-items: center; gap: 10px 18px; flex-wrap: wrap; justify-content: center;
   max-width: calc(100% - 24px);
-  padding: 10px 14px;
-  background: var(--fond-2); color: var(--texte);
-  border: 1px solid var(--bord); border-radius: 10px;
+  padding: 10px 12px 10px 16px;
+  background: rgba(18, 22, 30, 0.93);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  color: var(--texte);
+  border: 1px solid var(--bord); border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
 }
-.fenetre-profil .vide { margin: 0; }
-.profil-largeur { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--texte-2); }
-.profil-largeur input[type="range"] { width: 120px; }
-.profil-largeur input[type="number"] { width: 64px; }
-@media (max-width: 600px) { .fenetre-profil { bottom: auto; top: 12px; } }
+.profil-consigne { margin: 0; font-size: 12.5px; color: var(--texte-2); max-width: 22ch; line-height: 1.35; }
+.profil-largeur { display: flex; align-items: center; gap: 10px; margin: 0; }
+.profil-etiquette { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--texte-2); }
+.profil-largeur input[type="range"] { width: 130px; margin: 0; }
+.profil-actions { display: flex; align-items: center; gap: 6px; }
+.fenetre-profil .primaire { margin: 0; }
+@media (max-width: 600px) {
+  .fenetre-profil { bottom: auto; top: 12px; padding: 10px 12px; }
+  .profil-consigne { max-width: none; flex-basis: 100%; text-align: center; }
+}
+
+/* Un champ numérique sombre avec son unité dedans, pour ne pas laisser le
+   champ blanc du navigateur sur un fond noir. Sans flèches natives. */
+.champ-unite {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 30px; padding: 0 9px;
+  background: var(--fond-3); border: 1px solid var(--bord); border-radius: 8px;
+}
+.champ-unite:focus-within { border-color: var(--accent); }
+.champ-unite input[type="number"] {
+  width: 3.2em; padding: 0; margin: 0;
+  background: none; border: 0; outline: 0;
+  color: var(--texte); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; text-align: right;
+  -moz-appearance: textfield; appearance: textfield;
+}
+.champ-unite input[type="number"]::-webkit-inner-spin-button,
+.champ-unite input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.champ-unite em { font-style: normal; font-size: 12px; color: var(--texte-2); }
+
+/* Un bouton sans cadre, pour l'action qu'on n'a pas besoin de mettre en avant. */
+.btn-discret {
+  background: none; border: 0; border-radius: 8px;
+  padding: 7px 10px; color: var(--texte-2); font: inherit; font-size: 12.5px; cursor: pointer;
+}
+.btn-discret:hover:not(:disabled) { background: var(--fond-3); color: var(--texte); }
+.btn-discret:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Les poignées A et B de la bande, glissables. */
 .poignee-profil {
@@ -1270,12 +1306,11 @@ dialog.fenetre-profil-grande[open] { display: flex; flex-direction: column; gap:
 .profil-entete { display: flex; align-items: center; justify-content: space-between; }
 .profil-entete h2 { margin: 0; }
 .profil-reglages { align-items: center; gap: 14px; }
-#profil-canvas { flex: 1 1 0; min-height: 200px; width: 100%; display: block; background: #0b0e13; border-radius: 6px; }
-.profil-portee { margin: 0; }
-.profil-mesure { display: flex; flex-wrap: wrap; gap: 8px 28px; min-height: 44px; align-items: center; }
-.profil-mesure > div { display: flex; flex-direction: column; }
-.profil-mesure small { font-size: 11px; color: var(--texte-2); }
-.profil-mesure b { font-size: 22px; color: #ffd24a; text-shadow: 0 0 2px #000; }
+#profil-canvas { flex: 1 1 0; min-height: 200px; width: 100%; display: block; background: #0b0e13; border-radius: 6px; touch-action: none; cursor: crosshair; }
+.profil-gestes { margin-left: auto; font-size: 11.5px; color: var(--texte-2); }
+.profil-tranche { margin: 0; }
+.profil-mesure { min-height: 44px; }
+.profil-mesure .vide { margin: 0; }
 #profil-classes { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 0; }
 #profil-classes .case { margin: 0; }
 

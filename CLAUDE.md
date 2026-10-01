@@ -234,12 +234,18 @@ d'arbres et de bâtiments sans QGIS. Conception :
 - **La géométrie est pure** (`profil.js`, `fabriqueProfil`) pour se tester à
   froid et se composer dans le worker.
 - **Le graphique** (`profil-graphique.js`) est un canevas 2D : classes par
-  couleur, sol dessiné en dernier, repères de mesure accrochés au point visible
-  le plus proche (14 px) — pour mesurer la cime, pas l'endroit où la souris est
-  tombée. Le double curseur **recadre**, il ne recalcule pas.
-- **La largeur est aussi dans la modale** et recalcule au `change` (pas à
-  l'`input`). Les classes de la modale partent de la légende 3D mais lui sont
-  **locales**.
+  couleur, sol dessiné en dernier, molette pour zoomer sous le curseur, glisser
+  pour déplacer. Un appui qui bouge de moins de 4 px est un clic de mesure.
+- **Une seule mesure.** Le graphique alimente la chaîne de mesure de la carte
+  (`MESURE.tableauHtml`, partagé) : ses points deviennent `{ x: distance sur
+  l'axe, sol: altitude }`. Le clic s'accroche au point visible le plus proche
+  (14 px) — pour mesurer la cime, pas l'endroit où la souris est tombée.
+- **Le double curseur choisit une tranche de la largeur de la bande** (le worker
+  rend l'écart latéral de chaque point), il ne recalcule rien.
+- **La largeur** va de 0,5 à 100 m, curseur logarithmique (une échelle linéaire
+  n'aurait aucune finesse à l'échelle d'un arbre) et champ précis ; elle est
+  aussi dans la modale et recalcule au `change`. Les classes de la modale
+  partent de la légende 3D mais lui sont **locales**.
 - Pas de hauteur automatique (la valeur d'une cime et du sol se lit sur le
   graphique), pas de profil en 3D, pas d'export : voir `TODO.md` #7 pour la
   date d'acquisition (`source:height:date`).

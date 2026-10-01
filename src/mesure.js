@@ -75,4 +75,33 @@ function totaux(segs) {
   return { totaleHorizontale, totale3D };
 }
 
-const MESURE = { sommet, distances, segments, totaux };
+/**
+ * Le tableau de la mesure en chaîne (Segment / Horizontale / Dénivelé / 3D,
+ * avec le total) pour une liste de points — le même dans le panneau de la
+ * carte et dans la modale du profil, pour qu'il n'y ait qu'un outil de mesure.
+ * Vide sous deux points : il n'y a pas encore de segment à tabuler.
+ *
+ * @param {Array<{x: number, y: number, sol: ?number, hauteur?: number}>} points
+ * @returns {string} du HTML, ou '' sans segment
+ */
+function tableauHtml(points) {
+  const segs = segments(points);
+  if (!segs.length) return '';
+  const lettre = (i) => (i < 26 ? String.fromCharCode(65 + i) : String(i + 1));
+  const m = (v) => (v == null ? '—' : `${v.toFixed(1)} m`);
+  const signe = (v) => (v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(1)} m`);
+  const { totaleHorizontale, totale3D } = totaux(segs);
+  const rangees = segs.map((s, i) => `<tr>
+      <td>${lettre(i)}→${lettre(i + 1)}</td>
+      <td>${m(s.horizontale)}</td>
+      <td>${signe(s.denivele)}</td>
+      <td>${m(s.totale)}</td>
+    </tr>`).join('');
+  return `<div class="mesure-scroll"><table class="tableau-mesure">
+      <thead><tr><th>Segment</th><th>Horizontale</th><th>Dénivelé</th><th>3D</th></tr></thead>
+      <tbody>${rangees}</tbody>
+      <tfoot><tr><td>Total</td><td>${m(totaleHorizontale)}</td><td></td><td>${m(totale3D)}</td></tr></tfoot>
+    </table></div>`;
+}
+
+const MESURE = { sommet, distances, segments, totaux, tableauHtml };

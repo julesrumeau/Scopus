@@ -458,7 +458,8 @@ function fabriqueVueRelief() {
       const ax0 = Math.round(a[0] * 100), ay0 = Math.round(a[1] * 100);
       const longCm = ax.longueur * 100, demiCm = larg * 50;
       // Le parcours commun aux deux passages : le visiteur reçoit s (cm le long
-      // de l'axe), z (cm) et la classe, plus x et y absolus (cm) pour le hachage.
+      // de l'axe), z (cm), la classe, x et y absolus (cm) pour le hachage, et
+      // l'écart latéral (cm, positif à gauche de A→B).
       const pourChaque = (visiteur) => {
         for (const [, bl] of dedans) {
           const p = bl.points, [ox, oy, oz] = bl.origineCm;
@@ -467,8 +468,9 @@ function fabriqueVueRelief() {
             const dx = xa - ax0, dy = ya - ay0;
             const s = dx * ax.ux + dy * ax.uy;
             if (s < 0 || s > longCm) continue;
-            if (Math.abs(dx * ax.nx + dy * ax.ny) > demiCm) continue;
-            visiteur(s, p.zc[i] + oz, p.cls[i], xa, ya);
+            const lat = dx * ax.nx + dy * ax.ny;
+            if (Math.abs(lat) > demiCm) continue;
+            visiteur(s, p.zc[i] + oz, p.cls[i], xa, ya, lat);
           }
         }
       };
@@ -477,16 +479,16 @@ function fabriqueVueRelief() {
       if (!total) return { raison: 'Aucun point dans la bande — zoomez, ou élargissez-la.' };
       const taux = Math.min(1, budget / total);
       const cap = Math.min(total, Math.ceil(budget * 1.05) + 1000);
-      const S = new Float32Array(cap), Z = new Float32Array(cap), C = new Uint8Array(cap);
+      const S = new Float32Array(cap), Z = new Float32Array(cap), D = new Float32Array(cap), C = new Uint8Array(cap);
       const parCode = new Uint32Array(256);
       let n = 0;
-      pourChaque((s, z, c, xa, ya) => {
+      pourChaque((s, z, c, xa, ya, lat) => {
         if (taux < 1 && hacher(xa, ya, z) >= taux) return;   // le visiteur est une fonction : return saute le point
         if (n === cap) return;   // le tirage dépasse la réserve : rare, on s'arrête là
-        S[n] = s / 100; Z[n] = z / 100; C[n] = c; parCode[c]++; n++;
+        S[n] = s / 100; Z[n] = z / 100; D[n] = lat / 100; C[n] = c; parCode[c]++; n++;
       });
       return {
-        n, s: n === cap ? S : S.slice(0, n), z: n === cap ? Z : Z.slice(0, n), cls: n === cap ? C : C.slice(0, n),
+        n, s: n === cap ? S : S.slice(0, n), z: n === cap ? Z : Z.slice(0, n), d: n === cap ? D : D.slice(0, n), cls: n === cap ? C : C.slice(0, n),
         longueur: ax.longueur, largeur: larg, total, plafonne: taux < 1,
         parClasse: [...histogramme(parCode)],
       };
