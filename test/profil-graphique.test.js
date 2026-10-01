@@ -254,3 +254,27 @@ test('hors de l’écran, un point n’est pas visé et un clic au bord ne lui e
   assert.notEqual(vus.at(-1)[0].s, 0);
   assert.ok(a.x > 0);
 });
+
+// ── Les graduations suivent la place disponible (vu sur téléphone : « 0 m5 m10 m15 m… ») ──
+
+/** Un canevas de la largeur donnée, dont on relève les textes écrits. */
+function canevasTextes(largeur, hauteur) {
+  const textes = [];
+  const ctx = new Proxy({}, { get: (_, nom) => (nom === 'fillText' ? (t) => { textes.push(t); } : () => {}), set: () => true });
+  return {
+    textes, width: 0, height: 0, style: {}, addEventListener() {},
+    getContext: () => ctx,
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: largeur, height: hauteur }),
+  };
+}
+
+test('moins de place, moins de graduations : celles de l’axe horizontal ne se chevauchent pas', () => {
+  const large = canevasTextes(1000, 400), etroit = canevasTextes(300, 400);
+  graphique(ProfilGraphique, large).g.definir(donnees());
+  graphique(ProfilGraphique, etroit).g.definir(donnees());
+  const enM = (c) => c.textes.filter((t) => /^\d+ m$/.test(t));
+  assert.ok(enM(etroit).length < enM(large).length, `${enM(etroit).length} ≥ ${enM(large).length}`);
+  // Sur 300 px (230 utiles), chaque graduation de l'axe horizontal garde au moins ~60 px.
+  const horizontales = etroit.textes.filter((t) => /^(0|20|40|60|80|100) m$/.test(t));
+  assert.ok(horizontales.length * 60 <= 300, `${horizontales.length} graduations sur 300 px`);
+});

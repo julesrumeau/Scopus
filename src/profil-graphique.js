@@ -279,7 +279,10 @@ class ProfilGraphique {
     ctx.lineWidth = 1;
     // Graduations : altitude (lignes), distance (repères en bas).
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    for (const z of PROFIL.graduations(e.zmin, e.zmax, 6)) {
+    // Autant de graduations que la place en porte : trop serrées, elles
+    // s'écrivent les unes sur les autres (« 0 m5 m10 m15 m… » sur un téléphone).
+    const nbX = Math.max(2, Math.floor((e.W - m.g - m.d) / 90)), nbZ = Math.max(2, Math.floor((e.H - m.h - m.b) / 48));
+    for (const z of PROFIL.graduations(e.zmin, e.zmax, nbZ)) {
       const y = e.y(z);
       ctx.strokeStyle = 'rgba(255,255,255,0.10)';
       ctx.beginPath(); ctx.moveTo(m.g, y); ctx.lineTo(e.W - m.d, y); ctx.stroke();
@@ -287,7 +290,7 @@ class ProfilGraphique {
       ctx.fillText(`${z} m`, m.g - 6, y);
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    for (const s of PROFIL.graduations(this.s0, this.s1, 8)) {
+    for (const s of PROFIL.graduations(this.s0, this.s1, nbX)) {
       const x = e.x(s);
       ctx.strokeStyle = 'rgba(255,255,255,0.10)';
       ctx.beginPath(); ctx.moveTo(x, m.h); ctx.lineTo(x, e.H - m.b); ctx.stroke();

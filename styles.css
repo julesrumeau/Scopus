@@ -1255,9 +1255,28 @@ body:not([data-mode="vue"]) #mode-profil { display: none !important; }
 .profil-largeur input[type="range"] { width: 130px; margin: 0; }
 .profil-actions { display: flex; align-items: center; gap: 6px; }
 .fenetre-profil .primaire { margin: 0; }
+/* Sur téléphone : en bas de la carte, au-dessus de la feuille repliée (et non
+   en haut, où elle passait sous les boutons de zoom), sur toute la largeur. */
 @media (max-width: 600px) {
-  .fenetre-profil { bottom: auto; top: 12px; padding: 10px 12px; }
-  .profil-consigne { max-width: none; flex-basis: 100%; text-align: center; }
+  .fenetre-profil {
+    left: 12px; right: 12px; transform: none; max-width: none;
+    top: auto; bottom: calc(var(--feuille-repliee, 136px) + 12px);
+    padding: 10px 12px; gap: 8px 12px;
+  }
+  .profil-consigne { max-width: none; flex-basis: 100%; }
+  .profil-largeur { flex: 1 1 auto; min-width: 0; }
+  .profil-largeur input[type="range"] { flex: 1 1 auto; width: auto; min-width: 0; }
+  .profil-actions { margin-left: auto; }
+}
+
+/* Écran bas (téléphone en paysage) : une seule ligne, basse et étroite, pour
+   ne pas recouvrir la carte où l'on pose les points. */
+@media (max-height: 520px) and (min-width: 601px) {
+  .fenetre-profil { flex-wrap: nowrap; bottom: 8px; padding: 6px 10px 6px 14px; gap: 12px; }
+  .profil-consigne { max-width: none; white-space: nowrap; font-size: 11.5px; }
+  .profil-conseil { display: none; }
+  .profil-largeur input[type="range"] { width: 90px; }
+  .fenetre-profil .profil-etiquette { display: none; }
 }
 
 /* Un champ numérique sombre avec son unité dedans, pour ne pas laisser le
@@ -1307,9 +1326,25 @@ dialog.fenetre-profil-grande[open] { display: flex; flex-direction: column; gap:
    (le tableau de mesure, qui s'allonge à chaque point) se lit en faisant
    défiler la fenêtre — `dialog.fenetre` porte déjà `overflow-y: auto`. */
 dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
+@media (max-height: 520px) { #profil-canvas { height: max(220px, 62vh); } }
 .profil-entete { display: flex; align-items: center; justify-content: space-between; }
 .profil-entete h2 { margin: 0; }
-.profil-reglages { align-items: center; gap: 14px; }
+/* La ligne de réglages de la modale : une seule ligne sur grand écran ; sur
+   petit, la largeur et « Vue entière » restent ensemble et l'état prend sa
+   propre ligne (en colonne étroite, il s'écrivait lettre par lettre). */
+.profil-reglages { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.profil-reglages .profil-largeur { order: 1; }
+#profil-etat { order: 2; flex: 1 1 14em; min-width: 0; margin: 0; }
+.profil-gestes { order: 3; }
+#profil-recadrer { order: 4; }
+@media (max-width: 700px) {
+  .profil-bande { display: none; }
+  #profil-etat { order: 5; flex-basis: 100%; }
+  .profil-gestes { display: none; }
+  #profil-recadrer { margin-left: auto; }
+  dialog.fenetre-profil-grande { width: calc(100% - 16px); height: calc(100% - 16px); padding: 12px; }
+}
+@media (pointer: coarse) { .profil-gestes { display: none; } }
 #profil-canvas { height: clamp(280px, 55vh, 560px); width: 100%; display: block; background: #0b0e13; border-radius: 6px; touch-action: none; cursor: crosshair; }
 .profil-gestes { margin-left: auto; font-size: 11.5px; color: var(--texte-2); }
 .profil-tranche { margin: 0; }

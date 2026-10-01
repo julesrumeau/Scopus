@@ -3145,9 +3145,10 @@ if (MODE_VUE) (async () => {
   /** La consigne, les boutons et les champs de largeur suivent l'état. */
   function majFenetreProfil() {
     const v = profil.A && profil.B ? PROFIL.verdict(profil.A, profil.B) : null;
-    $('profil-consigne').textContent = !profil.A ? 'Cliquez le premier point sur la carte.'
+    // La part « glissez A ou B » est masquée sur écran bas (`.profil-conseil`) : la fenêtre n'y tient qu'en une ligne.
+    $('profil-consigne').innerHTML = !profil.A ? 'Cliquez le premier point sur la carte.'
       : !profil.B ? 'Cliquez le second point.'
-      : v.ok ? `Axe de ${Math.round(PROFIL.axe(profil.A, profil.B).longueur)} m — glissez A ou B pour l’ajuster.`
+      : v.ok ? `Axe de ${Math.round(PROFIL.axe(profil.A, profil.B).longueur)} m<span class="profil-conseil"> — glissez A ou B pour l’ajuster.</span>`
       : v.raison;
     $('profil-valider').disabled = !(v && v.ok);
     $('profil-effacer').disabled = !profil.A;
