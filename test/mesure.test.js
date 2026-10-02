@@ -112,7 +112,7 @@ test('tableauHtml — une chaîne de trois points : deux segments nommés et un 
   assert.match(h, /\+12\.0 m/);
   assert.match(h, /13\.0 m/);
   assert.match(h, /-12\.0 m/);
-  assert.match(h, /<tfoot><tr><td>Total<\/td><td>5\.0 m<\/td><td><\/td><td>25\.0 m<\/td>/);
+  assert.match(h, /<tfoot><tr><td>Total<\/td><td>5\.0 m<\/td><td><\/td><td><\/td><td>25\.0 m<\/td>/);   // ni dénivelé ni pente totaux
 });
 
 test('tableauHtml — sous deux points, rien à tabuler', () => {
@@ -124,4 +124,52 @@ test('tableauHtml — une altitude inconnue s’écrit « — », jamais un nomb
   const h = MESURE.tableauHtml([{ x: 0, y: 0, sol: null }, { x: 3, y: 4, sol: 10 }]);
   assert.match(h, /5\.0 m/);
   assert.match(h, /—/);
+});
+
+// ── La pente d'un segment (R1) ───────────────────────────────────────────────
+//
+// En pourcentage seul : c'est la forme du tag OSM `incline` (`incline=15%`), que
+// la personne recopie telle quelle. Les degrés ont été essayés puis retirés.
+
+const proche = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) <= tol, `${a} ≠ ${b}`);
+
+test('pente — un triangle 3-4-5 : 3 m de dénivelé sur 4 m, soit 75 %', () => {
+  proche(MESURE.pente(4, 3), 75);
+});
+
+test('pente — signée comme le dénivelé : une descente est négative', () => {
+  proche(MESURE.pente(4, -3), -75);
+});
+
+test('pente — un plat est 0 %, un 45° est 100 %, une pente raide dépasse 100 %', () => {
+  assert.equal(MESURE.pente(10, 0), 0);
+  proche(MESURE.pente(5, 5), 100);
+  proche(MESURE.pente(3, 4), 4 / 3 * 100);   // 53° : 133 %
+});
+
+test('pente — horizontale nulle ou altitude inconnue : pas de valeur, jamais une pente inventée', () => {
+  assert.equal(MESURE.pente(0, 5), null);          // à la verticale : rien à afficher
+  assert.equal(MESURE.pente(4, null), null);       // altitude d'un bout inconnue
+  assert.equal(MESURE.pente(null, 3), null);
+});
+
+test('tableauHtml — une colonne « Pente » en pourcentage, signée', () => {
+  const pts = [
+    { x: 0, y: 0, sol: 100, hauteur: 0 },
+    { x: 4, y: 0, sol: 103, hauteur: 0 },      // A→B : 4 m, +3 m  → +75.0 %
+    { x: 8, y: 0, sol: 100, hauteur: 0 },      // B→C : 4 m, −3 m  → -75.0 %
+  ];
+  const h = MESURE.tableauHtml(pts);
+  assert.match(h, /<th>Pente<\/th>/);
+  assert.match(h, /<td>\+75\.0 %<\/td>/);
+  assert.match(h, /<td>-75\.0 %<\/td>/);
+  assert.doesNotMatch(h, /°/);                      // plus de degrés
+  // La colonne vient après le dénivelé et avant la distance 3D.
+  assert.ok(h.indexOf('Dénivelé') < h.indexOf('Pente') && h.indexOf('Pente') < h.indexOf('<th>3D</th>'));
+});
+
+test('tableauHtml — une pente impossible s’écrit « — » dans sa cellule', () => {
+  // Deux points au même endroit, à deux altitudes : horizontale nulle.
+  const h = MESURE.tableauHtml([{ x: 0, y: 0, sol: 100, hauteur: 0 }, { x: 0, y: 0, sol: 110, hauteur: 0 }]);
+  assert.match(h, /<td>\+10\.0 m<\/td>\s*<td>—<\/td>/);
 });

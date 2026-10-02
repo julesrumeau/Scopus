@@ -315,7 +315,7 @@ html, body {
 /* Chaîne de mesure : un segment par ligne, le total en pied de tableau. Le
    panneau descend jusqu'à 380 px (tiroir mobile) : le tableau défile dans son
    propre conteneur plutôt que de faire déborder la page. */
-.mesure-scroll { overflow-x: auto; margin: 0 0 12px; }
+.mesure-scroll { overflow-x: auto; margin: 0 0 12px; container-type: inline-size; }
 .tableau-mesure { border-collapse: collapse; font-size: 12.5px; white-space: nowrap; }
 .tableau-mesure th, .tableau-mesure td {
   padding: 4px 10px 4px 0;
@@ -325,6 +325,11 @@ html, body {
 .tableau-mesure th:first-child, .tableau-mesure td:first-child { text-align: left; }
 .tableau-mesure thead th { color: var(--texte-2); font-weight: 400; border-bottom: 1px solid var(--bord); }
 .tableau-mesure tfoot td { border-top: 1px solid var(--bord); font-weight: 600; }
+/* Cinq colonnes dans moins de 340 px (la modale du profil sur téléphone) : on
+   resserre les cellules plutôt que de faire défiler. */
+@container (max-width: 340px) {
+  .tableau-mesure th, .tableau-mesure td { padding-right: 5px; }
+}
 
 /* ── Contrôles ───────────────────────────────────────────────────────────── */
 

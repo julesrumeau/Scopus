@@ -76,6 +76,27 @@ function totaux(segs) {
 }
 
 /**
+ * La pente d'un segment, **en pourcentage** (dénivelé / horizontale × 100),
+ * signée comme le dénivelé : montée positive, descente négative. C'est la forme
+ * du tag OSM `incline` (`incline=15%`), que la personne recopie telle quelle ;
+ * les degrés ont été essayés puis retirés (le wiki OSM ne les préfère que là où
+ * ils sont d'usage courant). Une pente raide dépasse 100 % : 45° font 100 %.
+ *
+ * `null` si l'horizontale est nulle — une pente verticale n'a pas de valeur à
+ * afficher — ou si l'une des deux distances est inconnue : une altitude
+ * absente ne se devine pas. Pas de pente « totale » d'une chaîne, pour la même
+ * raison que pour le dénivelé : une somme signée ne dirait rien de juste.
+ *
+ * @param {?number} horizontale distance horizontale, en mètres
+ * @param {?number} denivele dénivelé signé, en mètres
+ * @returns {?number} pourcentage, ou `null`
+ */
+function pente(horizontale, denivele) {
+  if (horizontale == null || denivele == null || !(horizontale > 1e-9)) return null;
+  return (denivele / horizontale) * 100;
+}
+
+/**
  * Le tableau de la mesure en chaîne (Segment / Horizontale / Dénivelé / 3D,
  * avec le total) pour une liste de points — le même dans le panneau de la
  * carte et dans la modale du profil, pour qu'il n'y ait qu'un outil de mesure.
@@ -90,18 +111,23 @@ function tableauHtml(points) {
   const lettre = (i) => (i < 26 ? String.fromCharCode(65 + i) : String(i + 1));
   const m = (v) => (v == null ? '—' : `${v.toFixed(1)} m`);
   const signe = (v) => (v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(1)} m`);
+  const penteTexte = (sg) => {
+    const p = pente(sg.horizontale, sg.denivele);
+    return p == null ? '—' : `${p >= 0 ? '+' : ''}${p.toFixed(1)} %`;
+  };
   const { totaleHorizontale, totale3D } = totaux(segs);
   const rangees = segs.map((s, i) => `<tr>
       <td>${lettre(i)}→${lettre(i + 1)}</td>
       <td>${m(s.horizontale)}</td>
       <td>${signe(s.denivele)}</td>
+      <td>${penteTexte(s)}</td>
       <td>${m(s.totale)}</td>
     </tr>`).join('');
   return `<div class="mesure-scroll"><table class="tableau-mesure">
-      <thead><tr><th>Segment</th><th>Horizontale</th><th>Dénivelé</th><th>3D</th></tr></thead>
+      <thead><tr><th>Segment</th><th>Horizontale</th><th>Dénivelé</th><th>Pente</th><th>3D</th></tr></thead>
       <tbody>${rangees}</tbody>
-      <tfoot><tr><td>Total</td><td>${m(totaleHorizontale)}</td><td></td><td>${m(totale3D)}</td></tr></tfoot>
+      <tfoot><tr><td>Total</td><td>${m(totaleHorizontale)}</td><td></td><td></td><td>${m(totale3D)}</td></tr></tfoot>
     </table></div>`;
 }
 
-const MESURE = { sommet, distances, segments, totaux, tableauHtml };
+const MESURE = { sommet, distances, segments, totaux, pente, tableauHtml };
