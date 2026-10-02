@@ -216,3 +216,108 @@ test('sansDefaut : une classe absente de la zone ne fait pas passer le défaut p
   assert.deepEqual(plat(LIEN.sansDefaut([2], [2, 9])), [2]);
   assert.deepEqual(plat(LIEN.sansDefaut([2], [2, 9], [])), [2]);
 });
+
+// ── Les réglages de la vue dans le lien (R2b) ────────────────────────────────
+//
+// Le plus possible de ce qui change ce qu'on voit : les couches de chaque côté du
+// rideau, sa position, le contraste, les réglages du SVF, le lissage, puis ceux de la 3D
+// (couleur, plafond de points, ombrage de profondeur, classes cachées) et l'onglet. Le
+// lien n'écrit que ce qu'on lui donne — l'appelant ne donne que ce qui diffère du défaut,
+// pour qu'un lien reste court — et chaque paramètre se lit seul : un abîmé tombe, les
+// autres restent.
+
+const VUE_COMPLETE = () => ({
+  onglet: '3d', gauche: 'ombrage', droite: 'ouverture-neg', rideau: 30, contraste: 1.5,
+  svf: { directions: 12, rayon: 15 }, lisse: false,
+  couleur: 'hauteur', plafond: 8, edl: false, cachees: [5, 3, 4],
+});
+
+const EXEMPLE_VUE = '&onglet=3d&gauche=ombrage&droite=ouverture-neg&rideau=30&contraste=1.5&svf=12/15&lisse=0'
+  + '&couleur=hauteur&plafond=8&edl=0&cachees=3.4.5';
+
+test('ecrirePartage : une vue vide n’écrit rien', () => {
+  assert.equal(LIEN.ecrirePartage({ vue: {} }), '');
+  assert.equal(LIEN.ecrirePartage({ vue: undefined }), '');
+});
+
+test('ecrirePartage : tous les réglages de la vue, dans l’ordre fixe', () => {
+  assert.equal(LIEN.ecrirePartage({ vue: VUE_COMPLETE() }), EXEMPLE_VUE);
+});
+
+test('ecrirePartage : chaque réglage s’écrit seul, et se glisse après le reste', () => {
+  assert.equal(LIEN.ecrirePartage({ vue: { rideau: 70 } }), '&rideau=70');
+  assert.equal(LIEN.ecrirePartage({ vue: { lisse: false } }), '&lisse=0');
+  assert.equal(LIEN.ecrirePartage({ vue: { edl: false } }), '&edl=0');
+  assert.equal(LIEN.ecrirePartage({ vue: { couleur: 'relief' } }), '&couleur=relief');
+  // `lisse: true` et `edl: true` sont les défauts : jamais écrits.
+  assert.equal(LIEN.ecrirePartage({ vue: { lisse: true, edl: true } }), '');
+  // Après la coupe et la sélection.
+  assert.equal(LIEN.ecrirePartage({ ...complet(), sol: [2], vue: { rideau: 70 } }), EXEMPLE + '&sol=2&rideau=70');
+});
+
+test('ecrirePartage : les nombres de la vue sont arrondis et sans zéros de queue', () => {
+  assert.match(LIEN.ecrirePartage({ vue: { contraste: 1.50, plafond: 5.0, rideau: 29.6 } }), /&rideau=30&contraste=1\.5&plafond=5$/);
+  assert.match(LIEN.ecrirePartage({ vue: { contraste: 2.04, plafond: 7.46 } }), /contraste=2&plafond=7\.5/);
+  // Un rideau hors de [0, 100] est ramené dedans.
+  assert.match(LIEN.ecrirePartage({ vue: { rideau: 140 } }), /rideau=100/);
+  assert.match(LIEN.ecrirePartage({ vue: { rideau: -5 } }), /rideau=0/);
+});
+
+test('ecrirePartage : une couche ou une couleur aux caractères douteux n’entre pas dans le lien', () => {
+  assert.equal(LIEN.ecrirePartage({ vue: { gauche: 'a b' } }), '');
+  assert.equal(LIEN.ecrirePartage({ vue: { gauche: '<script>', droite: 'x,y' } }), '');
+  assert.equal(LIEN.ecrirePartage({ vue: { couleur: 'inconnue' } }), '');
+  assert.equal(LIEN.ecrirePartage({ vue: { onglet: 'carte' } }), '');   // seul « 3d » s'écrit : la carte est le défaut
+});
+
+test('le lien avec tous les réglages reste sûr dans le forum et court', () => {
+  const f = LIEN.ecrire({ zoom: 18, lat: 42.857536, lon: 1.061833 })
+    + LIEN.ecrirePartage({ ...complet(), sol: [2, 6], vue: VUE_COMPLETE() });
+  assert.match(f, /^[A-Za-z0-9._~/=&-]+$/);
+  assert.ok(f.length < 400, `${f.length} caractères`);
+});
+
+test('lirePartage : rend les réglages de la vue qu’ecrirePartage a produits', () => {
+  const lu = plat(LIEN.lirePartage('#map=18/42.8/1.0' + EXEMPLE_VUE));
+  assert.deepEqual(lu, { vue: {
+    onglet: '3d', gauche: 'ombrage', droite: 'ouverture-neg', rideau: 30, contraste: 1.5,
+    svf: { directions: 12, rayon: 15 }, lisse: false,
+    couleur: 'hauteur', plafond: 8, edl: false, cachees: [3, 4, 5],
+  } });
+});
+
+test('lirePartage : la vue n’a pas besoin d’une bande, la coupe n’a pas besoin de la vue', () => {
+  assert.deepEqual(plat(LIEN.lirePartage('#map=18/42.8/1.0&rideau=70')), { vue: { rideau: 70 } });
+  const avecBande = plat(LIEN.lirePartage('#map=18/42.8/1.0' + EXEMPLE.replace('&sel=42.857536/1.061833', '') + '&rideau=70'));
+  assert.equal(avecBande.vue.rideau, 70);
+  assert.equal(avecBande.coupe, true);
+});
+
+test('lirePartage : chaque réglage abîmé tombe seul, les autres de la vue restent', () => {
+  const lu = (reste) => plat(LIEN.lirePartage('#map=18/42.8/1.0&rideau=30&' + reste)).vue;
+  const garde = (v) => v && v.rideau === 30;
+  for (const abime of ['gauche=a%20b', 'gauche=<b>', 'gauche=', 'gauche=1carte', 'droite=x,y', 'droite=' + 'a'.repeat(40)]) {
+    const v = lu(abime); assert.ok(garde(v) && v.gauche === undefined && v.droite === undefined, abime);
+  }
+  for (const abime of ['rideau=101', 'rideau=-1', 'rideau=abc', 'rideau=1.5', 'rideau=']) {
+    const v = plat(LIEN.lirePartage('#map=18/42.8/1.0&contraste=1.5&' + abime)).vue;
+    assert.ok(v && v.contraste === 1.5 && v.rideau === undefined, abime);
+  }
+  for (const abime of ['contraste=0', 'contraste=99', 'contraste=abc', 'contraste=1e1', 'contraste=-1']) assert.equal(lu(abime).contraste, undefined, abime);
+  for (const abime of ['svf=8', 'svf=8/10/3', 'svf=0/10', 'svf=8/0', 'svf=8/abc', 'svf=100/10', 'svf=8/500', 'svf=1.5/10']) assert.equal(lu(abime).svf, undefined, abime);
+  for (const abime of ['lisse=1', 'lisse=oui', 'lisse=']) assert.equal(lu(abime).lisse, undefined, abime);
+  for (const abime of ['edl=1', 'edl=non']) assert.equal(lu(abime).edl, undefined, abime);
+  for (const abime of ['couleur=inconnue', 'couleur=', 'couleur=Hauteur', 'couleur=intensite']) assert.equal(lu(abime).couleur, undefined, abime);
+  for (const abime of ['plafond=0', 'plafond=21', 'plafond=abc', 'plafond=1e1', 'plafond=-3']) assert.equal(lu(abime).plafond, undefined, abime);
+  for (const abime of ['cachees=3.x', 'cachees=300', 'cachees=', 'cachees=3,4']) assert.equal(lu(abime).cachees, undefined, abime);
+  for (const abime of ['onglet=carte', 'onglet=2d', 'onglet=']) assert.equal(lu(abime).onglet, undefined, abime);
+});
+
+test('lirePartage : une vue sans aucun réglage valide n’a pas de clé « vue »', () => {
+  assert.deepEqual(plat(LIEN.lirePartage('#map=18/42.8/1.0&rideau=999&couleur=x')), {});
+});
+
+test('lirePartage : le rideau lu est un entier de 0 à 100, jamais plus', () => {
+  assert.equal(plat(LIEN.lirePartage('#map=18/42.8/1.0&rideau=0')).vue.rideau, 0);
+  assert.equal(plat(LIEN.lirePartage('#map=18/42.8/1.0&rideau=100')).vue.rideau, 100);
+});

@@ -151,6 +151,70 @@ const LIEN = (() => {
     return ca.length === cb.length && ca.every((c, i) => c === cb[i]) ? undefined : a;
   }
 
+  // ── Les réglages de la vue (R2b) ──
+  //
+  // Le plus possible de ce qui change ce qu'on voit : couches de chaque côté du rideau, position
+  // du rideau, contraste, réglages du SVF, lissage ; puis, pour la 3D, la couleur, le plafond de
+  // points, l'ombrage de profondeur et les classes cachées ; et l'onglet. Le lien n'écrit que ce
+  // qu'on lui donne — l'appelant ne donne que ce qui diffère du défaut, pour qu'un lien reste
+  // court — et chaque réglage se lit seul : un abîmé tombe, les autres restent.
+
+  /** Une clé de couche (« svf », « ouverture-neg ») : lettres, chiffres et tirets, rien d'autre. */
+  const COUCHE = /^[A-Za-z][A-Za-z0-9-]{0,23}$/;
+  /** Les couleurs du nuage 3D de la vue normale (l'intensité n'y est pas téléchargée). */
+  const COULEURS = ['classification', 'hauteur', 'relief', 'elevation'];
+
+  function ecrireVue(v) {
+    const p = [];
+    if (!v) return p;
+    if (v.onglet === '3d') p.push('onglet=3d');
+    if (typeof v.gauche === 'string' && COUCHE.test(v.gauche)) p.push(`gauche=${v.gauche}`);
+    if (typeof v.droite === 'string' && COUCHE.test(v.droite)) p.push(`droite=${v.droite}`);
+    if (Number.isFinite(v.rideau)) p.push(`rideau=${Math.round(Math.min(100, Math.max(0, v.rideau)))}`);
+    if (Number.isFinite(v.contraste)) p.push(`contraste=${nombre(v.contraste, 1)}`);
+    if (v.svf && Number.isInteger(v.svf.directions) && Number.isInteger(v.svf.rayon)) p.push(`svf=${v.svf.directions}/${v.svf.rayon}`);
+    if (v.lisse === false) p.push('lisse=0');
+    if (COULEURS.includes(v.couleur)) p.push(`couleur=${v.couleur}`);
+    if (Number.isFinite(v.plafond)) p.push(`plafond=${nombre(v.plafond, 1)}`);
+    if (v.edl === false) p.push('edl=0');
+    const cachees = classesTriees(v.cachees);
+    if (cachees.length) p.push(`cachees=${cachees.join('.')}`);
+    return p;
+  }
+
+  /** Un décimal strict (ni exposant, ni signe, ni vide) dans [min, max], ou `undefined`. */
+  const decimalDans = (texte, min, max) => {
+    if (!/^\d+(\.\d+)?$/.test(String(texte ?? ''))) return undefined;
+    const x = Number(texte);
+    return x >= min && x <= max ? x : undefined;
+  };
+
+  function lireVue(params) {
+    const v = {};
+    if (params.get('onglet') === '3d') v.onglet = '3d';
+    for (const cle of ['gauche', 'droite']) {
+      const c = params.get(cle);
+      if (c !== null && COUCHE.test(c)) v[cle] = c;
+    }
+    const r = params.get('rideau');
+    if (r !== null && /^\d{1,3}$/.test(r) && Number(r) <= 100) v.rideau = Number(r);
+    const contraste = decimalDans(params.get('contraste'), 0.1, 10);
+    if (contraste !== undefined) v.contraste = contraste;
+    const svf = /^(\d{1,2})\/(\d{1,3})$/.exec(params.get('svf') ?? '');
+    if (svf && Number(svf[1]) >= 1 && Number(svf[1]) <= 64 && Number(svf[2]) >= 1 && Number(svf[2]) <= 100) {
+      v.svf = { directions: Number(svf[1]), rayon: Number(svf[2]) };
+    }
+    if (params.get('lisse') === '0') v.lisse = false;
+    const couleur = params.get('couleur');
+    if (COULEURS.includes(couleur)) v.couleur = couleur;
+    const plafond = decimalDans(params.get('plafond'), 0.5, 20);
+    if (plafond !== undefined) v.plafond = plafond;
+    if (params.get('edl') === '0') v.edl = false;
+    const cachees = params.has('cachees') ? classesLues(params.get('cachees')) : null;
+    if (cachees) v.cachees = cachees;
+    return Object.keys(v).length ? v : undefined;
+  }
+
   /**
    * Les paramètres de la coupe et de la sélection, à la suite de `map=…`.
    * @param {{profil?: {a: {lat:number, lon:number}, b: {lat:number, lon:number}, largeur:number},
@@ -180,6 +244,7 @@ const LIEN = (() => {
     if (p.sel) parties.push(`sel=${nombre(p.sel.lat, 6)}/${nombre(p.sel.lon, 6)}`);
     const sol = classesTriees(p.sol);
     if (sol.length) parties.push(`sol=${sol.join('.')}`);
+    parties.push(...ecrireVue(p.vue));
     return parties.map((x) => `&${x}`).join('');
   }
 
@@ -236,6 +301,8 @@ const LIEN = (() => {
     if (sel && latLonValides(sel[0], sel[1])) sortie.sel = { lat: sel[0], lon: sel[1] };
     const sol = params.has('sol') ? classesLues(params.get('sol')) : null;
     if (sol) sortie.sol = sol;
+    const vue = lireVue(params);
+    if (vue) sortie.vue = vue;
     return sortie;
   }
 
