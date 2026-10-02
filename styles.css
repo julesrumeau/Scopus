@@ -1342,12 +1342,13 @@ dialog.fenetre-profil-grande[open] { display: flex; flex-direction: column; gap:
 dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
 @media (max-height: 520px) { #profil-canvas { height: max(220px, 62vh); } }
 .profil-entete { display: flex; align-items: center; justify-content: space-between; }
-.profil-entete h2 { margin: 0; display: flex; align-items: center; gap: 10px; }
+.profil-entete h2 { margin: 0; }
 /* La ligne de réglages de la modale : une seule ligne sur grand écran ; sur
    petit, la largeur et « Vue entière » restent ensemble et l'état prend sa
    propre ligne (en colonne étroite, il s'écrivait lettre par lettre). */
 .profil-reglages { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-.profil-reglages .profil-largeur { order: 1; }
+.profil-reglages .profil-largeur { order: 1; flex: 0 0 auto; }   /* ne s'étire pas : la pastille reste contre le champ */
+.profil-reglages .aide-info { order: 1; }   /* juste après le champ de largeur */
 #profil-etat { order: 2; flex: 1 1 14em; min-width: 0; margin: 0; }
 .profil-gestes { order: 3; }
 #profil-recadrer { order: 4; }

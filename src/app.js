@@ -3312,12 +3312,16 @@ if (MODE_VUE) (async () => {
   // L'aide : la même pastille « ? » que les autres, mais elle ouvre une fenêtre — une
   // infobulle `title` ne s'affiche pas au toucher, et le profil s'utilise sur téléphone.
   // Depuis la modale du profil, la fenêtre d'aide s'ouvre par-dessus (couche supérieure).
-  const ouvrirAideProfil = () => {
-    $('dlg-aide-profil').showModal();
-    $('dlg-aide-profil').scrollTop = 0;   // sans cela, le focus sur le dernier bouton la fait s'ouvrir défilée
+  // Chaque pastille est posée là où le doute arrive (la largeur, la partie de la bande
+  // gardée) et ouvre la fenêtre sur l'entrée qui l'explique (`data-aide` = son id).
+  const ouvrirAideProfil = (entree) => {
+    const d = $('dlg-aide-profil');
+    d.showModal();
+    // Remise en haut d'abord : sans cela, le focus donné au dernier bouton la fait s'ouvrir défilée.
+    d.scrollTop = 0;
+    if (entree) $(entree).scrollIntoView({ block: 'start' });
   };
-  $('profil-aide-modale').addEventListener('click', ouvrirAideProfil);
-  $('profil-aide-fenetre').addEventListener('click', ouvrirAideProfil);
+  for (const b of document.querySelectorAll('[data-aide]')) b.addEventListener('click', () => ouvrirAideProfil(b.dataset.aide));
   $('aide-profil-fermer').addEventListener('click', () => $('dlg-aide-profil').close());
   $('aide-profil-croix').addEventListener('click', () => $('dlg-aide-profil').close());
   $('profil-largeur-modale').addEventListener('change', (e) => { fixerLargeur(e.target.value); calculerProfil(); });
