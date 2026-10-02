@@ -253,46 +253,57 @@ ceux que l'on mesure).
   la classe, la distance sur l'axe, la date d'acquisition.
 - Poids : jusqu'à ~80 Mo pour 1 M de points, ~500 Ko pour quelques milliers.
 
-### R6 — Point de référence — décidé dans le principe, UI/UX à trancher avant tout code
+### R6 — Point de référence — décidé, UI/UX arrêtée le 2 octobre 2026, prêt à faire
 
 Demande : dire « ce point est l'altitude 0 à partir de maintenant », comme dans
 la méthode QGIS pour les bâtiments : un sol de référence, puis plusieurs points
 sur plusieurs coupes, sans refaire les soustractions à la main (donc moins
-d'erreurs de calcul). Aujourd'hui le tableau ne donne que des écarts entre deux
-points consécutifs.
+d'erreurs de calcul). **Elle demande le zéro, pas l'affichage de hauteurs en
+plus.**
 
-Remarque d'un autre contributeur : une constante n'est pas un MNT (la hauteur est MNS − MNT, pas
-MNS − X) ; la référence vaut sur un sol plat ou pour un seul bâtiment. **À dire
-tel quel dans l'aide (R3)** ; la question du sol comblé est traitée à part, en R7.
+Remarque d'un autre contributeur : une constante n'est pas un MNT (la hauteur est
+MNS − MNT, pas MNS − X) ; la référence vaut sur un sol plat ou pour un seul
+bâtiment. **À dire tel quel dans l'aide**, la question du sol comblé étant à part
+(R7).
 
-Idées retenues :
-- Une rubrique « Référence » dans la modale. Son bouton **arme le prochain clic
-  seulement** : il s'accroche comme la mesure, puis on revient à la mesure ;
-  Échap annule. Sans cela, un clic du graphique serait ambigu (point de mesure ou
-  référence).
-- La référence a son propre repère (une croix marquée « 0 »), distinct de A, B, C.
-- Le graphique se recentre : un 0 vertical et un 0 horizontal, avec des
-  graduations négatives à gauche et en dessous.
-- Le tableau gagne **« Cote »** (altitude depuis la référence) et **« Dist.
-  depuis la réf. »**, seulement quand une référence existe.
-- **Le 0 vertical persiste d'une coupe à l'autre** (c'est une altitude réelle,
-  ce que demande le demandeur) ; **le 0 horizontal est propre à la coupe** (une
-  position sur cet axe : sur un nouvel axe, il revient au point A). À dire dans
-  l'aide.
-- Un bouton **« Effacer la référence »** supprime les deux zéros et l'altitude
-  gardée.
+**Décisions d'interface**
+- **Une barre d'outils dans la modale**, comme celle de la carte : Déplacement,
+  Point de référence, Mesure. **Mesure par défaut** : cliquer un point du graphique
+  mesure, comme aujourd'hui. Le glisser et la molette déplacent et zooment dans
+  tous les outils ; seul le **clic** dépend de l'outil. L'outil actif se voit
+  (en couleur, curseur en croix, courte consigne).
+- **Outil « Point de référence »** : un seul point à la fois, chaque clic remplace
+  le précédent (comme « Point sélectionné »). Il s'accroche au point visible le
+  plus proche, comme la mesure.
+- **Rendu** : un repère propre (une croix marquée « 0 »), distinct des points A, B,
+  C de la mesure. Les axes passent en **relatif** : le 0 au point de référence,
+  positif en haut et à droite, négatif en bas et à gauche, comme un graphe. Sans
+  référence, les altitudes restent absolues. **Pas de bascule absolu / relatif.**
+- **Rien de plus dans le tableau** : pas de colonnes « Cote » ni « Dist. depuis la
+  réf. ». On lit sur l'axe, ou on mesure de la référence au point. *Idée mise de
+  côté si quelqu'un la demande :* un petit tableau « Points » (distance et cote de
+  chaque point depuis la référence) ; deux colonnes de plus ne tiennent pas sur
+  téléphone.
+- **Durée de vie** : la référence est supprimée **à la fermeture de la modale**.
+  Changer la largeur dans la modale la garde (même ligne A–B, le point existe
+  toujours sur le profil recalculé). Pour plusieurs coupes avec le même sol, il
+  faut recliquer le point au sol à chaque coupe ; garder l'altitude d'une coupe à
+  l'autre si des retours le demandent.
+- **Effacer** : un bouton « Effacer la référence », dans la zone de l'outil, visible
+  seulement quand une référence existe, et Retour arrière / Suppr quand l'outil est
+  actif — comme les boutons de la mesure. « Point sélectionné » n'a pas de bouton
+  (un nouveau clic le remplace) ; ici il en faut un pour revenir aux altitudes sans
+  fermer la modale. *(proposé, à confirmer)*
 
-**À ne pas oublier quand R6 sera fait : mettre à jour l'aide du profil**
-(`#dlg-aide-profil` dans `index.html`, ouverte par la pastille `?`) — y ajouter une
-entrée sur le **point de référence** (le 0 vertical qui reste d'une coupe à
-l'autre, le 0 horizontal propre à la coupe) et sa limite (sol plat ou un seul
-bâtiment). Même chose si R7 aboutit : la phrase « chaque point est un vrai retour
-du LiDAR » devra changer si un sol comblé apparaît dans le profil.
+**À ne pas oublier : mettre à jour l'aide du profil** (`#dlg-aide-profil` dans
+`index.html`) — y ajouter une entrée sur le point de référence, sa durée de vie et
+sa limite (sol plat ou un seul bâtiment), et décrire la barre d'outils (la mesure
+n'est plus « un clic = un point » sans condition). Même chose si R7 aboutit : la
+phrase « chaque point est un vrai retour du LiDAR » devra changer si un sol comblé
+apparaît dans le profil.
 
-**À trancher en UI/UX, pas maintenant** : où placer la rubrique dans une modale
-déjà dense (réglages, graphique, tranche, classes, mesure) ; comment montrer que
-le clic est « armé » ; le rendu des axes relatifs (garder l'altitude absolue
-lisible ?) ; le comportement dans le lien (R2).
+**À voir avec R2 (le lien)** : la référence est un état de la modale ouverte,
+supprimée à sa fermeture.
 
 ### R7 — Combler le sol : hauteur = MNS − MNT — à décider, pas maintenant
 
