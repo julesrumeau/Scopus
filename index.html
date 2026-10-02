@@ -665,6 +665,47 @@
     <span class="profil-gestes">Molette : zoom · glisser : déplacer</span>
     <button id="profil-recadrer" class="btn-discret" type="button">Vue entière</button>
   </div>
+  <div class="profil-outils">
+    <div class="barre-profil" role="group" aria-label="Outils du graphique">
+      <button type="button" class="btn-mode" id="profil-outil-deplacement" data-outil="deplacement" aria-pressed="false" aria-label="Déplacement"
+              title="Déplacement : un clic ne pose rien ; glissez pour déplacer, molette pour zoomer">
+        <svg class="icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <rect x="5.6" y="6" width="2.3" height="8" rx="1.15"/>
+          <rect x="8.6" y="4" width="2.3" height="10" rx="1.15"/>
+          <rect x="11.6" y="4.4" width="2.3" height="9.6" rx="1.15"/>
+          <rect x="14.6" y="6.4" width="2.3" height="7.6" rx="1.15"/>
+          <rect x="5.4" y="12" width="12.4" height="8" rx="4"/>
+          <rect x="2" y="12.4" width="4.6" height="2.3" rx="1.15" transform="rotate(-35 4.3 13.55)"/>
+        </svg>
+      </button>
+      <button type="button" class="btn-mode" id="profil-outil-reference" data-outil="reference" aria-pressed="false" aria-label="Point de référence"
+              title="Point de référence : cliquez un point du graphique, il devient le 0">
+        <svg class="icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+          <line x1="12" y1="2.5" x2="12" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          <line x1="12" y1="16" x2="12" y2="21.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          <line x1="2.5" y1="12" x2="8" y2="12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          <line x1="16" y1="12" x2="21.5" y2="12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button type="button" class="btn-mode actif" id="profil-outil-mesure" data-outil="mesure" aria-pressed="true" aria-label="Mesure"
+              title="Mesure : cliquez des points du graphique, de suite">
+        <svg class="icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <g transform="rotate(-45 12 12)">
+            <rect x="3" y="9.5" width="18" height="5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            <line x1="7" y1="9.5" x2="7" y2="12" stroke="currentColor" stroke-width="1.3"/>
+            <line x1="11" y1="9.5" x2="11" y2="13" stroke="currentColor" stroke-width="1.3"/>
+            <line x1="15" y1="9.5" x2="15" y2="12" stroke="currentColor" stroke-width="1.3"/>
+          </g>
+        </svg>
+      </button>
+    </div>
+    <span class="vide" id="profil-consigne-outil"></span>
+    <span class="profil-reference-ligne" id="profil-reference-ligne" hidden>
+      <b id="profil-reference-etat"></b>
+      <button id="profil-reference-effacer" class="btn-discret" type="button" aria-label="Effacer la référence" title="Effacer la référence">Effacer<span class="profil-suite"> la référence</span></button>
+    </span>
+  </div>
   <canvas id="profil-canvas"></canvas>
   <div class="double-curseur" aria-label="Tranche de la largeur de la bande">
     <input type="range" id="profil-d0" min="0" max="1000" value="0" aria-label="Limite côté gauche de l’axe">
@@ -673,7 +714,7 @@
   <div class="vide profil-tranche"><span id="profil-tranche"></span> <button type="button" class="aide-info ouvre" data-aide="aide-tranche" title="Cliquez pour voir l’explication" aria-label="Partie de la bande gardée : cliquez pour voir l’explication">?</button></div>
   <div id="profil-classes" class="legende"></div>
   <div class="profil-mesure">
-    <p class="vide" id="profil-mesure-vide">Cliquez des points du graphique, de suite : chaque segment s’ajoute au tableau, comme l’outil de mesure de la carte (le clic s’accroche au point le plus proche).</p>
+    <p class="vide" id="profil-mesure-vide">Outil Mesure : cliquez des points du graphique, de suite : chaque segment s’ajoute au tableau, comme l’outil de mesure de la carte (le clic s’accroche au point le plus proche).</p>
     <div id="profil-mesure-detail" hidden></div>
     <div class="rangee" id="profil-mesure-actions" hidden>
       <button id="profil-mesure-annuler" class="secondaire" type="button">Annuler le dernier point</button>
@@ -699,8 +740,11 @@
   <p>Les cases sous le graphique cachent ou montrent chaque type de point (sol, végétation, bâtiment…). Décochez la végétation pour ne voir que le sol et ce qui est construit.</p>
   <h3 id="aide-tranche">5. Garder une partie de la bande</h3>
   <p>Les deux curseurs sous le graphique ne gardent qu’une <b>tranche de la bande, dans sa largeur</b>, de la gauche à la droite de la ligne, vue de A vers B. Aux deux extrémités, on voit tout. En les rapprochant, on ne garde que le centre, ou qu’un côté, par exemple pour écarter un voisin gênant. Rien n’est recalculé.</p>
-  <h3>6. Mesurer</h3>
-  <p>Cliquez des points sur le graphique, de suite : le clic s’accroche au point le plus proche. Le tableau donne, pour chaque segment, la distance horizontale, le dénivelé, la pente (en %) et la distance en 3D. « Annuler le dernier point » et « Effacer » corrigent. Molette pour zoomer, glisser pour déplacer, « Vue entière » pour revenir.</p>
+  <h3 id="aide-outils">6. Les outils : mesure, référence, déplacement</h3>
+  <p>La barre au-dessus du graphique choisit ce que fait un <b>clic</b>. Glisser et molette déplacent et zooment avec tous les outils ; « Vue entière » revient au départ.</p>
+  <p><b>Mesure</b> (la règle, choisie au départ) : cliquez des points sur le graphique, de suite : le clic s’accroche au point le plus proche. Le tableau donne, pour chaque segment, la distance horizontale, le dénivelé, la pente (en %) et la distance en 3D. « Annuler le dernier point » et « Effacer » corrigent.</p>
+  <p><b>Point de référence</b> (la croix) : cliquez un point, il devient le <b>0</b>, en altitude comme en distance. Les graduations se lisent alors depuis lui : positives en haut et à droite, négatives en bas et à gauche. Un nouveau clic le déplace, « Effacer la référence » le retire, et fermer le profil l’efface aussi. Attention : c’est une constante, elle vaut sur un sol plat ou pour un seul bâtiment, pas sur une pente.</p>
+  <p><b>Déplacement</b> (la main) : un clic ne pose rien, pour explorer sans poser de point par erreur.</p>
   <div class="rangee">
     <button id="aide-profil-fermer" class="primaire" type="button">Compris</button>
   </div>

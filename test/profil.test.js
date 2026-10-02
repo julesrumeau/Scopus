@@ -114,3 +114,16 @@ test('pointSuivant : A, puis B, puis un nouveau clic efface et recommence en A',
   // Les deux sont posés : le clic suivant devient le nouveau A, B est vidé.
   assert.deepEqual(plat(PROFIL.pointSuivant(p1, p2, p3)), { A: p3, B: null });
 });
+
+test('graduations : zoomé à fond, des valeurs courtes — jamais « 1.2000000000000002 »', () => {
+  const g = (min, max, cible) => plat(PROFIL.graduations(min, max, cible));
+  assert.deepEqual(g(1, 1.6, 4), [1, 1.2, 1.4, 1.6]);
+  assert.deepEqual(g(0, 0.6, 3), [0, 0.2, 0.4, 0.6]);
+  assert.deepEqual(g(0.1, 0.5, 4), [0.1, 0.2, 0.3, 0.4, 0.5]);
+  // Quel que soit le zoom, aucune valeur ne traîne de décimales d'arrondi.
+  for (const [min, max] of [[1, 1.6], [12.31, 12.93], [0.003, 0.05], [-1.7, 0.9], [1500.05, 1500.65], [-0.45, 0.35]]) {
+    for (const v of g(min, max, 5)) assert.ok(String(v).length <= 8, `${v} sur [${min}, ${max}]`);
+  }
+  // Les pas entiers ne changent pas.
+  assert.deepEqual(g(0, 100, 5), [0, 20, 40, 60, 80, 100]);
+});

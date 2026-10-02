@@ -9,12 +9,22 @@ class ProfilGraphique {
    * @param {(points: Array<{s: number, z: number}>) => void} rappel
    *        appelé à chaque changement de la chaîne de mesure, avec ses points
    *        dans l'ordre du clic (vide : aucun)
+   * @param {(p: ?{s: number, z: number}) => void} [rappelReference]
+   *        appelé quand le point de référence est posé, remplacé ou effacé (`null`)
    */
-  constructor(canvas, rappel) {
+  constructor(canvas, rappel, rappelReference = () => {}) {
     this.c = canvas;
     this.ctx = canvas.getContext('2d');
     this.rappel = rappel;
-    this.marge = { g: 56, d: 16, h: 12, b: 34 };
+    this.rappelReference = rappelReference;
+    // L'outil décide de ce que fait un **clic** ; le glisser et la molette déplacent
+    // et zooment dans tous les outils. La mesure par défaut : c'est ce qu'on vient
+    // faire dans un profil.
+    this.outil = 'mesure';
+    this.reference = null;   // { s, z } : le 0 du graphique, ou null
+    // La marge gauche porte les altitudes : zoomé à fond elles prennent une décimale (« 1514.65 m »)
+    // et débordaient à 56 px. Le double curseur du CSS (`.double-curseur`) suit la même valeur.
+    this.marge = { g: 68, d: 16, h: 12, b: 34 };
     this.d = null;
     this.visibles = null;
     this.s0 = 0;
@@ -50,7 +60,25 @@ class ProfilGraphique {
     }, { passive: false });
   }
 
-  /** Les points du profil (ou `null`). Remet toute la bande et efface la mesure. */
+  /** L'outil du clic : 'deplacement' (rien), 'reference' (pose le 0) ou 'mesure' (ajoute un point). */
+  definirOutil(outil) {
+    if (outil === 'deplacement' || outil === 'reference' || outil === 'mesure') this.outil = outil;
+  }
+
+  /** Retire le point de référence : les graduations redeviennent des altitudes. Sans référence, ne dit rien. */
+  effacerReference() {
+    if (!this.reference) return;
+    this.reference = null;
+    this.rappelReference(null);
+    this.planifier();
+  }
+
+  /**
+   * Les points du profil (ou `null`). Remet toute la bande et efface la mesure.
+   * **Garde la référence** : un recalcul de la même ligne (la largeur a changé) garde
+   * les mêmes distances et les mêmes altitudes, le point existe toujours. C'est la
+   * fermeture de la fenêtre qui l'efface, côté appelant.
+   */
   definir(d) {
     this.d = d;
     this.s0 = 0;
@@ -230,7 +258,7 @@ class ProfilGraphique {
    */
   clic(x, y) {
     const d = this.d;
-    if (!d) return;
+    if (!d || this.outil === 'deplacement') return;
     const e = this._echelles();
     let meilleur = -1, dmin = 14 * 14;
     for (const c of this._classes()) {
@@ -243,6 +271,13 @@ class ProfilGraphique {
       }
     }
     const p = meilleur >= 0 ? { s: d.s[meilleur], z: d.z[meilleur] } : { s: e.s(x), z: e.z(y) };
+    if (this.outil === 'reference') {
+      // Un seul point à la fois : le clic suivant remplace le précédent.
+      this.reference = p;
+      this.rappelReference({ s: p.s, z: p.z });
+      this.planifier();
+      return;
+    }
     this.mesure.push(p);
     this.rappel(this.mesure.slice());
     this.planifier();
@@ -282,20 +317,24 @@ class ProfilGraphique {
     // Autant de graduations que la place en porte : trop serrées, elles
     // s'écrivent les unes sur les autres (« 0 m5 m10 m15 m… » sur un téléphone).
     const nbX = Math.max(2, Math.floor((e.W - m.g - m.d) / 90)), nbZ = Math.max(2, Math.floor((e.H - m.h - m.b) / 48));
-    for (const z of PROFIL.graduations(e.zmin, e.zmax, nbZ)) {
+    // Avec une référence, les graduations se lisent depuis elle (0 en son point, négatif
+    // en bas et à gauche) ; sans, ce sont des altitudes.
+    const sr = this.reference ? this.reference.s : 0, zr = this.reference ? this.reference.z : 0;
+    for (const v of PROFIL.graduations(e.zmin - zr, e.zmax - zr, nbZ)) {
+      const z = v + zr;
       const y = e.y(z);
       ctx.strokeStyle = 'rgba(255,255,255,0.10)';
       ctx.beginPath(); ctx.moveTo(m.g, y); ctx.lineTo(e.W - m.d, y); ctx.stroke();
       ctx.fillStyle = '#9aa4b2';
-      ctx.fillText(`${z} m`, m.g - 6, y);
+      ctx.fillText(`${v} m`, m.g - 6, y);
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    for (const s of PROFIL.graduations(this.s0, this.s1, nbX)) {
-      const x = e.x(s);
+    for (const v of PROFIL.graduations(this.s0 - sr, this.s1 - sr, nbX)) {
+      const x = e.x(v + sr);
       ctx.strokeStyle = 'rgba(255,255,255,0.10)';
       ctx.beginPath(); ctx.moveTo(x, m.h); ctx.lineTo(x, e.H - m.b); ctx.stroke();
       ctx.fillStyle = '#9aa4b2';
-      ctx.fillText(`${s} m`, x, e.H - m.b + 6);
+      ctx.fillText(`${v} m`, x, e.H - m.b + 6);
     }
     if (!this.d) return;
     // Zoomé, ni points ni mesure ne débordent sur les graduations.
@@ -311,6 +350,22 @@ class ProfilGraphique {
         if (!this._dedans(i)) continue;
         ctx.fillRect(e.x(this.d.s[i]) - 1.25, e.y(this.d.z[i]) - 1.25, 2.5, 2.5);
       }
+    }
+    // Le point de référence : deux traits fins qui le traversent (les axes du 0), et une croix
+    // cernée de noir marquée « 0 », d'une autre couleur que les points de mesure.
+    if (this.reference) {
+      const rx = e.x(this.reference.s), ry = e.y(this.reference.z);
+      ctx.strokeStyle = 'rgba(74,208,255,0.55)'; ctx.lineWidth = 1;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.moveTo(m.g, ry); ctx.lineTo(e.W - m.d, ry); ctx.moveTo(rx, m.h); ctx.lineTo(rx, e.H - m.b); ctx.stroke();
+      ctx.setLineDash([]);
+      for (const [couleur, largeur] of [['#000', 4], ['#4ad0ff', 2]]) {
+        ctx.strokeStyle = couleur; ctx.lineWidth = largeur;
+        ctx.beginPath(); ctx.moveTo(rx - 8, ry); ctx.lineTo(rx + 8, ry); ctx.moveTo(rx, ry - 8); ctx.lineTo(rx, ry + 8); ctx.stroke();
+      }
+      ctx.fillStyle = '#4ad0ff'; ctx.font = 'bold 12px system-ui, sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText('0', rx + 10, ry + 6);
     }
     // La chaîne de mesure : un trait cerné de noir pour se lire sur tout fond, et des anneaux lettrés A, B, C… comme sur la carte.
     const pts = this.mesure.map((p) => ({ x: e.x(p.s), y: e.y(p.z) }));

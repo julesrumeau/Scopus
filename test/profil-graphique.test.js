@@ -278,3 +278,134 @@ test('moins de place, moins de graduations : celles de l’axe horizontal ne se 
   const horizontales = etroit.textes.filter((t) => /^(0|20|40|60|80|100) m$/.test(t));
   assert.ok(horizontales.length * 60 <= 300, `${horizontales.length} graduations sur 300 px`);
 });
+
+// ── Les outils et le point de référence (R6) ─────────────────────────────────
+
+/** Un graphique avec ses deux rappels : la chaîne de mesure, et la référence (un point, ou null). */
+function avecReference(canevas = canevasFactice()) {
+  const mesures = [], refs = [];
+  const g = new ProfilGraphique(
+    canevas,
+    (pts) => mesures.push(JSON.parse(JSON.stringify(pts.map((p) => ({ s: p.s, z: p.z }))))),
+    (p) => refs.push(p ? { s: p.s, z: p.z } : null),
+  );
+  return { g, mesures, refs };
+}
+
+/** Trois points, dont un à mi-hauteur : sol à 300 m, un point à 312 m, une cime à 325 m. */
+const donneesRef = () => ({
+  n: 3, s: Float32Array.of(0, 50, 100), z: Float32Array.of(300, 312, 325),
+  d: new Float32Array(3), cls: Uint8Array.of(2, 5, 5), longueur: 100,
+});
+
+test('outil : la mesure par défaut, comme avant — un clic pose un point de mesure', () => {
+  const { g, mesures } = avecReference();
+  g.definir(donneesRef());
+  assert.equal(g.outil, 'mesure');
+  const { x, y } = g.px(50, 312);
+  g.clic(x, y);
+  assert.deepEqual(mesures.at(-1), [{ s: 50, z: 312 }]);
+});
+
+test('outil Déplacement : un clic ne pose ni point de mesure ni référence', () => {
+  const { g, mesures, refs } = avecReference();
+  g.definir(donneesRef());
+  g.definirOutil('deplacement');
+  const { x, y } = g.px(50, 312);
+  g.debutGeste(x, y);
+  g.finGeste(x, y);                 // un appui sans bouger : un clic, qui ne fait rien ici
+  assert.deepEqual(mesures.at(-1), []);   // seul le definir() initial a appelé le rappel
+  assert.equal(mesures.length, 1);
+  assert.equal(refs.length, 0);
+  assert.equal(g.reference, null);
+});
+
+test('outil Déplacement : le glisser déplace quand même la vue', () => {
+  const { g } = avecReference();
+  g.definir(donneesRef());
+  g.definirOutil('deplacement');
+  const { x, y } = g.px(50, 312);
+  g.zoomer(x, y, 4);
+  const avant = g.px(50, 312);
+  g.debutGeste(100, 100);
+  g.deplacerGeste(140, 100);
+  g.finGeste(140, 100);
+  assert.ok(Math.abs(g.px(50, 312).x - (avant.x + 40)) < 0.5);
+});
+
+test('outil Point de référence : le clic s’accroche au point le plus proche et le pose', () => {
+  const { g, mesures, refs } = avecReference();
+  g.definir(donneesRef());
+  g.definirOutil('reference');
+  const { x, y } = g.px(50, 312);
+  g.clic(x + 4, y - 3);
+  assert.deepEqual(refs.at(-1), { s: 50, z: 312 });
+  assert.equal(g.reference.z, 312);
+  assert.equal(mesures.length, 1);          // la mesure n'a pas bougé (le definir() initial seulement)
+});
+
+test('un seul point de référence : le clic suivant remplace le précédent', () => {
+  const { g, refs } = avecReference();
+  g.definir(donneesRef());
+  g.definirOutil('reference');
+  const a = g.px(0, 300), b = g.px(100, 325);
+  g.clic(a.x, a.y);
+  g.clic(b.x, b.y);
+  assert.deepEqual(refs, [{ s: 0, z: 300 }, { s: 100, z: 325 }]);
+  assert.equal(g.reference.z, 325);
+});
+
+test('effacerReference : retire le point et le dit ; sans référence, ne dit rien', () => {
+  const { g, refs } = avecReference();
+  g.definir(donneesRef());
+  g.effacerReference();
+  assert.equal(refs.length, 0);             // rien à effacer : pas d'appel
+  g.definirOutil('reference');
+  const { x, y } = g.px(50, 312);
+  g.clic(x, y);
+  g.effacerReference();
+  assert.equal(refs.at(-1), null);
+  assert.equal(g.reference, null);
+});
+
+test('la référence survit à un recalcul de la même bande (largeur changée) mais pas la mesure', () => {
+  const { g, mesures, refs } = avecReference();
+  g.definir(donneesRef());
+  const p = g.px(50, 312);
+  g.clic(p.x, p.y);                          // une mesure
+  g.definirOutil('reference');
+  g.clic(p.x, p.y);                          // une référence
+  g.definir(donneesRef());                   // la largeur a changé : mêmes distances, mêmes altitudes
+  assert.equal(g.reference.z, 312);          // la référence est gardée
+  assert.equal(refs.at(-1) !== null, true);
+  assert.deepEqual(mesures.at(-1), []);      // la mesure est remise à zéro, comme avant
+});
+
+test('avec une référence, les graduations se lisent depuis elle : 0 en son point, négatives en bas et à gauche', () => {
+  const c = canevasTextes(1000, 400);
+  const { g } = avecReference(c);
+  g.definir(donneesRef());
+  assert.ok(c.textes.includes('300 m'), 'sans référence : des altitudes');
+  assert.ok(!c.textes.some((t) => t.startsWith('-')), 'sans référence : rien de négatif');
+  g.definirOutil('reference');
+  const { x, y } = g.px(50, 312);
+  g.clic(x, y);
+  c.textes.length = 0;
+  g.rendre();
+  assert.ok(c.textes.includes('0 m'), '0 au point de référence');
+  assert.ok(c.textes.includes('-10 m'), 'en dessous de la référence : négatif');
+  assert.ok(c.textes.includes('10 m'), 'au-dessus : positif');
+  assert.ok(c.textes.includes('-50 m') && c.textes.includes('50 m'), 'à gauche et à droite de la référence');
+  assert.ok(!c.textes.includes('300 m'), 'plus d’altitudes absolues');
+  g.effacerReference();
+  c.textes.length = 0;
+  g.rendre();
+  assert.ok(c.textes.includes('300 m') && !c.textes.some((t) => t.startsWith('-')), 'effacée : on retrouve les altitudes');
+});
+
+test('un outil inconnu est refusé : on garde l’outil courant', () => {
+  const { g } = avecReference();
+  g.definirOutil('reference');
+  g.definirOutil('nimporte');
+  assert.equal(g.outil, 'reference');
+});
