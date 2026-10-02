@@ -328,10 +328,14 @@ dessin bornée à [17°, 74°], azimut jamais. Conventions de signe vérifiées 
 **Pas de total de dénivelé** (somme signée = écart net, trompeur).
 **`totale3D` vaut `null` si une altitude manque** (jamais une somme partielle) ;
 `totaleHorizontale` se somme toujours. **Pente par segment** (`MESURE.pente`,
-colonne du tableau partagé avec le profil) : degrés et pourcentage, signés comme
-le dénivelé ; « — » si l'horizontale est nulle ou une altitude inconnue ; pas de
-pente totale (même raison que le dénivelé). Le pourcentage passe sous les degrés
-quand le tableau est à l'étroit (requête de conteneur CSS). `definirMesure` des
+colonne du tableau partagé avec le profil) : **en pourcentage seul**, signé comme
+le dénivelé (45° = 100 %, une pente raide dépasse 100 %) ; c'est la forme du tag
+OSM `incline=15%` (le wiki OSM ne préfère les degrés que là où ils sont d'usage
+courant), recopiable telle quelle. Les degrés ont été essayés puis retirés :
+deux valeurs l'une sous l'autre faisaient trop. « — » si l'horizontale est nulle
+ou une altitude inconnue ; pas de pente totale (même raison que le dénivelé).
+Cinq colonnes ne tiennent pas dans 340 px sans resserrer les cellules (requête
+de conteneur CSS sur `.mesure-scroll`). `definirMesure` des
 deux vues prend un tableau. Pas de lettres sur les marqueurs (atlas de glyphes disproportionné).
 
 ## Rendu à la demande

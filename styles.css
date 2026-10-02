@@ -325,15 +325,8 @@ html, body {
 .tableau-mesure th:first-child, .tableau-mesure td:first-child { text-align: left; }
 .tableau-mesure thead th { color: var(--texte-2); font-weight: 400; border-bottom: 1px solid var(--bord); }
 .tableau-mesure tfoot td { border-top: 1px solid var(--bord); font-weight: 600; }
-.pente-pct { color: var(--texte-2); }
-/* À l'étroit (panneau de la carte, modale sur téléphone), le pourcentage de la
-   pente passe sous les degrés, et les colonnes se resserrent : cinq colonnes ne
-   tiennent pas sur une ligne dans 350 px. */
-@container (max-width: 460px) {
-  .pente-pct { display: block; }
-  .tableau-mesure { font-size: 12px; }
-  .tableau-mesure th, .tableau-mesure td { padding-right: 7px; }
-}
+/* Cinq colonnes dans moins de 340 px (la modale du profil sur téléphone) : on
+   resserre les cellules plutôt que de faire défiler. */
 @container (max-width: 340px) {
   .tableau-mesure th, .tableau-mesure td { padding-right: 5px; }
 }

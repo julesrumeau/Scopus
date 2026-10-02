@@ -76,8 +76,11 @@ function totaux(segs) {
 }
 
 /**
- * La pente d'un segment, en degrés et en pourcentage, signée comme le dénivelé
- * (montée positive, descente négative).
+ * La pente d'un segment, **en pourcentage** (dénivelé / horizontale × 100),
+ * signée comme le dénivelé : montée positive, descente négative. C'est la forme
+ * du tag OSM `incline` (`incline=15%`), que la personne recopie telle quelle ;
+ * les degrés ont été essayés puis retirés (le wiki OSM ne les préfère que là où
+ * ils sont d'usage courant). Une pente raide dépasse 100 % : 45° font 100 %.
  *
  * `null` si l'horizontale est nulle — une pente verticale n'a pas de valeur à
  * afficher — ou si l'une des deux distances est inconnue : une altitude
@@ -86,11 +89,11 @@ function totaux(segs) {
  *
  * @param {?number} horizontale distance horizontale, en mètres
  * @param {?number} denivele dénivelé signé, en mètres
- * @returns {?{degres: number, pourcent: number}}
+ * @returns {?number} pourcentage, ou `null`
  */
 function pente(horizontale, denivele) {
   if (horizontale == null || denivele == null || !(horizontale > 1e-9)) return null;
-  return { degres: (Math.atan2(denivele, horizontale) * 180) / Math.PI, pourcent: (denivele / horizontale) * 100 };
+  return (denivele / horizontale) * 100;
 }
 
 /**
@@ -110,8 +113,7 @@ function tableauHtml(points) {
   const signe = (v) => (v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(1)} m`);
   const penteTexte = (sg) => {
     const p = pente(sg.horizontale, sg.denivele);
-    // Le pourcentage dans son <span> : le CSS le passe sur une seconde ligne quand le tableau est à l'étroit.
-    return p ? `${p.degres >= 0 ? '+' : ''}${p.degres.toFixed(1)}° <span class="pente-pct">(${p.pourcent >= 0 ? '+' : ''}${p.pourcent.toFixed(1)} %)</span>` : '—';
+    return p == null ? '—' : `${p >= 0 ? '+' : ''}${p.toFixed(1)} %`;
   };
   const { totaleHorizontale, totale3D } = totaux(segs);
   const rangees = segs.map((s, i) => `<tr>
