@@ -108,8 +108,136 @@ const LIEN = (() => {
     };
   }
 
+  // ── Le profil dans le lien (R2) ───────────────────────────────────────────
+  //
+  // Des paramètres **nommés et lisibles** après `map=`, comme osm.org y ajoute
+  // `&layers=` : `&profil=latA/lonA/latB/lonB/largeur`, `&coupe=1`, `&classes=2.5.6`,
+  // `&mesure=s/z/s/z`, `&ref=s/z`, `&sel=lat/lon`, `&sol=2.6`. Pas de compression
+  // (un état aussi petit n'en a pas besoin, et un lien opaque ne se répare pas à la
+  // main) ; osm.org ne lit que `map=` et ignore le reste.
+  //
+  // **Sûr dans un forum** : Discourse casse un lien nu à la virgule et veut des
+  // parenthèses équilibrées, et `URLSearchParams` lit `+` comme une espace. On sépare
+  // donc les nombres par `/` (comme `map=`) et les codes par `.`, et rien d'autre.
+  //
+  // **En bloc** : un paramètre abîmé est ignoré en entier, jamais à moitié — un
+  // profil à demi lu serait pire qu'un profil absent.
+
+  /** Au plus ce nombre de points de mesure dans un lien écrit : il reste court. */
+  const MESURE_MAX = 40;
+
+  /** Un nombre arrondi, sans zéros de queue ni « -0 » : « 3 », « 2.5 », « 42.857552 ». */
+  const nombre = (v, decimales) => {
+    const x = arrondi(v, decimales);
+    return String(x === 0 ? 0 : x);
+  };
+
+  /** Des numéros de classe, uniques et triés (tableau ou `Set`) ; rien d'autre ne passe. */
+  const classesTriees = (c) => [...new Set(c ?? [])]
+    .filter((x) => Number.isInteger(x) && x >= 0 && x <= 255)
+    .sort((a, b) => a - b);
+
+  /**
+   * Les classes du sol, ou `undefined` si ce sont celles par défaut : un lien n'écrit
+   * que ce qui diffère de ce qu'on obtient sans lui.
+   */
+  function sansDefaut(classes, defaut) {
+    if (!classes) return undefined;
+    const a = classesTriees(classes), b = classesTriees(defaut);
+    return a.length === b.length && a.every((c, i) => c === b[i]) ? undefined : a;
+  }
+
+  /**
+   * Les paramètres de la coupe et de la sélection, à la suite de `map=…`.
+   * @param {{profil?: {a: {lat:number, lon:number}, b: {lat:number, lon:number}, largeur:number},
+   *          coupe?: boolean, classes?: Iterable<number>, mesure?: Array<{s:number, z:number}>,
+   *          ref?: {s:number, z:number}, sel?: {lat:number, lon:number}, sol?: Iterable<number>}} [p]
+   * @returns {string} `&profil=…&coupe=1…`, ou `''`
+   */
+  function ecrirePartage(p) {
+    if (!p) return '';
+    const parties = [];
+    const { profil } = p;
+    // Sans bande, la coupe, ses classes, sa mesure et sa référence n'ont aucun sens.
+    if (profil && profil.a && profil.b && Number.isFinite(profil.largeur)) {
+      const { a, b } = profil;
+      parties.push(`profil=${nombre(a.lat, 6)}/${nombre(a.lon, 6)}/${nombre(b.lat, 6)}/${nombre(b.lon, 6)}/${nombre(profil.largeur, 1)}`);
+      // Modale fermée : classes, mesure et référence ne décrivent rien d'affiché.
+      if (p.coupe) {
+        parties.push('coupe=1');
+        const classes = classesTriees(p.classes);
+        if (classes.length) parties.push(`classes=${classes.join('.')}`);
+        if (p.mesure && p.mesure.length) {
+          parties.push('mesure=' + p.mesure.slice(0, MESURE_MAX).map((m) => `${nombre(m.s, 2)}/${nombre(m.z, 2)}`).join('/'));
+        }
+        if (p.ref) parties.push(`ref=${nombre(p.ref.s, 2)}/${nombre(p.ref.z, 2)}`);
+      }
+    }
+    if (p.sel) parties.push(`sel=${nombre(p.sel.lat, 6)}/${nombre(p.sel.lon, 6)}`);
+    const sol = classesTriees(p.sol);
+    if (sol.length) parties.push(`sol=${sol.join('.')}`);
+    return parties.map((x) => `&${x}`).join('');
+  }
+
+  /** Des nombres décimaux stricts (ni exposant, ni « + », ni vide) séparés par `/`, ou `null`. */
+  function nombres(texte, attendu) {
+    const c = String(texte ?? '').split('/');
+    if (!c.every((x) => /^-?\d+(\.\d+)?$/.test(x))) return null;
+    if (attendu && c.length !== attendu) return null;
+    return c.map(Number);
+  }
+
+  /** Des numéros de classe séparés par `.`, uniques et triés, ou `null` s'il y a le moindre doute. */
+  function classesLues(texte) {
+    const c = String(texte ?? '').split('.');
+    if (!c.every((x) => /^\d{1,3}$/.test(x) && Number(x) <= 255)) return null;
+    return classesTriees(c.map(Number));
+  }
+
+  const latLonValides = (lat, lon) => Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+
+  /**
+   * Ce que le fragment dit de la coupe et de la sélection. Jamais `null` : `{}` si rien.
+   * Chaque paramètre est validé en entier, ou ignoré en entier ; ceux qui dépendent de la
+   * bande (coupe, classes, mesure, référence) tombent avec elle.
+   * @param {string} hash `location.hash`, `#` compris ou non
+   * @returns {{profil?: object, coupe?: boolean, classes?: number[], mesure?: object[],
+   *            ref?: object, sel?: object, sol?: number[]}}
+   */
+  function lirePartage(hash) {
+    const params = new URLSearchParams(String(hash || '').replace(/^#/, ''));
+    const sortie = {};
+
+    const p = nombres(params.get('profil'), 5);
+    if (p) {
+      const [latA, lonA, latB, lonB, largeur] = p;
+      const confondus = latA === latB && lonA === lonB;
+      if (latLonValides(latA, lonA) && latLonValides(latB, lonB) && !confondus && largeur > 0 && largeur <= 1000) {
+        sortie.profil = { a: { lat: latA, lon: lonA }, b: { lat: latB, lon: lonB }, largeur };
+      }
+    }
+    if (sortie.profil && params.get('coupe') === '1') {
+      sortie.coupe = true;
+      const classes = params.has('classes') ? classesLues(params.get('classes')) : null;
+      if (classes) sortie.classes = classes;
+      const m = params.has('mesure') ? nombres(params.get('mesure')) : null;
+      if (m && m.length % 2 === 0 && m.length <= 2 * 40) {
+        sortie.mesure = [];
+        for (let i = 0; i < m.length; i += 2) sortie.mesure.push({ s: m[i], z: m[i + 1] });
+      }
+      const r = nombres(params.get('ref'), 2);
+      if (r) sortie.ref = { s: r[0], z: r[1] };
+    }
+    const sel = nombres(params.get('sel'), 2);
+    if (sel && latLonValides(sel[0], sel[1])) sortie.sel = { lat: sel[0], lon: sel[1] };
+    const sol = params.has('sol') ? classesLues(params.get('sol')) : null;
+    if (sol) sortie.sol = sol;
+    return sortie;
+  }
+
   return {
     ecrire, lire, resolutionDepuisZoom, zoomDepuisResolution,
     orientationDepuisCamera, cameraDepuisOrientation,
+    ecrirePartage, lirePartage, sansDefaut,
   };
 })();

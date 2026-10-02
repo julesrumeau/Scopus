@@ -175,6 +175,23 @@ class ProfilGraphique {
     if (g && !g.deplace) this.clic(x, y);
   }
 
+  /**
+   * Remet une mesure et/ou une référence (un lien ouvert) : seulement ce qu'on donne, et
+   * les rappels en sont avertis comme d'un clic. À appeler une fois le profil calculé :
+   * `definir` remet la mesure à zéro. Les valeurs sont copiées.
+   */
+  restaurer({ mesure, reference } = {}) {
+    if (mesure && mesure.length) {
+      this.mesure = mesure.map((p) => ({ s: p.s, z: p.z }));
+      this.rappel(this.mesure.slice());
+    }
+    if (reference) {
+      this.reference = { s: reference.s, z: reference.z };
+      this.rappelReference({ s: reference.s, z: reference.z });
+    }
+    this.planifier();
+  }
+
   /** Retire le dernier point de la chaîne de mesure. */
   retirerDernier() {
     if (!this.mesure.length) return;

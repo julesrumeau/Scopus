@@ -409,3 +409,48 @@ test('un outil inconnu est refusé : on garde l’outil courant', () => {
   g.definirOutil('nimporte');
   assert.equal(g.outil, 'reference');
 });
+
+// ── Restaurer la mesure et la référence depuis un lien (R2) ──────────────────
+
+test('restaurer : remet la chaîne de mesure et la référence, et le dit aux rappels', () => {
+  const { g, mesures, refs } = avecReference();
+  g.definir(donneesRef());
+  g.restaurer({ mesure: [{ s: 12.3, z: 305 }, { s: 25.5, z: 310 }], reference: { s: 0, z: 300 } });
+  assert.deepEqual(mesures.at(-1), [{ s: 12.3, z: 305 }, { s: 25.5, z: 310 }]);
+  assert.deepEqual(refs.at(-1), { s: 0, z: 300 });
+  assert.equal(g.reference.z, 300);
+  assert.equal(g.mesure.length, 2);
+});
+
+test('restaurer : la mesure continue ensuite par un clic, comme si elle avait été posée à la main', () => {
+  const { g, mesures } = avecReference();
+  g.definir(donneesRef());
+  g.restaurer({ mesure: [{ s: 12.3, z: 305 }] });
+  const { x, y } = g.px(50, 312);
+  g.clic(x, y);
+  assert.deepEqual(mesures.at(-1), [{ s: 12.3, z: 305 }, { s: 50, z: 312 }]);
+});
+
+test('restaurer : seulement ce qu’on donne — une référence seule laisse la mesure, et inversement', () => {
+  const { g, mesures, refs } = avecReference();
+  g.definir(donneesRef());
+  const avant = mesures.length;
+  g.restaurer({ reference: { s: 50, z: 312 } });
+  assert.equal(mesures.length, avant);          // la mesure n'a pas été touchée
+  assert.deepEqual(refs.at(-1), { s: 50, z: 312 });
+  g.restaurer({ mesure: [{ s: 1, z: 301 }] });
+  assert.deepEqual(refs.at(-1), { s: 50, z: 312 });   // la référence non plus
+  g.restaurer({});                               // rien à restaurer : rien ne bouge
+  g.restaurer();
+  assert.equal(g.mesure.length, 1);
+  assert.equal(g.reference.z, 312);
+});
+
+test('restaurer : les valeurs sont copiées, pas partagées avec l’appelant', () => {
+  const { g } = avecReference();
+  g.definir(donneesRef());
+  const m = [{ s: 1, z: 301 }];
+  g.restaurer({ mesure: m });
+  m[0].z = 999;
+  assert.equal(g.mesure[0].z, 301);
+});
