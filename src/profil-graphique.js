@@ -22,7 +22,9 @@ class ProfilGraphique {
     // faire dans un profil.
     this.outil = 'mesure';
     this.reference = null;   // { s, z } : le 0 du graphique, ou null
-    this.marge = { g: 56, d: 16, h: 12, b: 34 };
+    // La marge gauche porte les altitudes : zoomé à fond elles prennent une décimale (« 1514.65 m »)
+    // et débordaient à 56 px. Le double curseur du CSS (`.double-curseur`) suit la même valeur.
+    this.marge = { g: 68, d: 16, h: 12, b: 34 };
     this.d = null;
     this.visibles = null;
     this.s0 = 0;

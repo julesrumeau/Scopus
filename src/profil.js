@@ -84,8 +84,11 @@ function fabriqueProfil() {
     const puiss = 10 ** Math.floor(Math.log10(brut));
     const r = brut / puiss;
     const pas = (r < 1.5 ? 1 : r < 3.5 ? 2 : r < 7.5 ? 5 : 10) * puiss;
+    // Le nombre de décimales que porte le pas : sans cela, un pas de 0,2 donne
+    // « 1.2000000000000002 » (arrondi des flottants) dès qu'on zoome à fond.
+    const decimales = Math.max(0, Math.ceil(-Math.log10(pas) - 1e-9));
     const sortie = [];
-    for (let v = Math.ceil(min / pas) * pas; v <= max + 1e-9; v += pas) sortie.push(Math.round(v / pas) * pas);
+    for (let v = Math.ceil(min / pas) * pas; v <= max + 1e-9; v += pas) sortie.push(Number((Math.round(v / pas) * pas).toFixed(decimales)));
     return sortie;
   }
 

@@ -1386,9 +1386,9 @@ dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
 #profil-classes .case { margin: 0; }
 
 /* Le double curseur du tronçon : deux curseurs superposés, seuls les pouces
-   reçoivent le pointeur. Aligné sur les marges du graphique (56 px à gauche,
+   reçoivent le pointeur. Aligné sur les marges du graphique (68 px à gauche,
    16 à droite — voir ProfilGraphique.marge). */
-.double-curseur { position: relative; height: 26px; margin: 4px 16px 0 56px; }
+.double-curseur { position: relative; height: 26px; margin: 4px 16px 0 68px; }
 .double-curseur::before {
   content: ''; position: absolute; left: 0; right: 0; top: 11px; height: 4px;
   background: var(--bord); border-radius: 2px;
