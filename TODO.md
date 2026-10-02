@@ -208,7 +208,7 @@ parce que ça changerait un comportement ou demanderait une décision :
 ## Retours du forum OSM-FR (depuis le 1er octobre 2026)
 
 Demandes reçues après la publication du profil topographique et de la date
-d'acquisition, numérotées **R1 à R7** (R5 est fait : retiré) pour ne pas les mêler aux #. Aucun nom
+d'acquisition, numérotées **R1 à R7** (R1 et R5 sont faits : retirés) pour ne pas les mêler aux #. Aucun nom
 n'est écrit ici : le dépôt est public, et le fil du forum dit qui a demandé quoi.
 
 **Rythme décidé** : répondre vite à chacun (« noté », « je regarde », ou « pas
@@ -219,25 +219,10 @@ s'écrit dans CLAUDE.md pour ne pas la rediscuter.
 
 | Lot | Contenu | État |
 |---|---|---|
-| A — mesure et aide | R1, R3 (R6 les rejoint si son UI/UX est tranchée à temps) | prêt à faire |
+| A — mesure et aide | R3 (R1 est fait ; R6 la rejoint si son UI/UX est tranchée à temps) | R3 prête à faire |
 | B — lien | R2 | à concevoir d'abord |
 | en attente | R4 | réponse du demandeur |
 | à décider | R7 | comprendre ce qui est demandé |
-
-### R1 — Pente d'un segment mesuré *(mesure d'un escalier)* — décidé
-
-Une colonne **« Pente »** dans le tableau de mesure — donc dans le profil comme
-sur la carte, c'est le même (`MESURE.tableauHtml`) —, par segment, en degrés et
-en pourcentage : « 32° (62 %) ».
-
-- Pente = arctan(dénivelé / horizontale), signée comme le dénivelé (montée +,
-  descente −).
-- « — » si l'horizontale est nulle (pente verticale sans valeur à afficher) ou
-  si une altitude est inconnue : jamais une valeur inventée.
-- **Pas de pente totale** : comme pour le dénivelé, une somme signée ne dirait
-  rien de juste.
-- Tests à écrire d'abord : un triangle 3-4-5, une descente, une horizontale
-  nulle, une altitude inconnue.
 
 ### R2 — Le lien porte le profil — à concevoir
 
