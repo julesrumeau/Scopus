@@ -235,7 +235,24 @@ d'arbres et de bâtiments sans QGIS. Conception :
   froid et se composer dans le worker.
 - **Le graphique** (`profil-graphique.js`) est un canevas 2D : classes par
   couleur, sol dessiné en dernier, molette pour zoomer sous le curseur, glisser
-  pour déplacer. Un appui qui bouge de moins de 4 px est un clic de mesure.
+  pour déplacer. Un appui qui bouge de moins de 4 px est un clic (ce qu'il fait
+  dépend de l'outil, voir plus bas).
+- **Trois outils** (une barre dans la modale, comme celle de la carte) :
+  Déplacement (un clic ne pose rien), Point de référence, Mesure — **la mesure par
+  défaut**. Le glisser et la molette déplacent et zooment avec tous : seul le
+  **clic** dépend de l'outil (`ProfilGraphique.definirOutil`). Chaque ouverture de
+  la modale repart de la mesure.
+- **Point de référence** (demandé pour lire des altitudes depuis un sol choisi) :
+  un seul à la fois, le clic suivant remplace le précédent ; il s'accroche comme la
+  mesure. Il devient le **0, en altitude et en distance** : graduations relatives
+  (positives en haut et à droite, négatives en bas et à gauche), croix « 0 » et
+  deux axes pointillés ; sans référence, des altitudes absolues, **sans bascule**.
+  Pas de colonnes de plus dans le tableau : la demande était « tel point est
+  l'altitude 0 », pas d'afficher des cotes. S'efface par « Effacer la référence »,
+  par Retour arrière / Suppr (outil actif) et **à la fermeture de la modale** ;
+  changer seulement la largeur la garde (`definir()` ne l'efface pas : même ligne,
+  mêmes distances et altitudes). C'est une **constante** : valable sur un sol plat
+  ou pour un seul bâtiment, pas un MNT (dit dans l'aide ; le sol comblé est R7).
 - **Une seule mesure.** Le graphique alimente la chaîne de mesure de la carte
   (`MESURE.tableauHtml`, partagé) : ses points deviennent `{ x: distance sur
   l'axe, sol: altitude }`. Le clic s'accroche au point visible le plus proche
@@ -255,8 +272,7 @@ d'arbres et de bâtiments sans QGIS. Conception :
   porte une croix en haut : sans elle, le focus allait au dernier bouton et la
   fenêtre s'ouvrait défilée en bas. Pas de pastille avant un `<input>` dans un
   `<label>` : elle deviendrait le contrôle du label.
-  **Son texte est à réviser** quand le point de référence (TODO R6) ou un sol
-  comblé (R7) arriveront.
+  **Son texte est à réviser** si un sol comblé (TODO R7) arrive.
 - Pas de hauteur automatique (la valeur d'une cime et du sol se lit sur le
   graphique), pas de profil en 3D, pas d'export.
 - **La date d'acquisition se lit dans « Point sélectionné »**, pas dans le

@@ -3258,6 +3258,43 @@ if (MODE_VUE) (async () => {
       : MESURE.tableauHtml(chaine);
   }
 
+  // ── Les outils du graphique : déplacement, point de référence, mesure ──
+  // L'outil décide de ce que fait un clic (le glisser et la molette déplacent et zooment
+  // toujours). La mesure par défaut. Le point de référence est un par un : un clic remplace
+  // le précédent ; il s'efface par un bouton (ou Retour arrière / Suppr quand son outil est
+  // actif) et à la fermeture de la fenêtre.
+  profil.outil = 'mesure';
+  const CONSIGNES_OUTIL = {
+    deplacement: 'Glissez pour déplacer le graphique, molette pour zoomer. Un clic ne pose rien.',
+    reference: 'Cliquez un point du graphique : il devient le 0. Un nouveau clic le remplace.',
+    mesure: 'Cliquez des points du graphique pour mesurer, de suite.',
+  };
+
+  function majOutilsProfil() {
+    for (const b of document.querySelectorAll('#dlg-profil [data-outil]')) {
+      const actif = b.dataset.outil === profil.outil;
+      b.classList.toggle('actif', actif);
+      b.setAttribute('aria-pressed', String(actif));
+    }
+    $('profil-consigne-outil').textContent = CONSIGNES_OUTIL[profil.outil];
+    $('profil-canvas').classList.toggle('outil-deplacement', profil.outil === 'deplacement');
+    graphique?.definirOutil(profil.outil);
+  }
+
+  /** La ligne de la référence : son altitude, et le bouton qui l'efface — seulement quand elle existe. */
+  function afficherReferenceProfil(p) {
+    $('profil-reference-ligne').hidden = !p;
+    if (p) $('profil-reference-etat').textContent = `Référence : ${p.z.toFixed(1)} m`;
+  }
+
+  for (const b of document.querySelectorAll('#dlg-profil [data-outil]')) {
+    b.addEventListener('click', () => { profil.outil = b.dataset.outil; majOutilsProfil(); });
+  }
+  $('profil-reference-effacer').addEventListener('click', () => graphique?.effacerReference());
+  // Fermer la fenêtre (croix, Échap) efface la référence : changer la ligne la rendrait caduque.
+  $('dlg-profil').addEventListener('close', () => graphique?.effacerReference());
+  majOutilsProfil();
+
   /** La ligne d'état : combien de points, quelle bande, et ce qui peut tromper. */
   function texteEtatProfil(r) {
     const densite = r.total / (r.longueur * r.largeur);
@@ -3281,7 +3318,7 @@ if (MODE_VUE) (async () => {
       return;
     }
     if (num !== profil.numero) return;   // un calcul plus récent a pris la suite
-    graphique ??= new ProfilGraphique($('profil-canvas'), afficherMesureProfil);
+    if (!graphique) { graphique = new ProfilGraphique($('profil-canvas'), afficherMesureProfil, afficherReferenceProfil); graphique.definirOutil(profil.outil); }
     $('profil-d0').value = 0;
     $('profil-d1').value = 1000;
     if (r.vide) {
@@ -3304,6 +3341,9 @@ if (MODE_VUE) (async () => {
     // Les classes de départ sont celles de la légende 3D ; les changer ici ne
     // touche pas la légende.
     profil.masquees = new Set(classesMasquees);
+    profil.outil = 'mesure';          // chaque ouverture repart de la mesure, sans référence
+    graphique?.effacerReference();
+    majOutilsProfil();
     $('dlg-profil').showModal();
     calculerProfil();
   }
@@ -3347,7 +3387,11 @@ if (MODE_VUE) (async () => {
   $('profil-mesure-effacer').addEventListener('click', () => graphique?.effacerMesure());
   window.addEventListener('keydown', (e) => {
     if (!$('dlg-profil').open || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); graphique?.retirerDernier(); }
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault();
+      if (profil.outil === 'reference') graphique?.effacerReference();
+      else if (profil.outil === 'mesure') graphique?.retirerDernier();
+    }
   });
   window.addEventListener('resize', () => { if ($('dlg-profil').open) graphique?.rendre(); });
 

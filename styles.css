@@ -1313,6 +1313,23 @@ body:not([data-mode="vue"]) #mode-profil { display: none !important; }
 .btn-discret:hover:not(:disabled) { background: var(--fond-3); color: var(--texte); }
 .btn-discret:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* La barre d'outils du graphique (déplacement, référence, mesure) : les mêmes
+   boutons à icône que la barre de la carte, dans la modale. */
+.profil-outils { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.barre-profil { display: inline-flex; gap: 4px; }
+.barre-profil button.btn-mode {
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 32px; padding: 0;
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  color: var(--texte-2); cursor: pointer;
+}
+.barre-profil button.btn-mode:hover { color: var(--texte); background: var(--fond-3); }
+.barre-profil button.btn-mode.actif { background: var(--fond-3); color: var(--texte); border-color: var(--bord); }
+#profil-consigne-outil { flex: 1 1 14em; margin: 0; min-width: 0; font-size: 12px; }
+.profil-reference-ligne { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #4ad0ff; white-space: nowrap; }
+.profil-reference-ligne .btn-discret { padding: 4px 8px; }
+#profil-canvas.outil-deplacement { cursor: grab; }
+
 /* La fenêtre d'aide du profil : du texte, des titres courts, qui défile si l'écran est bas. */
 dialog.fenetre-aide { width: min(560px, calc(100% - 24px)); }
 dialog.fenetre-aide p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.55; color: var(--texte); }
@@ -1353,7 +1370,7 @@ dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
 .profil-gestes { order: 3; }
 #profil-recadrer { order: 4; }
 @media (max-width: 700px) {
-  .profil-bande { display: none; }
+  .profil-bande, .profil-suite { display: none; }
   #profil-etat { order: 5; flex-basis: 100%; }
   .profil-gestes { display: none; }
   #profil-recadrer { margin-left: auto; }

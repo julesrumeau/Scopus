@@ -219,7 +219,7 @@ s'écrit dans CLAUDE.md pour ne pas la rediscuter.
 
 | Lot | Contenu | État |
 |---|---|---|
-| A — mesure et aide | R1 et R3 sont faits ; R6 les rejoint quand son UI/UX est tranchée | R6 à concevoir |
+| A — mesure et aide | R1 et R3 sont faits (sur `dev`) ; R6 est codé sur sa branche | R6 à tester, puis fusion |
 | B — lien | R2 | à concevoir d'abord |
 | en attente | R4 | réponse du demandeur |
 | à décider | R7 | comprendre ce qui est demandé |
@@ -253,7 +253,7 @@ ceux que l'on mesure).
   la classe, la distance sur l'axe, la date d'acquisition.
 - Poids : jusqu'à ~80 Mo pour 1 M de points, ~500 Ko pour quelques milliers.
 
-### R6 — Point de référence — décidé, UI/UX arrêtée le 2 octobre 2026, prêt à faire
+### R6 — Point de référence — codé sur `feat/reference-profil` (3 octobre 2026), à tester avant fusion
 
 Demande : dire « ce point est l'altitude 0 à partir de maintenant », comme dans
 la méthode QGIS pour les bâtiments : un sol de référence, puis plusieurs points
@@ -295,12 +295,9 @@ bâtiment. **À dire tel quel dans l'aide**, la question du sol comblé étant �
   (un nouveau clic le remplace) ; ici il en faut un pour revenir aux altitudes sans
   fermer la modale. *(proposé, à confirmer)*
 
-**À ne pas oublier : mettre à jour l'aide du profil** (`#dlg-aide-profil` dans
-`index.html`) — y ajouter une entrée sur le point de référence, sa durée de vie et
-sa limite (sol plat ou un seul bâtiment), et décrire la barre d'outils (la mesure
-n'est plus « un clic = un point » sans condition). Même chose si R7 aboutit : la
-phrase « chaque point est un vrai retour du LiDAR » devra changer si un sol comblé
-apparaît dans le profil.
+**Aide du profil** : mise à jour dans la même branche (entrée 6 « Les outils », avec
+la limite sol plat ou un seul bâtiment). Reste à la relire si R7 aboutit : la
+phrase « chaque point est un vrai retour du LiDAR » devrait alors changer.
 
 **À voir avec R2 (le lien)** : la référence est un état de la modale ouverte,
 supprimée à sa fermeture.
