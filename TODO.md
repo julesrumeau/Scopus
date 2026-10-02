@@ -218,9 +218,8 @@ parce que ça changerait un comportement ou demanderait une décision :
 ## Retours du forum OSM-FR (depuis le 1er octobre 2026)
 
 Demandes reçues après la publication du profil topographique et de la date
-d'acquisition, numérotées **R1 à R6** pour ne pas les mêler aux #. Les pseudos
-sont ceux du forum, pour retrouver à qui répondre et qui mentionner dans
-l'annonce.
+d'acquisition, numérotées **R1 à R6** pour ne pas les mêler aux #. Aucun nom
+n'est écrit ici : le dépôt est public, et le fil du forum dit qui a demandé quoi.
 
 **Rythme décidé** : répondre vite à chacun (« noté », « je regarde », ou « pas
 prévu, parce que… »), mais **livrer par petits lots**, pas à chaque message ;
@@ -232,9 +231,9 @@ s'écrit dans CLAUDE.md pour ne pas la rediscuter.
 |---|---|---|
 | A — mesure et aide | R1, R3, R5 (R6 les rejoint si son UI/UX est tranchée à temps) | prêt à faire |
 | B — lien | R2 | à concevoir d'abord |
-| en attente | R4 | réponse de bibi |
+| en attente | R4 | réponse du demandeur |
 
-### R1 — Pente d'un segment mesuré *(pyrog, un escalier)* — décidé
+### R1 — Pente d'un segment mesuré *(mesure d'un escalier)* — décidé
 
 Une colonne **« Pente »** dans le tableau de mesure — donc dans le profil comme
 sur la carte, c'est le même (`MESURE.tableauHtml`) —, par segment, en degrés et
@@ -249,7 +248,7 @@ en pourcentage : « 32° (62 %) ».
 - Tests à écrire d'abord : un triangle 3-4-5, une descente, une horizontale
   nulle, une altitude inconnue.
 
-### R2 — Le lien porte le profil *(pyrog)* — à concevoir
+### R2 — Le lien porte le profil — à concevoir
 
 Constat : le lien actuel ne porte que `#map=zoom/lat/lon` (plus les angles en
 3D). Il manque la bande du profil, les points, les classes visibles. Contrainte
@@ -267,7 +266,7 @@ Pas de code avant une spec (brainstorming). Questions ouvertes :
   blocs ne sont pas encore chargés ; compatibilité avec les liens déjà publiés ;
   un lien de profil survit-il à un changement de territoire ?
 
-### R3 — Aide « Comment lire un profil » *(lunaticstraydog)* — décidé
+### R3 — Aide « Comment lire un profil » — décidé
 
 Les curseurs de largeur de bande et de tranche ne se comprennent pas du premier
 coup. Une pastille **`i`** (même apparence que la `?` existante, `.aide-info`)
@@ -288,10 +287,10 @@ Contenu court, à rédiger au moment de faire :
 Renommer « Tranche de la bande » en quelque chose de plus parlant. Un schéma de
 la bande vue de dessus pourra venir ensuite.
 
-### R4 — Export GeoJSON *(bibi)* — en attente
+### R4 — Export GeoJSON — en attente
 
 Demande : exporter des points en GeoJSON avec `ele` et `height` en propriétés.
-Non fait : le besoin n'est pas formulé. Une question a été posée à bibi (à quoi
+Non fait : le besoin n'est pas formulé. Une question a été posée au demandeur (à quoi
 cela servirait — JOSM, QGIS, uMap — et sur quels points : toute la bande, ou
 ceux que l'on mesure).
 
@@ -306,10 +305,10 @@ ceux que l'on mesure).
   où il n'y a pas de points ; « la hauteur de quoi, par rapport à quoi » n'a pas
   de réponse unique (cime ou premier retour, pied du tronc ou milieu de la bande,
   pente) ; la mesure reste faite par la personne, sur de vrais retours LiDAR.
-- **Fermer #7** : bibi juge la plage d'un à trois jours suffisante (la pousse
+- **Fermer #7** : un contributeur juge la plage d'un à trois jours suffisante (la pousse
   d'un arbre et un chantier sont bien plus lents). Pas de jour exact à chercher.
 
-### R6 — Point de référence *(Ltrlg, avec la remarque de bibi)* — décidé dans le principe, UI/UX à trancher avant tout code
+### R6 — Point de référence — décidé dans le principe, UI/UX à trancher avant tout code
 
 Demande : dire « ce point est l'altitude 0 à partir de maintenant », comme dans
 la méthode QGIS pour les bâtiments : un sol de référence, puis plusieurs points
@@ -317,7 +316,7 @@ sur plusieurs coupes, sans refaire les soustractions à la main (donc moins
 d'erreurs de calcul). Aujourd'hui le tableau ne donne que des écarts entre deux
 points consécutifs.
 
-Remarque de bibi : une constante n'est pas un MNT (la hauteur est MNS − MNT, pas
+Remarque d'un autre contributeur : une constante n'est pas un MNT (la hauteur est MNS − MNT, pas
 MNS − X) ; la référence vaut sur un sol plat ou pour un seul bâtiment. **À dire
 tel quel dans l'aide (R3)**, sans remettre en cause R5.
 
@@ -332,7 +331,7 @@ Idées retenues :
 - Le tableau gagne **« Cote »** (altitude depuis la référence) et **« Dist.
   depuis la réf. »**, seulement quand une référence existe.
 - **Le 0 vertical persiste d'une coupe à l'autre** (c'est une altitude réelle,
-  ce que demande Ltrlg) ; **le 0 horizontal est propre à la coupe** (une
+  ce que demande le demandeur) ; **le 0 horizontal est propre à la coupe** (une
   position sur cet axe : sur un nouvel axe, il revient au point A). À dire dans
   l'aide.
 - Un bouton **« Effacer la référence »** supprime les deux zéros et l'altitude
