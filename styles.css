@@ -382,6 +382,9 @@ button:disabled { opacity: 0.42; cursor: not-allowed; }
   cursor: help;
 }
 .aide-info:hover { border-color: var(--accent); color: var(--texte); }
+/* La pastille qui ouvre une fenêtre plutôt qu'une infobulle : un peu plus grande, pour se
+   toucher au doigt, et un curseur « cliquer » au lieu de « aide ». */
+.aide-info.ouvre { width: 22px; height: 22px; font-size: 12.5px; font-weight: 600; cursor: pointer; flex: none; }
 
 /* La zone cliquable (`height`, sur l'élément lui-même) est volontairement plus
    haute que la piste visible (4 px, sur les pseudo-éléments de piste) : à la
@@ -1310,6 +1313,12 @@ body:not([data-mode="vue"]) #mode-profil { display: none !important; }
 .btn-discret:hover:not(:disabled) { background: var(--fond-3); color: var(--texte); }
 .btn-discret:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* La fenêtre d'aide du profil : du texte, des titres courts, qui défile si l'écran est bas. */
+dialog.fenetre-aide { width: min(560px, calc(100% - 24px)); }
+dialog.fenetre-aide p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.55; color: var(--texte); }
+dialog.fenetre-aide h3 { margin: 16px 0 4px; font-size: 13px; color: var(--accent); font-weight: 600; }
+dialog.fenetre-aide .rangee { margin-top: 14px; justify-content: flex-end; }
+
 /* Les poignées A et B de la bande, glissables. */
 .poignee-profil {
   display: flex; align-items: center; justify-content: center;
@@ -1338,7 +1347,8 @@ dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
    petit, la largeur et « Vue entière » restent ensemble et l'état prend sa
    propre ligne (en colonne étroite, il s'écrivait lettre par lettre). */
 .profil-reglages { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-.profil-reglages .profil-largeur { order: 1; }
+.profil-reglages .profil-largeur { order: 1; flex: 0 0 auto; }   /* ne s'étire pas : la pastille reste contre le champ */
+.profil-reglages .aide-info { order: 1; }   /* juste après le champ de largeur */
 #profil-etat { order: 2; flex: 1 1 14em; min-width: 0; margin: 0; }
 .profil-gestes { order: 3; }
 #profil-recadrer { order: 4; }

@@ -563,6 +563,7 @@
         <p class="profil-consigne" id="profil-consigne">Cliquez le premier point sur la carte.</p>
         <div class="profil-largeur">
           <span class="profil-etiquette">Largeur</span>
+          <button type="button" class="aide-info ouvre" data-aide="aide-largeur" title="Cliquez pour voir l’explication" aria-label="Largeur de la bande : cliquez pour voir l’explication">?</button>
           <input type="range" id="profil-largeur" min="0" max="1000" step="1" value="338" aria-label="Largeur de la bande">
           <span class="champ-unite"><input type="number" id="profil-largeur-n" min="0.5" max="100" step="0.5" value="3" aria-label="Largeur de la bande en mètres"><em>m</em></span>
         </div>
@@ -659,6 +660,7 @@
       <span class="profil-etiquette">Largeur<span class="profil-bande"> de la bande</span></span>
       <span class="champ-unite"><input type="number" id="profil-largeur-modale" min="0.5" max="100" step="0.5" value="3"><em>m</em></span>
     </label>
+    <button type="button" class="aide-info ouvre" data-aide="aide-largeur" title="Cliquez pour voir l’explication" aria-label="Largeur de la bande : cliquez pour voir l’explication">?</button>
     <span class="vide" id="profil-etat"></span>
     <span class="profil-gestes">Molette : zoom · glisser : déplacer</span>
     <button id="profil-recadrer" class="btn-discret" type="button">Vue entière</button>
@@ -668,7 +670,7 @@
     <input type="range" id="profil-d0" min="0" max="1000" value="0" aria-label="Limite côté gauche de l’axe">
     <input type="range" id="profil-d1" min="0" max="1000" value="1000" aria-label="Limite côté droit de l’axe">
   </div>
-  <div class="vide profil-tranche" id="profil-tranche"></div>
+  <div class="vide profil-tranche"><span id="profil-tranche"></span> <button type="button" class="aide-info ouvre" data-aide="aide-tranche" title="Cliquez pour voir l’explication" aria-label="Partie de la bande gardée : cliquez pour voir l’explication">?</button></div>
   <div id="profil-classes" class="legende"></div>
   <div class="profil-mesure">
     <p class="vide" id="profil-mesure-vide">Cliquez des points du graphique, de suite : chaque segment s’ajoute au tableau, comme l’outil de mesure de la carte (le clic s’accroche au point le plus proche).</p>
@@ -677,6 +679,30 @@
       <button id="profil-mesure-annuler" class="secondaire" type="button">Annuler le dernier point</button>
       <button id="profil-mesure-effacer" class="secondaire" type="button">Effacer</button>
     </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-aide-profil" class="fenetre fenetre-aide" aria-labelledby="dlg-aide-profil-titre">
+  <div class="profil-entete">
+    <h2 id="dlg-aide-profil-titre">Comment lire un profil</h2>
+    <button id="aide-profil-croix" class="secondaire" type="button" aria-label="Fermer">✕</button>
+  </div>
+  <p>Un profil, c’est une <b>coupe verticale</b> : on regarde le terrain de côté, comme si on le tranchait le long d’une ligne. Chaque point est un vrai retour du LiDAR. Ça sert à lire un relief, une terrasse, un mur, un escalier, un talus, un bâtiment, un arbre…</p>
+  <h3>1. Poser la ligne</h3>
+  <p>Sur la carte, cliquez deux points, A puis B. Vous pouvez les déplacer en les glissant. Un nouveau clic quand les deux sont posés recommence en A.</p>
+  <h3 id="aide-largeur">2. La largeur de la bande</h3>
+  <p>Le profil ne prend pas que la ligne, mais une <b>bande</b> autour d’elle. La largeur est l’épaisseur totale de cette bande. Plus elle est large, plus il y a de points, mais plus elle mélange ce qui se trouve à côté. Pour suivre un mur fin, une bande étroite ; pour retrouver le point le plus haut d’un objet, une bande plus large.</p>
+  <h3>3. Lire le graphique</h3>
+  <p>En bas, la distance le long de la ligne ; à gauche, l’altitude. Le sol est dessiné par-dessus le reste pour qu’on le repère sous la végétation.</p>
+  <p><b>Peu de points ?</b> Zoomez davantage sur la carte avant de valider : plus on est près, plus le LiDAR chargé est détaillé. Même zoomé à fond, <b>attendez quelques secondes</b> : les points arrivent peu à peu, et il peut en manquer tant que tout n’est pas chargé. Revalidez ensuite, ou changez la largeur, pour recalculer le profil.</p>
+  <h3>4. Les classes</h3>
+  <p>Les cases sous le graphique cachent ou montrent chaque type de point (sol, végétation, bâtiment…). Décochez la végétation pour ne voir que le sol et ce qui est construit.</p>
+  <h3 id="aide-tranche">5. Garder une partie de la bande</h3>
+  <p>Les deux curseurs sous le graphique ne gardent qu’une <b>tranche de la bande, dans sa largeur</b>, de la gauche à la droite de la ligne, vue de A vers B. Aux deux extrémités, on voit tout. En les rapprochant, on ne garde que le centre, ou qu’un côté, par exemple pour écarter un voisin gênant. Rien n’est recalculé.</p>
+  <h3>6. Mesurer</h3>
+  <p>Cliquez des points sur le graphique, de suite : le clic s’accroche au point le plus proche. Le tableau donne, pour chaque segment, la distance horizontale, le dénivelé, la pente (en %) et la distance en 3D. « Annuler le dernier point » et « Effacer » corrigent. Molette pour zoomer, glisser pour déplacer, « Vue entière » pour revenir.</p>
+  <div class="rangee">
+    <button id="aide-profil-fermer" class="primaire" type="button">Compris</button>
   </div>
 </dialog>
 
