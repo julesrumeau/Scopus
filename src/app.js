@@ -417,6 +417,7 @@ if (vue3d) {
 let pointsMesure = [];   // [{ x, y, sol, hauteur }, ...] Lambert-93 absolu, dans l'ordre du clic
 
 function afficherMesure() {
+  majLien();   // la règle est dans le lien
   const versVue3D = (p) => (MESURE.sommet(p) != null ? { x: p.x, y: p.y, altitude: MESURE.sommet(p) } : null);
   vue2d.definirMesure(pointsMesure.map((p) => [p.x, p.y]));
   vue3d?.definirMesure(pointsMesure.map(versVue3D));
@@ -522,6 +523,9 @@ function etatPartage() {
   if (!MODE_VUE) return {};
   const e = etatPartageVue ? etatPartageVue() : {};
   if (selectionActuelle) e.sel = { lat: selectionActuelle.lat, lon: selectionActuelle.lon };
+  if (pointsMesure.length) {
+    e.regle = pointsMesure.map((q) => { const g = projVue().versGeo(q.x, q.y); return { lat: g.lat, lon: g.lon }; });
+  }
   return e;
 }
 
@@ -3625,6 +3629,18 @@ if (MODE_VUE) (async () => {
         // Sans relief calculé là, l'altitude arrive avec l'image suivante (voir plus haut).
         const pt = lireVue ? await lireVue(l.x, l.y) : null;
         afficherSelection(l.x, l.y, pt?.altitude ?? null, pt?.hauteur ?? 0);
+      }
+      if (p.regle) {
+        // Les points reviennent avec leur altitude relue dans la vue calculée (jamais écrite dans le lien).
+        const pts = [];
+        for (const q of p.regle) {
+          const l = projVue().versLocal(q.lon, q.lat);
+          const pt = lireVue ? await lireVue(l.x, l.y) : null;
+          pts.push({ x: l.x, y: l.y, sol: pt?.altitude ?? null, hauteur: pt?.hauteur ?? 0 });
+        }
+        pointsMesure = pts;
+        afficherMesure();
+        if (!p.profil) definirModeInteraction('mesure');
       }
       if (p.profil) {
         // Un lien avec une bande remplace celle qui était là.

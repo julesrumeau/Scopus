@@ -218,7 +218,8 @@ const LIEN = (() => {
    * Les paramètres de la coupe et de la sélection, à la suite de `map=…`.
    * @param {{profil?: {a: {lat:number, lon:number}, b: {lat:number, lon:number}, largeur:number},
    *          coupe?: boolean, classes?: Iterable<number>, mesure?: Array<{s:number, z:number}>,
-   *          ref?: {s:number, z:number}, sel?: {lat:number, lon:number}, sol?: Iterable<number>}} [p]
+   *          ref?: {s:number, z:number}, sel?: {lat:number, lon:number}, regle?: Array<{lat:number, lon:number}>,
+   *          sol?: Iterable<number>}} [p]
    * @returns {string} `&profil=…&coupe=1…`, ou `''`
    */
   function ecrirePartage(p) {
@@ -241,6 +242,9 @@ const LIEN = (() => {
       }
     }
     if (p.sel) parties.push(`sel=${nombre(p.sel.lat, 6)}/${nombre(p.sel.lon, 6)}`);
+    // La règle de la carte : ses points, en paires lat/lon ; leur altitude se relit à l'ouverture.
+    const regle = (p.regle ?? []).filter((q) => q && Number.isFinite(q.lat) && Number.isFinite(q.lon) && latLonValides(q.lat, q.lon));
+    if (regle.length) parties.push('regle=' + regle.slice(0, MESURE_MAX).map((q) => `${nombre(q.lat, 6)}/${nombre(q.lon, 6)}`).join('/'));
     const sol = classesTriees(p.sol);
     if (sol.length) parties.push(`sol=${sol.join('.')}`);
     parties.push(...ecrireVue(p.vue));
@@ -298,6 +302,12 @@ const LIEN = (() => {
     }
     const sel = nombres(params.get('sel'), 2);
     if (sel && latLonValides(sel[0], sel[1])) sortie.sel = { lat: sel[0], lon: sel[1] };
+    const regle = params.has('regle') ? nombres(params.get('regle')) : null;
+    if (regle && regle.length % 2 === 0 && regle.length <= 2 * MESURE_MAX) {
+      const pts = [];
+      for (let i = 0; i < regle.length; i += 2) pts.push({ lat: regle[i], lon: regle[i + 1] });
+      if (pts.every((q) => latLonValides(q.lat, q.lon))) sortie.regle = pts;
+    }
     const sol = params.has('sol') ? classesLues(params.get('sol')) : null;
     if (sol) sortie.sol = sol;
     const vue = lireVue(params);

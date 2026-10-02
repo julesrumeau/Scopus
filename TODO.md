@@ -224,7 +224,7 @@ s'écrit dans CLAUDE.md pour ne pas la rediscuter.
 | en attente | R4 | réponse du demandeur |
 | à décider | R7 | comprendre ce qui est demandé |
 
-### R2 — Le lien porte le profil — codé sur `feat/lien-profil` (3 octobre 2026), à tester avant fusion
+### R2 — Le lien porte le profil et la vue — codé sur `feat/lien-profil` (3 octobre 2026), à tester avant fusion
 
 Fait : la bande, la coupe ouverte, les classes visibles, la mesure, la référence, le
 point sélectionné et les classes du sol (si différentes du défaut) sont dans le lien, et
@@ -236,12 +236,15 @@ Vérifié en navigateur à 1400 et 380 px (31 contrôles de bout en bout).
 secondes (la modale attend le chargement des points avant de calculer), avec un message
 « Chargement des points pour rouvrir le profil… ».
 
-**R2b — à confirmer avec le demandeur** : il parle aussi des « paramètres de la vue ». Si
-cela veut dire les réglages de la carte — les couches de chaque côté du rideau, la
-position du rideau, le contraste, les réglages du SVF —, ils ne sont **pas** dans cette
-version. Même mécanisme, quelques clés de plus. Lui demander ce qu'il entendait avant de
-les coder. *(La tranche et le zoom du graphique ne sont pas dans le lien non plus, par
-choix.)*
+**R2b — les réglages de la vue, codés sur la même branche, à tester** : couches de chaque
+côté du rideau (`gauche`, `droite`), position du rideau (`rideau`, 0–100), `contraste`,
+`svf=directions/rayon`, `lisse=0`, et pour la 3D `couleur`, `plafond` (millions de points),
+`edl=0`, `cachees=` (classes masquées) ; plus la règle de la carte `regle=lat/lon/…`.
+Décisions : **jamais l'onglet** (ouvrir un lien ne lance pas la 3D : un nuage à télécharger
+et à bâtir, trop lourd, surtout au téléphone) ; le plafond de points est écrit quand même
+(celui qui ouvre le change à sa guise) ; un seul lien, la barre d'adresse porte tout ;
+seul ce qui diffère du défaut est écrit. *(La tranche et le zoom du graphique ne sont pas
+dans le lien, par choix.)* Vérifié en navigateur (30 contrôles pour la vue, 6 pour la règle).
 
 ### R4 — Export GeoJSON — en attente
 

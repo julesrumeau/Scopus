@@ -441,7 +441,8 @@ y ajoute `&layers=` : `&profil=latA/lonA/latB/lonB/largeur` (6 décimales, ~10 c
 `&coupe=1` (la modale est ouverte), `&classes=2.5.6` (classes **visibles** de la
 modale), `&mesure=s/z/s/z…` (au plus 40 points), `&ref=s/z`, `&sel=lat/lon` (le point
 sélectionné), `&sol=2.6` (classes du sol du relief, **seulement si elles diffèrent du
-défaut**, `LIEN.sansDefaut`). Environ 200 caractères pour un état complet. Fonctions
+défaut**, `LIEN.sansDefaut`), `&regle=lat/lon/…` (la règle de la carte, au plus 40
+points ; l'altitude se relit dans la vue). Environ 200 caractères pour un état complet. Fonctions
 pures dans `lien.js` (`ecrirePartage`, `lirePartage`), testées à froid.
 
 - **Pas de compression** : elle sert aux gros états (Mermaid, Excalidraw) et rend le
@@ -460,6 +461,15 @@ pures dans `lien.js` (`ecrirePartage`, `lirePartage`), testées à froid.
   temps `etat.restaurationPartage` empêche d'écrire le fragment : il perdrait ce qu'il
   porte encore. Un lien reçu au démarrage attend dans `partageEnAttente` que le bloc du
   mode vue soit prêt.
+- **Réglages de la vue** (`vue` dans `lirePartage`) : `gauche`/`droite` (clés de couche),
+  `rideau` (0–100), `contraste`, `svf=directions/rayon`, `lisse=0`, `couleur`, `plafond`
+  (millions de points), `edl=0`, `cachees=` ; **seul ce qui diffère du défaut** est écrit
+  (`reglagesVue`), chacun se lit et tombe **seul**. Remis par `reglerVue`, qui passe par les
+  vrais contrôles (leurs gestionnaires font le reste). **Jamais l'onglet** : ouvrir un lien
+  ne doit pas lancer la 3D (nuage de millions de points) ; ses réglages s'appliquent quand
+  on l'ouvre soi-même. Le plafond est écrit, mais dépend de l'appareil : celui qui ouvre
+  le change à sa guise. La position du rideau passe par `placerRideau` (enveloppé pour
+  `majLien`).
 - **Le lien suit tout changement** (bande, largeur, mesure, référence, classes, ouverture,
   sélection, classes du sol) par `majLien`, déjà regroupé à 300 ms. Hors vue normale
   (`?dalle`), rien de tout cela n'est écrit ni lu.

@@ -322,3 +322,34 @@ test('lirePartage : le rideau lu est un entier de 0 à 100, jamais plus', () => 
   assert.equal(plat(LIEN.lirePartage('#map=18/42.8/1.0&rideau=0')).vue.rideau, 0);
   assert.equal(plat(LIEN.lirePartage('#map=18/42.8/1.0&rideau=100')).vue.rideau, 100);
 });
+
+// ── La règle de la carte (mesure A→B→C posée sur la carte, hors profil) ─────
+
+const REGLE = [{ lat: 42.857536, lon: 1.061833 }, { lat: 42.8581, lon: 1.0625 }, { lat: 42.8586, lon: 1.0631 }];
+
+test('ecrirePartage : la règle s’écrit en paires lat/lon, après la sélection, indépendamment de la bande', () => {
+  assert.equal(LIEN.ecrirePartage({ regle: REGLE }), '&regle=42.857536/1.061833/42.8581/1.0625/42.8586/1.0631');
+  assert.equal(LIEN.ecrirePartage({ regle: [REGLE[0]] }), '&regle=42.857536/1.061833');
+  assert.equal(LIEN.ecrirePartage({ regle: [] }), '');
+  assert.equal(LIEN.ecrirePartage({ sel: { lat: 1, lon: 2 }, regle: [REGLE[0]] }), '&sel=1/2&regle=42.857536/1.061833');
+});
+
+test('ecrirePartage : la règle ne garde que des points valides, en nombre borné', () => {
+  assert.equal(LIEN.ecrirePartage({ regle: [{ lat: 95, lon: 1 }, { lat: NaN, lon: 1 }] }), '');
+  const beaucoup = Array.from({ length: 100 }, (_, i) => ({ lat: 42 + i / 1000, lon: 1 }));
+  const n = LIEN.ecrirePartage({ regle: beaucoup }).slice('&regle='.length).split('/').length / 2;
+  assert.equal(n, 40);
+});
+
+test('lirePartage : rend la règle écrite, et la tient pour abîmée en bloc au moindre doute', () => {
+  const lu = (reste) => plat(LIEN.lirePartage('#map=18/42.8/1.0' + reste));
+  assert.deepEqual(lu('&regle=42.857536/1.061833/42.8581/1.0625/42.8586/1.0631').regle, REGLE);
+  assert.deepEqual(lu('&regle=42.857536/1.061833').regle, [REGLE[0]]);
+  for (const a of ['&regle=42.8/1.0/43', '&regle=42.8/abc', '&regle=', '&regle=95/1', '&regle=42.8/200']) {
+    assert.equal(lu(a).regle, undefined, a);
+  }
+  const trop = Array.from({ length: 200 }, (_, i) => `42.${i}/1`).join('/');
+  assert.equal(lu(`&regle=${trop}`).regle, undefined);   // refusée, pas tronquée
+  // Sans bande ni coupe, la règle vit seule ; et abîmée, elle n'emporte rien d'autre.
+  assert.equal(lu('&regle=x&sel=42.8/1.0').sel.lat, 42.8);
+});
