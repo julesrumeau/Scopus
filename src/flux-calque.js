@@ -131,6 +131,11 @@ const CalqueRelief = L.Layer.extend({
     if (couche) { this.vider(cote); c.fond = couche.addTo(this._carte); }
   },
 
+  /** La position du rideau, en part de la largeur (pour le lien). */
+  partRideau() {
+    return this._part;
+  },
+
   /** Position du rideau, en part de la largeur. */
   placerRideau(part) {
     this._part = Math.max(0, Math.min(1, part));

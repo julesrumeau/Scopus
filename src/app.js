@@ -1645,6 +1645,7 @@ $('coloration').addEventListener('click', async (e) => {
   if (!b) return;
   for (const autre of $('coloration').children) autre.classList.toggle('actif', autre === b);
   CONFIG.rendu.coloration = b.dataset.mode;
+  majLien();   // la couleur du nuage est dans le lien
   majLegende();
   await majAttributNuage();
   vue3d?.invalider();
@@ -1803,6 +1804,7 @@ $('legende').addEventListener('click', (e) => {
   if (classesMasquees.has(cls)) classesMasquees.delete(cls); else classesMasquees.add(cls);
   b.classList.toggle('off', classesMasquees.has(cls));
   vue3d?.definirClassesMasquees(classesMasquees);
+  majLien();   // les classes cachées sont dans le lien
 });
 
 // ── Classes du sol ────────────────────────────────────────────────────────
@@ -2660,6 +2662,10 @@ if (MODE_VUE) (async () => {
   // Les contours des blocs chargés, pour voir le chargement : « &debug ».
   const calque = new URLSearchParams(location.search).has('debug') ? new CalqueFlux().addTo(carte.map) : null;
   const reliefCalque = new CalqueRelief().addTo(carte.map);
+  // La position du rideau est dans le lien : le geste (et « Rideau au centre ») passent par
+  // `placerRideau`, qu'on enveloppe sur cette instance.
+  const placerRideauSeul = reliefCalque.placerRideau.bind(reliefCalque);
+  reliefCalque.placerRideau = (part) => { placerRideauSeul(part); majLien(); };
   // Le calcul du relief tourne dans un worker (relief-travailleur.js) : sur le
   // fil principal, il figeait la carte une à plusieurs secondes à chaque
   // arrivée de blocs. S'il ne démarre pas, le même calcul se fait ici.
@@ -2964,6 +2970,7 @@ if (MODE_VUE) (async () => {
     const cle = estRelief(cotes.droite) ? cotes.droite : cotes.gauche;
     $('vue-aide').textContent = estRelief(cle) ? COUCHES_VUE.find((x) => x.cle === cle).aide : 'Choisissez une couche de relief d’un côté du rideau.';
     $('vue-svf-reglages').hidden = !(BALAYAGE.has(cotes.gauche) || BALAYAGE.has(cotes.droite));
+    majLien();   // les couches de chaque côté sont dans le lien
   };
   for (const c of ['gauche', 'droite']) {
     const sel = $(`vue-${c}`);
@@ -2984,10 +2991,10 @@ if (MODE_VUE) (async () => {
   $('vue-svf-rayon').value = svfRayonM;
   $('val-vue-svf-rayon').textContent = `${svfRayonM} m`;
   $('vue-svf-directions').addEventListener('input', (e) => { $('val-vue-svf-directions').textContent = e.target.value; });
-  $('vue-svf-directions').addEventListener('change', (e) => { svfDirections = Number(e.target.value); planifierRelief(0); });
+  $('vue-svf-directions').addEventListener('change', (e) => { svfDirections = Number(e.target.value); planifierRelief(0); majLien(); });
   $('vue-svf-rayon').addEventListener('input', (e) => { $('val-vue-svf-rayon').textContent = `${e.target.value} m`; });
-  $('vue-svf-rayon').addEventListener('change', (e) => { svfRayonM = Number(e.target.value); planifierRelief(0); });
-  $('vue-lisser').addEventListener('change', (e) => { lisserFlux = e.target.checked; planifierRelief(0); });
+  $('vue-svf-rayon').addEventListener('change', (e) => { svfRayonM = Number(e.target.value); planifierRelief(0); majLien(); });
+  $('vue-lisser').addEventListener('change', (e) => { lisserFlux = e.target.checked; planifierRelief(0); majLien(); });
 
   // ── Sélection d'un point et mesure, sur la carte ──
   // Les mêmes sections et le même tableau que l'onglet 2D ; le point se lit
@@ -3097,8 +3104,9 @@ if (MODE_VUE) (async () => {
   $('vue-budget3d').addEventListener('change', (e) => {
     budget3D = Number(e.target.value) * 1e6;
     if (!$('vue-3d').hidden) construire3D();
+    majLien();   // le plafond de points est dans le lien
   });
-  $('vue-edl').addEventListener('change', (e) => vue3d?.definirEDL(e.target.checked));
+  $('vue-edl').addEventListener('change', (e) => { vue3d?.definirEDL(e.target.checked); majLien(); });
   // Un volet à part, au-dessus du relief (450) et sous le rideau (700) : les
   // marqueurs restent visibles des deux côtés.
   carte.map.createPane('outilsVue').style.zIndex = 660;
@@ -3481,6 +3489,7 @@ if (MODE_VUE) (async () => {
     contrasteFlux = Number(e.target.value);
     $('val-vue-contraste').textContent = `×${contrasteFlux.toFixed(1)}`;
     planifierRelief(0);
+    majLien();   // le contraste est dans le lien
   });
   // Les classes du sol s'appliquent tout de suite : les points sont dans le
   // worker, il n'y a rien à retélécharger — contrairement à l'ancien parcours
@@ -3512,8 +3521,68 @@ if (MODE_VUE) (async () => {
         e.ref = graphique?.reference ?? undefined;
       }
     }
+    e.vue = reglagesVue();
     return e;
   };
+
+  /**
+   * Les réglages de la vue qui diffèrent du défaut — rien d'autre, pour que le lien reste court.
+   * Les défauts sont ceux du démarrage : couches carte / SVF, rideau au milieu, contraste ×1,
+   * SVF de `CONFIG`, lissage et ombrage de profondeur actifs, couleur par classification,
+   * plafond de points de l'appareil.
+   */
+  const reglagesVue = () => ({
+    gauche: cotes.gauche !== 'carte' ? cotes.gauche : undefined,
+    droite: cotes.droite !== 'svf' ? cotes.droite : undefined,
+    rideau: Math.round(reliefCalque.partRideau() * 100) !== 50 ? reliefCalque.partRideau() * 100 : undefined,
+    contraste: contrasteFlux !== 1 ? contrasteFlux : undefined,
+    svf: svfDirections !== CONFIG.relief.svfDirections || svfRayonM !== CONFIG.relief.svfRayonM
+      ? { directions: svfDirections, rayon: svfRayonM } : undefined,
+    lisse: lisserFlux ? undefined : false,
+    couleur: CONFIG.rendu.coloration !== 'classification' ? CONFIG.rendu.coloration : undefined,
+    plafond: budget3D !== (surMobile() ? CONFIG.rendu.budget3DMobile : CONFIG.rendu.budget3D) ? budget3D / 1e6 : undefined,
+    edl: $('vue-edl').checked ? undefined : false,
+    cachees: classesMasquees.size ? [...classesMasquees] : undefined,
+  });
+
+  /**
+   * Remet les réglages d'un lien en passant par les vrais contrôles : leurs gestionnaires font le
+   * reste (recalcul, étiquettes, lien), et rien ne diverge de ce qu'un clic aurait fait. Une couche
+   * absente de la liste est ignorée ; un curseur ramène lui-même une valeur hors bornes dans les siennes.
+   */
+  function reglerVue(v) {
+    const regler = (id, valeur, evenement) => {
+      const e = $(id);
+      e.value = valeur;
+      e.dispatchEvent(new Event(evenement, { bubbles: true }));
+    };
+    const aOption = (id, valeur) => [...$(id).options].some((o) => o.value === valeur);
+    for (const c of ['gauche', 'droite']) {
+      if (v[c] && aOption(`vue-${c}`, v[c])) regler(`vue-${c}`, v[c], 'change');
+    }
+    if (v.rideau !== undefined) reliefCalque.placerRideau(v.rideau / 100);
+    if (v.contraste !== undefined) regler('vue-contraste', v.contraste, 'input');
+    if (v.svf) {
+      regler('vue-svf-directions', v.svf.directions, 'change');
+      regler('vue-svf-rayon', v.svf.rayon, 'change');
+    }
+    if (v.lisse === false) {
+      $('vue-lisser').checked = false;
+      $('vue-lisser').dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (v.couleur) $('coloration').querySelector(`[data-mode="${v.couleur}"]`)?.click();
+    if (v.plafond !== undefined) regler('vue-budget3d', v.plafond, 'change');
+    if (v.edl === false) {
+      $('vue-edl').checked = false;
+      $('vue-edl').dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (v.cachees) {
+      classesMasquees.clear();
+      for (const c of v.cachees) classesMasquees.add(c);
+      vue3d?.definirClassesMasquees(classesMasquees);
+      majLegende();
+    }
+  }
 
   /**
    * La carte est-elle à la vue du lien ? Elle y va à l'image suivante son ouverture ; sans
@@ -3550,6 +3619,7 @@ if (MODE_VUE) (async () => {
         relief.reglages({ classesSol: classesSolFlux });
         planifierRelief(0);
       }
+      if (p.vue) reglerVue(p.vue);
       if (p.sel) {
         const l = projVue().versLocal(p.sel.lon, p.sel.lat);
         // Sans relief calculé là, l'altitude arrive avec l'image suivante (voir plus haut).

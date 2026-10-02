@@ -155,7 +155,8 @@ const LIEN = (() => {
   //
   // Le plus possible de ce qui change ce qu'on voit : couches de chaque côté du rideau, position
   // du rideau, contraste, réglages du SVF, lissage ; puis, pour la 3D, la couleur, le plafond de
-  // points, l'ombrage de profondeur et les classes cachées ; et l'onglet. Le lien n'écrit que ce
+  // points, l'ombrage de profondeur et les classes cachées. Jamais l'onglet : ouvrir un lien ne doit pas lancer la 3D (un nuage de
+  // millions de points à télécharger et à bâtir) ; ces réglages s'appliquent quand on l'ouvre soi-même. Le lien n'écrit que ce
   // qu'on lui donne — l'appelant ne donne que ce qui diffère du défaut, pour qu'un lien reste
   // court — et chaque réglage se lit seul : un abîmé tombe, les autres restent.
 
@@ -167,7 +168,6 @@ const LIEN = (() => {
   function ecrireVue(v) {
     const p = [];
     if (!v) return p;
-    if (v.onglet === '3d') p.push('onglet=3d');
     if (typeof v.gauche === 'string' && COUCHE.test(v.gauche)) p.push(`gauche=${v.gauche}`);
     if (typeof v.droite === 'string' && COUCHE.test(v.droite)) p.push(`droite=${v.droite}`);
     if (Number.isFinite(v.rideau)) p.push(`rideau=${Math.round(Math.min(100, Math.max(0, v.rideau)))}`);
@@ -191,7 +191,6 @@ const LIEN = (() => {
 
   function lireVue(params) {
     const v = {};
-    if (params.get('onglet') === '3d') v.onglet = '3d';
     for (const cle of ['gauche', 'droite']) {
       const c = params.get(cle);
       if (c !== null && COUCHE.test(c)) v[cle] = c;

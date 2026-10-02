@@ -227,12 +227,12 @@ test('sansDefaut : une classe absente de la zone ne fait pas passer le défaut p
 // autres restent.
 
 const VUE_COMPLETE = () => ({
-  onglet: '3d', gauche: 'ombrage', droite: 'ouverture-neg', rideau: 30, contraste: 1.5,
+  gauche: 'ombrage', droite: 'ouverture-neg', rideau: 30, contraste: 1.5,
   svf: { directions: 12, rayon: 15 }, lisse: false,
   couleur: 'hauteur', plafond: 8, edl: false, cachees: [5, 3, 4],
 });
 
-const EXEMPLE_VUE = '&onglet=3d&gauche=ombrage&droite=ouverture-neg&rideau=30&contraste=1.5&svf=12/15&lisse=0'
+const EXEMPLE_VUE = '&gauche=ombrage&droite=ouverture-neg&rideau=30&contraste=1.5&svf=12/15&lisse=0'
   + '&couleur=hauteur&plafond=8&edl=0&cachees=3.4.5';
 
 test('ecrirePartage : une vue vide n’écrit rien', () => {
@@ -267,7 +267,8 @@ test('ecrirePartage : une couche ou une couleur aux caractères douteux n’entr
   assert.equal(LIEN.ecrirePartage({ vue: { gauche: 'a b' } }), '');
   assert.equal(LIEN.ecrirePartage({ vue: { gauche: '<script>', droite: 'x,y' } }), '');
   assert.equal(LIEN.ecrirePartage({ vue: { couleur: 'inconnue' } }), '');
-  assert.equal(LIEN.ecrirePartage({ vue: { onglet: 'carte' } }), '');   // seul « 3d » s'écrit : la carte est le défaut
+  // L'onglet n'est jamais écrit : ouvrir un lien ne doit pas lancer la 3D (nuage de millions de points).
+  assert.equal(LIEN.ecrirePartage({ vue: { onglet: '3d' } }), '');
 });
 
 test('le lien avec tous les réglages reste sûr dans le forum et court', () => {
@@ -280,7 +281,7 @@ test('le lien avec tous les réglages reste sûr dans le forum et court', () => 
 test('lirePartage : rend les réglages de la vue qu’ecrirePartage a produits', () => {
   const lu = plat(LIEN.lirePartage('#map=18/42.8/1.0' + EXEMPLE_VUE));
   assert.deepEqual(lu, { vue: {
-    onglet: '3d', gauche: 'ombrage', droite: 'ouverture-neg', rideau: 30, contraste: 1.5,
+    gauche: 'ombrage', droite: 'ouverture-neg', rideau: 30, contraste: 1.5,
     svf: { directions: 12, rayon: 15 }, lisse: false,
     couleur: 'hauteur', plafond: 8, edl: false, cachees: [3, 4, 5],
   } });
@@ -310,7 +311,7 @@ test('lirePartage : chaque réglage abîmé tombe seul, les autres de la vue res
   for (const abime of ['couleur=inconnue', 'couleur=', 'couleur=Hauteur', 'couleur=intensite']) assert.equal(lu(abime).couleur, undefined, abime);
   for (const abime of ['plafond=0', 'plafond=21', 'plafond=abc', 'plafond=1e1', 'plafond=-3']) assert.equal(lu(abime).plafond, undefined, abime);
   for (const abime of ['cachees=3.x', 'cachees=300', 'cachees=', 'cachees=3,4']) assert.equal(lu(abime).cachees, undefined, abime);
-  for (const abime of ['onglet=carte', 'onglet=2d', 'onglet=']) assert.equal(lu(abime).onglet, undefined, abime);
+  for (const autre of ['onglet=3d', 'onglet=carte', 'onglet=']) assert.deepEqual(lu(autre), { rideau: 30 }, autre);   // ignoré, jamais lu : le reste de la vue demeure
 });
 
 test('lirePartage : une vue sans aucun réglage valide n’a pas de clé « vue »', () => {
