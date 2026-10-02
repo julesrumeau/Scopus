@@ -255,7 +255,8 @@ d'arbres et de bâtiments sans QGIS. Conception :
   publie `date_debut_acquisition` / `date_fin_acquisition` par dalle : une plage
   de un à trois jours, **différente d'une dalle voisine à l'autre** (vu en
   Ariège : 12–13, 12–14 juillet 2022). Le jour exact exigerait le temps GPS de
-  chaque point, retiré des blocs (TODO #7) ; le mois suffit au tag OSM. Sans
+  chaque point, retiré des blocs : inutile, la plage suffit au tag OSM (un
+  contributeur l'a confirmé). Sans
   date publiée : « — », jamais une date inventée.
 
 ## La carte
@@ -676,7 +677,7 @@ détection automatique (voir « Code existant mais masqué »).
 | Carte, dalles, LAZ, rendu, Lambert-93 → WGS84, liens, exports | ✅ |
 | Relief piloté par la vue (carte + rideau, panneau « Relief », outils, 3D avec EDL) | ✅ — ancienne interface derrière `?dalle` |
 | Lien partageable, accueil, DROM, états vides, borne de zoom | ✅ |
-| Profil topographique (bande, coupe, mesure) | ✅ vue normale, vérifié en Chromium (bureau, tablette, téléphone, paysage) ; poignées au doigt et pincement non essayés ; date d'acquisition dans TODO (#7) |
+| Profil topographique (bande, coupe, mesure) | ✅ vue normale, vérifié en Chromium (bureau, tablette, téléphone, paysage) ; poignées au doigt et pincement non essayés ; date d'acquisition dans « Point sélectionné » |
 | Détection de structures / de sentiers | 🙈 masquées (`ANALYSE_MASQUEE`, `SENTIERS_MASQUES`) |
 | Contrôle positif sur ruine connue | ❌ en attente de coordonnées |
 | 3D qui pilote le téléchargement | TODO #4 |

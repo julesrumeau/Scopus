@@ -19,7 +19,7 @@ que du COPC, la carte voilée et la dernière image gardée (CLAUDE.md, « Le
 calcul de la vue »).
 
 **Retours du forum** : les demandes arrivées après la publication du profil
-(1er et 2 octobre 2026) sont numérotées **R1 à R6**, à part des #, dans la
+(1er et 2 octobre 2026) sont numérotées **R1 à R7**, à part des #, dans la
 section « Retours du forum » en fin de fichier.
 
 ### #1 — Rallumer la détection, ou renoncer *(prioritaire)*
@@ -170,16 +170,6 @@ fin près de la caméra et du grossier au loin, et la « fourchette » de
 l'utilisateur comme seuil d'hystérésis pour ne pas retélécharger au moindre
 mouvement. À faire après usage de l'étape 1.
 
-### #7 — Jour exact d'acquisition (reste de la demande OSM) — à fermer, voir R5
-
-La date d'acquisition est faite (« Point sélectionné » : plage de vol de la
-dalle, voir CLAUDE.md). Reste le **jour exact** : l'IGN ne publie qu'une plage
-de un à trois jours par dalle, alors que le tag `height:AAAA-MM-JJ` proposé
-sur le forum OSM-FR en demande un. Il ne se lirait que dans le temps GPS de
-chaque point (`COPC.reduireBloc` déclare cette couche vide : ~40 % de volume
-en plus à télécharger) ; le mois, lui, est fiable avec la plage. À décider si
-des retours le demandent.
-
 ### #6 — Laissé de côté par l'audit du 27 septembre 2026
 
 Relevé en relisant la branche du relief piloté par la vue, sans y toucher,
@@ -218,7 +208,7 @@ parce que ça changerait un comportement ou demanderait une décision :
 ## Retours du forum OSM-FR (depuis le 1er octobre 2026)
 
 Demandes reçues après la publication du profil topographique et de la date
-d'acquisition, numérotées **R1 à R6** pour ne pas les mêler aux #. Aucun nom
+d'acquisition, numérotées **R1 à R7** (R5 est fait : retiré) pour ne pas les mêler aux #. Aucun nom
 n'est écrit ici : le dépôt est public, et le fil du forum dit qui a demandé quoi.
 
 **Rythme décidé** : répondre vite à chacun (« noté », « je regarde », ou « pas
@@ -229,9 +219,10 @@ s'écrit dans CLAUDE.md pour ne pas la rediscuter.
 
 | Lot | Contenu | État |
 |---|---|---|
-| A — mesure et aide | R1, R3, R5 (R6 les rejoint si son UI/UX est tranchée à temps) | prêt à faire |
+| A — mesure et aide | R1, R3 (R6 les rejoint si son UI/UX est tranchée à temps) | prêt à faire |
 | B — lien | R2 | à concevoir d'abord |
 | en attente | R4 | réponse du demandeur |
+| à décider | R7 | comprendre ce qui est demandé |
 
 ### R1 — Pente d'un segment mesuré *(mesure d'un escalier)* — décidé
 
@@ -294,19 +285,9 @@ Non fait : le besoin n'est pas formulé. Une question a été posée au demandeu
 cela servirait — JOSM, QGIS, uMap — et sur quels points : toute la bande, ou
 ceux que l'on mesure).
 
-- Sans sol reconstitué (voir R5), **pas de `height` par point** : seulement `ele`,
+- Sans sol reconstitué (voir R7), **pas de `height` par point** : seulement `ele`,
   la classe, la distance sur l'axe, la date d'acquisition.
 - Poids : jusqu'à ~80 Mo pour 1 M de points, ~500 Ko pour quelques milliers.
-
-### R5 — Documentation *(nous)* — à faire
-
-- **CLAUDE.md, « Le profil »** : écrire la décision **pas de sol extrapolé, pas
-  de hauteur automatique**. Un sol reconstitué est une estimation exactement là
-  où il n'y a pas de points ; « la hauteur de quoi, par rapport à quoi » n'a pas
-  de réponse unique (cime ou premier retour, pied du tronc ou milieu de la bande,
-  pente) ; la mesure reste faite par la personne, sur de vrais retours LiDAR.
-- **Fermer #7** : un contributeur juge la plage d'un à trois jours suffisante (la pousse
-  d'un arbre et un chantier sont bien plus lents). Pas de jour exact à chercher.
 
 ### R6 — Point de référence — décidé dans le principe, UI/UX à trancher avant tout code
 
@@ -318,7 +299,7 @@ points consécutifs.
 
 Remarque d'un autre contributeur : une constante n'est pas un MNT (la hauteur est MNS − MNT, pas
 MNS − X) ; la référence vaut sur un sol plat ou pour un seul bâtiment. **À dire
-tel quel dans l'aide (R3)**, sans remettre en cause R5.
+tel quel dans l'aide (R3)** ; la question du sol comblé est traitée à part, en R7.
 
 Idées retenues :
 - Une rubrique « Référence » dans la modale. Son bouton **arme le prochain clic
@@ -341,3 +322,41 @@ Idées retenues :
 déjà dense (réglages, graphique, tranche, classes, mesure) ; comment montrer que
 le clic est « armé » ; le rendu des axes relatifs (garder l'altitude absolue
 lisible ?) ; le comportement dans le lien (R2).
+
+### R7 — Combler le sol : hauteur = MNS − MNT — à décider, pas maintenant
+
+**Réponse faite pour l'instant : non**, on laisse la personne choisir ses points.
+Mais ce n'est pas fermé : on veut d'abord **comprendre précisément ce qui est
+demandé**. À ne pas commencer.
+
+Ce qui a été dit (deux messages) :
+- Extrapoler le sol sous les arbres (classe sol) pour « faciliter le calcul des
+  valeurs `height` ».
+- À propos du point de référence (R6) : une référence donne une hauteur
+  MNS − X, avec X constante, qui ne vaut que sur un sol horizontal ou pour un
+  seul bâtiment. Le MNT est préféré parce que la hauteur est MNS − MNT.
+
+Vocabulaire : le **MNS** est la surface (cimes, toits), le **MNT** le sol nu.
+Une hauteur est l'altitude du dessus **moins l'altitude du sol à cet endroit**.
+Avec une constante, une pente fausse le résultat : à 20 %, deux points distants
+de 10 m ont un sol à 2 m d'écart.
+
+Ce qu'on a déjà : un sol comblé existe dans l'outil (le relief et la couleur
+« hauteur au sol » de la 3D), mais il n'est pas dans le profil.
+
+Pourquoi non pour l'instant : sous un houppier dense il y a peu de points sol, le
+sol comblé y est une **estimation** et non une mesure ; et « la hauteur de quoi,
+par rapport à quoi » n'a pas de réponse unique (cime ou premier retour, pied du
+tronc ou milieu de la bande, pente).
+
+**Questions à poser** à la personne :
+- Que voudrait-elle voir : une **ligne de sol** tracée dans le profil, la
+  **hauteur calculée** d'un point mesuré, ou une `height` exportée (R4) ?
+- Pour quel usage : poser `height` sur des arbres et des bâtiments dans OSM, ou
+  des analyses dans QGIS ?
+- Quel écart accepterait-elle sur un sol estimé sous couvert dense ?
+
+Pistes à évaluer si on y revient : une ligne de sol **en pointillé, nettement
+distincte des vrais points sol** et marquée « estimé » ; une colonne « hauteur au
+sol estimé » **facultative, éteinte par défaut** ; les risques (sol faux sous
+couvert dense, pas de grille ≥ 50 cm, pente). Dépend de R4 et R6.
