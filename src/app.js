@@ -25,6 +25,9 @@ const etat = {
   // Vue d'un lien ouvert (`LIEN.lire`), en attente du chargement de sa dalle
   // pour s'appliquer en 2D et en 3D — voir `appliquerVueDuLien`.
   vueDuLien: null,
+  // Un lien du profil est en train de se remettre (carte cadrée, points chargés, modale rouverte) :
+  // ne pas réécrire le fragment d'ici là, il perdrait ce qu'il porte encore.
+  restaurationPartage: false,
   nuage: null,
   grille: null,
   resultat: null,
@@ -290,6 +293,7 @@ function afficherSelection(x, y, sol, hauteur = 0) {
   vue2d.definirPointSelectionne([x, y]);
   vue3d?.definirPointSelectionne({ x, y, altitude: sommetPoint });
   carteOutils?.selection([x, y]);
+  majLien();   // la sélection est dans le lien
 }
 
 function effacerSelection() {
@@ -300,6 +304,7 @@ function effacerSelection() {
   vue2d.definirPointSelectionne(null);
   vue3d?.definirPointSelectionne(null);
   carteOutils?.selection(null);
+  majLien();
 }
 
 $('lien-gmaps').addEventListener('click', () => {
@@ -504,6 +509,30 @@ function vueCourante() {
   return { lat: centre.lat, lon: centre.lng, zoom: carte.map.getZoom() };
 }
 
+// ── Le lien du profil (R2) ───────────────────────────────────────────────────
+// L'état de la coupe et de la sélection est dans le bloc du mode vue (la bande, la modale, le
+// graphique) : il pose ces deux fonctions à sa fin. Un lien ouvert avant cela attend dans
+// `partageEnAttente`, que le bloc consomme dès qu'il est prêt.
+let etatPartageVue = null;       // () → l'état de la coupe, pour `LIEN.ecrirePartage`
+let appliquerPartageVue = null;  // () → remet `partageEnAttente`
+let partageEnAttente = null;
+
+/** Ce que le fragment porte en plus de la vue : la coupe, sa mesure, la sélection, les classes du sol. */
+function etatPartage() {
+  if (!MODE_VUE) return {};
+  const e = etatPartageVue ? etatPartageVue() : {};
+  if (selectionActuelle) e.sel = { lat: selectionActuelle.lat, lon: selectionActuelle.lon };
+  return e;
+}
+
+/** Un lien ouvert : s'il porte quelque chose de la coupe ou de la sélection, le remettre. */
+function demanderPartage(partage) {
+  if (!MODE_VUE || !partage || !Object.keys(partage).length) return;
+  partageEnAttente = partage;
+  etat.restaurationPartage = true;
+  appliquerPartageVue?.();
+}
+
 /**
  * Réécrit le fragment d'après la vue affichée. `replaceState`, jamais
  * `location.hash =` : le second empile une entrée d'historique à chaque
@@ -518,9 +547,10 @@ function ecrireLien() {
   // s'appliquer en 2D et en 3D (`appliquerVueDuLien`) : ne pas l'écraser
   // d'ici là par la vue de carte, qui n'en garde ni l'échelle fine ni les angles.
   if (etat.vueDuLien) return;
+  if (etat.restaurationPartage) return;
   const v = vueCourante();
   if (!v) return;
-  const fragment = '#' + LIEN.ecrire(v);
+  const fragment = '#' + LIEN.ecrire(v) + LIEN.ecrirePartage(etatPartage());
   if (fragment !== location.hash) history.replaceState(null, '', fragment);
 }
 
@@ -544,6 +574,7 @@ function ouvrirLien(lien) {
   // dalle à sélectionner, ni rien à charger d'un bloc.
   if (MODE_VUE) {
     requestAnimationFrame(() => { carte.invalider(); carte.map.setView([lien.lat, lien.lon], lien.zoom); });
+    demanderPartage(LIEN.lirePartage(location.hash));
     return;
   }
   // Loin de tout, aucune dalle n'est sélectionnée : rien n'attendra de
@@ -3126,6 +3157,7 @@ if (MODE_VUE) (async () => {
     donnees: null,          // le dernier profil calculé
     masquees: new Set(),    // classes décochées dans la modale
     numero: 0,              // un calcul plus récent invalide les réponses en retard
+    restauration: null,     // classes, mesure et référence d'un lien ouvert, à remettre après le premier calcul
   };
   let profilGroupe = null;
   const iconePoignee = (lettre) => L.divIcon({ className: '', html: `<div class="poignee-profil">${lettre}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] });
@@ -3170,6 +3202,7 @@ if (MODE_VUE) (async () => {
     $('profil-largeur').value = PROFIL.curseurDepuisLargeur(profil.largeur);
     $('profil-largeur-n').value = profil.largeur;
     $('profil-largeur-modale').value = profil.largeur;
+    majLien();   // la bande est dans le lien
   }
 
   function effacerProfil() {
@@ -3256,6 +3289,7 @@ if (MODE_VUE) (async () => {
     $('profil-mesure-detail').innerHTML = chaine.length < 2
       ? '<p class="vide">Point A posé — cliquez un second point pour mesurer.</p>'
       : MESURE.tableauHtml(chaine);
+    majLien();   // la mesure est dans le lien
   }
 
   // ── Les outils du graphique : déplacement, point de référence, mesure ──
@@ -3285,6 +3319,7 @@ if (MODE_VUE) (async () => {
   function afficherReferenceProfil(p) {
     $('profil-reference-ligne').hidden = !p;
     if (p) $('profil-reference-etat').textContent = `Référence : ${p.z.toFixed(1)} m`;
+    majLien();   // la référence est dans le lien
   }
 
   for (const b of document.querySelectorAll('#dlg-profil [data-outil]')) {
@@ -3292,7 +3327,7 @@ if (MODE_VUE) (async () => {
   }
   $('profil-reference-effacer').addEventListener('click', () => graphique?.effacerReference());
   // Fermer la fenêtre (croix, Échap) efface la référence : changer la ligne la rendrait caduque.
-  $('dlg-profil').addEventListener('close', () => graphique?.effacerReference());
+  $('dlg-profil').addEventListener('close', () => { graphique?.effacerReference(); majLien(); });
   majOutilsProfil();
 
   /** La ligne d'état : combien de points, quelle bande, et ce qui peut tromper. */
@@ -3334,10 +3369,25 @@ if (MODE_VUE) (async () => {
     listerClassesProfil();
     appliquerTrancheProfil();
     afficherMesureProfil([]);
+    // Un lien ouvert : ses classes, sa mesure et sa référence se remettent une fois le profil
+    // calculé — `definir` remet la mesure à zéro, et les classes présentes ne se connaissent
+    // qu'à ce moment.
+    if (profil.restauration && profil.donnees) {
+      const { classes, mesure, ref } = profil.restauration;
+      const masquees = PROFIL.masqueesDepuis(profil.donnees.parClasse.keys(), classes);
+      if (masquees) {
+        profil.masquees = masquees;
+        graphique.definirVisibles(visiblesProfil());
+        listerClassesProfil();
+      }
+      graphique.restaurer({ mesure, reference: ref });
+    }
+    profil.restauration = null;
+    majLien();   // les classes visibles sont dans le lien
   }
 
   function validerProfil() {
-    if (!profil.A || !profil.B || !PROFIL.verdict(profil.A, profil.B).ok) return;
+    if (!profil.A || !profil.B || !PROFIL.verdict(profil.A, profil.B).ok) return Promise.resolve();
     // Les classes de départ sont celles de la légende 3D ; les changer ici ne
     // touche pas la légende.
     profil.masquees = new Set(classesMasquees);
@@ -3345,7 +3395,8 @@ if (MODE_VUE) (async () => {
     graphique?.effacerReference();
     majOutilsProfil();
     $('dlg-profil').showModal();
-    calculerProfil();
+    majLien();   // la coupe ouverte est dans le lien
+    return calculerProfil();
   }
 
   $('profil-fermer').addEventListener('click', () => $('dlg-profil').close());
@@ -3371,6 +3422,7 @@ if (MODE_VUE) (async () => {
     const cls = Number(c.dataset.cls);
     if (c.checked) profil.masquees.delete(cls); else profil.masquees.add(cls);
     graphique.definirVisibles(visiblesProfil());
+    majLien();
   });
   // Les deux curseurs de la tranche ne se croisent pas : au moins 1 % d'écart.
   for (const id of ['profil-d0', 'profil-d1']) {
@@ -3437,10 +3489,108 @@ if (MODE_VUE) (async () => {
     classesSolFlux = new Set([...$('vue-classes-sol').querySelectorAll('input:checked')].map((i) => Number(i.value)));
     relief.reglages({ classesSol: classesSolFlux });
     planifierRelief(0);
+    majLien();   // les classes du sol sont dans le lien (si elles diffèrent du défaut)
   });
   $('recherche').closest('section').querySelector('h2').textContent = 'Lieu';
   VUES[0][3] = 'Zoomez sur une zone : le relief se calcule tout seul · glisser le rideau pour comparer';
   $('aide-vue').textContent = VUES[0][3];
+
+  // ── Le lien du profil : l'état à écrire, et le lien à remettre (R2) ──
+  const versGeoProfil = ([x, y]) => {
+    const g = projVue().versGeo(x, y);
+    return { lat: g.lat, lon: g.lon };
+  };
+
+  etatPartageVue = () => {
+    const e = { sol: LIEN.sansDefaut(classesSolFlux, CONFIG.raster.classesSolDefaut, dernieresClasses.map(([c]) => c)) };
+    if (profil.A && profil.B) {
+      e.profil = { a: versGeoProfil(profil.A), b: versGeoProfil(profil.B), largeur: profil.largeur };
+      e.coupe = $('dlg-profil').open;
+      if (e.coupe && profil.donnees) {
+        e.classes = [...visiblesProfil()];
+        e.mesure = graphique?.mesure ?? [];
+        e.ref = graphique?.reference ?? undefined;
+      }
+    }
+    return e;
+  };
+
+  /**
+   * La carte est-elle à la vue du lien ? Elle y va à l'image suivante son ouverture ; sans
+   * cette attente, on calculerait un profil sur la France entière (donc sans un point).
+   */
+  const attendreVueDuLien = async (lien) => {
+    const centre = L.latLng(lien.lat, lien.lon);
+    const prete = () => Math.abs(carte.map.getZoom() - lien.zoom) < 0.02 && carte.map.getCenter().distanceTo(centre) < 10;
+    for (let i = 0; i < 100 && !prete(); i++) await new Promise((ok) => setTimeout(ok, 100));
+    await new Promise((ok) => setTimeout(ok, 700));   // laisse `moveend` lancer le chargement des points
+  };
+
+  /**
+   * Remet ce que le lien ouvert porte : classes du sol, point sélectionné, bande (la fenêtre
+   * flottante prête à « Valider »), et — si le lien l'était — la coupe ouverte, une fois les
+   * points chargés. Un paramètre refusé à la lecture n'arrive pas jusqu'ici (`LIEN.lirePartage`).
+   */
+  async function appliquerPartage() {
+    const p = partageEnAttente;
+    partageEnAttente = null;
+    if (!p) { etat.restaurationPartage = false; return; }
+    const lien = LIEN.lire(location.hash);
+    try {
+      // Le territoire d'abord : il donne la projection des coordonnées du lien.
+      const ancre = p.profil?.a ?? p.sel;
+      const terr = ancre && PROJ.territoireAuPoint(ancre.lon, ancre.lat);
+      if (terr) {
+        if (terr.code !== territoireVue) effacerProfil();
+        territoireVue = terr.code;
+      }
+      if (p.sol) {
+        classesSolFlux = new Set(p.sol);
+        for (const i of $('vue-classes-sol').querySelectorAll('input')) i.checked = classesSolFlux.has(Number(i.value));
+        relief.reglages({ classesSol: classesSolFlux });
+        planifierRelief(0);
+      }
+      if (p.sel) {
+        const l = projVue().versLocal(p.sel.lon, p.sel.lat);
+        // Sans relief calculé là, l'altitude arrive avec l'image suivante (voir plus haut).
+        const pt = lireVue ? await lireVue(l.x, l.y) : null;
+        afficherSelection(l.x, l.y, pt?.altitude ?? null, pt?.hauteur ?? 0);
+      }
+      if (p.profil) {
+        // Un lien avec une bande remplace celle qui était là.
+        if ($('dlg-profil').open) $('dlg-profil').close();
+        effacerProfil();
+        const a = projVue().versLocal(p.profil.a.lon, p.profil.a.lat);
+        const b = projVue().versLocal(p.profil.b.lon, p.profil.b.lat);
+        profil.A = [a.x, a.y];
+        profil.B = [b.x, b.y];
+        profil.largeur = PROFIL.largeurValide(p.profil.largeur);
+        if (PROFIL.verdict(profil.A, profil.B).ok) {
+          dessinerProfil();
+          majFenetreProfil();
+          definirModeInteraction('profil');
+        } else {
+          effacerProfil();   // trop courte ou trop longue : ignorée, comme un lien abîmé
+        }
+      }
+      if (p.coupe && profil.A && profil.B) {
+        profil.restauration = { classes: p.classes, mesure: p.mesure, ref: p.ref };
+        if (lien) {
+          statut('Chargement des points pour rouvrir le profil…');
+          await attendreVueDuLien(lien);
+          await Promise.race([flux.attendreCalme(), new Promise((ok) => setTimeout(ok, 60000))]);
+        }
+        await validerProfil();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      etat.restaurationPartage = false;
+      majLien();
+    }
+  }
+  appliquerPartageVue = appliquerPartage;
+  if (partageEnAttente) appliquerPartage();
 
   carte.map.on('moveend', majVueFlux);
   majVueFlux();

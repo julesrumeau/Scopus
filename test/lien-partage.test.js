@@ -203,3 +203,16 @@ test('lirePartage : des classes en double se lisent une fois, un paramètre inco
   assert.deepEqual(lu.classes, [2, 5]);
   assert.equal(lu.layers, undefined);
 });
+
+test('sansDefaut : une classe absente de la zone ne fait pas passer le défaut pour un choix', () => {
+  // Le sol par défaut est 2 + 9, mais la zone n'a pas d'eau : la liste de cases ne propose pas
+  // la 9, et l'état reconstruit depuis les cases est {2} — fonctionnellement le défaut.
+  assert.equal(LIEN.sansDefaut([2], [2, 9], [1, 2, 3, 5]), undefined);
+  // Un vrai choix reste un choix.
+  assert.deepEqual(plat(LIEN.sansDefaut([2, 3], [2, 9], [1, 2, 3, 5])), [2, 3]);
+  // Dans une zone qui a de l'eau, {2} sans {9} est bien différent du défaut.
+  assert.deepEqual(plat(LIEN.sansDefaut([2], [2, 9], [1, 2, 9])), [2]);
+  // Sans liste de classes présentes (pas encore arrivée), on compare tel quel, comme avant.
+  assert.deepEqual(plat(LIEN.sansDefaut([2], [2, 9])), [2]);
+  assert.deepEqual(plat(LIEN.sansDefaut([2], [2, 9], [])), [2]);
+});

@@ -224,65 +224,24 @@ s'écrit dans CLAUDE.md pour ne pas la rediscuter.
 | en attente | R4 | réponse du demandeur |
 | à décider | R7 | comprendre ce qui est demandé |
 
-### R2 — Le lien porte le profil — décidé le 3 octobre 2026, prêt à faire
+### R2 — Le lien porte le profil — codé sur `feat/lien-profil` (3 octobre 2026), à tester avant fusion
 
-Le lien actuel ne porte que `#map=zoom/lat/lon` (plus les angles en 3D). Il manque la
-coupe, ses points, ses classes. Recherches faites avant de trancher : des paramètres
-**nommés et lisibles** valent mieux qu'un bloc compressé pour un petit état (la
-compression sert aux gros états — diagrammes, dessins — et rend le lien opaque) ;
-OSM fait déjà exactement cela (`#map=14/56.8139/-5.0650&layers=C`) et `osm.org`
-ignore ce qu'il ne connaît pas (déjà vérifié par `test/lien.test.js`) ; on reste très
-sous la limite sûre de ~2 000 caractères (~200 ici).
+Fait : la bande, la coupe ouverte, les classes visibles, la mesure, la référence, le
+point sélectionné et les classes du sol (si différentes du défaut) sont dans le lien, et
+se remettent à l'ouverture (CLAUDE.md, « Le lien porte la coupe »). Paramètres nommés et
+lisibles, clés françaises, sûrs dans le forum, un paramètre abîmé ignoré en bloc.
+Vérifié en navigateur à 1400 et 380 px (31 contrôles de bout en bout).
 
-**Décisions**
-- **Lisible**, en paramètres nommés après `&`, **clés en français**. Pas de
-  compression, pas de bibliothèque.
-- **Sûr dans le forum (Discourse)** : ni virgule (elle casse un lien nu), ni
-  parenthèse, ni guillemet, ni `+` (`URLSearchParams` le lit comme une espace). Les
-  nombres se séparent par `/` (comme `map=`), les codes de classes par `.`. Un test
-  vérifie le jeu de caractères.
-- **Zoom et tranche du graphique : pas dans le lien** (de l'affichage, et un lien plus
-  lourd). *À reprendre pour la tranche seule si l'on veut retrouver exactement ce
-  qu'on voyait.*
-- **À l'ouverture d'un lien avec la bande mais sans `coupe=1`** : la carte avec la
-  bande et le mode Profil actif, donc la fenêtre flottante prête à « Valider ».
+À regarder en testant : rouvrir un lien **à froid** peut prendre quelques dizaines de
+secondes (la modale attend le chargement des points avant de calculer), avec un message
+« Chargement des points pour rouvrir le profil… ».
 
-| Paramètre | Contenu | Quand |
-|---|---|---|
-| `map=` | la vue de la carte | toujours (inchangé) |
-| `profil=` | A et B en lat/lon (6 décimales, ~10 cm), puis la largeur | dès que la bande existe |
-| `coupe=1` | la modale du profil est ouverte | alors seulement |
-| `classes=` | classes **visibles** dans la modale, séparées par `.` | modale ouverte |
-| `mesure=` | points de mesure : distance puis altitude, 2 décimales, à la suite | s'il y en a |
-| `ref=` | la référence : distance puis altitude | si elle existe (modale ouverte) |
-| `sel=` | le point sélectionné, lat/lon | s'il y en a un |
-| `sol=` | classes du sol du relief, séparées par `.` | seulement si différentes de la valeur par défaut (2 et 9) |
-
-Exemple (~200 caractères) :
-`#map=18.00/42.857536/1.061833&profil=42.857552/1.052198/42.859801/1.057456/3&coupe=1&classes=2.5.6&mesure=12.3/1500.1/25.5/1503.2&ref=0/1500.1&sel=42.857536/1.061833`
-
-**À l'ouverture (et au `hashchange`)** : la carte se cadre (territoire compris), la
-bande se pose ; si `coupe=1`, la modale s'ouvre et **recalcule quand le chargement
-des points est terminé** (sans cela le premier calcul serait presque vide), puis la
-mesure et la référence se remettent. Tout paramètre invalide est **ignoré en bloc**,
-jamais à moitié (deux points confondus, nombre illisible, classe inconnue). Rien
-n'est écrit tant que l'accueil est ouvert (règle existante).
-
-**Réalisation (esquisse)**
-- Fonctions **pures** dans `lien.js` (`ecrire` / `lire` étendues), testées à froid :
-  aller-retour, jeu de caractères, rejet en bloc, compatibilité `osm.org`.
-- `ProfilGraphique.restaurer({ mesure, reference })` pour remettre la mesure et la
-  référence après le premier calcul.
-- Chaque changement d'état du profil (bande déplacée, largeur, point de mesure,
-  référence, classe cochée, ouverture/fermeture de la modale, sélection, classes du
-  sol) appelle `majLien` (déjà regroupé à 300 ms, `replaceState`).
-- Mettre à jour CLAUDE.md, « Le lien partageable ».
-
-**Hors de cette tâche, à confirmer avec le demandeur — R2b** : il parle aussi des
-« paramètres de la vue ». Si cela veut dire les réglages de la carte — les couches de
-chaque côté du rideau, la position du rideau, le contraste, les réglages du SVF —,
-ils ne sont **pas** dans cette version. Même mécanisme, quelques clés de plus, à
-ajouter ensuite. Lui demander ce qu'il entendait avant de les coder.
+**R2b — à confirmer avec le demandeur** : il parle aussi des « paramètres de la vue ». Si
+cela veut dire les réglages de la carte — les couches de chaque côté du rideau, la
+position du rideau, le contraste, les réglages du SVF —, ils ne sont **pas** dans cette
+version. Même mécanisme, quelques clés de plus. Lui demander ce qu'il entendait avant de
+les coder. *(La tranche et le zoom du graphique ne sont pas dans le lien non plus, par
+choix.)*
 
 ### R4 — Export GeoJSON — en attente
 

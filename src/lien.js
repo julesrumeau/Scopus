@@ -138,13 +138,17 @@ const LIEN = (() => {
     .sort((a, b) => a - b);
 
   /**
-   * Les classes du sol, ou `undefined` si ce sont celles par défaut : un lien n'écrit
-   * que ce qui diffère de ce qu'on obtient sans lui.
+   * Les classes du sol, ou `undefined` si ce sont celles par défaut : un lien n'écrit que
+   * ce qui diffère de ce qu'on obtient sans lui. `presentes` (les classes de la zone) évite
+   * de prendre le défaut pour un choix : le sol par défaut est 2 et 9, mais une zone sans eau
+   * ne propose pas la 9, et la liste de cases en rend {2}, qui est le défaut pour elle.
    */
-  function sansDefaut(classes, defaut) {
+  function sansDefaut(classes, defaut, presentes) {
     if (!classes) return undefined;
     const a = classesTriees(classes), b = classesTriees(defaut);
-    return a.length === b.length && a.every((c, i) => c === b[i]) ? undefined : a;
+    const p = presentes && [...presentes].length ? new Set(presentes) : null;
+    const ca = p ? a.filter((c) => p.has(c)) : a, cb = p ? b.filter((c) => p.has(c)) : b;
+    return ca.length === cb.length && ca.every((c, i) => c === cb[i]) ? undefined : a;
   }
 
   /**

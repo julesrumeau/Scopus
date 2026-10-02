@@ -127,3 +127,23 @@ test('graduations : zoomé à fond, des valeurs courtes — jamais « 1.20000000
   // Les pas entiers ne changent pas.
   assert.deepEqual(g(0, 100, 5), [0, 20, 40, 60, 80, 100]);
 });
+
+test('masqueesDepuis : les classes visibles d’un lien deviennent les classes masquées de la modale', () => {
+  // Présentes dans la bande : 1, 2, 5, 6. Le lien dit visibles : 2 et 5.
+  assert.deepEqual([...PROFIL.masqueesDepuis([1, 2, 5, 6], [2, 5])].sort(), [1, 6]);
+  // Une classe visible qui n'est pas dans la bande est ignorée : rien à masquer pour elle.
+  assert.deepEqual([...PROFIL.masqueesDepuis([2, 5], [2, 5, 9])], []);
+  // Tout visible : rien de masqué.
+  assert.equal(PROFIL.masqueesDepuis([2, 5], [2, 5]).size, 0);
+  // Un Set marche aussi ; le résultat est un Set.
+  const m = PROFIL.masqueesDepuis(new Set([1, 2]), new Set([2]));
+  assert.ok(m instanceof Set || typeof m.has === 'function');
+  assert.equal(m.has(1), true);
+  assert.equal(m.has(2), false);
+});
+
+test('masqueesDepuis : sans classes demandées (ou vides), on ne décide rien — null', () => {
+  assert.equal(PROFIL.masqueesDepuis([1, 2], undefined), null);
+  assert.equal(PROFIL.masqueesDepuis([1, 2], null), null);
+  assert.equal(PROFIL.masqueesDepuis([1, 2], []), null);
+});

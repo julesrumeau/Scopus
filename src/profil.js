@@ -49,6 +49,19 @@ function fabriqueProfil() {
     return { A: p, B: null };
   }
 
+  /**
+   * Les classes **masquées** de la modale d'après les classes **visibles** qu'un lien
+   * porte : celles de la bande qui n'y figurent pas. Une classe visible absente de la
+   * bande est ignorée. `null` sans classes demandées : le lien ne décide rien, la
+   * modale garde ses classes de départ.
+   */
+  function masqueesDepuis(presentes, visibles) {
+    if (!visibles) return null;
+    const v = new Set(visibles);
+    if (!v.size) return null;
+    return new Set([...presentes].filter((c) => !v.has(c)));
+  }
+
   /** Peut-on calculer un profil entre ces deux points ? Sinon, la consigne à afficher. */
   function verdict(a, b) {
     const { longueurMinM, longueurMaxM } = CONFIG.profil;
@@ -113,6 +126,6 @@ function fabriqueProfil() {
     return n ? { zmin, zmax, n } : null;
   }
 
-  return { axe, largeurValide, largeurDepuisCurseur, curseurDepuisLargeur, pointSuivant, verdict, coins, emprise, graduations, etendueZ };
+  return { axe, largeurValide, largeurDepuisCurseur, curseurDepuisLargeur, pointSuivant, masqueesDepuis, verdict, coins, emprise, graduations, etendueZ };
 }
 const PROFIL = fabriqueProfil();
