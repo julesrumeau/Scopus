@@ -208,7 +208,7 @@ parce que ça changerait un comportement ou demanderait une décision :
 ## Retours du forum OSM-FR (depuis le 1er octobre 2026)
 
 Demandes reçues après la publication du profil topographique et de la date
-d'acquisition, numérotées **R1 à R7** (R1 et R5 sont faits : retirés) pour ne pas les mêler aux #. Aucun nom
+d'acquisition, numérotées **R1 à R7** (R1, R3 et R5 sont faits : retirés) pour ne pas les mêler aux #. Aucun nom
 n'est écrit ici : le dépôt est public, et le fil du forum dit qui a demandé quoi.
 
 **Rythme décidé** : répondre vite à chacun (« noté », « je regarde », ou « pas
@@ -219,7 +219,7 @@ s'écrit dans CLAUDE.md pour ne pas la rediscuter.
 
 | Lot | Contenu | État |
 |---|---|---|
-| A — mesure et aide | R3 (R1 est fait ; R6 la rejoint si son UI/UX est tranchée à temps) | R3 prête à faire |
+| A — mesure et aide | R1 et R3 sont faits ; R6 les rejoint quand son UI/UX est tranchée | R6 à concevoir |
 | B — lien | R2 | à concevoir d'abord |
 | en attente | R4 | réponse du demandeur |
 | à décider | R7 | comprendre ce qui est demandé |
@@ -241,27 +241,6 @@ Pas de code avant une spec (brainstorming). Questions ouvertes :
 - **À l'ouverture** : la modale s'ouvre-t-elle toute seule ? que faire si les
   blocs ne sont pas encore chargés ; compatibilité avec les liens déjà publiés ;
   un lien de profil survit-il à un changement de territoire ?
-
-### R3 — Aide « Comment lire un profil » — décidé
-
-Les curseurs de largeur de bande et de tranche ne se comprennent pas du premier
-coup. Une pastille **`i`** (même apparence que la `?` existante, `.aide-info`)
-qui ouvre une **petite fenêtre** (`dialog`, comme celle de l'export) : les
-infobulles `title` ne s'affichent pas au toucher, et on utilise l'outil sur
-téléphone. Une pastille dans l'en-tête de la modale, une dans la fenêtre
-flottante.
-
-Contenu court, à rédiger au moment de faire :
-- **La bande** : l'épaisseur autour du trait A–B ; plus large, plus de points,
-  utile pour trouver une cime.
-- **La tranche** (curseurs du dessous) : ne garder qu'une part de la bande, de la
-  gauche à la droite de l'axe, vu de A vers B ; ne recalcule rien.
-- **Les classes**, **la mesure** (clic, accrochage au point le plus proche,
-  enchaînement, annuler, effacer), **la référence** (R6), **le zoom** (molette,
-  glisser, « Vue entière »).
-
-Renommer « Tranche de la bande » en quelque chose de plus parlant. Un schéma de
-la bande vue de dessus pourra venir ensuite.
 
 ### R4 — Export GeoJSON — en attente
 
@@ -302,6 +281,13 @@ Idées retenues :
   l'aide.
 - Un bouton **« Effacer la référence »** supprime les deux zéros et l'altitude
   gardée.
+
+**À ne pas oublier quand R6 sera fait : mettre à jour l'aide du profil**
+(`#dlg-aide-profil` dans `index.html`, ouverte par la pastille `?`) — y ajouter une
+entrée sur le **point de référence** (le 0 vertical qui reste d'une coupe à
+l'autre, le 0 horizontal propre à la coupe) et sa limite (sol plat ou un seul
+bâtiment). Même chose si R7 aboutit : la phrase « chaque point est un vrai retour
+du LiDAR » devra changer si un sol comblé apparaît dans le profil.
 
 **À trancher en UI/UX, pas maintenant** : où placer la rubrique dans une modale
 déjà dense (réglages, graphique, tranche, classes, mesure) ; comment montrer que

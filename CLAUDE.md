@@ -246,6 +246,13 @@ d'arbres et de bâtiments sans QGIS. Conception :
   n'aurait aucune finesse à l'échelle d'un arbre) et champ précis ; elle est
   aussi dans la modale et recalcule au `change`. Les classes de la modale
   partent de la légende 3D mais lui sont **locales**.
+- **L'aide** (`#dlg-aide-profil`) s'ouvre par une pastille `?` — la même que les
+  autres (`.aide-info`), un peu plus grande pour se toucher (`.ouvre`) — dans
+  l'en-tête de la modale et dans la fenêtre flottante. Une fenêtre et non une
+  infobulle `title`, qui ne s'affiche pas au toucher. Elle porte une croix en haut
+  : sans elle, le focus allait au dernier bouton et la fenêtre s'ouvrait défilée.
+  **Son texte est à réviser** quand le point de référence (TODO R6) ou un sol
+  comblé (R7) arriveront.
 - Pas de hauteur automatique (la valeur d'une cime et du sol se lit sur le
   graphique), pas de profil en 3D, pas d'export.
 - **La date d'acquisition se lit dans « Point sélectionné »**, pas dans le

@@ -2430,7 +2430,7 @@ function replierLateral(replie) {
 $('languette-panneau').addEventListener('click', () => replierLateral(!$('panneau').classList.contains('replie')));
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if ($('dlg-profil').open) return;   // Échap ferme la modale, pas le panneau
+  if ($('dlg-profil').open || $('dlg-aide-profil').open) return;   // Échap ferme la fenêtre, pas le panneau
   poserFeuille('replie');
   replierLateral(true);
 });
@@ -2438,7 +2438,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (!$('accueil').hidden) return;   // l'accueil couvre tout : rien à piloter dessous
-  if ($('dlg-profil').open) return;   // la modale du profil couvre tout aussi
+  if ($('dlg-profil').open || $('dlg-aide-profil').open) return;   // la modale du profil, et son aide, couvrent tout aussi
   // Un chiffre par vue, plus les initiales d'avant : 'r' pour le relief est
   // devenu la 2D, et le désapprendre n'apporterait rien.
   if (e.key === 'c' || e.key === '1') basculerVue('carte');
@@ -3242,7 +3242,7 @@ if (MODE_VUE) (async () => {
       const x = Number.isFinite(v) ? v : defaut;
       return Math.abs(x) < 0.005 ? 'l’axe' : x > 0 ? `${x.toFixed(1)} m à gauche` : `${(-x).toFixed(1)} m à droite`;
     };
-    $('profil-tranche').textContent = `Tranche de la bande : de ${cote(max, demi)} à ${cote(min, -demi)}`;
+    $('profil-tranche').textContent = `Partie de la bande gardée : de ${cote(max, demi)} à ${cote(min, -demi)}`;
   }
 
   /** La chaîne de mesure du graphique, au même tableau que la carte (`MESURE.tableauHtml`). */
@@ -3309,6 +3309,17 @@ if (MODE_VUE) (async () => {
   }
 
   $('profil-fermer').addEventListener('click', () => $('dlg-profil').close());
+  // L'aide : la même pastille « ? » que les autres, mais elle ouvre une fenêtre — une
+  // infobulle `title` ne s'affiche pas au toucher, et le profil s'utilise sur téléphone.
+  // Depuis la modale du profil, la fenêtre d'aide s'ouvre par-dessus (couche supérieure).
+  const ouvrirAideProfil = () => {
+    $('dlg-aide-profil').showModal();
+    $('dlg-aide-profil').scrollTop = 0;   // sans cela, le focus sur le dernier bouton la fait s'ouvrir défilée
+  };
+  $('profil-aide-modale').addEventListener('click', ouvrirAideProfil);
+  $('profil-aide-fenetre').addEventListener('click', ouvrirAideProfil);
+  $('aide-profil-fermer').addEventListener('click', () => $('dlg-aide-profil').close());
+  $('aide-profil-croix').addEventListener('click', () => $('dlg-aide-profil').close());
   $('profil-largeur-modale').addEventListener('change', (e) => { fixerLargeur(e.target.value); calculerProfil(); });
   $('profil-classes').addEventListener('change', (e) => {
     const c = e.target.closest('input[data-cls]');
