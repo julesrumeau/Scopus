@@ -18,6 +18,10 @@ secours pour les vues trop larges) est tranché le 27 septembre 2026 : rien
 que du COPC, la carte voilée et la dernière image gardée (CLAUDE.md, « Le
 calcul de la vue »).
 
+**Retours du forum** : les demandes arrivées après la publication du profil
+(1er et 2 octobre 2026) sont numérotées **R1 à R6**, à part des #, dans la
+section « Retours du forum » en fin de fichier.
+
 ### #1 — Rallumer la détection, ou renoncer *(prioritaire)*
 
 Masquée le 18 août 2026 (`ANALYSE_MASQUEE`), les deux chaînes avec. La question
@@ -166,7 +170,7 @@ fin près de la caméra et du grossier au loin, et la « fourchette » de
 l'utilisateur comme seuil d'hystérésis pour ne pas retélécharger au moindre
 mouvement. À faire après usage de l'étape 1.
 
-### #7 — Jour exact d'acquisition (reste de la demande OSM)
+### #7 — Jour exact d'acquisition (reste de la demande OSM) — à fermer, voir R5
 
 La date d'acquisition est faite (« Point sélectionné » : plage de vol de la
 dalle, voir CLAUDE.md). Reste le **jour exact** : l'IGN ne publie qu'une plage
@@ -208,3 +212,133 @@ parce que ça changerait un comportement ou demanderait une décision :
   garde si A ou B est nul ; pendant « Calcul… », l'ancien graphique reste
   cliquable ; le glisser des poignées A et B et le pincement sur le graphique
   n'ont pas été essayés au doigt.
+
+---
+
+## Retours du forum OSM-FR (depuis le 1er octobre 2026)
+
+Demandes reçues après la publication du profil topographique et de la date
+d'acquisition, numérotées **R1 à R6** pour ne pas les mêler aux #. Les pseudos
+sont ceux du forum, pour retrouver à qui répondre et qui mentionner dans
+l'annonce.
+
+**Rythme décidé** : répondre vite à chacun (« noté », « je regarde », ou « pas
+prévu, parce que… »), mais **livrer par petits lots**, pas à chaque message ;
+une annonce courte par livraison, qui mentionne les demandeurs. Répondre n'est
+pas livrer. Ce qui ne colle pas à l'outil se refuse en le disant, et la raison
+s'écrit dans CLAUDE.md pour ne pas la rediscuter.
+
+| Lot | Contenu | État |
+|---|---|---|
+| A — mesure et aide | R1, R3, R5 (R6 les rejoint si son UI/UX est tranchée à temps) | prêt à faire |
+| B — lien | R2 | à concevoir d'abord |
+| en attente | R4 | réponse de bibi |
+
+### R1 — Pente d'un segment mesuré *(pyrog, un escalier)* — décidé
+
+Une colonne **« Pente »** dans le tableau de mesure — donc dans le profil comme
+sur la carte, c'est le même (`MESURE.tableauHtml`) —, par segment, en degrés et
+en pourcentage : « 32° (62 %) ».
+
+- Pente = arctan(dénivelé / horizontale), signée comme le dénivelé (montée +,
+  descente −).
+- « — » si l'horizontale est nulle (pente verticale sans valeur à afficher) ou
+  si une altitude est inconnue : jamais une valeur inventée.
+- **Pas de pente totale** : comme pour le dénivelé, une somme signée ne dirait
+  rien de juste.
+- Tests à écrire d'abord : un triangle 3-4-5, une descente, une horizontale
+  nulle, une altitude inconnue.
+
+### R2 — Le lien porte le profil *(pyrog)* — à concevoir
+
+Constat : le lien actuel ne porte que `#map=zoom/lat/lon` (plus les angles en
+3D). Il manque la bande du profil, les points, les classes visibles. Contrainte
+à garder : le début du fragment reste lisible par osm.org (`OSM.parseHash`
+ignore ce qui suit `&`, voir CLAUDE.md « Le lien partageable »).
+
+Pas de code avant une spec (brainstorming). Questions ouvertes :
+- **Quoi mettre** : la bande (A, B, largeur) ; les classes cochées dans la
+  modale ; les points de mesure ; le point sélectionné ; la référence (R6) ; les
+  classes du sol ? Quoi laisser : le zoom et la tranche du graphique (plutôt non :
+  de l'affichage, et un lien plus lourd).
+- **Format** : A et B en WGS84 ou en coordonnées locales ; précision ; longueur
+  du lien ; ordre et noms des paramètres.
+- **À l'ouverture** : la modale s'ouvre-t-elle toute seule ? que faire si les
+  blocs ne sont pas encore chargés ; compatibilité avec les liens déjà publiés ;
+  un lien de profil survit-il à un changement de territoire ?
+
+### R3 — Aide « Comment lire un profil » *(lunaticstraydog)* — décidé
+
+Les curseurs de largeur de bande et de tranche ne se comprennent pas du premier
+coup. Une pastille **`i`** (même apparence que la `?` existante, `.aide-info`)
+qui ouvre une **petite fenêtre** (`dialog`, comme celle de l'export) : les
+infobulles `title` ne s'affichent pas au toucher, et on utilise l'outil sur
+téléphone. Une pastille dans l'en-tête de la modale, une dans la fenêtre
+flottante.
+
+Contenu court, à rédiger au moment de faire :
+- **La bande** : l'épaisseur autour du trait A–B ; plus large, plus de points,
+  utile pour trouver une cime.
+- **La tranche** (curseurs du dessous) : ne garder qu'une part de la bande, de la
+  gauche à la droite de l'axe, vu de A vers B ; ne recalcule rien.
+- **Les classes**, **la mesure** (clic, accrochage au point le plus proche,
+  enchaînement, annuler, effacer), **la référence** (R6), **le zoom** (molette,
+  glisser, « Vue entière »).
+
+Renommer « Tranche de la bande » en quelque chose de plus parlant. Un schéma de
+la bande vue de dessus pourra venir ensuite.
+
+### R4 — Export GeoJSON *(bibi)* — en attente
+
+Demande : exporter des points en GeoJSON avec `ele` et `height` en propriétés.
+Non fait : le besoin n'est pas formulé. Une question a été posée à bibi (à quoi
+cela servirait — JOSM, QGIS, uMap — et sur quels points : toute la bande, ou
+ceux que l'on mesure).
+
+- Sans sol reconstitué (voir R5), **pas de `height` par point** : seulement `ele`,
+  la classe, la distance sur l'axe, la date d'acquisition.
+- Poids : jusqu'à ~80 Mo pour 1 M de points, ~500 Ko pour quelques milliers.
+
+### R5 — Documentation *(nous)* — à faire
+
+- **CLAUDE.md, « Le profil »** : écrire la décision **pas de sol extrapolé, pas
+  de hauteur automatique**. Un sol reconstitué est une estimation exactement là
+  où il n'y a pas de points ; « la hauteur de quoi, par rapport à quoi » n'a pas
+  de réponse unique (cime ou premier retour, pied du tronc ou milieu de la bande,
+  pente) ; la mesure reste faite par la personne, sur de vrais retours LiDAR.
+- **Fermer #7** : bibi juge la plage d'un à trois jours suffisante (la pousse
+  d'un arbre et un chantier sont bien plus lents). Pas de jour exact à chercher.
+
+### R6 — Point de référence *(Ltrlg, avec la remarque de bibi)* — décidé dans le principe, UI/UX à trancher avant tout code
+
+Demande : dire « ce point est l'altitude 0 à partir de maintenant », comme dans
+la méthode QGIS pour les bâtiments : un sol de référence, puis plusieurs points
+sur plusieurs coupes, sans refaire les soustractions à la main (donc moins
+d'erreurs de calcul). Aujourd'hui le tableau ne donne que des écarts entre deux
+points consécutifs.
+
+Remarque de bibi : une constante n'est pas un MNT (la hauteur est MNS − MNT, pas
+MNS − X) ; la référence vaut sur un sol plat ou pour un seul bâtiment. **À dire
+tel quel dans l'aide (R3)**, sans remettre en cause R5.
+
+Idées retenues :
+- Une rubrique « Référence » dans la modale. Son bouton **arme le prochain clic
+  seulement** : il s'accroche comme la mesure, puis on revient à la mesure ;
+  Échap annule. Sans cela, un clic du graphique serait ambigu (point de mesure ou
+  référence).
+- La référence a son propre repère (une croix marquée « 0 »), distinct de A, B, C.
+- Le graphique se recentre : un 0 vertical et un 0 horizontal, avec des
+  graduations négatives à gauche et en dessous.
+- Le tableau gagne **« Cote »** (altitude depuis la référence) et **« Dist.
+  depuis la réf. »**, seulement quand une référence existe.
+- **Le 0 vertical persiste d'une coupe à l'autre** (c'est une altitude réelle,
+  ce que demande Ltrlg) ; **le 0 horizontal est propre à la coupe** (une
+  position sur cet axe : sur un nouvel axe, il revient au point A). À dire dans
+  l'aide.
+- Un bouton **« Effacer la référence »** supprime les deux zéros et l'altitude
+  gardée.
+
+**À trancher en UI/UX, pas maintenant** : où placer la rubrique dans une modale
+déjà dense (réglages, graphique, tranche, classes, mesure) ; comment montrer que
+le clic est « armé » ; le rendu des axes relatifs (garder l'altitude absolue
+lisible ?) ; le comportement dans le lien (R2).
