@@ -224,7 +224,7 @@ s'écrit dans CLAUDE.md pour ne pas la rediscuter.
 | en attente | R4 | réponse du demandeur |
 | à décider | R7 | comprendre ce qui est demandé |
 
-### R2 — Le lien porte la bande et la vue — codé sur `feat/lien-profil` (3 octobre 2026), à tester avant fusion
+### R2 — Le lien porte la bande et la vue — fusionné dans `dev` (3 octobre 2026), pas encore publié
 
 Fait : la bande, le point sélectionné, la règle de la carte et les classes du sol (si
 différentes du défaut) sont dans le lien et se remettent à l'ouverture (CLAUDE.md, « Le
@@ -236,6 +236,11 @@ classes, ni mesure, ni référence). Un lien pose la bande et le mode Profil ; �
 reste à celui qui ouvre. Raison : une ouverture automatique pouvait ouvrir la modale deux
 fois, et rien ne dit sur quelle partie du profil zoomer. Si un jour on veut une coupe
 partageable, il faudra aussi y mettre le zoom et la tranche.
+
+**Écart avec la demande d'origine** : le demandeur voulait aussi, dans l'URL, « la sélection
+des points » et « les classes visibles » du profil. Ne sont pas portés : les classes
+visibles et les points de mesure **de la modale du profil** (les classes visibles de la
+3D, la règle de la carte et le point sélectionné le sont). À lui dire en répondant.
 
 **R2b — les réglages de la vue, codés sur la même branche, à tester** : couches de chaque
 côté du rideau (`gauche`, `droite`), position du rideau (`rideau`, 0–100), `contraste`,
@@ -258,7 +263,7 @@ ceux que l'on mesure).
   la classe, la distance sur l'axe, la date d'acquisition.
 - Poids : jusqu'à ~80 Mo pour 1 M de points, ~500 Ko pour quelques milliers.
 
-### R6 — Point de référence — codé sur `feat/reference-profil` (3 octobre 2026), à tester avant fusion
+### R6 — Point de référence — fusionné dans `dev` (3 octobre 2026), pas encore publié
 
 Demande : dire « ce point est l'altitude 0 à partir de maintenant », comme dans
 la méthode QGIS pour les bâtiments : un sol de référence, puis plusieurs points
