@@ -224,17 +224,18 @@ s'écrit dans CLAUDE.md pour ne pas la rediscuter.
 | en attente | R4 | réponse du demandeur |
 | à décider | R7 | comprendre ce qui est demandé |
 
-### R2 — Le lien porte le profil et la vue — codé sur `feat/lien-profil` (3 octobre 2026), à tester avant fusion
+### R2 — Le lien porte la bande et la vue — codé sur `feat/lien-profil` (3 octobre 2026), à tester avant fusion
 
-Fait : la bande, la coupe ouverte, les classes visibles, la mesure, la référence, le
-point sélectionné et les classes du sol (si différentes du défaut) sont dans le lien, et
-se remettent à l'ouverture (CLAUDE.md, « Le lien porte la coupe »). Paramètres nommés et
-lisibles, clés françaises, sûrs dans le forum, un paramètre abîmé ignoré en bloc.
-Vérifié en navigateur à 1400 et 380 px (31 contrôles de bout en bout).
+Fait : la bande, le point sélectionné, la règle de la carte et les classes du sol (si
+différentes du défaut) sont dans le lien et se remettent à l'ouverture (CLAUDE.md, « Le
+lien porte la bande et la vue »). Paramètres nommés et lisibles, clés françaises, sûrs
+dans le forum, un paramètre abîmé ignoré en bloc.
 
-À regarder en testant : rouvrir un lien **à froid** peut prendre quelques dizaines de
-secondes (la modale attend le chargement des points avant de calculer), avec un message
-« Chargement des points pour rouvrir le profil… ».
+**Décision (3 octobre)** : la **modale du profil n'est pas dans le lien** (ni coupe, ni
+classes, ni mesure, ni référence). Un lien pose la bande et le mode Profil ; « Valider »
+reste à celui qui ouvre. Raison : une ouverture automatique pouvait ouvrir la modale deux
+fois, et rien ne dit sur quelle partie du profil zoomer. Si un jour on veut une coupe
+partageable, il faudra aussi y mettre le zoom et la tranche.
 
 **R2b — les réglages de la vue, codés sur la même branche, à tester** : couches de chaque
 côté du rideau (`gauche`, `droite`), position du rideau (`rideau`, 0–100), `contraste`,

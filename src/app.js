@@ -3169,7 +3169,6 @@ if (MODE_VUE) (async () => {
     donnees: null,          // le dernier profil calculé
     masquees: new Set(),    // classes décochées dans la modale
     numero: 0,              // un calcul plus récent invalide les réponses en retard
-    restauration: null,     // classes, mesure et référence d'un lien ouvert, à remettre après le premier calcul
   };
   let profilGroupe = null;
   const iconePoignee = (lettre) => L.divIcon({ className: '', html: `<div class="poignee-profil">${lettre}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] });
@@ -3301,7 +3300,6 @@ if (MODE_VUE) (async () => {
     $('profil-mesure-detail').innerHTML = chaine.length < 2
       ? '<p class="vide">Point A posé — cliquez un second point pour mesurer.</p>'
       : MESURE.tableauHtml(chaine);
-    majLien();   // la mesure est dans le lien
   }
 
   // ── Les outils du graphique : déplacement, point de référence, mesure ──
@@ -3331,7 +3329,6 @@ if (MODE_VUE) (async () => {
   function afficherReferenceProfil(p) {
     $('profil-reference-ligne').hidden = !p;
     if (p) $('profil-reference-etat').textContent = `Référence : ${p.z.toFixed(1)} m`;
-    majLien();   // la référence est dans le lien
   }
 
   for (const b of document.querySelectorAll('#dlg-profil [data-outil]')) {
@@ -3339,7 +3336,7 @@ if (MODE_VUE) (async () => {
   }
   $('profil-reference-effacer').addEventListener('click', () => graphique?.effacerReference());
   // Fermer la fenêtre (croix, Échap) efface la référence : changer la ligne la rendrait caduque.
-  $('dlg-profil').addEventListener('close', () => { graphique?.effacerReference(); majLien(); });
+  $('dlg-profil').addEventListener('close', () => { graphique?.effacerReference(); });
   majOutilsProfil();
 
   /** La ligne d'état : combien de points, quelle bande, et ce qui peut tromper. */
@@ -3381,21 +3378,6 @@ if (MODE_VUE) (async () => {
     listerClassesProfil();
     appliquerTrancheProfil();
     afficherMesureProfil([]);
-    // Un lien ouvert : ses classes, sa mesure et sa référence se remettent une fois le profil
-    // calculé — `definir` remet la mesure à zéro, et les classes présentes ne se connaissent
-    // qu'à ce moment.
-    if (profil.restauration && profil.donnees) {
-      const { classes, mesure, ref } = profil.restauration;
-      const masquees = PROFIL.masqueesDepuis(profil.donnees.parClasse.keys(), classes);
-      if (masquees) {
-        profil.masquees = masquees;
-        graphique.definirVisibles(visiblesProfil());
-        listerClassesProfil();
-      }
-      graphique.restaurer({ mesure, reference: ref });
-    }
-    profil.restauration = null;
-    majLien();   // les classes visibles sont dans le lien
   }
 
   function validerProfil() {
@@ -3407,7 +3389,6 @@ if (MODE_VUE) (async () => {
     graphique?.effacerReference();
     majOutilsProfil();
     $('dlg-profil').showModal();
-    majLien();   // la coupe ouverte est dans le lien
     return calculerProfil();
   }
 
@@ -3518,12 +3499,6 @@ if (MODE_VUE) (async () => {
     const e = { sol: LIEN.sansDefaut(classesSolFlux, CONFIG.raster.classesSolDefaut, dernieresClasses.map(([c]) => c)) };
     if (profil.A && profil.B) {
       e.profil = { a: versGeoProfil(profil.A), b: versGeoProfil(profil.B), largeur: profil.largeur };
-      e.coupe = $('dlg-profil').open;
-      if (e.coupe && profil.donnees) {
-        e.classes = [...visiblesProfil()];
-        e.mesure = graphique?.mesure ?? [];
-        e.ref = graphique?.reference ?? undefined;
-      }
     }
     e.vue = reglagesVue();
     return e;
@@ -3589,20 +3564,8 @@ if (MODE_VUE) (async () => {
   }
 
   /**
-   * La carte est-elle à la vue du lien ? Elle y va à l'image suivante son ouverture ; sans
-   * cette attente, on calculerait un profil sur la France entière (donc sans un point).
-   */
-  const attendreVueDuLien = async (lien) => {
-    const centre = L.latLng(lien.lat, lien.lon);
-    const prete = () => Math.abs(carte.map.getZoom() - lien.zoom) < 0.02 && carte.map.getCenter().distanceTo(centre) < 10;
-    for (let i = 0; i < 100 && !prete(); i++) await new Promise((ok) => setTimeout(ok, 100));
-    await new Promise((ok) => setTimeout(ok, 700));   // laisse `moveend` lancer le chargement des points
-  };
-
-  /**
    * Remet ce que le lien ouvert porte : classes du sol, point sélectionné, bande (la fenêtre
-   * flottante prête à « Valider »), et — si le lien l'était — la coupe ouverte, une fois les
-   * points chargés. Un paramètre refusé à la lecture n'arrive pas jusqu'ici (`LIEN.lirePartage`).
+   * flottante prête à « Valider » : la modale ne s'ouvre jamais d'elle-même). Un paramètre refusé à la lecture n'arrive pas jusqu'ici (`LIEN.lirePartage`).
    */
   async function appliquerPartage() {
     const p = partageEnAttente;
@@ -3658,15 +3621,6 @@ if (MODE_VUE) (async () => {
         } else {
           effacerProfil();   // trop courte ou trop longue : ignorée, comme un lien abîmé
         }
-      }
-      if (p.coupe && profil.A && profil.B) {
-        profil.restauration = { classes: p.classes, mesure: p.mesure, ref: p.ref };
-        if (lien) {
-          statut('Chargement des points pour rouvrir le profil…');
-          await attendreVueDuLien(lien);
-          await Promise.race([flux.attendreCalme(), new Promise((ok) => setTimeout(ok, 60000))]);
-        }
-        await validerProfil();
       }
     } catch (err) {
       console.error(err);

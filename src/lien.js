@@ -111,8 +111,7 @@ const LIEN = (() => {
   // ── Le profil dans le lien (R2) ───────────────────────────────────────────
   //
   // Des paramètres **nommés et lisibles** après `map=`, comme osm.org y ajoute
-  // `&layers=` : `&profil=latA/lonA/latB/lonB/largeur`, `&coupe=1`, `&classes=2.5.6`,
-  // `&mesure=s/z/s/z`, `&ref=s/z`, `&sel=lat/lon`, `&sol=2.6`. Pas de compression
+  // `&layers=` : `&profil=latA/lonA/latB/lonB/largeur`, `&sel=lat/lon`, `&regle=…`, `&sol=2.6`. Pas de compression
   // (un état aussi petit n'en a pas besoin, et un lien opaque ne se répare pas à la
   // main) ; osm.org ne lit que `map=` et ignore le reste.
   //
@@ -215,31 +214,20 @@ const LIEN = (() => {
   }
 
   /**
-   * Les paramètres de la coupe et de la sélection, à la suite de `map=…`.
+   * Les paramètres de la bande, de la sélection, de la règle, du sol et de la vue, à la suite de `map=…`.
    * @param {{profil?: {a: {lat:number, lon:number}, b: {lat:number, lon:number}, largeur:number},
-   *          coupe?: boolean, classes?: Iterable<number>, mesure?: Array<{s:number, z:number}>,
-   *          ref?: {s:number, z:number}, sel?: {lat:number, lon:number}, regle?: Array<{lat:number, lon:number}>,
+   *          sel?: {lat:number, lon:number}, regle?: Array<{lat:number, lon:number}>,
    *          sol?: Iterable<number>}} [p]
-   * @returns {string} `&profil=…&coupe=1…`, ou `''`
+   * @returns {string} `&profil=…&sel=…`, ou `''`
    */
   function ecrirePartage(p) {
     if (!p) return '';
     const parties = [];
     const { profil } = p;
-    // Sans bande, la coupe, ses classes, sa mesure et sa référence n'ont aucun sens.
     if (profil && profil.a && profil.b && Number.isFinite(profil.largeur)) {
       const { a, b } = profil;
       parties.push(`profil=${nombre(a.lat, 6)}/${nombre(a.lon, 6)}/${nombre(b.lat, 6)}/${nombre(b.lon, 6)}/${nombre(profil.largeur, 1)}`);
-      // Modale fermée : classes, mesure et référence ne décrivent rien d'affiché.
-      if (p.coupe) {
-        parties.push('coupe=1');
-        const classes = classesTriees(p.classes);
-        if (classes.length) parties.push(`classes=${classes.join('.')}`);
-        if (p.mesure && p.mesure.length) {
-          parties.push('mesure=' + p.mesure.slice(0, MESURE_MAX).map((m) => `${nombre(m.s, 2)}/${nombre(m.z, 2)}`).join('/'));
-        }
-        if (p.ref) parties.push(`ref=${nombre(p.ref.s, 2)}/${nombre(p.ref.z, 2)}`);
-      }
+      // Pas la modale : ouvrir un lien ne doit pas l'ouvrir (le clic sur « Valider » reste à celui qui ouvre).
     }
     if (p.sel) parties.push(`sel=${nombre(p.sel.lat, 6)}/${nombre(p.sel.lon, 6)}`);
     // La règle de la carte : ses points, en paires lat/lon ; leur altitude se relit à l'ouverture.
@@ -269,12 +257,11 @@ const LIEN = (() => {
   const latLonValides = (lat, lon) => Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
 
   /**
-   * Ce que le fragment dit de la coupe et de la sélection. Jamais `null` : `{}` si rien.
-   * Chaque paramètre est validé en entier, ou ignoré en entier ; ceux qui dépendent de la
-   * bande (coupe, classes, mesure, référence) tombent avec elle.
+   * Ce que le fragment dit de la bande, de la sélection, de la règle, du sol et de la vue.
+   * Jamais `null` : `{}` si rien. Chaque paramètre est validé en entier, ou ignoré en entier.
+   * Les anciens `coupe`, `classes`, `mesure` et `ref` (la modale du profil) sont ignorés.
    * @param {string} hash `location.hash`, `#` compris ou non
-   * @returns {{profil?: object, coupe?: boolean, classes?: number[], mesure?: object[],
-   *            ref?: object, sel?: object, sol?: number[]}}
+   * @returns {{profil?: object, sel?: object, regle?: object[], sol?: number[], vue?: object}}
    */
   function lirePartage(hash) {
     const params = new URLSearchParams(String(hash || '').replace(/^#/, ''));
@@ -287,18 +274,6 @@ const LIEN = (() => {
       if (latLonValides(latA, lonA) && latLonValides(latB, lonB) && !confondus && largeur > 0 && largeur <= 1000) {
         sortie.profil = { a: { lat: latA, lon: lonA }, b: { lat: latB, lon: lonB }, largeur };
       }
-    }
-    if (sortie.profil && params.get('coupe') === '1') {
-      sortie.coupe = true;
-      const classes = params.has('classes') ? classesLues(params.get('classes')) : null;
-      if (classes) sortie.classes = classes;
-      const m = params.has('mesure') ? nombres(params.get('mesure')) : null;
-      if (m && m.length % 2 === 0 && m.length <= 2 * 40) {
-        sortie.mesure = [];
-        for (let i = 0; i < m.length; i += 2) sortie.mesure.push({ s: m[i], z: m[i + 1] });
-      }
-      const r = nombres(params.get('ref'), 2);
-      if (r) sortie.ref = { s: r[0], z: r[1] };
     }
     const sel = nombres(params.get('sel'), 2);
     if (sel && latLonValides(sel[0], sel[1])) sortie.sel = { lat: sel[0], lon: sel[1] };
