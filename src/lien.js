@@ -108,8 +108,191 @@ const LIEN = (() => {
     };
   }
 
+  // ── Le profil dans le lien (R2) ───────────────────────────────────────────
+  //
+  // Des paramètres **nommés et lisibles** après `map=`, comme osm.org y ajoute
+  // `&layers=` : `&profil=latA/lonA/latB/lonB/largeur`, `&sel=lat/lon`, `&regle=…`, `&sol=2.6`. Pas de compression
+  // (un état aussi petit n'en a pas besoin, et un lien opaque ne se répare pas à la
+  // main) ; osm.org ne lit que `map=` et ignore le reste.
+  //
+  // **Sûr dans un forum** : Discourse casse un lien nu à la virgule et veut des
+  // parenthèses équilibrées, et `URLSearchParams` lit `+` comme une espace. On sépare
+  // donc les nombres par `/` (comme `map=`) et les codes par `.`, et rien d'autre.
+  //
+  // **En bloc** : un paramètre abîmé est ignoré en entier, jamais à moitié — un
+  // profil à demi lu serait pire qu'un profil absent.
+
+  /** Au plus ce nombre de points de mesure dans un lien écrit : il reste court. */
+  const MESURE_MAX = 40;
+
+  /** Un nombre arrondi, sans zéros de queue ni « -0 » : « 3 », « 2.5 », « 42.857552 ». */
+  const nombre = (v, decimales) => {
+    const x = arrondi(v, decimales);
+    return String(x === 0 ? 0 : x);
+  };
+
+  /** Des numéros de classe, uniques et triés (tableau ou `Set`) ; rien d'autre ne passe. */
+  const classesTriees = (c) => [...new Set(c ?? [])]
+    .filter((x) => Number.isInteger(x) && x >= 0 && x <= 255)
+    .sort((a, b) => a - b);
+
+  /**
+   * Les classes du sol, ou `undefined` si ce sont celles par défaut : un lien n'écrit que
+   * ce qui diffère de ce qu'on obtient sans lui. `presentes` (les classes de la zone) évite
+   * de prendre le défaut pour un choix : le sol par défaut est 2 et 9, mais une zone sans eau
+   * ne propose pas la 9, et la liste de cases en rend {2}, qui est le défaut pour elle.
+   */
+  function sansDefaut(classes, defaut, presentes) {
+    if (!classes) return undefined;
+    const a = classesTriees(classes), b = classesTriees(defaut);
+    const p = presentes && [...presentes].length ? new Set(presentes) : null;
+    const ca = p ? a.filter((c) => p.has(c)) : a, cb = p ? b.filter((c) => p.has(c)) : b;
+    return ca.length === cb.length && ca.every((c, i) => c === cb[i]) ? undefined : a;
+  }
+
+  // ── Les réglages de la vue (R2b) ──
+  //
+  // Le plus possible de ce qui change ce qu'on voit : couches de chaque côté du rideau, position
+  // du rideau, contraste, réglages du SVF, lissage ; puis, pour la 3D, la couleur, le plafond de
+  // points, l'ombrage de profondeur et les classes cachées. Jamais l'onglet : ouvrir un lien ne doit pas lancer la 3D (un nuage de
+  // millions de points à télécharger et à bâtir) ; ces réglages s'appliquent quand on l'ouvre soi-même. Le lien n'écrit que ce
+  // qu'on lui donne — l'appelant ne donne que ce qui diffère du défaut, pour qu'un lien reste
+  // court — et chaque réglage se lit seul : un abîmé tombe, les autres restent.
+
+  /** Une clé de couche (« svf », « ouverture-neg ») : lettres, chiffres et tirets, rien d'autre. */
+  const COUCHE = /^[A-Za-z][A-Za-z0-9-]{0,23}$/;
+  /** Les couleurs du nuage 3D de la vue normale (l'intensité n'y est pas téléchargée). */
+  const COULEURS = ['classification', 'hauteur', 'relief', 'elevation'];
+
+  function ecrireVue(v) {
+    const p = [];
+    if (!v) return p;
+    if (typeof v.gauche === 'string' && COUCHE.test(v.gauche)) p.push(`gauche=${v.gauche}`);
+    if (typeof v.droite === 'string' && COUCHE.test(v.droite)) p.push(`droite=${v.droite}`);
+    if (Number.isFinite(v.rideau)) p.push(`rideau=${Math.round(Math.min(100, Math.max(0, v.rideau)))}`);
+    if (Number.isFinite(v.contraste)) p.push(`contraste=${nombre(v.contraste, 1)}`);
+    if (v.svf && Number.isInteger(v.svf.directions) && Number.isInteger(v.svf.rayon)) p.push(`svf=${v.svf.directions}/${v.svf.rayon}`);
+    if (v.lisse === false) p.push('lisse=0');
+    if (COULEURS.includes(v.couleur)) p.push(`couleur=${v.couleur}`);
+    if (Number.isFinite(v.plafond)) p.push(`plafond=${nombre(v.plafond, 1)}`);
+    if (v.edl === false) p.push('edl=0');
+    const cachees = classesTriees(v.cachees);
+    if (cachees.length) p.push(`cachees=${cachees.join('.')}`);
+    return p;
+  }
+
+  /** Un décimal strict (ni exposant, ni signe, ni vide) dans [min, max], ou `undefined`. */
+  const decimalDans = (texte, min, max) => {
+    if (!/^\d+(\.\d+)?$/.test(String(texte ?? ''))) return undefined;
+    const x = Number(texte);
+    return x >= min && x <= max ? x : undefined;
+  };
+
+  function lireVue(params) {
+    const v = {};
+    for (const cle of ['gauche', 'droite']) {
+      const c = params.get(cle);
+      if (c !== null && COUCHE.test(c)) v[cle] = c;
+    }
+    const r = params.get('rideau');
+    if (r !== null && /^\d{1,3}$/.test(r) && Number(r) <= 100) v.rideau = Number(r);
+    const contraste = decimalDans(params.get('contraste'), 0.1, 10);
+    if (contraste !== undefined) v.contraste = contraste;
+    const svf = /^(\d{1,2})\/(\d{1,3})$/.exec(params.get('svf') ?? '');
+    if (svf && Number(svf[1]) >= 1 && Number(svf[1]) <= 64 && Number(svf[2]) >= 1 && Number(svf[2]) <= 100) {
+      v.svf = { directions: Number(svf[1]), rayon: Number(svf[2]) };
+    }
+    if (params.get('lisse') === '0') v.lisse = false;
+    const couleur = params.get('couleur');
+    if (COULEURS.includes(couleur)) v.couleur = couleur;
+    const plafond = decimalDans(params.get('plafond'), 0.5, 20);
+    if (plafond !== undefined) v.plafond = plafond;
+    if (params.get('edl') === '0') v.edl = false;
+    const cachees = params.has('cachees') ? classesLues(params.get('cachees')) : null;
+    if (cachees) v.cachees = cachees;
+    return Object.keys(v).length ? v : undefined;
+  }
+
+  /**
+   * Les paramètres de la bande, de la sélection, de la règle, du sol et de la vue, à la suite de `map=…`.
+   * @param {{profil?: {a: {lat:number, lon:number}, b: {lat:number, lon:number}, largeur:number},
+   *          sel?: {lat:number, lon:number}, regle?: Array<{lat:number, lon:number}>,
+   *          sol?: Iterable<number>}} [p]
+   * @returns {string} `&profil=…&sel=…`, ou `''`
+   */
+  function ecrirePartage(p) {
+    if (!p) return '';
+    const parties = [];
+    const { profil } = p;
+    if (profil && profil.a && profil.b && Number.isFinite(profil.largeur)) {
+      const { a, b } = profil;
+      parties.push(`profil=${nombre(a.lat, 6)}/${nombre(a.lon, 6)}/${nombre(b.lat, 6)}/${nombre(b.lon, 6)}/${nombre(profil.largeur, 1)}`);
+      // Pas la modale : ouvrir un lien ne doit pas l'ouvrir (le clic sur « Valider » reste à celui qui ouvre).
+    }
+    if (p.sel) parties.push(`sel=${nombre(p.sel.lat, 6)}/${nombre(p.sel.lon, 6)}`);
+    // La règle de la carte : ses points, en paires lat/lon ; leur altitude se relit à l'ouverture.
+    const regle = (p.regle ?? []).filter((q) => q && Number.isFinite(q.lat) && Number.isFinite(q.lon) && latLonValides(q.lat, q.lon));
+    if (regle.length) parties.push('regle=' + regle.slice(0, MESURE_MAX).map((q) => `${nombre(q.lat, 6)}/${nombre(q.lon, 6)}`).join('/'));
+    const sol = classesTriees(p.sol);
+    if (sol.length) parties.push(`sol=${sol.join('.')}`);
+    parties.push(...ecrireVue(p.vue));
+    return parties.map((x) => `&${x}`).join('');
+  }
+
+  /** Des nombres décimaux stricts (ni exposant, ni « + », ni vide) séparés par `/`, ou `null`. */
+  function nombres(texte, attendu) {
+    const c = String(texte ?? '').split('/');
+    if (!c.every((x) => /^-?\d+(\.\d+)?$/.test(x))) return null;
+    if (attendu && c.length !== attendu) return null;
+    return c.map(Number);
+  }
+
+  /** Des numéros de classe séparés par `.`, uniques et triés, ou `null` s'il y a le moindre doute. */
+  function classesLues(texte) {
+    const c = String(texte ?? '').split('.');
+    if (!c.every((x) => /^\d{1,3}$/.test(x) && Number(x) <= 255)) return null;
+    return classesTriees(c.map(Number));
+  }
+
+  const latLonValides = (lat, lon) => Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+
+  /**
+   * Ce que le fragment dit de la bande, de la sélection, de la règle, du sol et de la vue.
+   * Jamais `null` : `{}` si rien. Chaque paramètre est validé en entier, ou ignoré en entier.
+   * Les anciens `coupe`, `classes`, `mesure` et `ref` (la modale du profil) sont ignorés.
+   * @param {string} hash `location.hash`, `#` compris ou non
+   * @returns {{profil?: object, sel?: object, regle?: object[], sol?: number[], vue?: object}}
+   */
+  function lirePartage(hash) {
+    const params = new URLSearchParams(String(hash || '').replace(/^#/, ''));
+    const sortie = {};
+
+    const p = nombres(params.get('profil'), 5);
+    if (p) {
+      const [latA, lonA, latB, lonB, largeur] = p;
+      const confondus = latA === latB && lonA === lonB;
+      if (latLonValides(latA, lonA) && latLonValides(latB, lonB) && !confondus && largeur > 0 && largeur <= 1000) {
+        sortie.profil = { a: { lat: latA, lon: lonA }, b: { lat: latB, lon: lonB }, largeur };
+      }
+    }
+    const sel = nombres(params.get('sel'), 2);
+    if (sel && latLonValides(sel[0], sel[1])) sortie.sel = { lat: sel[0], lon: sel[1] };
+    const regle = params.has('regle') ? nombres(params.get('regle')) : null;
+    if (regle && regle.length % 2 === 0 && regle.length <= 2 * MESURE_MAX) {
+      const pts = [];
+      for (let i = 0; i < regle.length; i += 2) pts.push({ lat: regle[i], lon: regle[i + 1] });
+      if (pts.every((q) => latLonValides(q.lat, q.lon))) sortie.regle = pts;
+    }
+    const sol = params.has('sol') ? classesLues(params.get('sol')) : null;
+    if (sol) sortie.sol = sol;
+    const vue = lireVue(params);
+    if (vue) sortie.vue = vue;
+    return sortie;
+  }
+
   return {
     ecrire, lire, resolutionDepuisZoom, zoomDepuisResolution,
     orientationDepuisCamera, cameraDepuisOrientation,
+    ecrirePartage, lirePartage, sansDefaut,
   };
 })();

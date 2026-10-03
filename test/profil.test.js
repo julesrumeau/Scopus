@@ -127,3 +127,4 @@ test('graduations : zoomé à fond, des valeurs courtes — jamais « 1.20000000
   // Les pas entiers ne changent pas.
   assert.deepEqual(g(0, 100, 5), [0, 20, 40, 60, 80, 100]);
 });
+

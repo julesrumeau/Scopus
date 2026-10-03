@@ -25,6 +25,9 @@ const etat = {
   // Vue d'un lien ouvert (`LIEN.lire`), en attente du chargement de sa dalle
   // pour s'appliquer en 2D et en 3D — voir `appliquerVueDuLien`.
   vueDuLien: null,
+  // Un lien du profil est en train de se remettre (carte cadrée, points chargés, modale rouverte) :
+  // ne pas réécrire le fragment d'ici là, il perdrait ce qu'il porte encore.
+  restaurationPartage: false,
   nuage: null,
   grille: null,
   resultat: null,
@@ -290,6 +293,7 @@ function afficherSelection(x, y, sol, hauteur = 0) {
   vue2d.definirPointSelectionne([x, y]);
   vue3d?.definirPointSelectionne({ x, y, altitude: sommetPoint });
   carteOutils?.selection([x, y]);
+  majLien();   // la sélection est dans le lien
 }
 
 function effacerSelection() {
@@ -300,6 +304,7 @@ function effacerSelection() {
   vue2d.definirPointSelectionne(null);
   vue3d?.definirPointSelectionne(null);
   carteOutils?.selection(null);
+  majLien();
 }
 
 $('lien-gmaps').addEventListener('click', () => {
@@ -412,6 +417,7 @@ if (vue3d) {
 let pointsMesure = [];   // [{ x, y, sol, hauteur }, ...] Lambert-93 absolu, dans l'ordre du clic
 
 function afficherMesure() {
+  majLien();   // la règle est dans le lien
   const versVue3D = (p) => (MESURE.sommet(p) != null ? { x: p.x, y: p.y, altitude: MESURE.sommet(p) } : null);
   vue2d.definirMesure(pointsMesure.map((p) => [p.x, p.y]));
   vue3d?.definirMesure(pointsMesure.map(versVue3D));
@@ -504,6 +510,33 @@ function vueCourante() {
   return { lat: centre.lat, lon: centre.lng, zoom: carte.map.getZoom() };
 }
 
+// ── Le lien du profil (R2) ───────────────────────────────────────────────────
+// L'état de la coupe et de la sélection est dans le bloc du mode vue (la bande, la modale, le
+// graphique) : il pose ces deux fonctions à sa fin. Un lien ouvert avant cela attend dans
+// `partageEnAttente`, que le bloc consomme dès qu'il est prêt.
+let etatPartageVue = null;       // () → l'état de la coupe, pour `LIEN.ecrirePartage`
+let appliquerPartageVue = null;  // () → remet `partageEnAttente`
+let partageEnAttente = null;
+
+/** Ce que le fragment porte en plus de la vue : la coupe, sa mesure, la sélection, les classes du sol. */
+function etatPartage() {
+  if (!MODE_VUE) return {};
+  const e = etatPartageVue ? etatPartageVue() : {};
+  if (selectionActuelle) e.sel = { lat: selectionActuelle.lat, lon: selectionActuelle.lon };
+  if (pointsMesure.length) {
+    e.regle = pointsMesure.map((q) => { const g = projVue().versGeo(q.x, q.y); return { lat: g.lat, lon: g.lon }; });
+  }
+  return e;
+}
+
+/** Un lien ouvert : s'il porte quelque chose de la coupe ou de la sélection, le remettre. */
+function demanderPartage(partage) {
+  if (!MODE_VUE || !partage || !Object.keys(partage).length) return;
+  partageEnAttente = partage;
+  etat.restaurationPartage = true;
+  appliquerPartageVue?.();
+}
+
 /**
  * Réécrit le fragment d'après la vue affichée. `replaceState`, jamais
  * `location.hash =` : le second empile une entrée d'historique à chaque
@@ -518,9 +551,10 @@ function ecrireLien() {
   // s'appliquer en 2D et en 3D (`appliquerVueDuLien`) : ne pas l'écraser
   // d'ici là par la vue de carte, qui n'en garde ni l'échelle fine ni les angles.
   if (etat.vueDuLien) return;
+  if (etat.restaurationPartage) return;
   const v = vueCourante();
   if (!v) return;
-  const fragment = '#' + LIEN.ecrire(v);
+  const fragment = '#' + LIEN.ecrire(v) + LIEN.ecrirePartage(etatPartage());
   if (fragment !== location.hash) history.replaceState(null, '', fragment);
 }
 
@@ -544,6 +578,7 @@ function ouvrirLien(lien) {
   // dalle à sélectionner, ni rien à charger d'un bloc.
   if (MODE_VUE) {
     requestAnimationFrame(() => { carte.invalider(); carte.map.setView([lien.lat, lien.lon], lien.zoom); });
+    demanderPartage(LIEN.lirePartage(location.hash));
     return;
   }
   // Loin de tout, aucune dalle n'est sélectionnée : rien n'attendra de
@@ -1614,6 +1649,7 @@ $('coloration').addEventListener('click', async (e) => {
   if (!b) return;
   for (const autre of $('coloration').children) autre.classList.toggle('actif', autre === b);
   CONFIG.rendu.coloration = b.dataset.mode;
+  majLien();   // la couleur du nuage est dans le lien
   majLegende();
   await majAttributNuage();
   vue3d?.invalider();
@@ -1772,6 +1808,7 @@ $('legende').addEventListener('click', (e) => {
   if (classesMasquees.has(cls)) classesMasquees.delete(cls); else classesMasquees.add(cls);
   b.classList.toggle('off', classesMasquees.has(cls));
   vue3d?.definirClassesMasquees(classesMasquees);
+  majLien();   // les classes cachées sont dans le lien
 });
 
 // ── Classes du sol ────────────────────────────────────────────────────────
@@ -2629,6 +2666,10 @@ if (MODE_VUE) (async () => {
   // Les contours des blocs chargés, pour voir le chargement : « &debug ».
   const calque = new URLSearchParams(location.search).has('debug') ? new CalqueFlux().addTo(carte.map) : null;
   const reliefCalque = new CalqueRelief().addTo(carte.map);
+  // La position du rideau est dans le lien : le geste (et « Rideau au centre ») passent par
+  // `placerRideau`, qu'on enveloppe sur cette instance.
+  const placerRideauSeul = reliefCalque.placerRideau.bind(reliefCalque);
+  reliefCalque.placerRideau = (part) => { placerRideauSeul(part); majLien(); };
   // Le calcul du relief tourne dans un worker (relief-travailleur.js) : sur le
   // fil principal, il figeait la carte une à plusieurs secondes à chaque
   // arrivée de blocs. S'il ne démarre pas, le même calcul se fait ici.
@@ -2933,6 +2974,7 @@ if (MODE_VUE) (async () => {
     const cle = estRelief(cotes.droite) ? cotes.droite : cotes.gauche;
     $('vue-aide').textContent = estRelief(cle) ? COUCHES_VUE.find((x) => x.cle === cle).aide : 'Choisissez une couche de relief d’un côté du rideau.';
     $('vue-svf-reglages').hidden = !(BALAYAGE.has(cotes.gauche) || BALAYAGE.has(cotes.droite));
+    majLien();   // les couches de chaque côté sont dans le lien
   };
   for (const c of ['gauche', 'droite']) {
     const sel = $(`vue-${c}`);
@@ -2953,10 +2995,10 @@ if (MODE_VUE) (async () => {
   $('vue-svf-rayon').value = svfRayonM;
   $('val-vue-svf-rayon').textContent = `${svfRayonM} m`;
   $('vue-svf-directions').addEventListener('input', (e) => { $('val-vue-svf-directions').textContent = e.target.value; });
-  $('vue-svf-directions').addEventListener('change', (e) => { svfDirections = Number(e.target.value); planifierRelief(0); });
+  $('vue-svf-directions').addEventListener('change', (e) => { svfDirections = Number(e.target.value); planifierRelief(0); majLien(); });
   $('vue-svf-rayon').addEventListener('input', (e) => { $('val-vue-svf-rayon').textContent = `${e.target.value} m`; });
-  $('vue-svf-rayon').addEventListener('change', (e) => { svfRayonM = Number(e.target.value); planifierRelief(0); });
-  $('vue-lisser').addEventListener('change', (e) => { lisserFlux = e.target.checked; planifierRelief(0); });
+  $('vue-svf-rayon').addEventListener('change', (e) => { svfRayonM = Number(e.target.value); planifierRelief(0); majLien(); });
+  $('vue-lisser').addEventListener('change', (e) => { lisserFlux = e.target.checked; planifierRelief(0); majLien(); });
 
   // ── Sélection d'un point et mesure, sur la carte ──
   // Les mêmes sections et le même tableau que l'onglet 2D ; le point se lit
@@ -3066,8 +3108,9 @@ if (MODE_VUE) (async () => {
   $('vue-budget3d').addEventListener('change', (e) => {
     budget3D = Number(e.target.value) * 1e6;
     if (!$('vue-3d').hidden) construire3D();
+    majLien();   // le plafond de points est dans le lien
   });
-  $('vue-edl').addEventListener('change', (e) => vue3d?.definirEDL(e.target.checked));
+  $('vue-edl').addEventListener('change', (e) => { vue3d?.definirEDL(e.target.checked); majLien(); });
   // Un volet à part, au-dessus du relief (450) et sous le rideau (700) : les
   // marqueurs restent visibles des deux côtés.
   carte.map.createPane('outilsVue').style.zIndex = 660;
@@ -3170,6 +3213,7 @@ if (MODE_VUE) (async () => {
     $('profil-largeur').value = PROFIL.curseurDepuisLargeur(profil.largeur);
     $('profil-largeur-n').value = profil.largeur;
     $('profil-largeur-modale').value = profil.largeur;
+    majLien();   // la bande est dans le lien
   }
 
   function effacerProfil() {
@@ -3292,7 +3336,7 @@ if (MODE_VUE) (async () => {
   }
   $('profil-reference-effacer').addEventListener('click', () => graphique?.effacerReference());
   // Fermer la fenêtre (croix, Échap) efface la référence : changer la ligne la rendrait caduque.
-  $('dlg-profil').addEventListener('close', () => graphique?.effacerReference());
+  $('dlg-profil').addEventListener('close', () => { graphique?.effacerReference(); });
   majOutilsProfil();
 
   /** La ligne d'état : combien de points, quelle bande, et ce qui peut tromper. */
@@ -3337,7 +3381,7 @@ if (MODE_VUE) (async () => {
   }
 
   function validerProfil() {
-    if (!profil.A || !profil.B || !PROFIL.verdict(profil.A, profil.B).ok) return;
+    if (!profil.A || !profil.B || !PROFIL.verdict(profil.A, profil.B).ok) return Promise.resolve();
     // Les classes de départ sont celles de la légende 3D ; les changer ici ne
     // touche pas la légende.
     profil.masquees = new Set(classesMasquees);
@@ -3345,7 +3389,7 @@ if (MODE_VUE) (async () => {
     graphique?.effacerReference();
     majOutilsProfil();
     $('dlg-profil').showModal();
-    calculerProfil();
+    return calculerProfil();
   }
 
   $('profil-fermer').addEventListener('click', () => $('dlg-profil').close());
@@ -3371,6 +3415,7 @@ if (MODE_VUE) (async () => {
     const cls = Number(c.dataset.cls);
     if (c.checked) profil.masquees.delete(cls); else profil.masquees.add(cls);
     graphique.definirVisibles(visiblesProfil());
+    majLien();
   });
   // Les deux curseurs de la tranche ne se croisent pas : au moins 1 % d'écart.
   for (const id of ['profil-d0', 'profil-d1']) {
@@ -3429,6 +3474,7 @@ if (MODE_VUE) (async () => {
     contrasteFlux = Number(e.target.value);
     $('val-vue-contraste').textContent = `×${contrasteFlux.toFixed(1)}`;
     planifierRelief(0);
+    majLien();   // le contraste est dans le lien
   });
   // Les classes du sol s'appliquent tout de suite : les points sont dans le
   // worker, il n'y a rien à retélécharger — contrairement à l'ancien parcours
@@ -3437,10 +3483,154 @@ if (MODE_VUE) (async () => {
     classesSolFlux = new Set([...$('vue-classes-sol').querySelectorAll('input:checked')].map((i) => Number(i.value)));
     relief.reglages({ classesSol: classesSolFlux });
     planifierRelief(0);
+    majLien();   // les classes du sol sont dans le lien (si elles diffèrent du défaut)
   });
   $('recherche').closest('section').querySelector('h2').textContent = 'Lieu';
   VUES[0][3] = 'Zoomez sur une zone : le relief se calcule tout seul · glisser le rideau pour comparer';
   $('aide-vue').textContent = VUES[0][3];
+
+  // ── Le lien du profil : l'état à écrire, et le lien à remettre (R2) ──
+  const versGeoProfil = ([x, y]) => {
+    const g = projVue().versGeo(x, y);
+    return { lat: g.lat, lon: g.lon };
+  };
+
+  etatPartageVue = () => {
+    const e = { sol: LIEN.sansDefaut(classesSolFlux, CONFIG.raster.classesSolDefaut, dernieresClasses.map(([c]) => c)) };
+    if (profil.A && profil.B) {
+      e.profil = { a: versGeoProfil(profil.A), b: versGeoProfil(profil.B), largeur: profil.largeur };
+    }
+    e.vue = reglagesVue();
+    return e;
+  };
+
+  /**
+   * Les réglages de la vue qui diffèrent du défaut — rien d'autre, pour que le lien reste court.
+   * Les défauts sont ceux du démarrage : couches carte / SVF, rideau au milieu, contraste ×1,
+   * SVF de `CONFIG`, lissage et ombrage de profondeur actifs, couleur par classification,
+   * plafond de points de l'appareil.
+   */
+  const reglagesVue = () => ({
+    gauche: cotes.gauche !== 'carte' ? cotes.gauche : undefined,
+    droite: cotes.droite !== 'svf' ? cotes.droite : undefined,
+    rideau: Math.round(reliefCalque.partRideau() * 100) !== 50 ? reliefCalque.partRideau() * 100 : undefined,
+    contraste: contrasteFlux !== 1 ? contrasteFlux : undefined,
+    svf: svfDirections !== CONFIG.relief.svfDirections || svfRayonM !== CONFIG.relief.svfRayonM
+      ? { directions: svfDirections, rayon: svfRayonM } : undefined,
+    lisse: lisserFlux ? undefined : false,
+    couleur: CONFIG.rendu.coloration !== 'classification' ? CONFIG.rendu.coloration : undefined,
+    plafond: budget3D !== (surMobile() ? CONFIG.rendu.budget3DMobile : CONFIG.rendu.budget3D) ? budget3D / 1e6 : undefined,
+    edl: $('vue-edl').checked ? undefined : false,
+    cachees: classesMasquees.size ? [...classesMasquees] : undefined,
+  });
+
+  /**
+   * Remet les réglages d'un lien en passant par les vrais contrôles : leurs gestionnaires font le
+   * reste (recalcul, étiquettes, lien), et rien ne diverge de ce qu'un clic aurait fait. Une couche
+   * absente de la liste est ignorée ; un curseur ramène lui-même une valeur hors bornes dans les siennes.
+   */
+  function reglerVue(v) {
+    const regler = (id, valeur, evenement) => {
+      const e = $(id);
+      e.value = valeur;
+      e.dispatchEvent(new Event(evenement, { bubbles: true }));
+    };
+    const aOption = (id, valeur) => [...$(id).options].some((o) => o.value === valeur);
+    for (const c of ['gauche', 'droite']) {
+      if (v[c] && aOption(`vue-${c}`, v[c])) regler(`vue-${c}`, v[c], 'change');
+    }
+    if (v.rideau !== undefined) reliefCalque.placerRideau(v.rideau / 100);
+    if (v.contraste !== undefined) regler('vue-contraste', v.contraste, 'input');
+    if (v.svf) {
+      regler('vue-svf-directions', v.svf.directions, 'change');
+      regler('vue-svf-rayon', v.svf.rayon, 'change');
+    }
+    if (v.lisse === false) {
+      $('vue-lisser').checked = false;
+      $('vue-lisser').dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (v.couleur) $('coloration').querySelector(`[data-mode="${v.couleur}"]`)?.click();
+    if (v.plafond !== undefined) regler('vue-budget3d', v.plafond, 'change');
+    if (v.edl === false) {
+      $('vue-edl').checked = false;
+      $('vue-edl').dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (v.cachees) {
+      classesMasquees.clear();
+      for (const c of v.cachees) classesMasquees.add(c);
+      vue3d?.definirClassesMasquees(classesMasquees);
+      majLegende();
+    }
+  }
+
+  /**
+   * Remet ce que le lien ouvert porte : classes du sol, point sélectionné, bande (la fenêtre
+   * flottante prête à « Valider » : la modale ne s'ouvre jamais d'elle-même). Un paramètre refusé à la lecture n'arrive pas jusqu'ici (`LIEN.lirePartage`).
+   */
+  async function appliquerPartage() {
+    const p = partageEnAttente;
+    partageEnAttente = null;
+    if (!p) { etat.restaurationPartage = false; return; }
+    const lien = LIEN.lire(location.hash);
+    try {
+      // Le territoire d'abord : il donne la projection des coordonnées du lien.
+      const ancre = p.profil?.a ?? p.sel;
+      const terr = ancre && PROJ.territoireAuPoint(ancre.lon, ancre.lat);
+      if (terr) {
+        if (terr.code !== territoireVue) effacerProfil();
+        territoireVue = terr.code;
+      }
+      if (p.sol) {
+        classesSolFlux = new Set(p.sol);
+        for (const i of $('vue-classes-sol').querySelectorAll('input')) i.checked = classesSolFlux.has(Number(i.value));
+        relief.reglages({ classesSol: classesSolFlux });
+        planifierRelief(0);
+      }
+      if (p.vue) reglerVue(p.vue);
+      if (p.sel) {
+        const l = projVue().versLocal(p.sel.lon, p.sel.lat);
+        // Sans relief calculé là, l'altitude arrive avec l'image suivante (voir plus haut).
+        const pt = lireVue ? await lireVue(l.x, l.y) : null;
+        afficherSelection(l.x, l.y, pt?.altitude ?? null, pt?.hauteur ?? 0);
+      }
+      if (p.regle) {
+        // Les points reviennent avec leur altitude relue dans la vue calculée (jamais écrite dans le lien).
+        const pts = [];
+        for (const q of p.regle) {
+          const l = projVue().versLocal(q.lon, q.lat);
+          const pt = lireVue ? await lireVue(l.x, l.y) : null;
+          pts.push({ x: l.x, y: l.y, sol: pt?.altitude ?? null, hauteur: pt?.hauteur ?? 0 });
+        }
+        pointsMesure = pts;
+        afficherMesure();
+        if (!p.profil) definirModeInteraction('mesure');
+      }
+      if (p.profil) {
+        // Un lien avec une bande remplace celle qui était là.
+        if ($('dlg-profil').open) $('dlg-profil').close();
+        effacerProfil();
+        const a = projVue().versLocal(p.profil.a.lon, p.profil.a.lat);
+        const b = projVue().versLocal(p.profil.b.lon, p.profil.b.lat);
+        profil.A = [a.x, a.y];
+        profil.B = [b.x, b.y];
+        profil.largeur = PROFIL.largeurValide(p.profil.largeur);
+        if (PROFIL.verdict(profil.A, profil.B).ok) {
+          dessinerProfil();
+          majFenetreProfil();
+          definirModeInteraction('profil');
+        } else {
+          effacerProfil();   // trop courte ou trop longue : ignorée, comme un lien abîmé
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      etat.restaurationPartage = false;
+      majLien();
+    }
+  }
+  appliquerPartageVue = appliquerPartage;
+  if (partageEnAttente) appliquerPartage();
 
   carte.map.on('moveend', majVueFlux);
   majVueFlux();

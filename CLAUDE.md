@@ -434,6 +434,51 @@ dalle au zoom 16 et se réécrit) ; la sélection de dalle est derrière `?dalle
 - `hashchange` suit un fragment modifié à la main ; nos `replaceState` ne le
   déclenchent pas.
 
+### Le lien porte la bande et la vue
+
+Après `map=`, des paramètres **nommés et lisibles** (clés en français), comme osm.org
+y ajoute `&layers=` : `&profil=latA/lonA/latB/lonB/largeur` (6 décimales, ~10 cm),
+`&sel=lat/lon` (le point sélectionné), `&regle=lat/lon/…` (la règle de la carte, au plus
+40 points ; l'altitude se relit dans la vue), `&sol=2.6` (classes du sol du relief,
+**seulement si elles diffèrent du défaut**, `LIEN.sansDefaut`), puis les réglages de la
+vue (plus bas). Fonctions pures dans `lien.js` (`ecrirePartage`, `lirePartage`), testées
+à froid.
+
+- **La modale du profil n'est pas dans le lien.** Ni `coupe`, ni classes, ni mesure, ni
+  référence : ouvrir un lien pose la bande et active le mode Profil (la fenêtre
+  flottante prête à « Valider »), **jamais la modale** — un clic sur « Valider » pendant
+  l'attente l'aurait ouverte deux fois, et on ne saurait pas sur quelle partie zoomer.
+  Un ancien lien portant `coupe=1…` est lu sans ces paramètres (test dédié).
+- **Pas de compression** : elle sert aux gros états (Mermaid, Excalidraw) et rend le
+  lien opaque ; ici un lien lisible se répare à la main. Rien d'externe à charger.
+- **Sûr dans le forum (Discourse)** : ni virgule (elle casse un lien nu), ni
+  parenthèse, ni guillemet, ni `+` (`URLSearchParams` le lit comme une espace). Nombres
+  séparés par `/`, codes par `.` ; un test vérifie le jeu de caractères.
+- **Un paramètre abîmé est ignoré en bloc**, jamais à moitié (un profil à demi lu
+  serait pire qu'un profil absent). Les nombres sont stricts (pas d'exposant, pas de « + »).
+- **Rouvrir un lien** : la carte se cadre, puis `appliquerPartage` remet le sol, les
+  réglages, la sélection, la règle (mode Mesure) et la bande (mode Profil). Pendant ce
+  temps `etat.restaurationPartage` empêche d'écrire le fragment : il perdrait ce qu'il
+  porte encore. Un lien reçu au démarrage attend dans `partageEnAttente` que le bloc du
+  mode vue soit prêt.
+- **Réglages de la vue** (`vue` dans `lirePartage`) : `gauche`/`droite` (clés de couche),
+  `rideau` (0–100), `contraste`, `svf=directions/rayon`, `lisse=0`, `couleur`, `plafond`
+  (millions de points), `edl=0` (ombrage de profondeur, case de l'onglet 3D), `cachees=`
+  (classes masquées en 3D) ; **seul ce qui diffère du défaut** est écrit
+  (`reglagesVue`), chacun se lit et tombe **seul**. Remis par `reglerVue`, qui passe par les
+  vrais contrôles (leurs gestionnaires font le reste). **Jamais l'onglet** : ouvrir un lien
+  ne doit pas lancer la 3D (nuage de millions de points) ; ses réglages s'appliquent quand
+  on l'ouvre soi-même. Le plafond est écrit, mais dépend de l'appareil : celui qui ouvre
+  le change à sa guise. La position du rideau passe par `placerRideau` (enveloppé pour
+  `majLien`).
+- **Le lien suit tout changement** (bande, largeur, sélection, règle, sol, réglages) par
+  `majLien`, déjà regroupé à 300 ms. Hors vue normale (`?dalle`), rien de tout cela
+  n'est écrit ni lu.
+- **Le bouton « Partager »** copie `location.href` ; « Ouvrir dans OpenStreetMap » ne
+  garde que la vue, ce qu'osm.org sait lire.
+- Vérifié en navigateur sur un scénario de bout en bout (bande, anciens liens, règle,
+  réglages) à 1400 px.
+
 ### Le panneau suit la vue
 
 Une section porte `data-vue="carte"` ou `"3d"` ; `basculerVue()` écrit
