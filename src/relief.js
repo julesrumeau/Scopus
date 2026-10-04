@@ -746,7 +746,7 @@ const COUCHES = [
   {
     cle: 'ombrage',
     ancrage: 'centre',
-    libelle: 'Ombrage',
+    libelle: 'Ombrage (4 soleils)',
     aide: 'Quatre soleils combinés, à 90° l’un de l’autre. La lecture la plus familière du terrain ; l’azimut et la hauteur se règlent.',
     calculer: (t, p) => ombrageMulti(t, p),
     etendue: () => [0, 1],
@@ -755,7 +755,7 @@ const COUCHES = [
   {
     cle: 'ombrage-simple',
     ancrage: 'centre',
-    libelle: 'Ombrage simple',
+    libelle: 'Ombrage simple (1 soleil)',
     aide: 'Un seul soleil, plus contrasté : un muret parallèle aux rayons disparaît, tournez l’azimut pour le retrouver.',
     calculer: (t, p) => ombrageSimple(t, p),
     etendue: () => [0, 1],

@@ -1239,7 +1239,7 @@ const CHOIX_2D = [
   ...RELIEF.COUCHES.map((c) => ({ cle: c.cle, libelle: c.libelle, aide: c.aide })),
   {
     cle: OMBRAGE_RGB,
-    libelle: 'Ombrage coloré',
+    libelle: 'Ombrage coloré (3 soleils)',
     aide: 'Trois soleils à 120°, un par canal — l’orientation d’un mur ou d’un talus se lit en teinte, là où « Ombrage » l’aplatit dans une moyenne grise.',
   },
 ];
