@@ -392,7 +392,9 @@ défaut). Complément du SVF, ce qui répond à la demande 1 sans passer par l'I
 - **Mode plein écran** sans rideau, pour ne consulter qu'un fond.
 - À concevoir avant de coder (spec) ; plus utile une fois R8 livré.
 
-### R11 — Accueil : une croix pour fermer (1)
+### R11 — Accueil : une croix pour fermer (1) — fait sur `feat/accueil-croix`, pas encore fusionné
+
+La croix est posée (bureau et téléphone vérifiés en Chromium). Reste ouvert : mémoriser la fermeture pour un habitué (décision à part).
 
 « Voir un exemple » n'a plus d'intérêt depuis le chargement à la volée ; une petite
 croix ferme la présentation et passe en navigation (comme « J'ai déjà des

@@ -2571,6 +2571,13 @@ $('btn-exemple').addEventListener('click', async () => {
   $('btn-charger').click();
 });
 $('btn-carte-directe').addEventListener('click', entrerDansLaCarte);
+// La croix : la carte telle qu'elle est, sans rien viser (ni exemple, ni champ de
+// recherche). Fermer l'accueil rend au panneau sa colonne : `invalider()` d'abord.
+$('accueil-croix').addEventListener('click', () => {
+  masquerAccueil();
+  basculerVue('carte');
+  requestAnimationFrame(() => carte.invalider());
+});
 
 // ── Le relief de la vue (mode par défaut) ───────────────────────────────────
 //
