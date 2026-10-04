@@ -205,12 +205,13 @@
         <span>Lisser l'affichage <small>(interpolation entre cases, visible en zoomant)</small></span>
       </label>
       <div class="champ"><span>Classes du sol</span><div id="vue-classes-sol" class="classes-sol"></div></div>
-      <!-- Essai (4 octobre 2026) : la complétion du sol par les non classés, coupée par
-           défaut parce qu'elle faisait des étoiles dans le Sky-View Factor. La case laisse
-           comparer le détail gagné et les artefacts. -->
+      <!-- Essai (4 octobre 2026) : l'ancien calcul de l'altitude, qui ajoutait en plus des
+           classes cochées les points non classés là où il n'y a aucun sol (`inclureSursol`).
+           Coupé par défaut : il faisait des étoiles dans le Sky-View Factor. La case laisse
+           comparer, puis sera gardée ou retirée. -->
       <label class="case">
         <input type="checkbox" id="vue-sursol">
-        <span>Compléter par les non classés <small>(plus de détail sous les plantes, mais des étoiles dans le Sky-View Factor)</small></span>
+        <span>Ancien calcul de l'altitude <small>(essai : ajoute des points non classés là où il n'y a pas de sol)</small></span>
       </label>
       <p class="note" id="vue-etat"></p>
     </section>
