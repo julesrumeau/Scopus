@@ -398,6 +398,8 @@ suit la souris de l'autre côté, et sur téléphone un empilement haut/bas qui 
 demander au demandeur ce qu'il ne peut pas faire avec le rideau à 50 % — si c'est surtout
 « voir les deux en entier », la poignée du rideau au bord suffit peut-être.
 
+**État des lieux du code (4 octobre 2026), pour quand on s'y mettra** : faisable, ni trivial ni insurmontable. Propre : `CalqueRelief` est autonome (un second sur une seconde carte, un seul côté visible), le relief est déjà calculé côté par côté, le flux ne change pas (deux cartes synchronisées regardent la même zone), 16 références seulement à `reliefCalque`. Moins propre : sélection, mesure, profil, HUD et marqueurs sont tous liés à `carte.map` (donc **première version en lecture seule**) ; `Carte` est trop lourde pour une seconde instance (un `L.map` simple + les fonds) ; `ecran`/`bornes` à calculer par côté ; disposition (`#vue-carte` est la carte elle-même) ; téléphone (deux cartes empilées, moitié de hauteur chacune, à décider). Ordre : façade des volets sans changement visible → seconde carte + synchro → image par côté → curseur synchronisé → lien (`cartes=2`) et téléphone → vérification. Environ 300–400 lignes.
+
 ### R11 — Accueil : une croix pour fermer (1) — fait, fusionné dans `dev`
 
 La croix est posée (bureau et téléphone vérifiés en Chromium). Reste ouvert : mémoriser la fermeture pour un habitué (décision à part).
