@@ -171,6 +171,8 @@ fin près de la caméra et du grossier au loin, et la « fourchette » de
 l'utilisateur comme seuil d'hystérésis pour ne pas retélécharger au moindre
 mouvement. À faire après usage de l'étape 1.
 
+**État des lieux du code (4 octobre 2026) : gros chantier, à ne pas lancer tout de suite.** Aujourd'hui la carte 2D pilote tout : `flux.js` reçoit un **rectangle** et un pas unique ; la 3D est un instantané (`construire3D` range les points déjà là, `definirNuage` renvoie tout le nuage au GPU, figé) ; les couleurs « hauteur » et « relief drapé » se lisent dans la surface de la vue 2D. Il faudrait : (1) un choix de blocs à la Potree par taille projetée (`blocsPourCamera`, pur, à côté de `blocsPourVue` ; les niveaux de l'octree s'additionnent, charger plus fin ajoute) ; (2) un `flux.js` qui accepte autre chose qu'un rectangle (le seuil de 60 km² n'a plus de sens en 3D oblique : un plafond de points) ; (3) un nuage qui s'étoffe par morceaux (un tampon par bloc) au lieu d'être refait, ce qui **casse** le dessin en part de paquets de hachage (`drawArrays(0, k)`) ; (4) une hystérésis ; (5) hauteurs et drapé hors du rectangle 2D. Gain : un lien 3D ouvrirait directement la 3D (règle R13 à la racine). Deux voies : **2a**, projeter la vue de la caméra au sol en rectangle pour le flux existant (rapide, mais un seul niveau de détail, nuage refait en entier) ; **2b**, la vraie, avec spec d'abord et plusieurs jours. **Raison du report :** publier d'abord, voir ce que disent les utilisateurs de la 3D ; si le lien 3D reste la seule gêne, le correctif de cadrage (R13, première partie) coûte une heure.
+
 ### #6 — Laissé de côté par l'audit du 27 septembre 2026
 
 Relevé en relisant la branche du relief piloté par la vue, sans y toucher,
