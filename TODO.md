@@ -386,24 +386,17 @@ d'ombrage de `RELIEF.COUCHES`. À regarder : ce qui manque est surtout les curse
 (azimut, hauteur) et leur place dans le lien (`reglagesVue`, seul ce qui diffère du
 défaut). Complément du SVF, ce qui répond à la demande 1 sans passer par l'IGN.
 
-### R10 — Comparer deux fonds côte à côte, et plein écran (1)
+### R10 — Comparer deux fonds côte à côte (1)
 
-Deux demandes du naturaliste, à traiter **séparément** (4 octobre 2026) :
+Demande du naturaliste : **deux cartes côte à côte, navigation synchronisée, curseur synchronisé** — **pas tout de suite.**
+Gros chantier : le relief n'est posé que sur **une** carte Leaflet (`CalqueRelief`), il
+faudrait une seconde carte avec son relief et son fond, liées (`move`/`zoom`), un repère qui
+suit la souris de l'autre côté, et sur téléphone un empilement haut/bas qui rend peu de place.
+À concevoir (spec) **après R8** (le fond OSM est ce qui rend la comparaison utile). Avant :
+demander au demandeur ce qu'il ne peut pas faire avec le rideau à 50 % — si c'est surtout
+« voir les deux en entier », la poignée du rideau au bord suffit peut-être.
 
-- **Plein écran** (sans rideau, un seul fond) : **abandonné (4 octobre 2026).** Essayé sur
-  `feat/plein-ecran` (un clic sur l'étiquette d'un côté place le rideau au bord) puis laissé de côté,
-  non fusionné : ce n'est que le rideau au bord, que la poignée (R12) permet déjà à la main.
-  Idée non faite : un **vrai** plein écran (carte seule, panneau et barres cachés, API Fullscreen),
-  utile surtout sur téléphone, à ne faire que si quelqu'un le demande.
-- **Deux cartes côte à côte, navigation synchronisée, curseur synchronisé** : **pas tout de suite.**
-  Gros chantier : le relief n'est posé que sur **une** carte Leaflet (`CalqueRelief`), il
-  faudrait une seconde carte avec son relief et son fond, liées (`move`/`zoom`), un repère qui
-  suit la souris de l'autre côté, et sur téléphone un empilement haut/bas qui rend peu de place.
-  À concevoir (spec) **après R8** (le fond OSM est ce qui rend la comparaison utile). Avant :
-  demander au demandeur ce qu'il ne peut pas faire avec le rideau à 50 % — si c'est surtout
-  « voir les deux en entier », le plein écran suffit peut-être.
-
-### R11 — Accueil : une croix pour fermer (1) — fait sur `feat/accueil-croix`, pas encore fusionné
+### R11 — Accueil : une croix pour fermer (1) — fait, fusionné dans `dev`
 
 La croix est posée (bureau et téléphone vérifiés en Chromium). Reste ouvert : mémoriser la fermeture pour un habitué (décision à part).
 
