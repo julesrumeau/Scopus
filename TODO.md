@@ -418,7 +418,7 @@ l'exemple du Bois des Caures en lien discret si on le juge utile.
   décision à rouvrir. Piste moins coûteuse : **corriger le cadrage** à la
   bascule manuelle (même zone que la carte), et peut-être proposer la 3D plutôt
   que l'imposer.
-- **Impossible de désélectionner un point** ; retirer `sel=` de l'URL ne rafraîchit
+- **(fait sur `feat/deselection`) Impossible de désélectionner un point** : bouton « Effacer le point » sous Google Maps / OpenStreetMap dans « Point sélectionné » ; passer à Déplacement ne l'efface **pas** (on place un point puis on navigue). Fenêtre flottante comme le profil : écartée pour l'instant, à rouvrir si la fiche est pénible à lire au téléphone. Ancien texte : ; retirer `sel=` de l'URL ne rafraîchit
   rien (`hashchange` ne suit pas nos `replaceState` mais devrait suivre une
   édition à la main : à vérifier). Passer à l'outil de déplacement devrait tout
   effacer (point sélectionné, et la règle ?). À décider : ce que « tout » comprend.

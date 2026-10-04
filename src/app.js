@@ -287,6 +287,7 @@ function afficherSelection(x, y, sol, hauteur = 0) {
     + (hauteur > 0.05 ? ligneDetail('Hauteur au-dessus du sol', `+${hauteur.toFixed(2)} m`) : '')
     + (acquisition != null ? ligneDetail('Acquisition', acquisition) : '');
   $('selection-liens').hidden = false;
+  $('selection-effacer').hidden = false;
 
   // Même point dans les deux vues : sélectionner en 2D puis passer en 3D (ou
   // l'inverse) doit retrouver le marqueur au même endroit, pas le perdre.
@@ -301,11 +302,14 @@ function effacerSelection() {
   $('selection-vide').hidden = false;
   $('detail-selection').hidden = true;
   $('selection-liens').hidden = true;
+  $('selection-effacer').hidden = true;
   vue2d.definirPointSelectionne(null);
   vue3d?.definirPointSelectionne(null);
   carteOutils?.selection(null);
   majLien();
 }
+
+$('btn-effacer-selection').addEventListener('click', effacerSelection);
 
 $('lien-gmaps').addEventListener('click', () => {
   if (!selectionActuelle) return;
