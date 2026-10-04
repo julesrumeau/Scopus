@@ -564,9 +564,16 @@ ouverture de Yokoyama 1998), **vérifiés contre des surfaces à réponse connue
   RGB. **Hors de `RELIEF.COUCHES`** (ne suit pas le contrat de
   `RELIEF.calculer`) ; traité comme la photo (`OMBRAGE_RGB`, `{ type: 'photo', rgba }`).
 - **L'eau est du terrain** (classe 9 versée dans `solZ`, aucun octet de plus).
-- **Les non classés complètent la surface là où il n'y a aucun retour sol**,
-  jamais ailleurs, avec **plafond de hauteur de 3 m** (sinon une branche devient un
-  pic). `hauteur` reste mesurée contre le sol comblé ; `trou` garde son sens
+- **Les classes du sol choisies décident seules de l'altitude.** La complétion de la
+  surface par les non classés (`inclureSursol`, plafond 3 m) existe encore mais est
+  **désactivée par défaut** : une petite plante ou un rebord de toit (cellule sans
+  retour sol, retour non classé au-dessus) y faisait une tour de 0,6 à 3 m dans un
+  sol lisse, et le balayage d'horizons une **étoile à huit branches** longue comme son
+  rayon (mesuré à 43,6385 N / 1,1495 E ; coupée, plus une seule étoile, les murs d'une
+  ruine restent lisibles). Qui veut les non classés les ajoute aux classes du sol.
+  Deux « rabotages » de pointes ont été écrits puis retirés : ils soignaient la
+  conséquence, modifiaient le terrain en silence, et un mur étroit de plus de 2 m en
+  aurait pâti. `hauteur` reste mesurée contre le sol comblé ; `trou` garde son sens
   strict ; `analyse` ne prend pas la substitution.
 - **Ouverture : le signal d'un mur est en ouverture négative** (couronne 58,6° ;
   intérieur en ouverture positive 72,1°), car un mur est de niveau le long de
