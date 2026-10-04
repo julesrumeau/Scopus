@@ -3008,6 +3008,12 @@ if (MODE_VUE) (async () => {
       : fondAide ? AIDES_FONDS[fondAide] : 'Choisissez une couche de relief d’un côté du rideau.';
     $('vue-svf-reglages').hidden = !(BALAYAGE.has(cotes.gauche) || BALAYAGE.has(cotes.droite));
     $('vue-ombrage-reglages').hidden = !(OMBRAGES.has(cotes.gauche) || OMBRAGES.has(cotes.droite));
+    // L'azimut ne change rien à l'ombrage à quatre soleils (opposés deux à deux, leur part
+    // directionnelle s'annule) : grisé quand aucun côté n'en porte d'autre.
+    const ombragesPoses = [cotes.gauche, cotes.droite].filter((k) => OMBRAGES.has(k));
+    const sansEffet = ombragesPoses.length > 0 && ombragesPoses.every((k) => k === 'ombrage');
+    $('vue-ombrage-azimut').disabled = sansEffet;
+    $('vue-ombrage-note').hidden = !sansEffet;
     majLien();   // les couches de chaque côté sont dans le lien
   };
   for (const c of ['gauche', 'droite']) {
