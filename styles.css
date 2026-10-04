@@ -991,8 +991,22 @@ input[type=range]::-moz-range-thumb {
   color: #dbe1ea;
   background: rgba(11, 14, 19, 0.8);
   border-radius: 4px;
-  pointer-events: none;
+  /* Cliquable : montre ce côté en entier (flux-calque.js, `voirEnEntier`). */
+  pointer-events: auto;
+  cursor: pointer;
 }
+.rideau-flux-libelle:hover, .rideau-flux-libelle:focus-visible { background: rgba(11, 14, 19, 0.95); outline: 1px solid #dbe1ea; }
+/* Le petit carré « plein écran », dessiné (pas de glyphe : absent de certaines polices). */
+.rideau-flux-libelle::after {
+  content: "";
+  display: inline-block;
+  width: 7px; height: 7px;
+  margin-left: 7px;
+  border: 1.5px solid currentColor;
+  border-radius: 1px;
+  opacity: 0.8;
+}
+.rideau-flux-libelle:empty::after { display: none; }
 .rideau-flux-libelle.gauche { right: 16px; }
 .rideau-flux-libelle.droite { left: 16px; }
 .rideau-flux-libelle:empty { display: none; }
@@ -1203,6 +1217,7 @@ select:focus { outline: 1px solid var(--accent); }
   .rideau { width: 44px; margin-left: -22px; }
   .rideau-poignee { width: 40px; height: 40px; }
   /* Les libellés se posent contre le trait, pas contre la bande élargie. */
+  .rideau-flux-libelle { padding: 6px 10px; }
   .rideau-flux-libelle.gauche { right: 38px; }
   .rideau-flux-libelle.droite { left: 38px; }
 }

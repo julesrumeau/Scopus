@@ -148,6 +148,21 @@ const CalqueRelief = L.Layer.extend({
     this._decouper();
   },
 
+  /**
+   * Plein écran d'un côté : le rideau part au bord opposé. Un second appel sur le même
+   * côté remet le rideau où il était (au milieu si on n'en sait rien).
+   */
+  voirEnEntier(cote) {
+    const cible = cote === 'gauche' ? 1 : 0;
+    if (this._part === cible) {
+      this.placerRideau(this._partAvant ?? 0.5);
+      this._partAvant = null;
+      return;
+    }
+    if (this._part > 0 && this._part < 1) this._partAvant = this._part;
+    this.placerRideau(cible);
+  },
+
   /** Le côté du rideau sous un point de la carte (pixels du conteneur). */
   coteSous(x) {
     return x < this._carte.getSize().x * this._part ? 'gauche' : 'droite';
@@ -161,6 +176,20 @@ const CalqueRelief = L.Layer.extend({
       gauche: L.DomUtil.create('span', 'rideau-flux-libelle gauche', r),
       droite: L.DomUtil.create('span', 'rideau-flux-libelle droite', r),
     };
+    // Un clic sur l'étiquette d'un côté le montre en entier ; un second revient. Le
+    // `pointerdown` ne doit pas arriver au rideau : il capturerait le pointeur et le clic
+    // ne parviendrait jamais à l'étiquette.
+    for (const cote of ['gauche', 'droite']) {
+      const l = this._libelles[cote];
+      l.setAttribute('role', 'button');
+      l.tabIndex = 0;
+      l.title = 'Voir ce côté en entier (cliquer à nouveau pour revenir)';
+      l.addEventListener('pointerdown', (e) => e.stopPropagation());
+      l.addEventListener('click', (e) => { e.stopPropagation(); this.voirEnEntier(cote); });
+      l.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.voirEnEntier(cote); }
+      });
+    }
     // Le geste appartient au rideau, pas à la carte : sans ça, tirer le rideau
     // déplacerait la carte en même temps.
     L.DomEvent.disableClickPropagation(r);

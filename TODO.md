@@ -390,9 +390,10 @@ défaut). Complément du SVF, ce qui répond à la demande 1 sans passer par l'I
 
 Deux demandes du naturaliste, à traiter **séparément** (4 octobre 2026) :
 
-- **Plein écran** (sans rideau, un seul fond) : petit, **à faire en premier**. Deux gestes qui
-  placent le rideau au bord (0 ou 100 %), le retour remettant la position d'avant ; la poignée
-  du bord (R12) permet déjà de le faire à la main.
+- **Plein écran** (sans rideau, un seul fond) : **fait sur `feat/plein-ecran`, à essayer** : un clic sur
+  l'étiquette d'un côté (carré « plein écran » dessiné) place le rideau au bord opposé, un second clic
+  remet la position d'avant. Pas de boutons dans le panneau (choix 2 écarté, à rouvrir si peu
+  découvrable).
 - **Deux cartes côte à côte, navigation synchronisée, curseur synchronisé** : **pas tout de suite.**
   Gros chantier : le relief n'est posé que sur **une** carte Leaflet (`CalqueRelief`), il
   faudrait une seconde carte avec son relief et son fond, liées (`move`/`zoom`), un repère qui
