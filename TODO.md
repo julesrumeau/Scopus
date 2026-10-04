@@ -374,7 +374,9 @@ Regroupés par thème ; chaque demande dit qui la porte (1 = naturaliste,
   saurait plus d'où vient ce qu'on voit. **Proposition** : répondre par R9 (ombrage
   calculé depuis le COPC), pas par les flux IGN. À confirmer avec le demandeur.
 
-### R9 — Ombrage monochrome simple et multidirectionnel, réglable (2, rejoint 1)
+### R9 — Ombrage monochrome simple et multidirectionnel, réglable (2, rejoint 1) — curseurs faits sur `feat/ombrage-regle`, pas encore fusionné
+
+Fait : « Ombrage » (4 soleils) et « Ombrage simple » (1 soleil) reviennent dans les listes de la vue normale (l'ombrage gris en avait été retiré pour sa pâleur), et deux curseurs, **azimut** et **hauteur** du soleil, règlent ces deux couches et l'ombrage coloré (l'azimut est celui du premier soleil, les autres suivent à 90° ou 120°). Dans le lien : `soleil=azimut/hauteur`, seulement s'il diffère de 315/45. **Reste** : choisir la surface éclairée, sol (MNT) ou dessus (MNS), demandé par le retour 1 ; et regarder si le gris à quatre soleils reste trop pâle (le contraste ou un seul soleil aident).
 
 Ombrage gris (un soleil) et multidirectionnel, **avec azimut et hauteur du soleil
 réglables** : rien n'est pré-rendu, tout se calcule dans le worker. Existe déjà :

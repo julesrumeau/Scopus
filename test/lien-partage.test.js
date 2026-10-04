@@ -181,11 +181,11 @@ test('sansDefaut : une classe absente de la zone ne fait pas passer le défaut p
 
 const VUE_COMPLETE = () => ({
   gauche: 'ombrage', droite: 'ouverture-neg', rideau: 30, contraste: 1.5,
-  svf: { directions: 12, rayon: 15 }, lisse: false,
+  svf: { directions: 12, rayon: 15 }, soleil: { azimut: 100, hauteur: 25 }, lisse: false,
   couleur: 'hauteur', plafond: 8, edl: false, cachees: [5, 3, 4],
 });
 
-const EXEMPLE_VUE = '&gauche=ombrage&droite=ouverture-neg&rideau=30&contraste=1.5&svf=12/15&lisse=0'
+const EXEMPLE_VUE = '&gauche=ombrage&droite=ouverture-neg&rideau=30&contraste=1.5&svf=12/15&soleil=100/25&lisse=0'
   + '&couleur=hauteur&plafond=8&edl=0&cachees=3.4.5';
 
 test('ecrirePartage : une vue vide n’écrit rien', () => {
@@ -235,7 +235,7 @@ test('lirePartage : rend les réglages de la vue qu’ecrirePartage a produits',
   const lu = plat(LIEN.lirePartage('#map=18/42.8/1.0' + EXEMPLE_VUE));
   assert.deepEqual(lu, { vue: {
     gauche: 'ombrage', droite: 'ouverture-neg', rideau: 30, contraste: 1.5,
-    svf: { directions: 12, rayon: 15 }, lisse: false,
+    svf: { directions: 12, rayon: 15 }, soleil: { azimut: 100, hauteur: 25 }, lisse: false,
     couleur: 'hauteur', plafond: 8, edl: false, cachees: [3, 4, 5],
   } });
 });
@@ -259,6 +259,7 @@ test('lirePartage : chaque réglage abîmé tombe seul, les autres de la vue res
   }
   for (const abime of ['contraste=0', 'contraste=99', 'contraste=abc', 'contraste=1e1', 'contraste=-1']) assert.equal(lu(abime).contraste, undefined, abime);
   for (const abime of ['svf=8', 'svf=8/10/3', 'svf=0/10', 'svf=8/0', 'svf=8/abc', 'svf=100/10', 'svf=8/500', 'svf=1.5/10']) assert.equal(lu(abime).svf, undefined, abime);
+  for (const abime of ['soleil=100', 'soleil=100/25/3', 'soleil=360/25', 'soleil=100/0', 'soleil=100/90', 'soleil=abc/25', 'soleil=100/2.5', 'soleil=-5/25']) assert.equal(lu(abime).soleil, undefined, abime);
   for (const abime of ['lisse=1', 'lisse=oui', 'lisse=']) assert.equal(lu(abime).lisse, undefined, abime);
   for (const abime of ['edl=1', 'edl=non']) assert.equal(lu(abime).edl, undefined, abime);
   for (const abime of ['couleur=inconnue', 'couleur=', 'couleur=Hauteur', 'couleur=intensite']) assert.equal(lu(abime).couleur, undefined, abime);

@@ -181,6 +181,21 @@
           <input type="range" id="vue-svf-rayon" min="3" max="30" step="1" value="10">
         </label>
       </div>
+      <!-- Propres aux ombrages : l'azimut est celui du premier soleil, les autres le suivent. -->
+      <div id="vue-ombrage-reglages" hidden>
+        <label class="champ">
+          <span><span class="libelle-aide">Azimut du soleil
+            <button type="button" class="aide-info" title="Direction d’où vient la lumière, en degrés depuis le nord, dans le sens horaire (315° = nord-ouest, l’usage des cartes). Avec plusieurs soleils, c’est celui du premier : les autres suivent à pas égaux.">?</button>
+          </span><b id="val-vue-ombrage-azimut">315°</b></span>
+          <input type="range" id="vue-ombrage-azimut" min="0" max="355" step="5" value="315">
+        </label>
+        <label class="champ">
+          <span><span class="libelle-aide">Hauteur du soleil
+            <button type="button" class="aide-info" title="Hauteur de la lumière au-dessus de l’horizon. Basse (15–25°), elle fait ressortir les moindres reliefs par de longues ombres ; haute, elle aplatit.">?</button>
+          </span><b id="val-vue-ombrage-hauteur">45°</b></span>
+          <input type="range" id="vue-ombrage-hauteur" min="5" max="85" step="5" value="45">
+        </label>
+      </div>
       <label class="champ">
         <span>Contraste <b id="val-vue-contraste">×1.0</b></span>
         <input type="range" id="vue-contraste" min="0.4" max="5" step="0.1" value="1">
