@@ -1059,6 +1059,7 @@ select:focus { outline: 1px solid var(--accent); }
    de couverture), `backdrop-filter` en confort visuel plutôt qu'en nécessité —
    sans lui la carte reste lisible, juste moins « posée ». */
 .accueil-boite {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1075,6 +1076,26 @@ select:focus { outline: 1px solid var(--accent); }
   box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.65);
 }
 .accueil-boite-texte { gap: 18px; }
+
+/* Fermer sans choisir : pour qui connaît l'outil et veut la carte tout de suite.
+   Cible de 36 px au toucher, discrète à l'œil (le seul élément coloré reste
+   « Voir un exemple »). */
+.accueil-croix {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border-color: transparent;
+  color: var(--texte-2);
+  font-size: 15px;
+  line-height: 1;
+}
+.accueil-croix:hover { background: var(--fond-2); color: var(--texte); border-color: var(--bord); }
 
 .accueil-titre {
   margin: 0;
