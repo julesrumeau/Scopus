@@ -955,7 +955,8 @@ input[type=range]::-moz-range-thumb {
 .rideau-poignee {
   position: absolute;
   left: 50%; top: 50%;
-  transform: translate(-50%, -50%);
+  /* `--dx` : décalage vers l'intérieur au bord de l'écran (flux-calque.js). */
+  transform: translate(calc(-50% + var(--dx, 0px)), -50%);
   width: 30px; height: 30px;
   border-radius: 50%;
   background: rgba(11, 14, 19, 0.85);
@@ -1200,6 +1201,7 @@ select:focus { outline: 1px solid var(--accent); }
 /* Au doigt, une bande de 22 px se rate : 44 px, la taille d'une cible tactile. */
 @media (pointer: coarse) {
   .rideau { width: 44px; margin-left: -22px; }
+  .rideau-poignee { width: 40px; height: 40px; }
   /* Les libellés se posent contre le trait, pas contre la bande élargie. */
   .rideau-flux-libelle.gauche { right: 38px; }
   .rideau-flux-libelle.droite { left: 38px; }

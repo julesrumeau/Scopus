@@ -15,8 +15,14 @@
  */
 function brancherRideau(el, conteneur, placer) {
   let tire = false;
+  // Où le doigt a saisi le rideau par rapport à son trait : la poignée peut être
+  // décalée vers l'intérieur au bord de l'écran, et le rideau ne doit pas
+  // sauter sous le doigt à la saisie.
+  let ecart = 0;
   el.addEventListener('pointerdown', (e) => {
     e.preventDefault();
+    const r = el.getBoundingClientRect();
+    ecart = e.clientX - (r.left + r.width / 2);
     tire = true;
     el.classList.add('tire');
     try { el.setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
@@ -24,7 +30,7 @@ function brancherRideau(el, conteneur, placer) {
   el.addEventListener('pointermove', (e) => {
     if (!tire) return;
     const b = conteneur.getBoundingClientRect();
-    if (b.width > 0) placer((e.clientX - b.left) / b.width);
+    if (b.width > 0) placer((e.clientX - ecart - b.left) / b.width);
   });
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     el.addEventListener(type, (e) => {
@@ -149,7 +155,8 @@ const CalqueRelief = L.Layer.extend({
 
   _creerRideau(conteneur) {
     const r = this._rideau = L.DomUtil.create('div', 'rideau rideau-flux', conteneur);
-    L.DomUtil.create('div', 'rideau-poignee', r).title = 'Glisser pour comparer les deux côtés';
+    this._poignee = L.DomUtil.create('div', 'rideau-poignee', r);
+    this._poignee.title = 'Glisser pour comparer les deux côtés';
     this._libelles = {
       gauche: L.DomUtil.create('span', 'rideau-flux-libelle gauche', r),
       droite: L.DomUtil.create('span', 'rideau-flux-libelle droite', r),
@@ -176,6 +183,21 @@ const CalqueRelief = L.Layer.extend({
     this._cotes.droite.volet.style.clipPath = `inset(-1000000px -1000000px -1000000px ${lx}px)`;
     this._cotes.gauche.volet.style.clipPath = `inset(-1000000px ${-lx}px -1000000px -1000000px)`;
     this._rideau.style.left = `${this._part * 100}%`;
+    this._rentrerPoignee();
+  },
+
+  /**
+   * Au bord de l'écran, le trait y reste (on peut voir un côté en entier) mais la
+   * poignée se décale vers l'intérieur pour rester entière et saisissable : à
+   * moitié hors de l'écran, elle ne se rattrapait plus, et sur Android le geste
+   * depuis le bord de l'écran est « retour ».
+   */
+  _rentrerPoignee() {
+    const largeur = this._carte.getSize().x;
+    const marge = (this._poignee.offsetWidth || 30) / 2 + 12;
+    const x = largeur * this._part;
+    const dx = Math.min(Math.max(x, marge), Math.max(marge, largeur - marge)) - x;
+    this._poignee.style.setProperty('--dx', `${dx}px`);
   },
 
   vider(cote) {
