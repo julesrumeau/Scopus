@@ -37,6 +37,11 @@ const CONFIG = {
     fonds: {
       plan: { couche: 'GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2', format: 'image/png' },
       ortho: { couche: 'ORTHOIMAGERY.ORTHOPHOTOS', format: 'image/jpeg' },
+      // L'estompage du LiDAR HD calculé par l'IGN, en tuiles png servies jusqu'au niveau 18
+      // (CORS ouvert). Éclairage fixe de l'IGN : ce n'est pas notre calcul, et le nom
+      // des couches le dit.
+      'mnt-ign': { couche: 'IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW', format: 'image/png' },
+      'mns-ign': { couche: 'IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW', format: 'image/png' },
     },
   },
 
