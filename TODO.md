@@ -403,7 +403,7 @@ croix ferme la présentation et passe en navigation (comme « J'ai déjà des
 coordonnées »). Un `location.hash` non vide saute déjà l'accueil. Garder
 l'exemple du Bois des Caures en lien discret si on le juge utile.
 
-### R12 — Interface : gagner de la place (2) — outils et Partager faits sur `feat/partager-icone`, poignée du rideau à faire
+### R12 — Interface : gagner de la place (2) — outils et Partager fusionnés dans `dev` ; poignée du rideau faite sur `feat/poignee-rideau`
 
 - **Outils à côté des boutons Carte / 3D** pour gagner une ligne et agrandir la
   carte.
