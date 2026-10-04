@@ -208,7 +208,7 @@ parce que ça changerait un comportement ou demanderait une décision :
 ## Retours du forum OSM-FR (depuis le 1er octobre 2026)
 
 Demandes reçues après la publication du profil topographique et de la date
-d'acquisition, numérotées **R1 à R7** (R1, R3 et R5 sont faits : retirés) pour ne pas les mêler aux #. Aucun nom
+d'acquisition, numérotées **R1 à R14** (R1, R3 et R5 sont faits : retirés ; R8 à R14 viennent des deux retours du 3-4 octobre) pour ne pas les mêler aux #. Aucun nom
 n'est écrit ici : le dépôt est public, et le fil du forum dit qui a demandé quoi.
 
 **Rythme décidé** : répondre vite à chacun (« noté », « je regarde », ou « pas
@@ -223,6 +223,10 @@ s'écrit dans CLAUDE.md pour ne pas la rediscuter.
 | B — lien | R2 | à concevoir d'abord |
 | en attente | R4 | réponse du demandeur |
 | à décider | R7 | comprendre ce qui est demandé |
+| C — défauts | R13, R14 | à corriger d'abord (bogues, rapides) |
+| D — interface | R11, R12 | petits changements d'ergonomie |
+| E — fonds et ombrage | R8, R9 | OSM et ombrage monochrome réglable |
+| F — comparaison | R10 | après E (plus de fonds à comparer) |
 
 ### R2 — Le lien porte la bande et la vue — fusionné dans `dev` (3 octobre 2026), pas encore publié
 
@@ -349,3 +353,80 @@ Pistes à évaluer si on y revient : une ligne de sol **en pointillé, nettement
 distincte des vrais points sol** et marquée « estimé » ; une colonne « hauteur au
 sol estimé » **facultative, éteinte par défaut** ; les risques (sol faux sous
 couvert dense, pas de grille ≥ 50 cm, pente). Dépend de R4 et R6.
+
+
+## Retours du 3-4 octobre 2026 (R8 à R14)
+
+Deux retours : un d'un naturaliste (mesure d'arbres, outil partagé dans sa
+communauté), un d'un utilisateur mobile qui valide aussi les points du premier.
+Regroupés par thème ; chaque demande dit qui la porte (1 = naturaliste,
+2 = utilisateur mobile).
+
+### R8 — Fonds de carte : OSM, et MNT/MNS ombrés IGN (1 et 2)
+
+- **OpenStreetMap** dans les listes déroulantes de chaque côté du rideau : demandé
+  deux fois, « OSM Carto et/ou OSM-fr ». Cas simple : une couche de tuiles de plus,
+  comme « Plan IGN » (volet du côté). Attribution OSM obligatoire ; vérifier la
+  politique d'usage des tuiles osm.org (le serveur public n'est pas fait pour un
+  fort trafic ; OSM-fr est une alternative francophone).
+- **MNT et MNS ombrés via les flux IGN** (1) : **écarté en septembre** (commit
+  `90c7321`, CLAUDE.md « Sous le relief, la carte voilée ; rien que du COPC ») : on ne
+  saurait plus d'où vient ce qu'on voit. **Proposition** : répondre par R9 (ombrage
+  calculé depuis le COPC), pas par les flux IGN. À confirmer avec le demandeur.
+
+### R9 — Ombrage monochrome simple et multidirectionnel, réglable (2, rejoint 1)
+
+Ombrage gris (un soleil) et multidirectionnel, **avec azimut et hauteur du soleil
+réglables** : rien n'est pré-rendu, tout se calcule dans le worker. Existe déjà :
+l'ombrage coloré à trois soleils fixes (`RELIEF.ombrageRGB`) et les couches
+d'ombrage de `RELIEF.COUCHES`. À regarder : ce qui manque est surtout les curseurs
+(azimut, hauteur) et leur place dans le lien (`reglagesVue`, seul ce qui diffère du
+défaut). Complément du SVF, ce qui répond à la demande 1 sans passer par l'IGN.
+
+### R10 — Comparer deux fonds côte à côte, et plein écran (1)
+
+- **Navigation synchronisée** entre deux volets (cartes jumelles, même centrage,
+  **curseur synchronisé** pour viser le même point dans les deux). Le rideau ne
+  compare pas deux fonds *de carte* sur un même centrage ; à concevoir (deux
+  cartes Leaflet liées, ou deux vues du même relief).
+- **Mode plein écran** sans rideau, pour ne consulter qu'un fond.
+- À concevoir avant de coder (spec) ; plus utile une fois R8 livré.
+
+### R11 — Accueil : une croix pour fermer (1)
+
+« Voir un exemple » n'a plus d'intérêt depuis le chargement à la volée ; une petite
+croix ferme la présentation et passe en navigation (comme « J'ai déjà des
+coordonnées »). Un `location.hash` non vide saute déjà l'accueil. Garder
+l'exemple du Bois des Caures en lien discret si on le juge utile.
+
+### R12 — Interface : gagner de la place (2)
+
+- **Outils à côté des boutons Carte / 3D** pour gagner une ligne et agrandir la
+  carte.
+- **Bouton « Partager » réduit à une icône** (menu inchangé).
+- **Poignée du rideau poussée au bord** : introuvable, et sur Android le geste
+  depuis le bord déclenche « retour ». Garder la poignée visible (butée avant le
+  bord, ou languette) ; mobile = `pointer: coarse`, bande déjà à 44 px.
+
+### R13 — Défauts du lien 3D et de la sélection (2)
+
+- **Un lien de partage pris en 3D n'ouvre pas la 3D**, et en basculant à la main
+  le point de vue est **trop zoomé**. Attention : CLAUDE.md dit « jamais l'onglet »
+  pour les liens (ouvrir un lien ne doit pas lancer la 3D, millions de points) ;
+  décision à rouvrir. Piste moins coûteuse : **corriger le cadrage** à la
+  bascule manuelle (même zone que la carte), et peut-être proposer la 3D plutôt
+  que l'imposer.
+- **Impossible de désélectionner un point** ; retirer `sel=` de l'URL ne rafraîchit
+  rien (`hashchange` ne suit pas nos `replaceState` mais devrait suivre une
+  édition à la main : à vérifier). Passer à l'outil de déplacement devrait tout
+  effacer (point sélectionné, et la règle ?). À décider : ce que « tout » comprend.
+
+### R14 — Artefacts en étoile du Sky-View Factor (2)
+
+Capture jointe au retour (non versionnée). Cause **connue** : une cellule sans
+donnée porte une altitude de repli, qui fait une « tour » dans le balayage
+d'horizons et donne une étoile à huit branches ; la surface balayée doit porter
+NaN dans ces cellules (CLAUDE.md, « Pièges du balayage d'horizons »). À vérifier
+sur la vue en cause : régression, ou chemin non couvert en vue normale
+(zones sans retour, bords de dalle, eau, bloc non encore arrivé ?). Répondre à la
+personne selon ce que la reproduction montre.
