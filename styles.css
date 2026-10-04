@@ -139,7 +139,17 @@ html, body {
 
 /* Partager : un bouton, un menu de deux actions posé dessous. */
 .partage { position: relative; margin-left: 10px; flex-shrink: 0; }
-.onglets button.btn-partager { border-color: var(--bord); color: var(--texte); }
+.onglets button.btn-partager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 30px;
+  padding: 0;
+  border-color: var(--bord);
+  color: var(--texte);
+}
+.btn-partager .icone { width: 16px; height: 16px; fill: currentColor; display: block; }
 .onglets button.btn-partager:hover,
 .onglets button.btn-partager[aria-expanded="true"] { background: var(--fond-3); }
 .menu-partager {
@@ -172,6 +182,8 @@ html, body {
    une barre déjà partagée avec les onglets. `.onglets button` en spécificité
    égale suffirait à fixer le padding, mais pas à annuler `width`/`height` —
    d'où `.onglets button.btn-mode`, plus spécifique, pour tout regrouper. */
+.outils-modes { display: flex; gap: 2px; margin-left: 10px; }
+.outils-modes[hidden] { display: none; }
 .onglets button.btn-mode {
   display: flex;
   align-items: center;
