@@ -571,7 +571,7 @@ ouverture de Yokoyama 1998), **vérifiés contre des surfaces à réponse connue
   sol lisse, et le balayage d'horizons une **étoile à huit branches** longue comme son
   rayon (mesuré à 43,6385 N / 1,1495 E ; coupée, plus une seule étoile, les murs d'une
   ruine restent lisibles). Qui veut les non classés les ajoute aux classes du sol.
-  Une case d'essai « Ancien calcul de l'altitude » (`#vue-sursol`, lien `sursol=1`) la
+  Une case d'essai « Compléter par les non classés » (`#vue-sursol`, lien `sursol=1`) la
   rétablit dans la vue, pour comparer le détail gagné et les étoiles ; à garder ou retirer.
   Deux « rabotages » de pointes ont été écrits puis retirés : ils soignaient la
   conséquence, modifiaient le terrain en silence, et un mur étroit de plus de 2 m en
