@@ -410,9 +410,6 @@ const CONFIG = {
     // dans le Sky-View Factor. 0 pour désactiver. Un muret ruiné reste sous 2 m.
     pointeMaxM: 2,
     pointeLargeurM: 3.5,
-    // Cellule isolée : plus haute que ses huit voisines de plus de `isoleMaxM` (relief.js,
-    // `ecreterIsoles`), seulement en cellules d'au plus 1 m. 0 pour désactiver.
-    isoleMaxM: 0.3,
     ombrageAzimut: 315,
     ombrageHauteur: 45,
     // Calcul des couches coûteuses (SVF, ouvertures, ombrages, micro-relief)
