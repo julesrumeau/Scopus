@@ -173,6 +173,7 @@ const LIEN = (() => {
     if (Number.isFinite(v.contraste)) p.push(`contraste=${nombre(v.contraste, 1)}`);
     if (v.svf && Number.isInteger(v.svf.directions) && Number.isInteger(v.svf.rayon)) p.push(`svf=${v.svf.directions}/${v.svf.rayon}`);
     if (v.soleil && Number.isInteger(v.soleil.azimut) && Number.isInteger(v.soleil.hauteur)) p.push(`soleil=${v.soleil.azimut}/${v.soleil.hauteur}`);
+    if (v.sursol === true) p.push('sursol=1');
     if (v.lisse === false) p.push('lisse=0');
     if (COULEURS.includes(v.couleur)) p.push(`couleur=${v.couleur}`);
     if (Number.isFinite(v.plafond)) p.push(`plafond=${nombre(v.plafond, 1)}`);
@@ -207,6 +208,7 @@ const LIEN = (() => {
     if (soleil && Number(soleil[1]) <= 359 && Number(soleil[2]) >= 1 && Number(soleil[2]) <= 89) {
       v.soleil = { azimut: Number(soleil[1]), hauteur: Number(soleil[2]) };
     }
+    if (params.get('sursol') === '1') v.sursol = true;
     if (params.get('lisse') === '0') v.lisse = false;
     const couleur = params.get('couleur');
     if (COULEURS.includes(couleur)) v.couleur = couleur;

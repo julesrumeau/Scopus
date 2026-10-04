@@ -3515,6 +3515,12 @@ if (MODE_VUE) (async () => {
     planifierRelief(0);
     majLien();   // les classes du sol sont dans le lien (si elles diffèrent du défaut)
   });
+  // La complétion par les non classés : se rejoue sur la grille gardée, sans rien reranger.
+  $('vue-sursol').addEventListener('change', (e) => {
+    relief.reglages({ inclureSursol: e.target.checked });
+    planifierRelief(0);
+    majLien();
+  });
   $('recherche').closest('section').querySelector('h2').textContent = 'Lieu';
   VUES[0][3] = 'Zoomez sur une zone : le relief se calcule tout seul · glisser le rideau pour comparer';
   $('aide-vue').textContent = VUES[0][3];
@@ -3549,6 +3555,7 @@ if (MODE_VUE) (async () => {
       ? { directions: svfDirections, rayon: svfRayonM } : undefined,
     soleil: ombrageAzimut !== CONFIG.relief.ombrageAzimut || ombrageHauteur !== CONFIG.relief.ombrageHauteur
       ? { azimut: ombrageAzimut, hauteur: ombrageHauteur } : undefined,
+    sursol: $('vue-sursol').checked ? true : undefined,
     lisse: lisserFlux ? undefined : false,
     couleur: CONFIG.rendu.coloration !== 'classification' ? CONFIG.rendu.coloration : undefined,
     plafond: budget3D !== (surMobile() ? CONFIG.rendu.budget3DMobile : CONFIG.rendu.budget3D) ? budget3D / 1e6 : undefined,
@@ -3580,6 +3587,10 @@ if (MODE_VUE) (async () => {
     if (v.soleil) {
       regler('vue-ombrage-azimut', v.soleil.azimut, 'change');
       regler('vue-ombrage-hauteur', v.soleil.hauteur, 'change');
+    }
+    if (v.sursol) {
+      $('vue-sursol').checked = true;
+      $('vue-sursol').dispatchEvent(new Event('change', { bubbles: true }));
     }
     if (v.lisse === false) {
       $('vue-lisser').checked = false;

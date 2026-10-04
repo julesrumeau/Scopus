@@ -307,3 +307,13 @@ test('lirePartage : rend la règle écrite, et la tient pour abîmée en bloc au
   // Sans bande ni coupe, la règle vit seule ; et abîmée, elle n'emporte rien d'autre.
   assert.equal(lu('&regle=x&sel=42.8/1.0').sel.lat, 42.8);
 });
+
+test('sursol : écrit seulement s’il est activé, relu tel quel, un paramètre abîmé tombe', () => {
+  assert.equal(LIEN.ecrirePartage({ vue: { sursol: true } }), '&sursol=1');
+  assert.equal(LIEN.ecrirePartage({ vue: { sursol: undefined } }), '');
+  assert.equal(LIEN.ecrirePartage({ vue: { sursol: false } }), '');
+  assert.deepEqual(plat(LIEN.lirePartage('#map=18/42.8/1.0&sursol=1')), { vue: { sursol: true } });
+  for (const abime of ['sursol=0', 'sursol=oui', 'sursol=', 'sursol=2']) {
+    assert.equal(plat(LIEN.lirePartage('#map=18/42.8/1.0&rideau=30&' + abime)).vue.sursol, undefined, abime);
+  }
+});
