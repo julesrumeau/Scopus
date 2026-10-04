@@ -388,12 +388,18 @@ défaut). Complément du SVF, ce qui répond à la demande 1 sans passer par l'I
 
 ### R10 — Comparer deux fonds côte à côte, et plein écran (1)
 
-- **Navigation synchronisée** entre deux volets (cartes jumelles, même centrage,
-  **curseur synchronisé** pour viser le même point dans les deux). Le rideau ne
-  compare pas deux fonds *de carte* sur un même centrage ; à concevoir (deux
-  cartes Leaflet liées, ou deux vues du même relief).
-- **Mode plein écran** sans rideau, pour ne consulter qu'un fond.
-- À concevoir avant de coder (spec) ; plus utile une fois R8 livré.
+Deux demandes du naturaliste, à traiter **séparément** (4 octobre 2026) :
+
+- **Plein écran** (sans rideau, un seul fond) : petit, **à faire en premier**. Deux gestes qui
+  placent le rideau au bord (0 ou 100 %), le retour remettant la position d'avant ; la poignée
+  du bord (R12) permet déjà de le faire à la main.
+- **Deux cartes côte à côte, navigation synchronisée, curseur synchronisé** : **pas tout de suite.**
+  Gros chantier : le relief n'est posé que sur **une** carte Leaflet (`CalqueRelief`), il
+  faudrait une seconde carte avec son relief et son fond, liées (`move`/`zoom`), un repère qui
+  suit la souris de l'autre côté, et sur téléphone un empilement haut/bas qui rend peu de place.
+  À concevoir (spec) **après R8** (le fond OSM est ce qui rend la comparaison utile). Avant :
+  demander au demandeur ce qu'il ne peut pas faire avec le rideau à 50 % — si c'est surtout
+  « voir les deux en entier », le plein écran suffit peut-être.
 
 ### R11 — Accueil : une croix pour fermer (1) — fait sur `feat/accueil-croix`, pas encore fusionné
 
