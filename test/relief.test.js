@@ -363,7 +363,10 @@ test('les retours non classés remplacent le sol inventé sous une structure', (
       batSomme: new Float32Array(N),
       batN: new Uint8Array(N),
     };
-    for (const c of [20 * W + 20, 20 * W + 21, 21 * W + 20, 21 * W + 21]) {
+    // Quatre cellules de 0,5 m (2 × 2) : une vraie structure, pas un retour isolé.
+    const fines = [];
+    for (let y = 20; y < 24; y++) for (let x = 20; x < 24; x++) fines.push(y * W + x);
+    for (const c of fines) {
       g.ncSomme[c] = zSursol * 2;
       g.ncN[c] = 2;
       g.solN[c] = 0;
@@ -625,4 +628,34 @@ test('pointes — désactivable, et sans effet à grande échelle', () => {
   const t = avecBosse(60, 60, 2, 2, 3).t;
   assert.equal(RELIEF.ecreterPointes(t.mnt, t.valide, t.W, t.H, 2, 2), 0, 'fenêtre de 2 cellules : rien à faire');
   assert.equal(RELIEF.ecreterPointes(t.mnt, t.valide, t.W, t.H, 7, 99), 0, 'seuil trop haut');
+});
+
+test('isolées — une cellule seule 60 cm au-dessus du sol est ramenée à son entourage', () => {
+  const { RELIEF, CONFIG } = charger();
+  const { t, i } = avecBosse(40, 40, 1, 1, 0.6);
+  assert.equal(RELIEF.ecreterIsoles(t.mnt, t.valide, t.W, t.H, CONFIG.relief.isoleMaxM), 1);
+  assert.ok(Math.abs(t.mnt[i] - 100) < 1e-4);
+});
+
+test('isolées — plus de pointe, plus d’étoile : le SVF d’une cellule voisine redevient plein', () => {
+  const { RELIEF, CONFIG } = charger();
+  const avant = avecBosse(80, 80, 1, 1, 0.6).t, apres = avecBosse(80, 80, 1, 1, 0.6).t;
+  RELIEF.ecreterIsoles(apres.mnt, apres.valide, apres.W, apres.H, CONFIG.relief.isoleMaxM);
+  const opt = { moteur: 'cpu', svfDirections: 8, svfRayonM: 8 };
+  const sa = RELIEF.svf(avant, opt), sp = RELIEF.svf(apres, opt);
+  assert.ok(au(avant, sa, 44, 40) < 0.99, `avant : ${au(avant, sa, 44, 40)}`);
+  assert.ok(au(apres, sp, 44, 40) > 0.999, `après : ${au(apres, sp, 44, 40)}`);
+});
+
+test('isolées — un muret d’une cellule, un bloc de 2×2 et un trou ne sont pas touchés', () => {
+  const { RELIEF, CONFIG } = charger();
+  const s = CONFIG.relief.isoleMaxM;
+  const muret = avecBosse(60, 60, 1, 20, 0.6).t;
+  assert.equal(RELIEF.ecreterIsoles(muret.mnt, muret.valide, muret.W, muret.H, s), 0);
+  const bloc = avecBosse(60, 60, 2, 2, 0.6).t;
+  assert.equal(RELIEF.ecreterIsoles(bloc.mnt, bloc.valide, bloc.W, bloc.H, s), 0);
+  // Une cellule au bord d'un trou : trop peu de voisines valides pour juger.
+  const { t, i } = avecBosse(40, 40, 1, 1, 0.6);
+  for (let k = 0; k < 6; k++) t.valide[i - 41 + (k % 3) + Math.floor(k / 3) * 40] = 0;
+  assert.equal(RELIEF.ecreterIsoles(t.mnt, t.valide, t.W, t.H, s), 0);
 });

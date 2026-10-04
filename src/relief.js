@@ -199,6 +199,7 @@ function preparer(g, options = {}) {
 
   // Les pointes isolées du sol, avant tout calcul de couche (voir `ecreterPointes`).
   if (p.pointeMaxM > 0) ecreterPointes(mnt, valide, W, H, p.pointeLargeurM / (g.pas * f), p.pointeMaxM);
+  if (p.isoleMaxM > 0 && g.pas * f <= 1) ecreterIsoles(mnt, valide, W, H, p.isoleMaxM);
 
   // Les cellules sans sol connu reçoivent la médiane approchée du reste : les
   // gradients et les flous ont besoin d'un nombre, la carte de validité dira
@@ -360,11 +361,11 @@ function microRelief(t, rayonM, options = {}) {
  * plus haute que `seuilM` au-dessus de son entourage est ramenée à ce
  * qu'il y a autour d'elle.
  *
- * Pourquoi : près des bâtiments et sous les arbres, il reste parfois quelques
- * retours que le classificateur de l'IGN a rangés « sol » alors qu'ils sont sur
- * un rebord de toit ou une branche basse. Sur une surface de sol par ailleurs
- * lisse, ils font des bandes de deux ou trois cellules **trois mètres au-dessus**
- * du reste. Le balayage d'horizons y voit des tours : le Sky-View Factor et les
+ * Pourquoi : là où une cellule n'a aucun retour sol, les retours **non classés**
+ * complètent la surface (`inclureSursol`, actif par défaut, plafond de 3 m) : près
+ * des bâtiments et sous les arbres, un rebord de toit ou une branche y fait des
+ * bandes de deux ou trois cellules **trois mètres au-dessus** d'un sol par ailleurs
+ * lisse (ou, plus rarement, un retour que l'IGN a classé « sol » à tort). Le balayage d'horizons y voit des tours : le Sky-View Factor et les
  * ouvertures s'assombrissent en **étoile** tout autour (une branche par direction
  * balayée) — mesuré à 43,6385 N, 1,1485 E, des cellules à 47,5 m sur un sol à
  * 44,6 m, jusqu'à un SVF de 0,47 à côté. Les trous du MNT n'y sont pour rien
@@ -426,6 +427,46 @@ function ecreterPointes(mnt, valide, W, H, fenetre, seuilM) {
       if (valide[i] && Number.isFinite(ouvert[i]) && mnt[i] - ouvert[i] > seuilM) { mnt[i] = ouvert[i]; n++; }
     }
   }
+  return n;
+}
+
+/**
+ * Rabote les cellules **isolées** : une cellule plus haute que **chacune** de ses huit
+ * voisines de plus de `seuilM` est ramenée à leur moyenne.
+ *
+ * Ce que `ecreterPointes` laisse : une seule cellule, quelques dizaines de centimètres
+ * au-dessus d'un sol par ailleurs lisse (un retour isolé mal classé « sol »). Sur une
+ * surface plane, le balayage d'horizons en fait une étoile à huit branches qui court
+ * sur tout le rayon — mesuré à 43,6385 N, 1,1495 E : 145,8 m sur 145,2 m, une étoile de
+ * huit mètres. Plus haute que **toutes** ses voisines : un muret, même d'une cellule de
+ * large, a deux voisines de sa hauteur le long de lui-même et n'est jamais touché ; un
+ * tas de pierres ou un poteau de plus d'une cellule non plus. Seul un point seul tombe.
+ * Au-delà d'un mètre de cellule, ce n'est plus de l'isolement mais du terrain : à ne pas
+ * appeler. Ignore les cellules sans sol ; la première rangée de cellules n'est pas touchée.
+ */
+function ecreterIsoles(mnt, valide, W, H, seuilM) {
+  let n = 0;
+  const corrections = [];
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      if (!valide[i]) continue;
+      let max = -Infinity, somme = 0, nb = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const j = i + dy * W + dx;
+          if (!valide[j]) continue;
+          if (mnt[j] > max) max = mnt[j];
+          somme += mnt[j]; nb++;
+        }
+      }
+      // Au moins cinq voisines : une cellule au bord d'un trou n'a pas assez de témoins.
+      if (nb >= 5 && mnt[i] - max > seuilM) corrections.push(i, somme / nb);
+    }
+  }
+  // Appliquées ensuite : une correction ne doit pas changer le jugement sur sa voisine.
+  for (let k = 0; k < corrections.length; k += 2) { mnt[corrections[k]] = corrections[k + 1]; n++; }
   return n;
 }
 
@@ -999,7 +1040,7 @@ function calculer(t, cle, options = {}) {
 }
 
 return {
-  preparer, ecreterPointes, calculer, etirer, valeurParPoint, COUCHES, ombrage, ombrageMulti, ombrageSimple, ombrageRGB, microRelief, svf, ouverture,
+  preparer, ecreterPointes, ecreterIsoles, calculer, etirer, valeurParPoint, COUCHES, ombrage, ombrageMulti, ombrageSimple, ombrageRGB, microRelief, svf, ouverture,
   balayerHorizons, flouBoite, gradients,
   /** Moteur du dernier calcul coûteux : 'gpu' ou 'cpu'. */
   moteur: () => dernierMoteur,

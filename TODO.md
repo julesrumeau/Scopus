@@ -428,7 +428,7 @@ l'exemple du Bois des Caures en lien discret si on le juge utile.
 
 ### R14 — Artefacts en étoile du Sky-View Factor (2) — corrigé en grande partie sur `fix/svf-etoiles`
 
-Cause trouvée (4 octobre) : pas des trous, mais des **pointes de sol valides** (bandes à 3 m au-dessus du sol près des bâtiments), rabotées par `ecreterPointes` (voir CLAUDE.md). Restent de fines étoiles autour de petites bosses (d'une cellule, sous 2 m) : réduites par plus de directions ; un critère « cellule isolée plus haute que ses huit voisines » pourrait les enlever, au risque d'un caillou ou d'un poteau réel. Réponse à la personne qui a parlé des directions : elle avait raison pour ce qui reste.
+Cause trouvée (4 octobre) : pas des trous, mais la **complétion par les non classés** (`inclureSursol`, actif par défaut, plafond 3 m), qui fait des bandes à 3 m près des bâtiments et des cellules isolées en plein champ. Rabotées par `ecreterPointes` puis `ecreterIsoles` (voir CLAUDE.md). Restent des étoiles autour de petits groupes de cellules ; **option radicale à décider** : couper `inclureSursol` dans la vue (supprime la cause, mais les ruines classées « non classé » ne se verraient plus dans le SVF). Réponse à la personne qui a parlé des directions : elle avait raison pour ce qui reste.
 
 
 Capture jointe au retour (non versionnée). Cause **connue** : une cellule sans
