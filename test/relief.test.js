@@ -387,6 +387,11 @@ test('les retours non classés remplacent le sol inventé sous une structure', (
   assert.ok(Math.abs(ruine.hauteur[i] - 1.2) < 1e-5, `hauteur : ${ruine.hauteur[i]}`);
   assert.equal(ruine.trou[i], 1, '`trou` garde son sens strict : aucun retour sol');
 
+  // Par défaut, la surface ne monte pas sur un retour non classé : seules les classes
+  // du sol décident de l'altitude (sinon une plante fait une étoile dans le SVF).
+  const parDefaut = RELIEF.preparer(grille(11.2), { pasM: 0.5, inclureBati: false });
+  assert.ok(Math.abs(parDefaut.mnt[i] - 10) < 1e-5, `par défaut : ${parDefaut.mnt[i]}`);
+
   // Un retour de branche à vingt mètres : au-dessus du plafond, donc ignoré.
   // Sans ce garde-fou la classe 1 planterait des pics d'arbre dans le terrain.
   const arbre = RELIEF.preparer(grille(30), { pasM: 0.5, inclureBati: false, inclureSursol: true });

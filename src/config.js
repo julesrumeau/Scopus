@@ -427,7 +427,14 @@ const CONFIG = {
     // c'est-à-dire des couches où on la cherche. Les points non classés sont
     // ceux de la ruine ; les mettre à la place d'une valeur interpolée rend une
     // mesure là où il n'y avait qu'une invention.
-    inclureSursol: true,
+    //
+    // **Désactivé par défaut** (4 octobre 2026). Une petite plante, un rebord de
+    // toit ont le même signal qu'une pierre : une cellule sans retour sol, avec un
+    // retour non classé au-dessus. La surface y montait de 0,6 à 3 m, et le
+    // balayage d'horizons en faisait des étoiles à huit branches, longues comme son
+    // rayon. Les classes du sol choisies dans le panneau décident seules de ce qui
+    // a une altitude : qui veut les non classés les ajoute aux classes du sol.
+    inclureSursol: false,
     // Plafond de cette substitution, en mètres au-dessus du sol comblé.
     //
     // La classe 1 recueille tout ce que le classificateur n'a pas su ranger,

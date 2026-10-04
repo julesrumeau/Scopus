@@ -156,9 +156,10 @@ Fait le 27 septembre 2026 : sélection d'un point, mesure en chaîne,
 recherche par coordonnées, info-bulle au curseur, réglages du SVF et
 lissage, sur la carte en vue normale (voir CLAUDE.md, « Le calcul de la
 vue »). Reste la case « Compléter le sol par les retours non classés »,
-masquée : son effet n'a pas convaincu à l'usage. Le réglage par défaut
-(`CONFIG.relief.inclureSursol`, activé) s'applique toujours. À vérifier sur
-une ruine connue avant de la rendre, ou de la retirer pour de bon.
+masquée : son effet n'a pas convaincu à l'usage. Le réglage
+(`CONFIG.relief.inclureSursol`) est **désactivé par défaut depuis le 4 octobre 2026**
+(il faisait les étoiles du SVF, voir R14) ; les non classés s'ajoutent aux classes
+du sol. À vérifier sur une ruine connue avant de rendre la case, ou de la retirer.
 
 ### #4 — La 3D qui télécharge (étape 2)
 
@@ -426,12 +427,6 @@ l'exemple du Bois des Caures en lien discret si on le juge utile.
   édition à la main : à vérifier). Passer à l'outil de déplacement devrait tout
   effacer (point sélectionné, et la règle ?). À décider : ce que « tout » comprend.
 
-### R14 — Artefacts en étoile du Sky-View Factor (2)
+### R14 — Artefacts en étoile du Sky-View Factor (2) — corrigé sur `fix/svf-etoiles-2`
 
-Capture jointe au retour (non versionnée). Cause **connue** : une cellule sans
-donnée porte une altitude de repli, qui fait une « tour » dans le balayage
-d'horizons et donne une étoile à huit branches ; la surface balayée doit porter
-NaN dans ces cellules (CLAUDE.md, « Pièges du balayage d'horizons »). À vérifier
-sur la vue en cause : régression, ou chemin non couvert en vue normale
-(zones sans retour, bords de dalle, eau, bloc non encore arrivé ?). Répondre à la
-personne selon ce que la reproduction montre.
+Cause trouvée (4 octobre 2026) : la **complétion par les non classés** (`inclureSursol`, plafond 3 m, active par défaut sans que sa case soit visible). Une plante ou un rebord de toit (cellule sans retour sol, retour non classé au-dessus) y faisait une tour dans un sol lisse, d'où l'étoile à huit branches. Corrigé en la désactivant par défaut : les classes du sol choisies décident seules de l'altitude (CLAUDE.md, « Lecture du relief »). La personne qui parlait des directions atténuait seulement le symptôme. Reste ouvert : voir une ruine connue en « non classé » sans retour sol, pour savoir si elle se lit assez avec les non classés ajoutés aux classes du sol.
