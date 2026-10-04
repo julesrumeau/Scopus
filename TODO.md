@@ -377,7 +377,7 @@ Regroupés par thème ; chaque demande dit qui la porte (1 = naturaliste,
   saurait plus d'où vient ce qu'on voit. **Proposition** : répondre par R9 (ombrage
   calculé depuis le COPC), pas par les flux IGN. À confirmer avec le demandeur.
 
-### R9 — Ombrage monochrome simple et multidirectionnel, réglable (2, rejoint 1) — curseurs faits sur `feat/ombrage-regle`, pas encore fusionné
+### R9 — Ombrage monochrome réglable, MNT et MNS ombrés (2, rejoint 1) — fait, fusionné dans `dev` (pas encore publié)
 
 Fait : « Ombrage » (4 soleils) et « Ombrage simple » (1 soleil) reviennent dans les listes de la vue normale (l'ombrage gris en avait été retiré pour sa pâleur), et deux curseurs, **azimut** et **hauteur** du soleil, règlent ces deux couches et l'ombrage coloré (l'azimut est celui du premier soleil, les autres suivent à 90° ou 120°). Dans le lien : `soleil=azimut/hauteur`, seulement s'il diffère de 315/45. **Reste** : choisir la surface éclairée, sol (MNT) ou dessus (MNS), demandé par le retour 1 ; et regarder si le gris à quatre soleils reste trop pâle (le contraste ou un seul soleil aident).
 
@@ -411,7 +411,7 @@ croix ferme la présentation et passe en navigation (comme « J'ai déjà des
 coordonnées »). Un `location.hash` non vide saute déjà l'accueil. Garder
 l'exemple du Bois des Caures en lien discret si on le juge utile.
 
-### R12 — Interface : gagner de la place (2) — outils et Partager fusionnés dans `dev` ; poignée du rideau faite sur `feat/poignee-rideau`
+### R12 — Interface : gagner de la place (2) — fait, fusionné dans `dev` (pas encore publié)
 
 - **Outils à côté des boutons Carte / 3D** pour gagner une ligne et agrandir la
   carte.
@@ -420,7 +420,7 @@ l'exemple du Bois des Caures en lien discret si on le juge utile.
   depuis le bord déclenche « retour ». Garder la poignée visible (butée avant le
   bord, ou languette) ; mobile = `pointer: coarse`, bande déjà à 44 px.
 
-### R13 — Défauts du lien 3D et de la sélection (2)
+### R13 — Défauts du lien 3D et de la sélection (2) — désélection faite ; lien 3D en suspens
 
 - **EN SUSPENS — décision à prendre (4 octobre 2026).** Le lien 3D est laissé de côté : la vraie réponse est sans doute la 3D qui pilote le téléchargement (#4), qui ferait d'un lien une caméra et supprimerait le double cadrage ; en attendant, on pourrait seulement corriger le cadrage à la bascule manuelle (reprendre l'échelle de la carte, petit et indépendant). À trancher : faire #4 d'abord (conception avant code), ou le correctif seul ; `ouvrirLien` en vue normale ignore aujourd'hui orientation et inclinaison (seul `?dalle` les relit). Texte d'origine ci-dessous.
 - **Un lien de partage pris en 3D n'ouvre pas la 3D**, et en basculant à la main
