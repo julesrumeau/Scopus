@@ -189,6 +189,8 @@
           </span><b id="val-vue-ombrage-azimut">315°</b></span>
           <input type="range" id="vue-ombrage-azimut" min="0" max="355" step="5" value="315">
         </label>
+        <!-- Quatre soleils à 90° s'annulent deux à deux : l'azimut n'y change rien (sauf sur de fortes pentes). -->
+        <p class="note" id="vue-ombrage-note" hidden>Sans effet avec 4 soleils (ils s'annulent deux à deux) : choisissez « Ombrage simple » pour tourner la lumière.</p>
         <label class="champ">
           <span><span class="libelle-aide">Hauteur du soleil
             <button type="button" class="aide-info" title="Hauteur de la lumière au-dessus de l’horizon. Basse (15–25°), elle fait ressortir les moindres reliefs par de longues ombres ; haute, elle aplatit.">?</button>
