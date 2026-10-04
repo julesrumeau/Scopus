@@ -182,7 +182,17 @@ html, body {
    une barre déjà partagée avec les onglets. `.onglets button` en spécificité
    égale suffirait à fixer le padding, mais pas à annuler `width`/`height` —
    d'où `.onglets button.btn-mode`, plus spécifique, pour tout regrouper. */
-.outils-modes { display: flex; gap: 2px; margin-left: 10px; }
+.outils-modes {
+  display: flex;
+  gap: 2px;
+  margin-left: 8px;
+  padding-left: 10px;
+  /* Un trait entre les onglets (changent de vue) et les outils (changent ce que
+     fait le clic) : deux familles de boutons côte à côte se confondaient. */
+  border-left: 1px solid var(--bord);
+  align-self: stretch;
+  align-items: center;
+}
 .outils-modes[hidden] { display: none; }
 .onglets button.btn-mode {
   display: flex;
