@@ -172,6 +172,7 @@ const LIEN = (() => {
     if (Number.isFinite(v.rideau)) p.push(`rideau=${Math.round(Math.min(100, Math.max(0, v.rideau)))}`);
     if (Number.isFinite(v.contraste)) p.push(`contraste=${nombre(v.contraste, 1)}`);
     if (v.svf && Number.isInteger(v.svf.directions) && Number.isInteger(v.svf.rayon)) p.push(`svf=${v.svf.directions}/${v.svf.rayon}`);
+    if (v.soleil && Number.isInteger(v.soleil.azimut) && Number.isInteger(v.soleil.hauteur)) p.push(`soleil=${v.soleil.azimut}/${v.soleil.hauteur}`);
     if (v.lisse === false) p.push('lisse=0');
     if (COULEURS.includes(v.couleur)) p.push(`couleur=${v.couleur}`);
     if (Number.isFinite(v.plafond)) p.push(`plafond=${nombre(v.plafond, 1)}`);
@@ -201,6 +202,10 @@ const LIEN = (() => {
     const svf = /^(\d{1,2})\/(\d{1,3})$/.exec(params.get('svf') ?? '');
     if (svf && Number(svf[1]) >= 1 && Number(svf[1]) <= 64 && Number(svf[2]) >= 1 && Number(svf[2]) <= 100) {
       v.svf = { directions: Number(svf[1]), rayon: Number(svf[2]) };
+    }
+    const soleil = /^(\d{1,3})\/(\d{1,2})$/.exec(params.get('soleil') ?? '');
+    if (soleil && Number(soleil[1]) <= 359 && Number(soleil[2]) >= 1 && Number(soleil[2]) <= 89) {
+      v.soleil = { azimut: Number(soleil[1]), hauteur: Number(soleil[2]) };
     }
     if (params.get('lisse') === '0') v.lisse = false;
     const couleur = params.get('couleur');

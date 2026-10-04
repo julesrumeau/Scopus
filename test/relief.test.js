@@ -524,3 +524,43 @@ test('une couche se calcule par sa clé et s’étale sur un intervalle utile', 
     assert.ok(c.duree >= 0);
   }
 });
+
+test('ombrage réglable — les défauts redonnent exactement les soleils d’avant les curseurs', () => {
+  const { RELIEF } = charger();
+  const t = terrain(40, 40, 1, (x, y) => -0.3 * x + 0.1 * y);
+  // Quatre soleils à 315°, 45°, 135°, 225° : la moyenne des quatre ombrage() à 45°.
+  const multi = RELIEF.ombrageMulti(t, { gpu: false });
+  const attendu = [315, 45, 135, 225].map((az) => au(t, RELIEF.ombrage(t, az, 45), 20, 20));
+  const moyenne = attendu.reduce((s, v) => s + v, 0) / 4;
+  assert.ok(Math.abs(au(t, multi, 20, 20) - moyenne) < 1e-6);
+});
+
+test('ombrage réglable — l’azimut tourne les quatre soleils ensemble, la hauteur les lève tous', () => {
+  const { RELIEF } = charger();
+  const t = terrain(40, 40, 1, (x, y) => -0.3 * x + 0.1 * y);
+  const m = RELIEF.ombrageMulti(t, { gpu: false, ombrageAzimut: 30, ombrageHauteur: 20 });
+  const attendu = [30, 120, 210, 300].map((az) => au(t, RELIEF.ombrage(t, az, 20), 20, 20));
+  assert.ok(Math.abs(au(t, m, 20, 20) - attendu.reduce((s, v) => s + v, 0) / 4) < 1e-6);
+});
+
+test('ombrage simple — un seul soleil, à l’azimut et à la hauteur demandés', () => {
+  const { RELIEF } = charger();
+  const t = terrain(40, 40, 1, (x) => -0.3 * x);
+  const s = RELIEF.ombrageSimple(t, { gpu: false, ombrageAzimut: 90, ombrageHauteur: 30 });
+  assert.ok(Math.abs(au(t, s, 20, 20) - au(t, RELIEF.ombrage(t, 90, 30), 20, 20)) < 1e-6);
+  // Par défaut : 315°, 45°.
+  const d = RELIEF.ombrageSimple(t, { gpu: false });
+  assert.ok(Math.abs(au(t, d, 20, 20) - au(t, RELIEF.ombrage(t, 315, 45), 20, 20)) < 1e-6);
+  assert.ok(RELIEF.COUCHES.some((c) => c.cle === 'ombrage-simple'));
+});
+
+test('ombrageRGB réglable — l’azimut tourne les trois soleils, 120° à part', () => {
+  const { RELIEF } = charger();
+  const t = terrain(60, 60, 1, (x) => -Math.tan(deg(20)) * x);
+  const rgba = RELIEF.ombrageRGB(t, { ombrageAzimut: 100, ombrageHauteur: 30 });
+  const i = 30 * t.W + 30;
+  const [r, v, b] = [100, 220, 340].map((az) => au(t, RELIEF.ombrage(t, az, 30), 30, 30));
+  assert.ok(Math.abs(rgba[i * 4] - Math.round(r * 255)) <= 1);
+  assert.ok(Math.abs(rgba[i * 4 + 1] - Math.round(v * 255)) <= 1);
+  assert.ok(Math.abs(rgba[i * 4 + 2] - Math.round(b * 255)) <= 1);
+});

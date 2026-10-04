@@ -418,9 +418,10 @@ function ombrage(t, azimut = 315, hauteur = 45, grads = null) {
  * plat — c'est le compromis retenu partout, de l'USGS au RVT.
  */
 function ombrageMulti(t, options = {}) {
-  const azimuts = [315, 45, 135, 225];
   const p = { ...CONFIG.relief, ...options };
-  const gpu = viaGPU(p) ? surGPU(GPU_RELIEF.ombrages(t, azimuts.map((az) => [az, 45]))) : surGPU(null);
+  const { azimut, hauteur } = soleilDe(p);
+  const azimuts = [0, 90, 180, 270].map((d) => (azimut + d) % 360);
+  const gpu = viaGPU(p) ? surGPU(GPU_RELIEF.ombrages(t, azimuts.map((az) => [az, hauteur]))) : surGPU(null);
   if (gpu) {
     // Même somme puis même division que ci-dessous, dans le même ordre.
     const out = new Float32Array(t.N);
@@ -431,11 +432,36 @@ function ombrageMulti(t, options = {}) {
   const grads = gradients(t);
   const out = new Float32Array(t.N);
   for (const az of azimuts) {
-    const o = ombrage(t, az, 45, grads);
+    const o = ombrage(t, az, hauteur, grads);
     for (let i = 0; i < t.N; i++) out[i] += o[i];
   }
   for (let i = 0; i < t.N; i++) out[i] /= azimuts.length;
   return out;
+}
+
+/**
+ * Ombrage à **un seul soleil** : le rendu classique d'un hillshade, plus
+ * contrasté que la moyenne de quatre, mais aveugle aux formes parallèles à son
+ * rayon (voir `ombrageMulti`). Le réglage d'azimut sert justement à tourner
+ * autour de ce défaut.
+ */
+function ombrageSimple(t, options = {}) {
+  const p = { ...CONFIG.relief, ...options };
+  const { azimut, hauteur } = soleilDe(p);
+  const gpu = viaGPU(p) ? surGPU(GPU_RELIEF.ombrages(t, [[azimut, hauteur]])) : surGPU(null);
+  return gpu ? gpu[0] : ombrage(t, azimut, hauteur);
+}
+
+/**
+ * Le soleil réglé par l'utilisateur : `ombrageAzimut` est celui du **premier**
+ * soleil, les autres le suivent à pas égaux (90° pour quatre, 120° pour trois).
+ * Les défauts reprennent les valeurs d'avant les curseurs (315°, 45°) : un
+ * lien ou une habitude d'avant ne change pas d'image.
+ */
+function soleilDe(p) {
+  const azimut = Number.isFinite(p.ombrageAzimut) ? ((p.ombrageAzimut % 360) + 360) % 360 : 315;
+  const hauteur = Number.isFinite(p.ombrageHauteur) ? Math.min(89, Math.max(1, p.ombrageHauteur)) : 45;
+  return { azimut, hauteur };
 }
 
 /**
@@ -459,12 +485,14 @@ function ombrageMulti(t, options = {}) {
  *   neutre que sur les autres couches plutôt qu'une couleur inventée.
  */
 function ombrageRGB(t, options = {}) {
-  const AZIMUTS = [315, 75, 195];   // 315° (le défaut d'ombrage()), puis ±120°
   const p = { ...CONFIG.relief, ...options };
-  const gpu = viaGPU(p) ? surGPU(GPU_RELIEF.ombrages(t, AZIMUTS.map((az) => [az, 45]))) : surGPU(null);
+  const { azimut, hauteur } = soleilDe(p);
+  // 315° par défaut (le défaut d'ombrage()), puis +120° et +240° (75° et 195°).
+  const AZIMUTS = [0, 120, 240].map((d) => (azimut + d) % 360);
+  const gpu = viaGPU(p) ? surGPU(GPU_RELIEF.ombrages(t, AZIMUTS.map((az) => [az, hauteur]))) : surGPU(null);
   const [r, v, b] = gpu || (() => {
     const grads = gradients(t);
-    return AZIMUTS.map((az) => ombrage(t, az, 45, grads));
+    return AZIMUTS.map((az) => ombrage(t, az, hauteur, grads));
   })();
 
   const rgba = new Uint8ClampedArray(t.N * 4);
@@ -719,8 +747,17 @@ const COUCHES = [
     cle: 'ombrage',
     ancrage: 'centre',
     libelle: 'Ombrage',
-    aide: 'Quatre soleils combinés. La lecture la plus familière du terrain.',
+    aide: 'Quatre soleils combinés, à 90° l’un de l’autre. La lecture la plus familière du terrain ; l’azimut et la hauteur se règlent.',
     calculer: (t, p) => ombrageMulti(t, p),
+    etendue: () => [0, 1],
+    palette: 'gris',
+  },
+  {
+    cle: 'ombrage-simple',
+    ancrage: 'centre',
+    libelle: 'Ombrage simple',
+    aide: 'Un seul soleil, plus contrasté : un muret parallèle aux rayons disparaît, tournez l’azimut pour le retrouver.',
+    calculer: (t, p) => ombrageSimple(t, p),
     etendue: () => [0, 1],
     palette: 'gris',
   },
@@ -885,7 +922,7 @@ function calculer(t, cle, options = {}) {
 }
 
 return {
-  preparer, calculer, etirer, valeurParPoint, COUCHES, ombrage, ombrageMulti, ombrageRGB, microRelief, svf, ouverture,
+  preparer, calculer, etirer, valeurParPoint, COUCHES, ombrage, ombrageMulti, ombrageSimple, ombrageRGB, microRelief, svf, ouverture,
   balayerHorizons, flouBoite, gradients,
   /** Moteur du dernier calcul coûteux : 'gpu' ou 'cpu'. */
   moteur: () => dernierMoteur,

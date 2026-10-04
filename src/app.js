@@ -2721,8 +2721,10 @@ if (MODE_VUE) (async () => {
   const cotes = { gauche: 'carte', droite: 'svf' };
   // Les couches de l'onglet 2D, fonds de carte à part (la carte Leaflet les
   // porte, avec son propre choix de fond) : relief.js, plus l'ombrage coloré.
-  // L'ombrage gris n'y est pas : sur une grille au pixel, il sortait pâle.
-  const COUCHES_VUE = CHOIX_2D.filter((c) => c.cle !== PHOTO && c.cle !== PLAN && c.cle !== 'ombrage');
+  // L'ombrage gris en avait été retiré (« sur une grille au pixel, il sortait
+  // pâle ») : revenu avec ses curseurs d'azimut et de hauteur, qui rendent le
+  // contraste que la moyenne de quatre soleils efface.
+  const COUCHES_VUE = CHOIX_2D.filter((c) => c.cle !== PHOTO && c.cle !== PLAN);
   // Ce qui n'est pas du relief : la carte telle qu'affichée, et le Plan IGN,
   // posé dans le côté même — la carte n'a qu'un fond à la fois, et ainsi un
   // côté peut montrer la photo et l'autre le plan.
@@ -2811,6 +2813,7 @@ if (MODE_VUE) (async () => {
   // Réglages du balayage d'horizons (SVF, ouvertures) et du lissage, comme
   // dans l'onglet 2D.
   let svfDirections = CONFIG.relief.svfDirections, svfRayonM = CONFIG.relief.svfRayonM, lisserFlux = true;
+  let ombrageAzimut = CONFIG.relief.ombrageAzimut, ombrageHauteur = CONFIG.relief.ombrageHauteur;
   let classesSolFlux = new Set(CONFIG.raster.classesSolDefaut), classesAffichees = '';
   // Une case par classe présente dans les points reçus, cochée si elle compte
   // comme sol. Reconstruite seulement quand la liste change.
@@ -2875,7 +2878,7 @@ if (MODE_VUE) (async () => {
       for (const c of aCalculer) {
         const cle = cotes[c];
         const r = await relief.image(geo, cle, ecran, lutCouche(cle), {
-          contraste: contrasteFlux, lisser: lisserFlux, actifs, couche: { svfDirections, svfRayonM },
+          contraste: contrasteFlux, lisser: lisserFlux, actifs, couche: reglagesDe(cle),
         });
         if (cotes[c] !== cle) continue;   // le côté a changé pendant le calcul
         if (!r) { reliefCalque.vider(c); continue; }
@@ -2966,6 +2969,12 @@ if (MODE_VUE) (async () => {
 
   // ── Le panneau du relief ──
   const BALAYAGE = new Set(['svf', 'ouverture-pos', 'ouverture-neg']);
+  // Les réglages propres à une couche, et ceux-là seulement : ils entrent dans la
+  // clé du mémo du worker, et bouger le soleil ne doit pas refaire un Sky-View
+  // Factor (cinq secondes) ni l'inverse.
+  const OMBRAGES = new Set(['ombrage', 'ombrage-simple', OMBRAGE_RGB]);
+  const reglagesDe = (cle) => (BALAYAGE.has(cle) ? { svfDirections, svfRayonM }
+    : OMBRAGES.has(cle) ? { ombrageAzimut, ombrageHauteur } : {});
   const fondsPoses = { gauche: false, droite: false };
   const majCotes = () => {
     for (const c of ['gauche', 'droite']) {
@@ -2985,6 +2994,7 @@ if (MODE_VUE) (async () => {
     const cle = estRelief(cotes.droite) ? cotes.droite : cotes.gauche;
     $('vue-aide').textContent = estRelief(cle) ? COUCHES_VUE.find((x) => x.cle === cle).aide : 'Choisissez une couche de relief d’un côté du rideau.';
     $('vue-svf-reglages').hidden = !(BALAYAGE.has(cotes.gauche) || BALAYAGE.has(cotes.droite));
+    $('vue-ombrage-reglages').hidden = !(OMBRAGES.has(cotes.gauche) || OMBRAGES.has(cotes.droite));
     majLien();   // les couches de chaque côté sont dans le lien
   };
   for (const c of ['gauche', 'droite']) {
@@ -3006,9 +3016,18 @@ if (MODE_VUE) (async () => {
   $('vue-svf-rayon').value = svfRayonM;
   $('val-vue-svf-rayon').textContent = `${svfRayonM} m`;
   $('vue-svf-directions').addEventListener('input', (e) => { $('val-vue-svf-directions').textContent = e.target.value; });
-  $('vue-svf-directions').addEventListener('change', (e) => { svfDirections = Number(e.target.value); planifierRelief(0); majLien(); });
+  $('vue-svf-directions').addEventListener('change', (e) => { svfDirections = Number(e.target.value); $('val-vue-svf-directions').textContent = e.target.value; planifierRelief(0); majLien(); });
   $('vue-svf-rayon').addEventListener('input', (e) => { $('val-vue-svf-rayon').textContent = `${e.target.value} m`; });
-  $('vue-svf-rayon').addEventListener('change', (e) => { svfRayonM = Number(e.target.value); planifierRelief(0); majLien(); });
+  $('vue-svf-rayon').addEventListener('change', (e) => { svfRayonM = Number(e.target.value); $('val-vue-svf-rayon').textContent = `${e.target.value} m`; planifierRelief(0); majLien(); });
+  // Soleil des ombrages : appliqué au relâchement du curseur.
+  $('vue-ombrage-azimut').value = ombrageAzimut;
+  $('val-vue-ombrage-azimut').textContent = `${ombrageAzimut}°`;
+  $('vue-ombrage-hauteur').value = ombrageHauteur;
+  $('val-vue-ombrage-hauteur').textContent = `${ombrageHauteur}°`;
+  $('vue-ombrage-azimut').addEventListener('input', (e) => { $('val-vue-ombrage-azimut').textContent = `${e.target.value}°`; });
+  $('vue-ombrage-azimut').addEventListener('change', (e) => { ombrageAzimut = Number(e.target.value); $('val-vue-ombrage-azimut').textContent = `${e.target.value}°`; planifierRelief(0); majLien(); });
+  $('vue-ombrage-hauteur').addEventListener('input', (e) => { $('val-vue-ombrage-hauteur').textContent = `${e.target.value}°`; });
+  $('vue-ombrage-hauteur').addEventListener('change', (e) => { ombrageHauteur = Number(e.target.value); $('val-vue-ombrage-hauteur').textContent = `${e.target.value}°`; planifierRelief(0); majLien(); });
   $('vue-lisser').addEventListener('change', (e) => { lisserFlux = e.target.checked; planifierRelief(0); majLien(); });
 
   // ── Sélection d'un point et mesure, sur la carte ──
@@ -3111,7 +3130,7 @@ if (MODE_VUE) (async () => {
     const cote = estRelief(cotes.droite) && cotes.droite !== OMBRAGE_RGB ? 'droite' : 'gauche';
     const etirement = derniersEtirements[cote];
     if (!estRelief(cotes[cote]) || !etirement || etirement.cle !== cotes[cote] || etirement.min == null) return;
-    const valeurs = await relief.drape3d(etirement.cle, { svfDirections, svfRayonM }, etirement.min, etirement.max);
+    const valeurs = await relief.drape3d(etirement.cle, reglagesDe(etirement.cle), etirement.min, etirement.max);
     if (valeurs && etat.nuage && valeurs.length === etat.nuage.n) vue3d.definirHauteurs(valeurs);
   };
 
@@ -3528,6 +3547,8 @@ if (MODE_VUE) (async () => {
     contraste: contrasteFlux !== 1 ? contrasteFlux : undefined,
     svf: svfDirections !== CONFIG.relief.svfDirections || svfRayonM !== CONFIG.relief.svfRayonM
       ? { directions: svfDirections, rayon: svfRayonM } : undefined,
+    soleil: ombrageAzimut !== CONFIG.relief.ombrageAzimut || ombrageHauteur !== CONFIG.relief.ombrageHauteur
+      ? { azimut: ombrageAzimut, hauteur: ombrageHauteur } : undefined,
     lisse: lisserFlux ? undefined : false,
     couleur: CONFIG.rendu.coloration !== 'classification' ? CONFIG.rendu.coloration : undefined,
     plafond: budget3D !== (surMobile() ? CONFIG.rendu.budget3DMobile : CONFIG.rendu.budget3D) ? budget3D / 1e6 : undefined,
@@ -3555,6 +3576,10 @@ if (MODE_VUE) (async () => {
     if (v.svf) {
       regler('vue-svf-directions', v.svf.directions, 'change');
       regler('vue-svf-rayon', v.svf.rayon, 'change');
+    }
+    if (v.soleil) {
+      regler('vue-ombrage-azimut', v.soleil.azimut, 'change');
+      regler('vue-ombrage-hauteur', v.soleil.hauteur, 'change');
     }
     if (v.lisse === false) {
       $('vue-lisser').checked = false;

@@ -401,6 +401,11 @@ const CONFIG = {
     // un chemin creux, 16 affinent les formes rondes pour le double du temps.
     svfDirections: 8,
     svfRayonM: 10,
+    // Soleil des ombrages : azimut (degrés depuis le nord, sens horaire) du premier
+    // soleil, les autres le suivent à pas égaux ; hauteur au-dessus de l'horizon.
+    // 315° et 45° sont les valeurs de toujours (convention des hillshades).
+    ombrageAzimut: 315,
+    ombrageHauteur: 45,
     // Calcul des couches coûteuses (SVF, ouvertures, ombrages, micro-relief)
     // sur la carte graphique — voir gpu-relief.js. `false` force le
     // processeur partout, pour comparer ou isoler un pilote suspect. La carte
