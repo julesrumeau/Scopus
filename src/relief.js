@@ -197,9 +197,6 @@ function preparer(g, options = {}) {
     }
   }
 
-  // Les pointes isolées du sol, avant tout calcul de couche (voir `ecreterPointes`).
-  if (p.pointeMaxM > 0) ecreterPointes(mnt, valide, W, H, p.pointeLargeurM / (g.pas * f), p.pointeMaxM);
-
   // Les cellules sans sol connu reçoivent la médiane approchée du reste : les
   // gradients et les flous ont besoin d'un nombre, la carte de validité dira
   // qu'il ne faut pas y croire.
@@ -354,80 +351,6 @@ function microRelief(t, rayonM, options = {}) {
 }
 
 // ── Ombrage (Horn 1981) ─────────────────────────────────────────────────────
-
-/**
- * Rabote les **pointes** du sol : une bosse plus étroite que `fenetre` cellules et
- * plus haute que `seuilM` au-dessus de son entourage est ramenée à ce
- * qu'il y a autour d'elle.
- *
- * Pourquoi : près des bâtiments et sous les arbres, il reste parfois quelques
- * retours que le classificateur de l'IGN a rangés « sol » alors qu'ils sont sur
- * un rebord de toit ou une branche basse. Sur une surface de sol par ailleurs
- * lisse, ils font des bandes de deux ou trois cellules **trois mètres au-dessus**
- * du reste. Le balayage d'horizons y voit des tours : le Sky-View Factor et les
- * ouvertures s'assombrissent en **étoile** tout autour (une branche par direction
- * balayée) — mesuré à 43,6385 N, 1,1485 E, des cellules à 47,5 m sur un sol à
- * 44,6 m, jusqu'à un SVF de 0,47 à côté. Les trous du MNT n'y sont pour rien
- * (celles-là sont déjà NaN, voir `svf`) : ce sont des cellules **valides**, à tort.
- *
- * Le test est une ouverture morphologique (minimum puis maximum sur la fenêtre,
- * comme un « top-hat ») : elle efface ce qui est plus étroit que la fenêtre et
- * garde tout ce qui est plus large — un plateau, une terrasse, un versant, même
- * raide (sur un plan elle est exacte). Le seuil laisse passer ce qu'on cherche :
- * un muret ruiné tient sous 2 m, la différence se joue sur la hauteur. Les cellules
- * sans sol sont ignorées, jamais inventées. Ne fait que **baisser** ; renvoie le
- * nombre de cellules rabotées.
- *
- * @param {number} fenetre largeur de la fenêtre en cellules (impaire ; < 3 = rien à faire)
- */
-function ecreterPointes(mnt, valide, W, H, fenetre, seuilM) {
-  const h = Math.floor((Math.floor(fenetre) - 1) / 2);
-  if (!(h >= 1) || W < 4 * h + 1 || H < 4 * h + 1) return 0;
-  const N = W * H;
-  // Minimum puis maximum, chacun en deux passes (lignes puis colonnes).
-  const extremum = (src, signe) => {
-    const a = new Float32Array(N), b = new Float32Array(N);
-    const neutre = -signe * Infinity;
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        let m = neutre;
-        for (let k = Math.max(0, x - h); k <= Math.min(W - 1, x + h); k++) {
-          const v = src[y * W + k];
-          if (signe * v > signe * m) m = v;
-        }
-        a[y * W + x] = m;
-      }
-    }
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        let m = neutre;
-        for (let k = Math.max(0, y - h); k <= Math.min(H - 1, y + h); k++) {
-          const v = a[k * W + x];
-          if (signe * v > signe * m) m = v;
-        }
-        b[y * W + x] = m;
-      }
-    }
-    return b;
-  };
-  const sol = new Float32Array(N);
-  for (let i = 0; i < N; i++) sol[i] = valide[i] ? mnt[i] : Infinity;   // l'érosion ignore ce qui n'est pas du sol
-  const erode = extremum(sol, -1);
-  for (let i = 0; i < N; i++) if (erode[i] === Infinity) erode[i] = -Infinity;   // et la dilatation, ce qui n'a rien à dilater
-  const ouvert = extremum(erode, +1);
-  // Pas au bord : sur 2 fenêtres, l'érosion ou la dilatation y manque d'un côté, et un
-  // versant raide y passerait pour une pointe. Cette bande est écartée de toute façon
-  // des couches (marge de bord).
-  const bord = 2 * h;
-  let n = 0;
-  for (let y = bord; y < H - bord; y++) {
-    for (let x = bord; x < W - bord; x++) {
-      const i = y * W + x;
-      if (valide[i] && Number.isFinite(ouvert[i]) && mnt[i] - ouvert[i] > seuilM) { mnt[i] = ouvert[i]; n++; }
-    }
-  }
-  return n;
-}
 
 /**
  * Gradient de Horn : la pente estimée sur les huit voisins, pondérés 2 sur les
@@ -999,7 +922,7 @@ function calculer(t, cle, options = {}) {
 }
 
 return {
-  preparer, ecreterPointes, calculer, etirer, valeurParPoint, COUCHES, ombrage, ombrageMulti, ombrageSimple, ombrageRGB, microRelief, svf, ouverture,
+  preparer, calculer, etirer, valeurParPoint, COUCHES, ombrage, ombrageMulti, ombrageSimple, ombrageRGB, microRelief, svf, ouverture,
   balayerHorizons, flouBoite, gradients,
   /** Moteur du dernier calcul coûteux : 'gpu' ou 'cpu'. */
   moteur: () => dernierMoteur,
