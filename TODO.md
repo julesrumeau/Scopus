@@ -386,6 +386,8 @@ d'ombrage de `RELIEF.COUCHES`. À regarder : ce qui manque est surtout les curse
 (azimut, hauteur) et leur place dans le lien (`reglagesVue`, seul ce qui diffère du
 défaut). Complément du SVF, ce qui répond à la demande 1 sans passer par l'IGN.
 
+**MNT et MNS ombrés (retour 1) : faits sur `feat/mnx-ign`** (4 octobre 2026) : « MNT ombré (IGN) » et « MNS ombré (IGN) » dans les listes de chaque côté du rideau, tuiles WMTS de l'IGN (`IGNF_LIDAR-HD_MNT/MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW`, png, CORS ouvert, niveau 18 au plus), même mécanisme que « Plan IGN ». Éclairage fixe, pas de curseur ; marchent à tous les zooms, y compris en vue large où notre relief dit « Zoomez ». Notre ombrage n'est pas touché. Idées non faites : le MNH ombré de l'IGN (`..._MNH_...SHADOW`), un MNS calculé par nous sur `sommet` avec les curseurs de soleil. À noter : avec deux fonds de tuiles, le flux télécharge quand même les blocs LiDAR (« Affinage… 189 blocs »), à couper si aucun côté ne porte de relief.
+
 ### R10 — Comparer deux fonds côte à côte (1)
 
 Demande du naturaliste : **deux cartes côte à côte, navigation synchronisée, curseur synchronisé** — **pas tout de suite.**

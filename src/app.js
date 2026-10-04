@@ -2728,7 +2728,17 @@ if (MODE_VUE) (async () => {
   // Ce qui n'est pas du relief : la carte telle qu'affichée, et le Plan IGN,
   // posé dans le côté même — la carte n'a qu'un fond à la fois, et ainsi un
   // côté peut montrer la photo et l'autre le plan.
-  const FONDS_VUE = { carte: 'Photo aérienne', plan: 'Plan IGN' };
+  const FONDS_VUE = {
+    carte: 'Photo aérienne', plan: 'Plan IGN',
+    'mnt-ign': 'MNT ombré (IGN)', 'mns-ign': 'MNS ombré (IGN)',
+  };
+  // Les fonds de tuiles posés dans le volet de leur côté, avec leurs réglages propres :
+  // l'estompage de l'IGN n'est servi que jusqu'au niveau 18, au-delà la tuile est agrandie.
+  const TUILES_VUE = { plan: {}, 'mnt-ign': { maxNativeZoom: 18 }, 'mns-ign': { maxNativeZoom: 18 } };
+  const AIDES_FONDS = {
+    'mnt-ign': 'Estompage du MNT LiDAR HD (le sol nu), calculé par l’IGN : éclairage fixe, pas de réglage du soleil. Servi jusqu’au zoom 18.',
+    'mns-ign': 'Estompage du MNS LiDAR HD (le dessus : cimes, toits), calculé par l’IGN : éclairage fixe, pas de réglage du soleil. Servi jusqu’au zoom 18.',
+  };
   // Les listes Gauche / Droite choisissent le fond de chaque côté : le
   // sélecteur de fond de Leaflet ferait doublon. La carte garde la photo.
   carte.controleFonds.remove();
@@ -2781,7 +2791,7 @@ if (MODE_VUE) (async () => {
     $('vue-etat').textContent = e.attente && !e.tropLarge
       ? `Affinage… ${e.attente} bloc${e.attente > 1 ? 's' : ''} attendu${e.attente > 1 ? 's' : ''}` : '';
     if (!diagnostic) {
-      statut(sansLidar || (e.tropLarge ? 'Zoomez pour calculer le relief'
+      statut(sansLidar || (e.tropLarge && ['gauche', 'droite'].some((c) => estRelief(cotes[c])) ? 'Zoomez pour calculer le relief'
         : e.echecs ? `${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}`
           : erreurRelief ? `Le relief n’a pas pu être calculé — ${erreurRelief}`
             : !['gauche', 'droite'].some((c) => estRelief(cotes[c])) ? 'Aucune couche de relief affichée'
@@ -2975,24 +2985,27 @@ if (MODE_VUE) (async () => {
   const OMBRAGES = new Set(['ombrage', 'ombrage-simple', OMBRAGE_RGB]);
   const reglagesDe = (cle) => (BALAYAGE.has(cle) ? { svfDirections, svfRayonM }
     : OMBRAGES.has(cle) ? { ombrageAzimut, ombrageHauteur } : {});
-  const fondsPoses = { gauche: false, droite: false };
+  const fondsPoses = { gauche: null, droite: null };   // la clé du fond de tuiles posé dans le volet, ou null
   const majCotes = () => {
     for (const c of ['gauche', 'droite']) {
       $(`vue-${c}`).value = cotes[c];
       reliefCalque.definirActif(c, cotes[c] !== 'carte');
       // Reposé seulement s'il change : recréer la couche rechargerait toutes
       // ses tuiles à chaque changement de l'autre côté.
-      if (fondsPoses[c] !== (cotes[c] === 'plan')) {
-        fondsPoses[c] = cotes[c] === 'plan';
-        reliefCalque.definirFond(c, fondsPoses[c]
-          ? carte.nouveauFond('plan', { pane: c === 'gauche' ? 'reliefGauche' : 'reliefDroite' }) : null);
+      const voulu = cotes[c] in TUILES_VUE ? cotes[c] : null;
+      if (fondsPoses[c] !== voulu) {
+        fondsPoses[c] = voulu;
+        reliefCalque.definirFond(c, voulu
+          ? carte.nouveauFond(voulu, { pane: c === 'gauche' ? 'reliefGauche' : 'reliefDroite', ...TUILES_VUE[voulu] }) : null);
       }
       reliefCalque.definirLibelle(c, libelleCouche(cotes[c]));
     }
     // L'aide de la couche de relief affichée — celle de droite par défaut,
     // côté du relief par convention.
     const cle = estRelief(cotes.droite) ? cotes.droite : cotes.gauche;
-    $('vue-aide').textContent = estRelief(cle) ? COUCHES_VUE.find((x) => x.cle === cle).aide : 'Choisissez une couche de relief d’un côté du rideau.';
+    const fondAide = [cotes.droite, cotes.gauche].find((k) => AIDES_FONDS[k]);
+    $('vue-aide').textContent = estRelief(cle) ? COUCHES_VUE.find((x) => x.cle === cle).aide
+      : fondAide ? AIDES_FONDS[fondAide] : 'Choisissez une couche de relief d’un côté du rideau.';
     $('vue-svf-reglages').hidden = !(BALAYAGE.has(cotes.gauche) || BALAYAGE.has(cotes.droite));
     $('vue-ombrage-reglages').hidden = !(OMBRAGES.has(cotes.gauche) || OMBRAGES.has(cotes.droite));
     majLien();   // les couches de chaque côté sont dans le lien
