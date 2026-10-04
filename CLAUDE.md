@@ -576,6 +576,14 @@ ouverture de Yokoyama 1998), **vérifiés contre des surfaces à réponse connue
   - Une cellule sans donnée porte une altitude de repli qui fait une tour et
     donne une **étoile à huit branches** : la surface balayée porte **NaN** dans
     ces cellules (NaN rend toute comparaison fausse, zéro coût dans la boucle).
+  - **Des étoiles subsistent sans trou : des pointes de sol valides.** Près des
+    bâtiments, quelques retours classés « sol » par l'IGN (rebord de toit, branche) font
+    des bandes de 2–3 cellules **3 m au-dessus** d'un sol lisse (mesuré à 43,6385 N /
+    1,1485 E : 47,5 m sur 44,6 m). `ecreterPointes` (`relief.js`, dans `preparer`) les
+    rabote : ouverture morphologique, bosse plus étroite que `pointeLargeurM` (3,5 m) et
+    plus haute que `pointeMaxM` (2 m), jamais un plateau ni un versant ; au-delà de 2 m
+    un mur étroit serait lui aussi raboté. **Ne protège pas la surface de la carte
+    graphique** (`&gpu`). Restent de fines étoiles autour de bosses d'une cellule sous 2 m.
   - Le rayon doit tomber **exactement** sur sa direction (parcours sur l'axe
     dominant, interpolation sur l'autre) : l'arrondi donnait 88,6° au lieu de 90.
   - **Ne jamais chronométrer dans le harnais de test** (`vm.createContext` :

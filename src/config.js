@@ -404,6 +404,12 @@ const CONFIG = {
     // Soleil des ombrages : azimut (degrés depuis le nord, sens horaire) du premier
     // soleil, les autres le suivent à pas égaux ; hauteur au-dessus de l'horizon.
     // 315° et 45° sont les valeurs de toujours (convention des hillshades).
+    // Pointes du sol : une bosse plus étroite que `pointeLargeurM` et plus haute que
+    // `pointeMaxM` est rabotée avant les couches (relief.js, `ecreterPointes`) — des
+    // retours mal classés « sol » sur un toit ou une branche, qui font des étoiles
+    // dans le Sky-View Factor. 0 pour désactiver. Un muret ruiné reste sous 2 m.
+    pointeMaxM: 2,
+    pointeLargeurM: 3.5,
     ombrageAzimut: 315,
     ombrageHauteur: 45,
     // Calcul des couches coûteuses (SVF, ouvertures, ombrages, micro-relief)

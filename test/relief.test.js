@@ -564,3 +564,65 @@ test('ombrageRGB réglable — l’azimut tourne les trois soleils, 120° à par
   assert.ok(Math.abs(rgba[i * 4 + 1] - Math.round(v * 255)) <= 1);
   assert.ok(Math.abs(rgba[i * 4 + 2] - Math.round(b * 255)) <= 1);
 });
+
+// ── Pointes du sol (étoiles du SVF près des bâtiments) ───────────────────────
+
+/** Terrain plat à 100 m, avec une bande de `larg` × `long` cellules relevée de `haut` mètres. */
+function avecBosse(W, H, larg, long, haut, base = () => 100) {
+  const t = terrain(W, H, 0.5, (x, y) => base(x, y));
+  const x0 = Math.floor(W / 2), y0 = Math.floor(H / 2);
+  for (let y = y0; y < y0 + long; y++) for (let x = x0; x < x0 + larg; x++) t.mnt[y * W + x] += haut;
+  return { t, i: y0 * W + x0 };
+}
+
+test('pointes — une bande étroite de 3 m au-dessus du sol est rabotée', () => {
+  const { RELIEF, CONFIG } = charger();
+  const { t, i } = avecBosse(60, 60, 3, 3, 3);
+  const n = RELIEF.ecreterPointes(t.mnt, t.valide, t.W, t.H, CONFIG.relief.pointeLargeurM / t.pas, CONFIG.relief.pointeMaxM);
+  assert.equal(n, 9);
+  assert.ok(Math.abs(t.mnt[i] - 100) < 1e-4, `altitude après : ${t.mnt[i]}`);
+});
+
+test('pointes — la pointe ne fait plus d’étoile dans le Sky-View Factor', () => {
+  const { RELIEF, CONFIG } = charger();
+  const avant = avecBosse(80, 80, 2, 2, 3).t;
+  const apres = avecBosse(80, 80, 2, 2, 3).t;
+  RELIEF.ecreterPointes(apres.mnt, apres.valide, apres.W, apres.H, CONFIG.relief.pointeLargeurM / apres.pas, CONFIG.relief.pointeMaxM);
+  const opt = { moteur: 'cpu', svfDirections: 8, svfRayonM: 10 };
+  const sa = RELIEF.svf(avant, opt), sp = RELIEF.svf(apres, opt);
+  assert.ok(au(avant, sa, 46, 40) < 0.95, `avant : ${au(avant, sa, 46, 40)}`);
+  assert.ok(au(apres, sp, 46, 40) > 0.99, `après : ${au(apres, sp, 46, 40)}`);
+});
+
+test('pointes — un muret d’un mètre, une terrasse et un versant ne bougent pas', () => {
+  const { RELIEF, CONFIG } = charger();
+  const larg = CONFIG.relief.pointeLargeurM / 0.5, seuil = CONFIG.relief.pointeMaxM;
+  // Muret : 2 cellules de large, 1 m de haut, 30 cellules de long.
+  const m = avecBosse(80, 80, 2, 30, 1).t, avantM = Float32Array.from(m.mnt);
+  assert.equal(RELIEF.ecreterPointes(m.mnt, m.valide, m.W, m.H, larg, seuil), 0);
+  assert.deepEqual(m.mnt, avantM);
+  // Plateau de 3 m de haut, large de 12 cellules (6 m) : plus large que la fenêtre.
+  const p = avecBosse(80, 80, 12, 12, 3).t;
+  assert.equal(RELIEF.ecreterPointes(p.mnt, p.valide, p.W, p.H, larg, seuil), 0);
+  // Versant à 60° : l’ouverture est exacte sur un plan.
+  const v = terrain(60, 60, 0.5, (x) => Math.tan(deg(60)) * x), avantV = Float32Array.from(v.mnt);
+  assert.equal(RELIEF.ecreterPointes(v.mnt, v.valide, v.W, v.H, larg, seuil), 0);
+  assert.deepEqual(v.mnt, avantV);
+});
+
+test('pointes — les cellules sans sol sont ignorées, jamais inventées', () => {
+  const { RELIEF, CONFIG } = charger();
+  const { t } = avecBosse(60, 60, 2, 2, 3);
+  // Un trou à côté de la pointe : il ne doit ni la protéger ni changer son entourage.
+  for (let y = 20; y < 26; y++) for (let x = 20; x < 26; x++) { t.valide[y * 60 + x] = 0; t.mnt[y * 60 + x] = NaN; }
+  const n = RELIEF.ecreterPointes(t.mnt, t.valide, t.W, t.H, CONFIG.relief.pointeLargeurM / t.pas, CONFIG.relief.pointeMaxM);
+  assert.equal(n, 4);
+  assert.ok(Number.isNaN(t.mnt[22 * 60 + 22]));
+});
+
+test('pointes — désactivable, et sans effet à grande échelle', () => {
+  const { RELIEF } = charger();
+  const t = avecBosse(60, 60, 2, 2, 3).t;
+  assert.equal(RELIEF.ecreterPointes(t.mnt, t.valide, t.W, t.H, 2, 2), 0, 'fenêtre de 2 cellules : rien à faire');
+  assert.equal(RELIEF.ecreterPointes(t.mnt, t.valide, t.W, t.H, 7, 99), 0, 'seuil trop haut');
+});
