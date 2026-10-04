@@ -412,6 +412,7 @@ l'exemple du Bois des Caures en lien discret si on le juge utile.
 
 ### R13 — Défauts du lien 3D et de la sélection (2)
 
+- **EN SUSPENS — décision à prendre (4 octobre 2026).** Le lien 3D est laissé de côté : la vraie réponse est sans doute la 3D qui pilote le téléchargement (#4), qui ferait d'un lien une caméra et supprimerait le double cadrage ; en attendant, on pourrait seulement corriger le cadrage à la bascule manuelle (reprendre l'échelle de la carte, petit et indépendant). À trancher : faire #4 d'abord (conception avant code), ou le correctif seul ; `ouvrirLien` en vue normale ignore aujourd'hui orientation et inclinaison (seul `?dalle` les relit). Texte d'origine ci-dessous.
 - **Un lien de partage pris en 3D n'ouvre pas la 3D**, et en basculant à la main
   le point de vue est **trop zoomé**. Attention : CLAUDE.md dit « jamais l'onglet »
   pour les liens (ouvrir un lien ne doit pas lancer la 3D, millions de points) ;
