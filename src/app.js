@@ -3009,7 +3009,6 @@ if (MODE_VUE) (async () => {
     // Le panneau suit le mode : une seule liste, « Couche affichée », ni échange ni rideau à centrer.
     const pan = MODE_CARTE.panneau(unique);
     $('vue-gauche-libelle').textContent = pan.libelleGauche;
-    $('vue-droite-champ').parentElement.classList.toggle('une-liste', unique);
     $('vue-droite-champ').hidden = !pan.listeDroite;
     $('vue-rangee-rideau').hidden = !pan.boutonsRideau;
     for (const c of ['gauche', 'droite']) {
@@ -3044,8 +3043,17 @@ if (MODE_VUE) (async () => {
   };
   for (const c of ['gauche', 'droite']) {
     const sel = $(`vue-${c}`);
-    for (const [cle, libelle] of Object.entries(FONDS_VUE)) sel.add(new Option(libelle, cle));
-    for (const k of COUCHES_VUE) sel.add(new Option(k.libelle, k.cle));
+    // Rangées par famille (des <optgroup>) : la liste porte une quinzaine de choix.
+    const choix = [
+      ...Object.entries(FONDS_VUE).map(([cle, libelle]) => ({ cle, libelle })),
+      ...COUCHES_VUE.map((k) => ({ cle: k.cle, libelle: k.libelle })),
+    ];
+    for (const g of CHOIX_COUCHES.groupes(choix)) {
+      const groupe = document.createElement('optgroup');
+      groupe.label = g.titre;
+      for (const { cle, libelle } of g.couches) groupe.appendChild(new Option(libelle, cle));
+      sel.appendChild(groupe);
+    }
     sel.addEventListener('change', () => { cotes[c] = sel.value; majCotes(); majStatut(); planifierRelief(0); });
   }
   $('vue-echanger').addEventListener('click', () => {
