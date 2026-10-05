@@ -7,7 +7,6 @@
   "description": "Explorer le LiDAR HD de l'IGN dans le navigateur. Entièrement statique : ouvrir index.html suffit.",
   "scripts": {
     "test": "node --test test/*.test.js",
-    "embarquer-lazperf": "node tools/embarquer-lazperf.js",
-    "banc": "node tools/banc-lignes.js"
+    "embarquer-lazperf": "node tools/embarquer-lazperf.js"
   }
 }

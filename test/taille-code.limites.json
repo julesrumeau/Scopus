@@ -6,14 +6,11 @@
   },
   "fonctions": {
     "app.js::(IIFE)": [
-      945,
-      434
-    ],
-    "app.js::chargerNuage": [
-      141
+      426,
+      424
     ],
     "carte.js::constructor": [
-      119
+      105
     ],
     "flux.js::creer": [
       101
@@ -27,12 +24,6 @@
     "lien.js::(IIFE)": [
       119
     ],
-    "lignes.js::(IIFE)": [
-      136
-    ],
-    "lignes.js::extraire": [
-      138
-    ],
     "relief.js::balayerHorizons": [
       163
     ],
@@ -45,15 +36,6 @@
     "reseau.js::(anonyme)": [
       126
     ],
-    "sentiers.js::detecterSentiers": [
-      182
-    ],
-    "sentiers.js::mesurerTrace": [
-      106
-    ],
-    "vue-2d.js::_rendre": [
-      102
-    ],
     "vue-relief.js::creer": [
       115
     ],
@@ -65,16 +47,13 @@
     "profil-graphique.js::ProfilGraphique": [
       438
     ],
-    "vue-2d.js::Vue2D": [
-      770
-    ],
     "vue3d.js::Vue3D": [
       1252
     ]
   },
   "fichiers": {
     "app.js": [
-      3834
+      2197
     ],
     "vue3d.js": [
       1288

@@ -94,69 +94,29 @@
     <div class="poignee-feuille" id="poignee-panneau" role="button" tabindex="0"
          aria-label="Agrandir ou réduire le panneau" aria-expanded="false"></div>
 
-    <!-- Nuage en mémoire. Épinglé au-dessus des sections, donc visible dans les
-         deux onglets : c'est le seul endroit qui dise ce qui est chargé, par
-         opposition à ce qui est simplement sélectionné sur la carte. -->
-    <div id="bandeau-nuage" class="bandeau-nuage" hidden>
-      <span class="pastille-etat"></span>
-      <span id="bandeau-nom" class="nom"></span>
-      <span id="bandeau-info" class="info"></span>
-      <button id="btn-fermer-nuage" class="fermer"
-              title="Fermer le nuage et libérer la mémoire">✕</button>
-    </div>
-
-    <!-- Sans WebGL2, seul l'onglet 3D tombe : la carte est en Leaflet, la vue 2D
-         est un canevas ordinaire. L'avis est hors des sections `data-vue` pour
-         rester lisible dans les deux onglets qui, eux, marchent. -->
+    <!-- Sans WebGL2, seul l'onglet 3D tombe : la carte est en Leaflet. L'avis est hors des sections
+         `data-vue` pour rester lisible sur l'onglet qui, lui, marche. -->
     <div id="sans-webgl" class="avis" hidden>
       <b>Nuage 3D indisponible</b> — ce navigateur ou cet appareil ne fournit pas
-      WebGL2. La carte et la vue 2D (relief, photo aérienne, rideau) fonctionnent
-      normalement.
+      WebGL2. La carte (relief, photo aérienne, rideau) fonctionne normalement.
       <span id="sans-webgl-detail" class="avis-detail"></span>
     </div>
 
-    <!-- ─── Carte : choisir et charger une dalle ─────────────────────────── -->
+    <!-- ─── Lieu : chercher une commune, un lieu-dit ou des coordonnées ───── -->
     <section class="etape" data-vue="carte">
-      <h2>Dalle</h2>
+      <h2>Lieu</h2>
       <div class="recherche">
         <input type="search" id="recherche" placeholder="Commune, lieu-dit, ou 42.74, 1.68"
                autocomplete="off" spellcheck="false">
         <button id="btn-recherche" class="secondaire" title="Rechercher">→</button>
       </div>
       <ul id="resultats-recherche" class="suggestions" hidden></ul>
-      <div id="info-dalle" class="vide">Zoomez sur la carte ou cherchez une commune,<br>
-        puis cliquez pour choisir une dalle.</div>
-      <dl id="detail-dalle" class="detail" hidden></dl>
-
-      <!-- Résolution et chargement : révélés d'un bloc dès qu'une dalle est
-           choisie, l'index COPC étant lu sans qu'on ait à le demander. -->
-      <div id="bloc-resolution" hidden>
-        <p class="note">La dalle est analysée <b>en entier</b> — 1 km². Ce curseur
-          fixe la finesse du nuage téléchargé.</p>
-        <label class="champ">
-          <span>Résolution <b id="val-niveau">—</b></span>
-          <input type="range" id="niveau" min="0" max="5" step="1" value="0" disabled>
-        </label>
-        <div id="cout" class="cout">—</div>
-        <div class="rangee">
-          <button id="btn-charger" class="primaire" disabled>Charger le nuage</button>
-          <button id="btn-annuler" class="secondaire" hidden>Annuler</button>
-        </div>
-        <div id="progression" class="progression" hidden>
-          <div class="progression-piste">
-            <div id="barre-progression"></div>
-            <span id="progression-pct" class="progression-pct">0 %</span>
-          </div>
-          <div id="progression-detail" class="progression-detail">—</div>
-        </div>
-      </div>
     </section>
 
-    <!-- ─── Relief de la vue : la vue normale (sans « ?dalle ») ──────────── -->
+    <!-- ─── Relief de la vue ─────────────────────────────────────────────── -->
     <section class="etape" data-vue="carte" id="section-vue">
       <h2>Relief</h2>
-      <!-- Un côté du rideau chacun, comme dans l'onglet 2D : « Carte » (la carte
-           Leaflet, avec son propre fond) ou une couche de relief. -->
+      <!-- Un côté du rideau chacun : un fond de carte (photo, plan, OpenStreetMap, IGN) ou une couche de relief. -->
       <div class="deux-cotes">
         <label class="champ"><span id="vue-gauche-libelle">Gauche</span><select id="vue-gauche"></select></label>
         <label class="champ" id="vue-droite-champ"><span>Droite</span><select id="vue-droite"></select></label>
@@ -258,93 +218,11 @@
       </div>
     </section>
 
-    <!-- ─── 2D : lecture de la dalle, deux couches comparées ─────────────── -->
-    <section class="etape" data-vue="2d" id="section-2d">
-      <h2>Couches comparées</h2>
-      <p class="vide" id="relief-vide">Aucun nuage chargé. Passez à l'onglet
-        <b>Carte</b> pour choisir une dalle, puis revenez ici.</p>
-
-      <div id="relief-controles" hidden>
-        <!-- Deux listes déroulantes plutôt que deux jeux de boutons : huit
-             couches par côté feraient seize boutons pour un choix qui se fait
-             une fois. -->
-        <div class="deux-cotes">
-          <label class="champ">
-            <span>Gauche</span>
-            <select id="couche-gauche"></select>
-          </label>
-          <label class="champ">
-            <span>Droite</span>
-            <select id="couche-droite"></select>
-          </label>
-        </div>
-        <div class="rangee">
-          <button id="btn-echanger" class="secondaire" title="Permuter les deux couches">⇄ Échanger</button>
-          <button id="btn-rideau-centre" class="secondaire" title="Remettre le rideau au milieu">Rideau au centre</button>
-        </div>
-        <p class="note" id="relief-aide"></p>
-        <!-- Réglages du balayage d'horizons, propres au Sky-View Factor : ne
-             s'affichent que si cette couche est choisie d'un côté ou de l'autre,
-             pour ne pas encombrer le panneau des couches qui n'en ont pas besoin. -->
-        <div id="svf-reglages" hidden>
-          <label class="champ">
-            <span>
-              <span class="libelle-aide">Directions Sky-View Factor
-                <button type="button" class="aide-info" title="Nombre de directions balayées pour estimer l’horizon de chaque cellule. En augmenter lisse les formes rondes et atténue les artefacts autour des trous de données, sans changer la finesse spatiale — celle-là dépend de la grille, pas de ce réglage. Coût linéaire : doubler les directions double le temps de calcul.">?</button>
-              </span>
-              <b id="val-svf-directions">8</b>
-            </span>
-            <input type="range" id="svf-directions" min="4" max="24" step="1" value="8">
-          </label>
-          <label class="champ">
-            <span>
-              <span class="libelle-aide">Rayon Sky-View Factor
-                <button type="button" class="aide-info" title="Distance balayée pour chercher l’horizon. Un rayon court isole les petites structures (plus de contraste local) mais ignore le relief plus lointain qui bloquerait réellement une part du ciel — la part visible peut alors être surestimée près d’une vraie pente. Un rayon long est plus fidèle au relief réel mais dilue les petites structures, coûte plus cher, et élargit la marge de bord invalide autour de la dalle (exactement égale à ce rayon).">?</button>
-              </span>
-              <b id="val-svf-rayon">10 m</b>
-            </span>
-            <input type="range" id="svf-rayon" min="3" max="30" step="1" value="10">
-          </label>
-        </div>
-        <!-- Une ruine est opaque au laser : elle ne laisse aucun retour sol, le
-             comblement met une surface lisse à sa place, et elle s'efface de la
-             couche même où on la cherche. Cette case remet la mesure. -->
-        <label class="case">
-          <input type="checkbox" id="inclure-sursol" checked>
-          <span>Compléter le sol par les retours non classés
-            <small>(ruines et tas de pierres, sous 3 m)</small></span>
-        </label>
-        <label class="champ">
-          <span>Contraste <b id="val-contraste">×1.0</b></span>
-          <input type="range" id="contraste-relief" min="0.4" max="5" step="0.1" value="1">
-        </label>
-        <label class="case">
-          <input type="checkbox" id="lisser-2d" checked>
-          <span>Lisser l'affichage <small>(interpolation entre cases, visible en zoomant)</small></span>
-        </label>
-        <div id="relief-stats" class="stats" hidden></div>
-        <label class="case">
-          <input type="checkbox" id="relief-detections" checked>
-          <span>Superposer les détections</span>
-        </label>
-        <label class="case">
-          <input type="checkbox" id="relief-sentiers" checked>
-          <span>Superposer les sentiers</span>
-        </label>
-        <div class="rangee">
-          <button id="btn-relief-cadrer" class="secondaire">Tout cadrer</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- ─── 2D et 3D : point sélectionné ──────────────────────────────────
-         Commun aux deux onglets (`data-vue="2d 3d"`) : le mode Sélection de la
-         sous-barre change ce que fait un clic dans les deux vues à la fois.
-         Placée AVANT « Affichage » (3D seule, et haute — cinq boutons, deux
-         curseurs, une légende) : sans ça, cette section pousse la sélection
-         plus bas en 3D qu'en 2D, où rien ne la précède. Même position dans
-         les deux onglets, et non pas « en haut en 2D, en bas en 3D ». -->
-    <section class="etape" data-vue="2d 3d" id="section-selection" hidden>
+<!-- ─── Carte et 3D : point sélectionné ───────────────────────────────
+         Commun aux deux onglets (`data-vue="carte 3d"`) : le mode Sélection de la barre d'outils change ce
+         que fait un clic dans les deux vues à la fois. Placée AVANT « Affichage » (3D seule, et haute :
+         cinq boutons, deux curseurs, une légende) : même position dans les deux onglets. -->
+    <section class="etape" data-vue="carte 3d" id="section-selection">
       <h2>Point sélectionné</h2>
       <div class="recherche">
         <input type="search" id="recherche-point" placeholder="Coordonnées GPS, ex. 42.74, 1.68"
@@ -363,11 +241,11 @@
       </div>
     </section>
 
-    <!-- ─── 2D et 3D : mesure entre deux points ───────────────────────────
+    <!-- ─── Carte et 3D : mesure entre deux points ───────────────────────────
          Même principe que « Point sélectionné » ci-dessus : commune aux deux
          onglets, placée avant « Affichage » pour garder la même position dans
          les deux (voir le commentaire de section-selection). -->
-    <section class="etape" data-vue="2d 3d" id="section-mesure" hidden>
+    <section class="etape" data-vue="carte 3d" id="section-mesure">
       <h2>Mesure</h2>
       <p class="vide" id="mesure-vide">Passez en mode <b>Mesure</b> ci-dessus,
         puis cliquez des points de suite : chaque segment s'ajoute au tableau,
@@ -379,119 +257,7 @@
       </div>
     </section>
 
-    <!-- ─── Classes du sol : quelles classes ASPRS forment la surface ─────
-         Commune aux deux onglets : le sol est une seule surface partagée,
-         que ce soit pour le relief affiché en 2D ou pour le point visé au
-         clic (Sélection, Mesure). Sol + eau par défaut, comme aujourd'hui —
-         voir CONFIG.raster.classesSolDefaut. Changer la sélection redéfinit
-         la surface elle-même, pas un filtre d'affichage : d'où le bouton
-         « Mettre à jour », qui recharge la dalle plutôt que de recalculer en
-         silence sur des points qui, de toute façon, ne sont plus gardés. -->
-    <section class="etape" data-vue="2d 3d" id="section-sol" hidden>
-      <h2>Classes du sol</h2>
-      <p class="note">Quelles classes du LAS forment la surface du sol — le
-        relief affiché et le point visé au clic en dépendent tous les deux.</p>
-      <div id="liste-classes-sol" class="legende"></div>
-      <div class="rangee">
-        <button id="btn-classes-sol-appliquer" class="primaire" disabled
-                title="Retélécharge la dalle entière avec la nouvelle sélection">Mettre à jour</button>
-      </div>
-    </section>
-
-    <!-- ─── Les deux vues : analyse et résultats ─────────────────────────
-         Une seule section, un seul commutateur : chaque chaîne garde ses seuils,
-         son bouton, ses statistiques et sa liste au même endroit. Les avoir
-         réparties sur quatre sections obligeait à faire l'aller-retour entre les
-         réglages d'en haut et les résultats d'en bas. -->
-    <section class="etape" id="section-analyse" hidden>
-      <h2>Analyse</h2>
-      <div class="segments" id="volets">
-        <button data-volet="structures" class="actif">Structures <span id="compte" class="pastille"></span></button>
-        <button data-volet="sentiers">Sentiers <span id="compte-sentiers" class="pastille"></span></button>
-      </div>
-
-      <!-- Structures -->
-      <div class="volet" data-volet="structures">
-        <p class="note">Ruines et cabanes en pierre sèche : des masses posées sur un
-          sol par ailleurs régulier, opaques au laser.</p>
-        <label class="case">
-          <input type="checkbox" id="inclure-bati" checked>
-          <span>Inclure la classe « bâtiment » dans le signal</span>
-        </label>
-        <label class="case">
-          <input type="checkbox" id="voie-forme" checked>
-          <span>Chercher aussi par la forme du relief <small>(murs fermés ; +5 s)</small></span>
-        </label>
-        <details class="repli">
-          <summary>Seuils de détection</summary>
-          <div class="reglages" id="reglages"></div>
-          <div class="rangee">
-            <button id="btn-defauts" class="secondaire" title="Revenir aux seuils par défaut">↺ Seuils par défaut</button>
-          </div>
-        </details>
-        <button id="btn-detecter" class="primaire">Lancer la détection</button>
-        <div id="stats-detection" class="stats" hidden></div>
-
-        <div id="bloc-resultats" hidden>
-          <label class="case">
-            <input type="checkbox" id="masquer-repertories" checked>
-            <span>Masquer les bâtiments déjà cartographiés</span>
-          </label>
-          <p class="note">Comparé au <b>bâti de la BD TOPO</b>, interrogé en direct comme
-            les dalles. Rien n'est stocké ici : décocher réaffiche les détections
-            écartées.</p>
-          <ol id="liste" class="liste"></ol>
-          <div class="rangee exports">
-            <button id="exp-gpx" class="secondaire">GPX</button>
-            <button id="exp-geojson" class="secondaire">GeoJSON</button>
-            <button id="exp-csv" class="secondaire">CSV</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Sentiers -->
-      <div class="volet" data-volet="sentiers" hidden>
-        <p class="note">Chemins creux et tracés abandonnés. Chaîne distincte de celle
-          des ruines : on cherche des <b>lignes</b>, sur le relief seul.</p>
-        <details class="repli">
-          <summary>Seuils des sentiers</summary>
-          <div class="reglages" id="reglages-sentiers"></div>
-          <div class="rangee">
-            <button id="btn-defauts-sentiers" class="secondaire" title="Revenir aux seuils par défaut">↺ Seuils par défaut</button>
-          </div>
-        </details>
-        <button id="btn-sentiers" class="primaire">Chercher des sentiers</button>
-        <div id="stats-sentiers" class="stats" hidden></div>
-
-        <!-- Diagnostic (#2 du todo) : aucun sentier connu n'a encore servi de
-             contrôle, donc pas de vérité terrain pour régler les seuils à
-             l'aveugle. Ce qui reste possible : voir où, dans la chaîne à six
-             étapes, le signal d'un tracé repéré à l'œil se perd — en comparant
-             chaque étape intermédiaire, jamais visible autrement. -->
-        <details class="repli" id="diag-sentiers" hidden>
-          <summary>Diagnostic (étapes internes)</summary>
-          <label class="champ">
-            <span>Couche</span>
-            <select id="diag-sentiers-couche">
-              <option value="relief">Relief local (à comparer au Micro-relief de l'onglet 2D)</option>
-              <option value="rugosite">Rugosité locale</option>
-              <option value="reponse" selected>Réponse vesselness brute</option>
-              <option value="masque">Masque après hystérésis</option>
-              <option value="squelette">Squelette aminci</option>
-            </select>
-          </label>
-          <canvas id="diag-sentiers-canvas" class="diag-canvas"></canvas>
-        </details>
-
-        <ol id="liste-sentiers" class="liste"></ol>
-        <div class="rangee exports" id="exports-sentiers" hidden>
-          <button id="exp-sent-gpx" class="secondaire">GPX (traces)</button>
-          <button id="exp-sent-geojson" class="secondaire">GeoJSON</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Soutenir : tout en bas, dans tous les onglets, jamais ailleurs — ni
+<!-- Soutenir : tout en bas, dans tous les onglets, jamais ailleurs — ni
          fenêtre, ni relance, ni rien de réservé aux donateurs. Qui l'utilise
          souvent ne la croise qu'en faisant défiler le panneau jusqu'au bout.
          Masquée tant qu'aucune page de don n'est configurée (CONFIG.soutien). -->
@@ -516,15 +282,12 @@
 
   <section class="scene">
     <!--
-      Trois onglets, et le nom dit le **mode d'affichage**, pas le contenu : la
-      question « où je vois quoi » doit avoir une réponse évidente. La 2D est la
-      vue d'arrivée après sélection, et le cœur de l'outil — c'est elle qui
-      montre le mieux.
+      Deux onglets, et le nom dit le **mode d'affichage**, pas le contenu : la
+      question « où je vois quoi » doit avoir une réponse évidente.
     -->
     <nav class="onglets">
       <button id="onglet-carte" class="actif">Carte</button>
-      <button id="onglet-2d">2D</button>
-      <button id="onglet-3d">3D</button>
+            <button id="onglet-3d">3D</button>
       <!-- Outils (déplacement, sélection, mesure, profil) : sur la barre des onglets
            et non sur une ligne à part, pour rendre sa hauteur à la carte. Masqués
            sur l'onglet Carte de l'ancien parcours `?dalle`, où cliquer un point
@@ -637,18 +400,7 @@
     </div>
     <div id="vue-carte-b" class="vue" hidden></div>
     </div>
-    <div id="vue-2d" class="vue" hidden>
-      <canvas id="canvas-2d"></canvas>
-      <!-- Rideau de comparaison. La ligne et la poignée sont en DOM, pas dans le
-           canevas : le canevas n'a alors rien à savoir des gestes, et la bande
-           sensible fait 22 px de large sur toute la hauteur — on n'a jamais à
-           viser la poignée. -->
-      <div id="rideau" class="rideau" hidden>
-        <div class="rideau-poignee" title="Glisser pour comparer les deux couches"></div>
-      </div>
-      <div id="hud-2d" class="hud"></div>
-    </div>
-    <div id="vue-3d" class="vue" hidden>
+        <div id="vue-3d" class="vue" hidden>
       <canvas id="canvas3d"></canvas>
       <!-- Vue normale, rien de chargé sur la carte : ce qu'il faut faire. -->
       <div id="avis-3d" class="avis-3d" hidden></div>
@@ -824,7 +576,6 @@
 <script src="src/cache-disque.js"></script>
 <script src="src/ign.js"></script>
 <script src="src/fonds-osm.js"></script>
-<script src="src/ortho.js"></script>
 <script src="src/grille.js"></script>
 <script src="src/copc.js"></script>
 <script src="src/flux-choix.js"></script>
@@ -834,16 +585,14 @@
 <script src="src/nuage.js"></script>
 <script src="src/flux.js"></script>
 <script src="src/raster.js"></script>
-<script src="src/detection.js"></script>
 <script src="src/relief.js"></script>
-<script src="src/lignes.js"></script>
-<script src="src/sentiers.js"></script>
 <script src="src/sortie.js"></script>
 <script src="src/las.js"></script>
 <script src="src/ply.js"></script>
 <script src="src/gl.js"></script>
 <script src="src/shaders.js"></script>
 <script src="src/gpu-relief.js"></script>
+<script src="src/palettes.js"></script>
 <script src="src/profil.js"></script>
 <script src="src/vue-relief.js"></script>
 <script src="src/relief-travailleur.js"></script>
@@ -852,7 +601,6 @@
 <script src="src/terrain.js"></script>
 <script src="src/mesure.js"></script>
 <script src="src/profil-graphique.js"></script>
-<script src="src/vue-2d.js"></script>
 <script src="src/carte.js"></script>
 <script src="src/choix-couches.js"></script>
 <script src="src/volets.js"></script>
