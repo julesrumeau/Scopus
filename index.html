@@ -158,10 +158,10 @@
       <!-- Un côté du rideau chacun, comme dans l'onglet 2D : « Carte » (la carte
            Leaflet, avec son propre fond) ou une couche de relief. -->
       <div class="deux-cotes">
-        <label class="champ"><span>Gauche</span><select id="vue-gauche"></select></label>
-        <label class="champ"><span>Droite</span><select id="vue-droite"></select></label>
+        <label class="champ"><span id="vue-gauche-libelle">Gauche</span><select id="vue-gauche"></select></label>
+        <label class="champ" id="vue-droite-champ"><span>Droite</span><select id="vue-droite"></select></label>
       </div>
-      <div class="rangee">
+      <div class="rangee" id="vue-rangee-rideau">
         <button id="vue-echanger" class="secondaire" title="Permuter les deux côtés">⇄ Échanger</button>
         <button id="vue-rideau-centre" class="secondaire" title="Remettre le rideau au milieu">Rideau au centre</button>
       </div>
@@ -592,6 +592,24 @@
     <div id="vue-carte" class="vue">
       <!-- Ce que le relief dit sous le curseur (mode vue). -->
       <div id="hud-vue" class="hud hud-vue" hidden></div>
+      <!-- Le mode d'affichage de la carte : scindée par le rideau, ou une seule couche en pleine page.
+           Deux boutons aujourd'hui ; un troisième (deux cartes synchronisées) viendra (TODO R10). -->
+      <div id="modes-carte" class="modes-carte" role="group" aria-label="Affichage de la carte" hidden>
+        <button id="mode-carte-scinde" type="button" class="actif" aria-pressed="true"
+                title="Carte scindée par le rideau" aria-label="Carte scindée par le rideau">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <rect x="3" y="5" width="9" height="14" rx="2" fill="currentColor" opacity="0.55"/>
+            <line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.8"/>
+          </svg>
+        </button>
+        <button id="mode-carte-unique" type="button" aria-pressed="false"
+                title="Une seule carte en pleine page" aria-label="Une seule carte en pleine page">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3" y="5" width="18" height="14" rx="2" fill="currentColor" fill-opacity="0.55" stroke="currentColor" stroke-width="1.8"/>
+          </svg>
+        </button>
+      </div>
       <!-- Mode Profil : la bande se choisit ici, le graphique s'ouvre à la validation. -->
       <div id="fenetre-profil" class="fenetre-profil" hidden>
         <p class="profil-consigne" id="profil-consigne">Cliquez le premier point sur la carte.</p>
@@ -825,6 +843,7 @@
 <script src="src/profil-graphique.js"></script>
 <script src="src/vue-2d.js"></script>
 <script src="src/carte.js"></script>
+<script src="src/mode-carte.js"></script>
 <script src="src/flux-calque.js"></script>
 <script src="src/lien.js"></script>
 <script src="src/app.js"></script>

@@ -77,6 +77,8 @@ const CalqueRelief = L.Layer.extend({
   onAdd(map) {
     this._carte = map;
     this._part = 0.5;
+    this._unique = false;   // une seule carte : la gauche en entier, rideau rangé au bord ; sinon carte scindée
+    this._partScindee = null;   // la position du rideau avant de passer en une seule carte
     // Un volet par côté, découpé à la position du rideau : le relief peut être
     // à gauche comme à droite, comme dans l'onglet 2D. Le voile et l'image
     // d'un côté vivent dans son volet : le découpage leur vaut à tous deux.
@@ -147,6 +149,22 @@ const CalqueRelief = L.Layer.extend({
     this._part = Math.max(0, Math.min(1, part));
     this._decouper();
   },
+
+  /**
+   * Une seule carte en pleine page : la gauche est montrée en entier (le rideau part tout à droite,
+   * sans trait ni poignée) ; `false` revient à la carte scindée, le rideau où il était.
+   */
+  definirUnique(unique) {
+    unique = !!unique;
+    if (unique === this._unique) return;
+    if (unique && this._part > 0 && this._part < 1) this._partScindee = this._part;
+    this._unique = unique;
+    this._rideau.classList.toggle('rideau-unique', unique);
+    this.placerRideau(MODE_CARTE.partRideau(unique, this._partScindee ?? 0.5));
+  },
+
+  /** Une seule carte ? */
+  estUnique() { return this._unique; },
 
   /** Le côté du rideau sous un point de la carte (pixels du conteneur). */
   coteSous(x) {

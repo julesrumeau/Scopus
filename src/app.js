@@ -2677,6 +2677,21 @@ if (MODE_VUE) (async () => {
   // Les contours des blocs chargés, pour voir le chargement : « &debug ».
   const calque = new URLSearchParams(location.search).has('debug') ? new CalqueFlux().addTo(carte.map) : null;
   const reliefCalque = new CalqueRelief().addTo(carte.map);
+  // Le mode d'affichage : carte scindée par le rideau, ou une seule couche en pleine page (un troisième
+  // mode, deux cartes synchronisées, viendra : TODO R10). Une seule carte montre la gauche, avec une
+  // seule liste : voir `MODE_CARTE`.
+  $('modes-carte').hidden = false;
+  const changerMode = (unique) => {
+    reliefCalque.definirUnique(unique);
+    for (const [id, actif] of [['mode-carte-scinde', !unique], ['mode-carte-unique', unique]]) {
+      $(id).classList.toggle('actif', actif);
+      $(id).setAttribute('aria-pressed', String(actif));
+    }
+    majCotes();            // le panneau et les fonds de tuiles suivent les côtés affichés
+    planifierRelief(0);    // la droite se calcule de nouveau au retour en carte scindée
+  };
+  $('mode-carte-scinde').addEventListener('click', () => changerMode(false));
+  $('mode-carte-unique').addEventListener('click', () => changerMode(true));
   // La position du rideau est dans le lien : le geste (et « Rideau au centre ») passent par
   // `placerRideau`, qu'on enveloppe sur cette instance.
   const placerRideauSeul = reliefCalque.placerRideau.bind(reliefCalque);
@@ -2857,7 +2872,7 @@ if (MODE_VUE) (async () => {
     // zoomer. Rien que du COPC (choix de l'utilisateur) : le MNT puis
     // l'ombrage de l'IGN y ont été essayés, puis écartés.
     const tropLarge = vueCourante && FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2;
-    const aCalculer = ['gauche', 'droite'].filter((c) => estRelief(cotes[c]));
+    const aCalculer = MODE_CARTE.cotesAffiches(reliefCalque.estUnique()).filter((c) => estRelief(cotes[c]));
     for (const c of ['gauche', 'droite']) {
       reliefCalque.definirLibelle(c, tropLarge && estRelief(cotes[c]) ? 'Zoomez pour calculer le relief' : libelleCouche(cotes[c]));
     }
@@ -2989,12 +3004,21 @@ if (MODE_VUE) (async () => {
     : OMBRAGES.has(cle) ? { ombrageAzimut, ombrageHauteur } : {});
   const fondsPoses = { gauche: null, droite: null };   // la clé du fond de tuiles posé dans le volet, ou null
   const majCotes = () => {
+    const unique = reliefCalque.estUnique();
+    const cotesVus = MODE_CARTE.cotesAffiches(unique);
+    // Le panneau suit le mode : une seule liste, « Couche affichée », ni échange ni rideau à centrer.
+    const pan = MODE_CARTE.panneau(unique);
+    $('vue-gauche-libelle').textContent = pan.libelleGauche;
+    $('vue-droite-champ').parentElement.classList.toggle('une-liste', unique);
+    $('vue-droite-champ').hidden = !pan.listeDroite;
+    $('vue-rangee-rideau').hidden = !pan.boutonsRideau;
     for (const c of ['gauche', 'droite']) {
       $(`vue-${c}`).value = cotes[c];
       reliefCalque.definirActif(c, cotes[c] !== 'carte');
       // Reposé seulement s'il change : recréer la couche rechargerait toutes
       // ses tuiles à chaque changement de l'autre côté.
-      const voulu = cotes[c] in TUILES_VUE ? cotes[c] : null;
+      // Un côté qu'on ne voit pas (une seule carte) ne charge pas de tuiles pour rien.
+      const voulu = cotes[c] in TUILES_VUE && cotesVus.includes(c) ? cotes[c] : null;
       if (fondsPoses[c] !== voulu) {
         fondsPoses[c] = voulu;
         reliefCalque.definirFond(c, voulu
@@ -3004,15 +3028,15 @@ if (MODE_VUE) (async () => {
     }
     // L'aide de la couche de relief affichée — celle de droite par défaut,
     // côté du relief par convention.
-    const cle = estRelief(cotes.droite) ? cotes.droite : cotes.gauche;
-    const fondAide = [cotes.droite, cotes.gauche].find((k) => AIDES_FONDS[k]);
+    const cle = cotesVus.includes('droite') && estRelief(cotes.droite) ? cotes.droite : cotes.gauche;
+    const fondAide = [...cotesVus].reverse().map((c) => cotes[c]).find((k) => AIDES_FONDS[k]);
     $('vue-aide').textContent = estRelief(cle) ? COUCHES_VUE.find((x) => x.cle === cle).aide
       : fondAide ? AIDES_FONDS[fondAide] : 'Choisissez une couche de relief d’un côté du rideau.';
-    $('vue-svf-reglages').hidden = !(BALAYAGE.has(cotes.gauche) || BALAYAGE.has(cotes.droite));
-    $('vue-ombrage-reglages').hidden = !(OMBRAGES.has(cotes.gauche) || OMBRAGES.has(cotes.droite));
+    $('vue-svf-reglages').hidden = !cotesVus.some((c) => BALAYAGE.has(cotes[c]));
+    $('vue-ombrage-reglages').hidden = !cotesVus.some((c) => OMBRAGES.has(cotes[c]));
     // L'azimut ne change rien à l'ombrage à quatre soleils (opposés deux à deux, leur part
     // directionnelle s'annule) : grisé quand aucun côté n'en porte d'autre.
-    const ombragesPoses = [cotes.gauche, cotes.droite].filter((k) => OMBRAGES.has(k));
+    const ombragesPoses = cotesVus.map((c) => cotes[c]).filter((k) => OMBRAGES.has(k));
     const sansEffet = ombragesPoses.length > 0 && ombragesPoses.every((k) => k === 'ombrage');
     $('vue-ombrage-azimut').disabled = sansEffet;
     $('vue-ombrage-note').hidden = !sansEffet;
