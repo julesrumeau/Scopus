@@ -2677,6 +2677,11 @@ if (MODE_VUE) (async () => {
   // Les contours des blocs chargés, pour voir le chargement : « &debug ».
   const calque = new URLSearchParams(location.search).has('debug') ? new CalqueFlux().addTo(carte.map) : null;
   const reliefCalque = new CalqueRelief().addTo(carte.map);
+  // Les volets : une carte, son calque de relief et les côtés qu'elle porte (voir volets.js). Un seul
+  // aujourd'hui, qui porte les deux côtés ; deux cartes synchronisées en auront deux (TODO R10). Ce qui
+  // dépend de la carte d'un côté passe par `voletDe` ; le rideau (position, mode) reste au volet principal.
+  const volets = [{ carte: carte.map, calque: reliefCalque, cotes: ['gauche', 'droite'] }];
+  const voletDe = (cote) => VOLETS.voletDe(volets, cote);
   // Le mode d'affichage : carte scindée par le rideau, ou une seule couche en pleine page (un troisième
   // mode, deux cartes synchronisées, viendra : TODO R10). Une seule carte montre la gauche, avec une
   // seule liste : voir `MODE_CARTE`.
@@ -2801,8 +2806,8 @@ if (MODE_VUE) (async () => {
         : 'Hors des territoires couverts : le LiDAR HD de l’IGN ne couvre que la France, métropole et outre-mer';
       for (const cote of ['gauche', 'droite']) {
         if (!estRelief(cotes[cote])) continue;
-        reliefCalque.definirLibelle(cote, 'Pas de LiDAR HD ici');
-        reliefCalque.vider(cote);
+        voletDe(cote).calque.definirLibelle(cote, 'Pas de LiDAR HD ici');
+        voletDe(cote).calque.vider(cote);
       }
     }
     $('vue-etat').textContent = e.attente && !e.tropLarge
@@ -2874,12 +2879,12 @@ if (MODE_VUE) (async () => {
     const tropLarge = vueCourante && FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2;
     const aCalculer = MODE_CARTE.cotesAffiches(reliefCalque.estUnique()).filter((c) => estRelief(cotes[c]));
     for (const c of ['gauche', 'droite']) {
-      reliefCalque.definirLibelle(c, tropLarge && estRelief(cotes[c]) ? 'Zoomez pour calculer le relief' : libelleCouche(cotes[c]));
+      voletDe(c).calque.definirLibelle(c, tropLarge && estRelief(cotes[c]) ? 'Zoomez pour calculer le relief' : libelleCouche(cotes[c]));
     }
     if (!vueCourante || tropLarge || !aCalculer.length) {
       // Gardée seulement si c'est bien la couche du côté : après un
       // changement de couche, l'ancienne image mentirait sous le libellé.
-      for (const c of aCalculer) if (derniersEtirements[c]?.cle !== cotes[c]) reliefCalque.vider(c);
+      for (const c of aCalculer) if (derniersEtirements[c]?.cle !== cotes[c]) voletDe(c).calque.vider(c);
       texteRelief = '';
       majStatut();
       return;
@@ -2893,10 +2898,15 @@ if (MODE_VUE) (async () => {
       // L'écran de la carte au moment de la demande : le worker y reprojette
       // le relief, et l'image se pose sur ces bornes-là — pas sur celles du
       // retour, si la carte a bougé entre-temps.
-      const z = carte.map.getZoom();
-      const pb = carte.map.getPixelBounds();
-      const ecran = { x0: pb.min.x, y0: pb.min.y, W: Math.round(pb.max.x - pb.min.x), H: Math.round(pb.max.y - pb.min.y), z, territoire: territoireVue };
-      const bornes = L.latLngBounds(carte.map.unproject(pb.getBottomLeft(), z), carte.map.unproject(pb.getTopRight(), z));
+      // Un écran et des bornes par volet (une carte chacun).
+      const ecrans = new Map(volets.map((v) => {
+        const z = v.carte.getZoom();
+        const pb = v.carte.getPixelBounds();
+        return [v, {
+          ecran: VOLETS.ecran(pb, z, territoireVue),
+          bornes: L.latLngBounds(v.carte.unproject(pb.getBottomLeft(), z), v.carte.unproject(pb.getTopRight(), z)),
+        }];
+      }));
       const actifs = [...flux.voulues()];
       erreurRelief = '';
       const textes = [];
@@ -2904,12 +2914,14 @@ if (MODE_VUE) (async () => {
       // seule la couche change (gardée par le worker d'un calcul à l'autre).
       for (const c of aCalculer) {
         const cle = cotes[c];
+        const volet = voletDe(c);
+        const { ecran, bornes } = ecrans.get(volet);
         const r = await relief.image(geo, cle, ecran, lutCouche(cle), {
           contraste: contrasteFlux, lisser: lisserFlux, actifs, couche: reglagesDe(cle),
         });
         if (cotes[c] !== cle) continue;   // le côté a changé pendant le calcul
-        if (!r) { reliefCalque.vider(c); continue; }
-        reliefCalque.afficher(c, r, bornes);
+        if (!r) { volet.calque.vider(c); continue; }
+        volet.calque.afficher(c, r, bornes);
         derniersEtirements[c] = { cle, min: r.min, max: r.max };
         textes.push(`${c} ${(r.duree / 1000).toFixed(2)} s (${r.moteurSurface}${r.moteurCouche && r.moteurCouche !== r.moteurSurface ? ' + ' + r.moteurCouche : ''}`
           + `${infoRelief.filPrincipal ? ', fil principal' : ''} ; surface ${(r.dureeSurface / 1000).toFixed(2)} s`
@@ -3012,18 +3024,19 @@ if (MODE_VUE) (async () => {
     $('vue-droite-champ').hidden = !pan.listeDroite;
     $('vue-rangee-rideau').hidden = !pan.boutonsRideau;
     for (const c of ['gauche', 'droite']) {
+      const calque = voletDe(c).calque;
       $(`vue-${c}`).value = cotes[c];
-      reliefCalque.definirActif(c, cotes[c] !== 'carte');
+      calque.definirActif(c, cotes[c] !== 'carte');
       // Reposé seulement s'il change : recréer la couche rechargerait toutes
       // ses tuiles à chaque changement de l'autre côté.
       // Un côté qu'on ne voit pas (une seule carte) ne charge pas de tuiles pour rien.
       const voulu = cotes[c] in TUILES_VUE && cotesVus.includes(c) ? cotes[c] : null;
       if (fondsPoses[c] !== voulu) {
         fondsPoses[c] = voulu;
-        reliefCalque.definirFond(c, voulu
+        calque.definirFond(c, voulu
           ? carte.nouveauFond(voulu, { pane: c === 'gauche' ? 'reliefGauche' : 'reliefDroite', ...TUILES_VUE[voulu] }) : null);
       }
-      reliefCalque.definirLibelle(c, libelleCouche(cotes[c]));
+      calque.definirLibelle(c, libelleCouche(cotes[c]));
     }
     // L'aide de la couche de relief affichée — celle de droite par défaut,
     // côté du relief par convention.
@@ -3551,7 +3564,7 @@ if (MODE_VUE) (async () => {
       hudProchain = null;
       const { x, y } = projVue().versLocal(ll.lng, ll.lat);
       // La valeur de la couche du côté survolé ; côté carte, aucune.
-      const cle = cotes[reliefCalque.coteSous(ll.px)];
+      const cle = cotes[VOLETS.coteSous(volets[0], ll.px)];
       const p = await relief.lire(x, y, estRelief(cle) ? cle : undefined);
       if (!ll.dedans) continue;
       hud.hidden = false;
