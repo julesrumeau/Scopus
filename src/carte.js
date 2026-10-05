@@ -78,6 +78,10 @@ class Carte {
     // Une couche de fond IGN, avec ses réglages et ses réessais — aussi pour
     // un côté du rideau en vue normale (app.js), qui en pose une dans son volet.
     this.nouveauFond = (cle, options = {}) => {
+      // Un fond OpenStreetMap : son serveur, son attribution, son Referer (`fonds-osm.js`). Pas de
+      // réessai sur erreur : insister sur un serveur qui refuse ne ferait qu'aggraver le blocage.
+      const osm = FONDS_OSM.parCle[cle];
+      if (osm) return L.tileLayer(osm.url, { ...tuiles, ...osm.options, ...options });
       const couche = L.tileLayer(IGN.gabaritWMTS(cle), { ...tuiles, ...options });
       reessayer(couche);
       return couche;
