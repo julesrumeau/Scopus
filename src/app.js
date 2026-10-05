@@ -457,7 +457,8 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   outils.liaisons.dalleAuPoint = (x, y) => flux.dalleAu(x, y);
   if (chronometrer) for (const n of ['majVue']) flux[n] = mesurer(`flux : ${n}`, flux[n]);
 
-  const majVueFlux = (rect = null) => {
+  const majVueFlux = (fixe = null) => {
+    const rect = Number.isFinite(fixe?.xmin) ? fixe : null;   // un rectangle imposé (lien 3D) ; tout autre argument (un événement) est ignoré
     if (!rect && !$('vue-3d').hidden) return;   // en 3D la carte est masquée (taille nulle) : la zone est celle de la 3D
     const b = carte.map.getBounds();
     // Le territoire sous le centre fixe la projection de tout ce qui suit ;
@@ -667,7 +668,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   partage.liaisons.appliquerPartageVue = appliquerPartage;
   if (partage.enAttente()) appliquerPartage();
 
-  carte.map.on('moveend', majVueFlux);
+  carte.map.on('moveend', () => majVueFlux());   // sans argument : Leaflet passerait l'événement
   majVueFlux();
   // Pour la console et les harnais, en diagnostic seulement.
   if (diagnostic) {
