@@ -314,6 +314,9 @@ const CONFIG = {
     // même vue. Réglable dans le panneau, de 1 à 20 M.
     budget3D: 5_000_000,
     budget3DMobile: 2_000_000,
+    // Pendant qu'on est en 3D, des blocs arrivent encore : le nuage est reconstruit tout seul, au plus une fois par
+    // cet intervalle (le renvoyer à la carte graphique pèse, jusqu'à une demi-seconde pour 5 M de points).
+    affinage3dMs: 4000,
     fond: '#0b0e13',
     // Colorisation : 'elevation' | 'classification' | 'intensite' | 'hauteur'
     coloration: 'classification',

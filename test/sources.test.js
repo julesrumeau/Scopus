@@ -144,3 +144,10 @@ test('aucune règle de styles.css ne dépend de body[data-mode] : plus rien ne p
   assert.equal(poseAttribut, false, 'un script repose data-mode : ce test est à revoir');
   assert.deepEqual(css.match(/body[^{,]*\[data-mode[^{,]*/g) || [], [], 'règles dépendant de body[data-mode]');
 });
+
+test('majVueFlux n’est jamais passée telle quelle comme gestionnaire : Leaflet lui donnerait l’événement', () => {
+  // Son paramètre est un rectangle imposé (lien 3D) ; `carte.map.on('moveend', majVueFlux)` lui passait
+  // l'événement, la zone calculée devenait absurde et la page se figeait (5 octobre 2026).
+  const app = readFileSync(fileURLToPath(new URL('app.js', SRC)), 'utf8');
+  assert.deepEqual(app.match(/\.on\([^)]*,\s*majVueFlux\s*\)/g) || [], []);
+});

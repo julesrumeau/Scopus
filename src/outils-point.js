@@ -95,16 +95,20 @@ function creerOutilsPoint(d) {
 
   $('btn-effacer-selection').addEventListener('click', effacerSelection);
 
-  $('lien-gmaps').addEventListener('click', () => {
-    if (!selectionActuelle) return;
-    const { lon, lat } = selectionActuelle;
-    window.open(`https://www.google.com/maps?q=${lat},${lon}`, '_blank', 'noopener');
-  });
-  $('lien-osm').addEventListener('click', () => {
-    if (!selectionActuelle) return;
-    const { lon, lat } = selectionActuelle;
-    window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=18/${lat}/${lon}`, '_blank', 'noopener');
-  });
+  /** « Ouvrir ailleurs » : le point sélectionné dans Google Maps ou OpenStreetMap. */
+  function brancherLiensExternes() {
+    $('lien-gmaps').addEventListener('click', () => {
+      if (!selectionActuelle) return;
+      const { lon, lat } = selectionActuelle;
+      window.open(`https://www.google.com/maps?q=${lat},${lon}`, '_blank', 'noopener');
+    });
+    $('lien-osm').addEventListener('click', () => {
+      if (!selectionActuelle) return;
+      const { lon, lat } = selectionActuelle;
+      window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=18/${lat}/${lon}`, '_blank', 'noopener');
+    });
+  }
+  brancherLiensExternes();
 
   /**
    * Recherche un point par ses coordonnées (GPS ou Lambert-93, mêmes formats
@@ -154,27 +158,20 @@ function creerOutilsPoint(d) {
     return vue3d.pointDuNuage(rayon, d.classesMasquees());
   }
 
-  // ── Mesure en chaîne ──────────────────────────────────────────────────────────
-  //
-  // Comme l'outil « Mesurer une ligne » de QGIS : chaque clic en mode Mesure
-  // ajoute un point à la chaîne (A, B, C…) plutôt que de se limiter à une paire.
-  // Chaque segment consécutif (A→B, B→C…) porte ses trois distances dans le
-  // tableau du panneau, et le pied de tableau totalise l'horizontale et la 3D —
-  // jamais le dénivelé total : signé et sommé sur la chaîne, il ne dirait que le
-  // dénivelé net du premier au dernier point, pas ce qu'on a réellement monté et
-  // descendu, et se lirait à tort comme une troisième distance.
-  //
-  // Retirer le dernier point (bouton, ou Retour arrière/Suppr — repris de
-  // QGIS) corrige un clic sans tout recommencer ; Effacer repart de zéro. Pas
-  // de geste « terminer la chaîne » séparé : rien n'est enregistré comme objet,
-  // la mesure reste une lecture à l'écran, donc rien à clore formellement — on
-  // clique tant qu'on veut, et on efface quand on a fini.
+  // ── Mesure en chaîne : comme l'outil de mesure de QGIS, chaque clic ajoute un point (A, B, C…) ; un segment par
+  // ligne du tableau, le total en pied : l'horizontale et la 3D, **jamais le dénivelé** (signé et sommé, il ne dit que
+  // l'écart net). Retirer le dernier point (Retour arrière, Suppr), ou n'importe lequel (la croix du tableau) ;
+  // Effacer repart de zéro. Rien n'est enregistré comme objet : une lecture à l'écran, donc rien à « terminer ».
 
   let pointsMesure = [];   // [{ x, y, sol, hauteur }, ...] Lambert-93 absolu, dans l'ordre du clic
 
+  /** Un point de la mesure pour la 3D : sa position et l'altitude de son sommet (`null` si elle est inconnue). */
+  function versVue3D(p) {
+    return MESURE.sommet(p) != null ? { x: p.x, y: p.y, altitude: MESURE.sommet(p) } : null;
+  }
+
   function afficherMesure() {
     majLien();   // la règle est dans le lien
-    const versVue3D = (p) => (MESURE.sommet(p) != null ? { x: p.x, y: p.y, altitude: MESURE.sommet(p) } : null);
     vue3d?.definirMesure(pointsMesure.map(versVue3D));
     liaisons.carteOutils?.mesure(pointsMesure);
 
@@ -258,7 +255,16 @@ function creerOutilsPoint(d) {
     if (quoi === 'carte') profilAReprendre = false;
   }
 
+  /** Le point sélectionné et la mesure, reposés dans la 3D : le nuage vient d'être (re)construit, son origine a pu changer. */
+  function republier3D() {
+    if (!vue3d) return;
+    const s = selectionActuelle;
+    if (s) vue3d.definirPointSelectionne({ x: s.x, y: s.y, altitude: s.sommet });
+    vue3d.definirMesure(pointsMesure.map(versVue3D));
+  }
+
   return {
+    republier3D,
     liaisons,
     mode: () => modeOutil,
     definirMode: definirModeInteraction,

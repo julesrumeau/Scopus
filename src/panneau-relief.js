@@ -142,6 +142,7 @@ function creerPanneauRelief(d) {
     gauche: cotes.gauche !== 'carte' ? cotes.gauche : undefined,
     droite: cotes.droite !== 'svf' ? cotes.droite : undefined,
     rideau: vueCartes.mode() !== 'double' && Math.round(reliefCalque.partRideau() * 100) !== 50 ? reliefCalque.partRideau() * 100 : undefined,
+    onglet: $('panneau').dataset.vue === '3d' ? '3d' : undefined,
     cartes: vueCartes.mode() === 'double' ? 2 : undefined,
     contraste: reglages.contraste !== 1 ? reglages.contraste : undefined,
     svf: reglages.svfDirections !== CONFIG.relief.svfDirections || reglages.svfRayonM !== CONFIG.relief.svfRayonM

@@ -85,6 +85,7 @@ class Vue3D {
 
     // Caméra orbitale. Distance et cible en mètres, angles en radians.
     this.cam = { cible: [0, 0, 0], distance: 300, azimut: -Math.PI / 4, elevation: 0.6 };
+    this.pose3d = new Pose3D(this);   // pose d'après un lien, et bornes au rectangle du nuage
 
     // Mode d'interaction du clic — 'deplacement' (défaut), 'selection' (vise
     // un point) ou 'mesure' (vise deux points, l'un après l'autre) —
@@ -148,6 +149,7 @@ class Vue3D {
 
   /** Un geste de caméra : images allégées, puis une complète à l'arrêt. */
   _bouger() {
+    this.pose3d.borner();
     this._arrete = false;
     clearTimeout(this._finGeste);
     // À l'arrêt, l'image complète. Si une image est déjà en attente, c'est
@@ -157,7 +159,12 @@ class Vue3D {
   }
 
   /** Charge un nuage dans le GPU. Remplace le précédent. */
-  definirNuage(nuage, hauteurs = null) {
+  /**
+   * @param {{cadrer?: boolean}} [options] `cadrer: false` : garder la caméra (un nuage reconstruit pendant que
+   *        de nouveaux blocs arrivent ne doit pas faire revenir la vue). Une pose en attente (`definirPose`)
+   *        passe toujours avant le cadrage.
+   */
+  definirNuage(nuage, hauteurs = null, { cadrer = true } = {}) {
     const gl = this.gl;
     this._libererNuage();
 
@@ -166,36 +173,11 @@ class Vue3D {
     this.zmin = nuage.zmin;
     this.zref = Math.max(1, nuage.zmax - nuage.zmin);
 
-    const vao = gl.createVertexArray();
-    gl.bindVertexArray(vao);
+    this.vao = creerVaoNuage(this, nuage, hauteurs);
 
-    // Positions entrelacées : un seul VBO pour x/y/z évite trois liaisons de
-    // buffer par frame et améliore la localité au fetch de sommets.
-    const pos = new Float32Array(nuage.n * 3);
-    for (let i = 0; i < nuage.n; i++) {
-      pos[i * 3] = nuage.x[i];
-      pos[i * 3 + 1] = nuage.y[i];
-      pos[i * 3 + 2] = nuage.z[i];
-    }
-    this._attribut(vao, 0, pos, 3, gl.FLOAT, false);
-
-    // La classification part en Uint8 non normalisé : le shader la reçoit en
-    // float et s'en sert d'index de palette, il ne faut surtout pas la ramener
-    // dans [0,1].
-    this._attribut(vao, 1, nuage.cls, 1, gl.UNSIGNED_BYTE, false);
-
-    // L'intensité, elle, est normalisée à la volée par le pipeline fixe :
-    // 16 bits bruts n'ont aucune signification absolue en LiDAR. Absente du
-    // nuage de la vue (plus téléchargée) : l'attribut garde sa valeur fixe.
-    if (nuage.intensite) this._attribut(vao, 2, nuage.intensite, 1, gl.UNSIGNED_SHORT, true);
-
-    const h = hauteurs || new Float32Array(nuage.n);
-    this._attribut(vao, 3, h, 1, gl.FLOAT, false);
-
-    gl.bindVertexArray(null);
-    this.vao = vao;
-
-    this.cadrer();   // cadrer() invalide déjà
+    this.pose3d.definirLimites();
+    if (!this.pose3d.appliquer() && cadrer) this.cadrer();   // cadrer() invalide déjà
+    else this.invalider();
   }
 
   /** Ombrage de profondeur (EDL) actif ou non. */
@@ -271,6 +253,7 @@ class Vue3D {
   vider() {
     this._libererNuage();
     this.nuage = null;
+    this.pose3d.limites = null;
     this.nbSommetsPointSel = 0;
     this.nbSommetsMesureLigne = 0;
     this.nbSommetsMesurePoints = 0;
@@ -310,7 +293,7 @@ class Vue3D {
     const { cible, distance, azimut, elevation } = this.cam;
     return {
       x: cible[0] + o[0], y: -cible[2] + o[1], distance, azimut, elevation,
-      metresParPixelCss: 2 * distance * Math.tan((FOV_Y_DEG * Math.PI / 180) / 2) / hauteur,
+      metresParPixelCss: RECTANGLE_3D.resolutionDepuisDistance(distance, hauteur, FOV_Y_DEG),
     };
   }
 
@@ -693,6 +676,39 @@ class Vue3D {
     }
     gl.bindVertexArray(null);
   }
+}
+
+/** Les tampons du nuage (positions entrelacées, classes, intensité, hauteurs) rangés dans un VAO ; le rend. */
+function creerVaoNuage(vue, nuage, hauteurs) {
+  const gl = vue.gl;
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+
+  // Positions entrelacées : un seul VBO pour x/y/z évite trois liaisons de
+  // buffer par frame et améliore la localité au fetch de sommets.
+  const pos = new Float32Array(nuage.n * 3);
+  for (let i = 0; i < nuage.n; i++) {
+    pos[i * 3] = nuage.x[i];
+    pos[i * 3 + 1] = nuage.y[i];
+    pos[i * 3 + 2] = nuage.z[i];
+  }
+  vue._attribut(vao, 0, pos, 3, gl.FLOAT, false);
+
+  // La classification part en Uint8 non normalisé : le shader la reçoit en
+  // float et s'en sert d'index de palette, il ne faut surtout pas la ramener
+  // dans [0,1].
+  vue._attribut(vao, 1, nuage.cls, 1, gl.UNSIGNED_BYTE, false);
+
+  // L'intensité, elle, est normalisée à la volée par le pipeline fixe :
+  // 16 bits bruts n'ont aucune signification absolue en LiDAR. Absente du
+  // nuage de la vue (plus téléchargée) : l'attribut garde sa valeur fixe.
+  if (nuage.intensite) vue._attribut(vao, 2, nuage.intensite, 1, gl.UNSIGNED_SHORT, true);
+
+  const h = hauteurs || new Float32Array(nuage.n);
+  vue._attribut(vao, 3, h, 1, gl.FLOAT, false);
+
+  gl.bindVertexArray(null);
+  return vao;
 }
 
 const MODES = { elevation: 0, classification: 1, intensite: 2, hauteur: 3, relief: 4 };
