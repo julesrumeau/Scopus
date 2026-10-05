@@ -1033,10 +1033,14 @@ input[type=range]::-moz-range-thumb {
 .modes-carte svg { width: 18px; height: 18px; display: block; }
 @media (pointer: coarse) { .modes-carte button { width: 40px; height: 40px; } .modes-carte { top: 100px; } }
 
-/* Les deux sélecteurs de couche, côte à côte comme les deux moitiés de l'image. */
-.deux-cotes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.deux-cotes .champ { margin-bottom: 8px; }
-.deux-cotes.une-liste { grid-template-columns: 1fr; }   /* une seule carte : une seule liste, pleine largeur */
+/* Les sélecteurs de couche, l'un sous l'autre avec l'intitulé à gauche : côte à côte, chacun ne
+   faisait que la moitié du panneau et les libellés (« OpenStreetMap (standard) ») étaient coupés,
+   dans le champ comme dans la liste ouverte, dont la largeur est celle du champ. Même hauteur
+   qu'avant : deux lignes. Une seule carte : la seule ligne, « Couche affichée ». */
+.deux-cotes { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
+.deux-cotes .champ { display: contents; }   /* l'intitulé et la liste deviennent deux cases de la grille : listes alignées */
+.deux-cotes .champ > span { margin: 0; }
+.deux-cotes .champ select { min-width: 0; }
 select {
   width: 100%;
   font: inherit;

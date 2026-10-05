@@ -3009,7 +3009,6 @@ if (MODE_VUE) (async () => {
     // Le panneau suit le mode : une seule liste, « Couche affichée », ni échange ni rideau à centrer.
     const pan = MODE_CARTE.panneau(unique);
     $('vue-gauche-libelle').textContent = pan.libelleGauche;
-    $('vue-droite-champ').parentElement.classList.toggle('une-liste', unique);
     $('vue-droite-champ').hidden = !pan.listeDroite;
     $('vue-rangee-rideau').hidden = !pan.boutonsRideau;
     for (const c of ['gauche', 'droite']) {
