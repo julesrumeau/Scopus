@@ -2713,6 +2713,36 @@ if (MODE_VUE) (async () => {
     for (const id of ['mode-selection', 'mode-mesure', 'mode-profil']) $(id).disabled = double || (id === 'mode-profil' && !surCarte);
   };
   majOutilsCarte = majOutils;
+  // Les crédits une seule fois : en deux cartes, le cadre de la seconde (en bas à droite de l'écran) porte ceux
+  // des deux cartes, celui de la première est masqué. Leaflet compte les doublons : « IGN » n'apparaît qu'une fois.
+  const creditsDeA = new Map();   // texte → nombre de fois où il a été ajouté au cadre de la seconde carte
+  const ajouterCredit = (e) => {
+    const t = e.layer.getAttribution?.();
+    if (!t) return;
+    carteB.attributionControl.addAttribution(t);
+    creditsDeA.set(t, (creditsDeA.get(t) || 0) + 1);
+  };
+  const retirerCredit = (e) => {
+    const t = e.layer.getAttribution?.();
+    if (!t || !creditsDeA.get(t)) return;
+    carteB.attributionControl.removeAttribution(t);
+    creditsDeA.set(t, creditsDeA.get(t) - 1);
+  };
+  const reunirCredits = (oui) => {
+    const cadreA = carte.map.attributionControl.getContainer();
+    if (oui) {
+      cadreA.style.display = 'none';
+      carte.map.eachLayer((l) => ajouterCredit({ layer: l }));
+      carte.map.on('layeradd', ajouterCredit);
+      carte.map.on('layerremove', retirerCredit);
+    } else {
+      carte.map.off('layeradd', ajouterCredit);
+      carte.map.off('layerremove', retirerCredit);
+      for (const [t, n] of creditsDeA) for (let i = 0; i < n; i++) carteB?.attributionControl.removeAttribution(t);
+      creditsDeA.clear();
+      cadreA.style.display = '';
+    }
+  };
   const changerMode = (mode) => {
     // Les fonds de tuiles et les images changent peut-être de calque : on repart d'une page blanche,
     // `majCotes` les reposera dans le bon.
@@ -2729,10 +2759,7 @@ if (MODE_VUE) (async () => {
       if (!carteB) {
         // Créée visible : Leaflet mesure son conteneur à l'initialisation. La photo en fond, comme la carte
         // principale ; le relief ou un fond de tuiles se pose par-dessus, dans le calque.
-        // Son cadre de crédits sans la mention « Leaflet » (redondante avec celle de la carte principale) : seuls
-        // restent les crédits des données, que chaque carte doit porter (IGN, OpenStreetMap).
-        carteB = L.map($('vue-carte-b'), { preferCanvas: true, maxZoom: CONFIG.carte.zoomMax, attributionControl: false });
-        L.control.attribution({ prefix: false }).addTo(carteB);
+        carteB = L.map($('vue-carte-b'), { preferCanvas: true, maxZoom: CONFIG.carte.zoomMax });
         // Une vue d'abord : un calque Leaflet n'est ajouté (`onAdd`) qu'une fois la carte prête.
         carteB.setView(carte.map.getCenter(), carte.map.getZoom(), { animate: false });
         carte.nouveauFond('ortho').addTo(carteB);
@@ -2749,9 +2776,12 @@ if (MODE_VUE) (async () => {
       volets = [voletA, voletB];
       liaisonCartes?.delier();
       liaisonCartes = SYNCHRO.lier(carte.map, carteB, { reperes });
+      reunirCredits(false);   // au cas où (jamais deux fois les écouteurs)
+      reunirCredits(true);
     } else {
       liaisonCartes?.delier();
       liaisonCartes = null;
+      if (carteB) reunirCredits(false);
       for (const r of reperes?.values() || []) r.cacher();
       $('vue-carte-b').hidden = true;
       $('cartes').classList.remove('double');
