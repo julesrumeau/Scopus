@@ -452,6 +452,17 @@ function ombrageSimple(t, options = {}) {
   return gpu ? gpu[0] : ombrage(t, azimut, hauteur);
 }
 
+/** Le soleil par défaut des ombrages, tel que la configuration le porte. */
+function soleilParDefaut() {
+  return { azimut: CONFIG.relief.ombrageAzimut, hauteur: CONFIG.relief.ombrageHauteur };
+}
+
+/** Les deux réglages sont-ils ceux du défaut ? Ce que le lien n'écrit pas, et ce qu'un bouton « réinitialiser » n'a pas à changer. */
+function soleilEstParDefaut(azimut, hauteur) {
+  const d = soleilParDefaut();
+  return azimut === d.azimut && hauteur === d.hauteur;
+}
+
 /**
  * Le soleil réglé par l'utilisateur : `ombrageAzimut` est celui du **premier**
  * soleil, les autres le suivent à pas égaux (90° pour quatre, 120° pour trois).
@@ -922,7 +933,7 @@ function calculer(t, cle, options = {}) {
 }
 
 return {
-  preparer, calculer, etirer, valeurParPoint, COUCHES, ombrage, ombrageMulti, ombrageSimple, ombrageRGB, microRelief, svf, ouverture,
+  preparer, calculer, etirer, valeurParPoint, COUCHES, ombrage, ombrageMulti, ombrageSimple, ombrageRGB, soleilParDefaut, soleilEstParDefaut, microRelief, svf, ouverture,
   balayerHorizons, flouBoite, gradients,
   /** Moteur du dernier calcul coûteux : 'gpu' ou 'cpu'. */
   moteur: () => dernierMoteur,
