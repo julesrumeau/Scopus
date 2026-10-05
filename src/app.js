@@ -1019,7 +1019,7 @@ $('accueil-croix').addEventListener('click', () => {
     brancherCurseur: (map, volet) => brancherCurseurHud(map, volet),
     surDeplacement: () => majLien(),
     affichage: affichageCartes,
-    oublierFond: (cote) => { fondsPoses[cote] = null; },
+    oublierFond: (cote) => panneau.oublierFond(cote),
     // Le panneau et les fonds suivent les côtés affichés ; la zone à charger suit la taille de la carte.
     apres: () => { majOutils(); majCotes(); majVueFlux(); majLien(); },
   });
@@ -1075,7 +1075,14 @@ $('accueil-croix').addEventListener('click', () => {
   // Ce que porte chaque côté du rideau, comme dans l'onglet 2D : « carte »
   // (la carte Leaflet, qui remplace ici la photo aérienne) ou une couche de
   // relief. Par défaut, la carte à gauche et le Sky-View Factor à droite.
-  const cotes = { gauche: 'carte', droite: 'svf' };
+  const reglages = {
+    cotes: { gauche: 'carte', droite: 'svf' },
+    // Balayage d'horizons (SVF, ouvertures), soleil des ombrages, contraste, lissage, classes du sol.
+    svfDirections: CONFIG.relief.svfDirections, svfRayonM: CONFIG.relief.svfRayonM,
+    ombrageAzimut: CONFIG.relief.ombrageAzimut, ombrageHauteur: CONFIG.relief.ombrageHauteur,
+    contraste: 1, lisser: true, classesSol: new Set(CONFIG.raster.classesSolDefaut),
+  };
+  const cotes = reglages.cotes;
   // Les couches de l'onglet 2D, fonds de carte à part (la carte Leaflet les
   // porte, avec son propre choix de fond) : relief.js, plus l'ombrage coloré.
   // L'ombrage gris en avait été retiré (« sur une grille au pixel, il sortait
@@ -1180,15 +1187,11 @@ $('accueil-croix').addEventListener('click', () => {
   // fin avec la vue du moment. `enCalcul` est la promesse du calcul en
   // cours, qui se tient à la fin : qui doit l'attendre l'attend, sans sonder.
   let enCalcul = null, aRefaire = false;
-  let contrasteFlux = 1, dernieresClasses = [], erreurRelief = '';
+  let dernieresClasses = [], erreurRelief = '';
   // L'étirement de la dernière image de chaque côté : le relief drapé sur le
   // nuage 3D reprend le même, pour que les deux vues soient la même image.
   const derniersEtirements = {};
-  // Réglages du balayage d'horizons (SVF, ouvertures) et du lissage, comme
-  // dans l'onglet 2D.
-  let svfDirections = CONFIG.relief.svfDirections, svfRayonM = CONFIG.relief.svfRayonM, lisserFlux = true;
-  let ombrageAzimut = CONFIG.relief.ombrageAzimut, ombrageHauteur = CONFIG.relief.ombrageHauteur;
-  let classesSolFlux = new Set(CONFIG.raster.classesSolDefaut), classesAffichees = '';
+  let classesAffichees = '';
   // Une case par classe présente dans les points reçus, cochée si elle compte
   // comme sol. Reconstruite seulement quand la liste change.
   const majClassesSol = () => {
@@ -1196,7 +1199,7 @@ $('accueil-croix').addEventListener('click', () => {
     if (cle === classesAffichees) return;
     classesAffichees = cle;
     $('vue-classes-sol').innerHTML = dernieresClasses.map(([c]) => `<label class="case"><input type="checkbox" value="${c}"`
-      + `${classesSolFlux.has(c) ? ' checked' : ''}><span>${NOMS_CLASSES[c] || `classe ${c}`}</span></label>`).join('');
+      + `${reglages.classesSol.has(c) ? ' checked' : ''}><span>${NOMS_CLASSES[c] || `classe ${c}`}</span></label>`).join('');
   };
   // Palettes de 256 couleurs, une par couche, calculées une fois.
   const luts = new Map();
@@ -1232,7 +1235,7 @@ $('accueil-croix').addEventListener('click', () => {
       return;
     }
     const pas = FLUX_CHOIX.pasPourVue(vueCourante.xmax - vueCourante.xmin, vueCourante.largeurPx, CONFIG.flux.pasMinM);
-    const geo = VUE_GRILLE.definir(vueCourante, pas, VUE_GRILLE.marge({ ...CONFIG.relief, ...CONFIG.flux, svfRayonM }), infoRelief.coteMax);
+    const geo = VUE_GRILLE.definir(vueCourante, pas, VUE_GRILLE.marge({ ...CONFIG.relief, ...CONFIG.flux, svfRayonM: reglages.svfRayonM }), infoRelief.coteMax);
     let terminer;
     enCalcul = new Promise((ok) => { terminer = ok; });
     activite.relief = true;
@@ -1259,7 +1262,7 @@ $('accueil-croix').addEventListener('click', () => {
         const volet = voletDe(c);
         const { ecran, bornes } = ecrans.get(volet);
         const r = await relief.image(geo, cle, ecran, lutCouche(cle), {
-          contraste: contrasteFlux, lisser: lisserFlux, actifs, couche: reglagesDe(cle),
+          contraste: reglages.contraste, lisser: reglages.lisser, actifs, couche: reglagesDe(cle),
         });
         if (cotes[c] !== cle) continue;   // le côté a changé pendant le calcul
         if (!r) { volet.calque.vider(c); continue; }
@@ -1348,111 +1351,13 @@ $('accueil-croix').addEventListener('click', () => {
     planifierRelief(0);
   };
 
-  // ── Le panneau du relief ──
-  const BALAYAGE = new Set(['svf', 'ouverture-pos', 'ouverture-neg']);
-  // Les réglages propres à une couche, et ceux-là seulement : ils entrent dans la
-  // clé du mémo du worker, et bouger le soleil ne doit pas refaire un Sky-View
-  // Factor (cinq secondes) ni l'inverse.
-  const OMBRAGES = new Set(['ombrage', 'ombrage-simple', OMBRAGE_RGB]);
-  const reglagesDe = (cle) => (BALAYAGE.has(cle) ? { svfDirections, svfRayonM }
-    : OMBRAGES.has(cle) ? { ombrageAzimut, ombrageHauteur } : {});
-  const fondsPoses = { gauche: null, droite: null };   // la clé du fond de tuiles posé dans le volet, ou null
-  const majCotes = () => {
-    const cotesVus = MODE_CARTE.cotesAffiches(vueCartes.mode());
-    // Le panneau suit le mode : une seule liste (« Couche affichée ») ou deux, avec ou sans échange et rideau à centrer.
-    const pan = MODE_CARTE.panneau(vueCartes.mode());
-    $('vue-gauche-libelle').textContent = pan.libelleGauche;
-    $('vue-droite-champ').hidden = !pan.listeDroite;
-    $('vue-echanger').hidden = !pan.echanger;
-    $('vue-rideau-centre').hidden = !pan.rideauAuCentre;
-    $('vue-rangee-rideau').hidden = !pan.echanger && !pan.rideauAuCentre;
-    for (const c of ['gauche', 'droite']) {
-      const calque = voletDe(c).calque;
-      $(`vue-${c}`).value = cotes[c];
-      calque.definirActif(c, cotes[c] !== 'carte');
-      // Reposé seulement s'il change : recréer la couche rechargerait toutes
-      // ses tuiles à chaque changement de l'autre côté.
-      // Un côté qu'on ne voit pas (une seule carte) ne charge pas de tuiles pour rien.
-      const voulu = cotes[c] in TUILES_VUE && cotesVus.includes(c) ? cotes[c] : null;
-      if (fondsPoses[c] !== voulu) {
-        fondsPoses[c] = voulu;
-        calque.definirFond(c, voulu
-          ? carte.nouveauFond(voulu, { pane: c === 'gauche' ? 'reliefGauche' : 'reliefDroite', ...TUILES_VUE[voulu] }) : null);
-      }
-      calque.definirLibelle(c, libelleCouche(cotes[c]));
-    }
-    // L'aide de la couche de relief affichée — celle de droite par défaut,
-    // côté du relief par convention.
-    const cle = cotesVus.includes('droite') && estRelief(cotes.droite) ? cotes.droite : cotes.gauche;
-    const fondAide = [...cotesVus].reverse().map((c) => cotes[c]).find((k) => AIDES_FONDS[k]);
-    $('vue-aide').textContent = estRelief(cle) ? COUCHES_VUE.find((x) => x.cle === cle).aide
-      : fondAide ? AIDES_FONDS[fondAide] : 'Choisissez une couche de relief d’un côté du rideau.';
-    $('vue-svf-reglages').hidden = !cotesVus.some((c) => BALAYAGE.has(cotes[c]));
-    $('vue-ombrage-reglages').hidden = !cotesVus.some((c) => OMBRAGES.has(cotes[c]));
-    // L'azimut ne change rien à l'ombrage à quatre soleils (opposés deux à deux, leur part
-    // directionnelle s'annule) : grisé quand aucun côté n'en porte d'autre.
-    const ombragesPoses = cotesVus.map((c) => cotes[c]).filter((k) => OMBRAGES.has(k));
-    const sansEffet = ombragesPoses.length > 0 && ombragesPoses.every((k) => k === 'ombrage');
-    $('vue-ombrage-azimut').disabled = sansEffet;
-    $('vue-ombrage-note').hidden = !sansEffet;
-    majLien();   // les couches de chaque côté sont dans le lien
-  };
-  for (const c of ['gauche', 'droite']) {
-    const sel = $(`vue-${c}`);
-    // Rangées par famille (des <optgroup>) : la liste porte une quinzaine de choix.
-    const choix = [
-      ...Object.entries(FONDS_VUE).map(([cle, libelle]) => ({ cle, libelle })),
-      ...COUCHES_VUE.map((k) => ({ cle: k.cle, libelle: k.libelle })),
-    ];
-    for (const g of CHOIX_COUCHES.groupes(choix)) {
-      const groupe = document.createElement('optgroup');
-      groupe.label = g.titre;
-      for (const { cle, libelle } of g.couches) groupe.appendChild(new Option(libelle, cle));
-      sel.appendChild(groupe);
-    }
-    sel.addEventListener('change', () => { cotes[c] = sel.value; majCotes(); majStatut(); planifierRelief(0); });
-  }
-  $('vue-echanger').addEventListener('click', () => {
-    [cotes.gauche, cotes.droite] = [cotes.droite, cotes.gauche];
-    majCotes();
-    planifierRelief(0);
+  // Le panneau du relief (listes de couches, réglages, lien) : voir panneau-relief.js.
+  const panneau = creerPanneauRelief({
+    $, carte, reglages, vueCartes, voletDe, reliefCalque, relief, vue3d, MODE_CARTE, CHOIX_COUCHES, RELIEF, CONFIG,
+    FONDS_VUE, COUCHES_VUE, TUILES_VUE, AIDES_FONDS, OMBRAGE_RGB, estRelief, libelleCouche, classesMasquees,
+    planifierRelief, majStatut, majLien, majLegende, budget3D: () => nuage3D.budget(), surMobile,
   });
-  $('vue-rideau-centre').addEventListener('click', () => reliefCalque.placerRideau(0.5));
-  // Réglages du balayage : appliqués au relâchement du curseur, un SVF coûte
-  // trop cher pour suivre chaque cran.
-  $('vue-svf-directions').value = svfDirections;
-  $('val-vue-svf-directions').textContent = svfDirections;
-  $('vue-svf-rayon').value = svfRayonM;
-  $('val-vue-svf-rayon').textContent = `${svfRayonM} m`;
-  $('vue-svf-directions').addEventListener('input', (e) => { $('val-vue-svf-directions').textContent = e.target.value; });
-  $('vue-svf-directions').addEventListener('change', (e) => { svfDirections = Number(e.target.value); $('val-vue-svf-directions').textContent = e.target.value; planifierRelief(0); majLien(); });
-  $('vue-svf-rayon').addEventListener('input', (e) => { $('val-vue-svf-rayon').textContent = `${e.target.value} m`; });
-  $('vue-svf-rayon').addEventListener('change', (e) => { svfRayonM = Number(e.target.value); $('val-vue-svf-rayon').textContent = `${e.target.value} m`; planifierRelief(0); majLien(); });
-  // Soleil des ombrages : appliqué au relâchement du curseur.
-  $('vue-ombrage-azimut').value = ombrageAzimut;
-  $('val-vue-ombrage-azimut').textContent = `${ombrageAzimut}°`;
-  $('vue-ombrage-hauteur').value = ombrageHauteur;
-  $('val-vue-ombrage-hauteur').textContent = `${ombrageHauteur}°`;
-  $('vue-ombrage-azimut').addEventListener('input', (e) => { $('val-vue-ombrage-azimut').textContent = `${e.target.value}°`; });
-  // « Réinitialiser » : grisé tant que le soleil est celui du défaut (rien à remettre).
-  const majReinitSoleil = () => { $('vue-ombrage-reinit').disabled = RELIEF.soleilEstParDefaut(ombrageAzimut, ombrageHauteur); };
-  $('vue-ombrage-reinit').addEventListener('click', () => {
-    const d = RELIEF.soleilParDefaut();
-    ombrageAzimut = d.azimut;
-    ombrageHauteur = d.hauteur;
-    $('vue-ombrage-azimut').value = d.azimut;
-    $('val-vue-ombrage-azimut').textContent = `${d.azimut}°`;
-    $('vue-ombrage-hauteur').value = d.hauteur;
-    $('val-vue-ombrage-hauteur').textContent = `${d.hauteur}°`;
-    majReinitSoleil();
-    planifierRelief(0);
-    majLien();
-  });
-  $('vue-ombrage-azimut').addEventListener('change', (e) => { ombrageAzimut = Number(e.target.value); $('val-vue-ombrage-azimut').textContent = `${e.target.value}°`; majReinitSoleil(); planifierRelief(0); majLien(); });
-  $('vue-ombrage-hauteur').addEventListener('input', (e) => { $('val-vue-ombrage-hauteur').textContent = `${e.target.value}°`; });
-  $('vue-ombrage-hauteur').addEventListener('change', (e) => { ombrageHauteur = Number(e.target.value); $('val-vue-ombrage-hauteur').textContent = `${e.target.value}°`; majReinitSoleil(); planifierRelief(0); majLien(); });
-  majReinitSoleil();
-  $('vue-lisser').addEventListener('change', (e) => { lisserFlux = e.target.checked; planifierRelief(0); majLien(); });
+  const { majCotes, reglagesDe } = panneau;
 
   // ── Sélection d'un point et mesure, sur la carte ──
   // Les mêmes sections et le même tableau que l'onglet 2D ; le point se lit
@@ -1542,23 +1447,6 @@ $('accueil-croix').addEventListener('click', () => {
   };
   brancherCurseurHud(carte.map, vueCartes.volets()[0]);
   majCotes();
-  // Le contraste ne recalcule pas la couche (gardée dans le worker) : seule
-  // l'image est refaite.
-  $('vue-contraste').addEventListener('input', (e) => {
-    contrasteFlux = Number(e.target.value);
-    $('val-vue-contraste').textContent = `×${contrasteFlux.toFixed(1)}`;
-    planifierRelief(0);
-    majLien();   // le contraste est dans le lien
-  });
-  // Les classes du sol s'appliquent tout de suite : les points sont dans le
-  // worker, il n'y a rien à retélécharger — contrairement à l'ancien parcours
-  // par dalle, qui ne gardait que ses grilles.
-  $('vue-classes-sol').addEventListener('change', () => {
-    classesSolFlux = new Set([...$('vue-classes-sol').querySelectorAll('input:checked')].map((i) => Number(i.value)));
-    relief.reglages({ classesSol: classesSolFlux });
-    planifierRelief(0);
-    majLien();   // les classes du sol sont dans le lien (si elles diffèrent du défaut)
-  });
   $('recherche').closest('section').querySelector('h2').textContent = 'Lieu';
   VUES[0][3] = 'Zoomez sur une zone : le relief se calcule tout seul · glisser le rideau pour comparer';
   $('aide-vue').textContent = VUES[0][3];
@@ -1570,80 +1458,14 @@ $('accueil-croix').addEventListener('click', () => {
   };
 
   etatPartageVue = () => {
-    const e = { sol: LIEN.sansDefaut(classesSolFlux, CONFIG.raster.classesSolDefaut, dernieresClasses.map(([c]) => c)) };
+    const e = { sol: LIEN.sansDefaut(reglages.classesSol, CONFIG.raster.classesSolDefaut, dernieresClasses.map(([c]) => c)) };
     if (profil.A && profil.B) {
       e.profil = { a: versGeoProfil(profil.A), b: versGeoProfil(profil.B), largeur: profil.largeur };
     }
-    e.vue = reglagesVue();
+    e.vue = panneau.pourLien();
     return e;
   };
 
-  /**
-   * Les réglages de la vue qui diffèrent du défaut — rien d'autre, pour que le lien reste court.
-   * Les défauts sont ceux du démarrage : couches carte / SVF, rideau au milieu, contraste ×1,
-   * SVF de `CONFIG`, lissage et ombrage de profondeur actifs, couleur par classification,
-   * plafond de points de l'appareil.
-   */
-  const reglagesVue = () => ({
-    gauche: cotes.gauche !== 'carte' ? cotes.gauche : undefined,
-    droite: cotes.droite !== 'svf' ? cotes.droite : undefined,
-    rideau: vueCartes.mode() !== 'double' && Math.round(reliefCalque.partRideau() * 100) !== 50 ? reliefCalque.partRideau() * 100 : undefined,
-    cartes: vueCartes.mode() === 'double' ? 2 : undefined,
-    contraste: contrasteFlux !== 1 ? contrasteFlux : undefined,
-    svf: svfDirections !== CONFIG.relief.svfDirections || svfRayonM !== CONFIG.relief.svfRayonM
-      ? { directions: svfDirections, rayon: svfRayonM } : undefined,
-    soleil: RELIEF.soleilEstParDefaut(ombrageAzimut, ombrageHauteur) ? undefined
-      : { azimut: ombrageAzimut, hauteur: ombrageHauteur },
-    lisse: lisserFlux ? undefined : false,
-    couleur: CONFIG.rendu.coloration !== 'classification' ? CONFIG.rendu.coloration : undefined,
-    plafond: nuage3D.budget() !== (surMobile() ? CONFIG.rendu.budget3DMobile : CONFIG.rendu.budget3D) ? nuage3D.budget() / 1e6 : undefined,
-    edl: $('vue-edl').checked ? undefined : false,
-    cachees: classesMasquees.size ? [...classesMasquees] : undefined,
-  });
-
-  /**
-   * Remet les réglages d'un lien en passant par les vrais contrôles : leurs gestionnaires font le
-   * reste (recalcul, étiquettes, lien), et rien ne diverge de ce qu'un clic aurait fait. Une couche
-   * absente de la liste est ignorée ; un curseur ramène lui-même une valeur hors bornes dans les siennes.
-   */
-  function reglerVue(v) {
-    const regler = (id, valeur, evenement) => {
-      const e = $(id);
-      e.value = valeur;
-      e.dispatchEvent(new Event(evenement, { bubbles: true }));
-    };
-    const aOption = (id, valeur) => [...$(id).options].some((o) => o.value === valeur);
-    for (const c of ['gauche', 'droite']) {
-      if (v[c] && aOption(`vue-${c}`, v[c])) regler(`vue-${c}`, v[c], 'change');
-    }
-    if (v.rideau !== undefined) reliefCalque.placerRideau(v.rideau / 100);
-    if (v.cartes === 2) vueCartes.changerMode('double');
-    if (v.contraste !== undefined) regler('vue-contraste', v.contraste, 'input');
-    if (v.svf) {
-      regler('vue-svf-directions', v.svf.directions, 'change');
-      regler('vue-svf-rayon', v.svf.rayon, 'change');
-    }
-    if (v.soleil) {
-      regler('vue-ombrage-azimut', v.soleil.azimut, 'change');
-      regler('vue-ombrage-hauteur', v.soleil.hauteur, 'change');
-    }
-    if (v.lisse === false) {
-      $('vue-lisser').checked = false;
-      $('vue-lisser').dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    if (v.couleur) $('coloration').querySelector(`[data-mode="${v.couleur}"]`)?.click();
-    if (v.plafond !== undefined) regler('vue-budget3d', v.plafond, 'change');
-    if (v.edl === false) {
-      $('vue-edl').checked = false;
-      $('vue-edl').dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    if (v.cachees) {
-      classesMasquees.clear();
-      for (const c of v.cachees) classesMasquees.add(c);
-      vue3d?.definirClassesMasquees(classesMasquees);
-      majLegende();
-    }
-  }
 
   /**
    * Remet ce que le lien ouvert porte : classes du sol, point sélectionné, bande (la fenêtre
@@ -1663,12 +1485,12 @@ $('accueil-croix').addEventListener('click', () => {
         territoireVue = terr.code;
       }
       if (p.sol) {
-        classesSolFlux = new Set(p.sol);
-        for (const i of $('vue-classes-sol').querySelectorAll('input')) i.checked = classesSolFlux.has(Number(i.value));
-        relief.reglages({ classesSol: classesSolFlux });
+        reglages.classesSol = new Set(p.sol);
+        for (const i of $('vue-classes-sol').querySelectorAll('input')) i.checked = reglages.classesSol.has(Number(i.value));
+        relief.reglages({ classesSol: reglages.classesSol });
         planifierRelief(0);
       }
-      if (p.vue) reglerVue(p.vue);
+      if (p.vue) panneau.depuisLien(p.vue);
       if (p.sel) {
         const l = projVue().versLocal(p.sel.lon, p.sel.lat);
         // Sans relief calculé là, l'altitude arrive avec l'image suivante (voir plus haut).
