@@ -2729,7 +2729,10 @@ if (MODE_VUE) (async () => {
       if (!carteB) {
         // Créée visible : Leaflet mesure son conteneur à l'initialisation. La photo en fond, comme la carte
         // principale ; le relief ou un fond de tuiles se pose par-dessus, dans le calque.
-        carteB = L.map($('vue-carte-b'), { preferCanvas: true, maxZoom: CONFIG.carte.zoomMax });
+        // Son cadre de crédits sans la mention « Leaflet » (redondante avec celle de la carte principale) : seuls
+        // restent les crédits des données, que chaque carte doit porter (IGN, OpenStreetMap).
+        carteB = L.map($('vue-carte-b'), { preferCanvas: true, maxZoom: CONFIG.carte.zoomMax, attributionControl: false });
+        L.control.attribution({ prefix: false }).addTo(carteB);
         // Une vue d'abord : un calque Leaflet n'est ajouté (`onAdd`) qu'une fois la carte prête.
         carteB.setView(carte.map.getCenter(), carte.map.getZoom(), { animate: false });
         carte.nouveauFond('ortho').addTo(carteB);
