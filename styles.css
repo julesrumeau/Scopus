@@ -110,7 +110,9 @@ html, body {
 .cartes > .vue { flex: 1 1 0; min-width: 0; min-height: 0; position: relative; }
 .cartes.double > #vue-carte-b { border-left: 1px solid var(--bord); }
 @media (max-width: 600px) {
-  .cartes.double { flex-direction: column; }
+  /* La feuille du panneau, repliée, se pose sur le bas de l'écran : on lui réserve sa hauteur sous les deux
+     cartes, sinon celle du bas serait en partie cachée et plus petite que celle du haut. */
+  .cartes.double { flex-direction: column; padding-bottom: var(--feuille-repliee); }
   .cartes.double > #vue-carte-b { border-left: 0; border-top: 1px solid var(--bord); }
 }
 /* Le repère du curseur de l'autre carte : un cercle jaune, qui ne prend aucun clic. */
