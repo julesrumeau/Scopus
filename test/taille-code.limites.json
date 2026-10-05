@@ -6,7 +6,7 @@
   },
   "fonctions": {
     "app.js::(IIFE)": [
-      391,
+      300,
       239
     ],
     "carte.js::constructor": [
@@ -23,6 +23,9 @@
     ],
     "lien.js::(IIFE)": [
       119
+    ],
+    "outils-point.js::creerOutilsPoint": [
+      101
     ],
     "relief.js::balayerHorizons": [
       163
@@ -53,7 +56,7 @@
   },
   "fichiers": {
     "app.js": [
-      1445
+      1201
     ]
   }
 }
