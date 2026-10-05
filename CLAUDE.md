@@ -235,18 +235,21 @@ d'arbres et de bâtiments sans QGIS. Conception :
 - **Trois outils** (une barre dans la modale, comme celle de la carte) :
   Déplacement (un clic ne pose rien), Point de référence, Mesure — **la mesure par
   défaut**. Le glisser et la molette déplacent et zooment avec tous : seul le
-  **clic** dépend de l'outil (`ProfilGraphique.definirOutil`). Chaque ouverture de
-  la modale repart de la mesure.
+  **clic** dépend de l'outil (`ProfilGraphique.definirOutil`). La première
+  ouverture part de la mesure ; ensuite l'outil, les classes cochées et les échelles égales se **gardent**.
 - **Point de référence** (demandé pour lire des altitudes depuis un sol choisi) :
   un seul à la fois, le clic suivant remplace le précédent ; il s'accroche comme la
   mesure. Il devient le **0, en altitude et en distance** : graduations relatives
   (positives en haut et à droite, négatives en bas et à gauche), croix « 0 » et
   deux axes pointillés ; sans référence, des altitudes absolues, **sans bascule**.
   Pas de colonnes de plus dans le tableau : la demande était « tel point est
-  l'altitude 0 », pas d'afficher des cotes. S'efface par « Effacer la référence »,
-  par Retour arrière / Suppr (outil actif) et **à la fermeture de la modale** ;
-  changer seulement la largeur la garde (`definir()` ne l'efface pas : même ligne,
-  mêmes distances et altitudes). C'est une **constante** : valable sur un sol plat
+  l'altitude 0 », pas d'afficher des cotes. S'efface par « Effacer la référence »
+  et par Retour arrière / Suppr (outil actif) ; **elle reste à la fermeture de la modale** (on revient à la carte
+  pour situer ses points). Elle s'efface, avec la chaîne de mesure, la tranche et le zoom, quand **A ou B bouge**
+  (`nouvelleLigne` : poser un point, glisser une poignée, effacer la bande) ; changer seulement la largeur garde
+  la chaîne et la référence (mêmes distances) mais remet la tranche et le zoom (`definir(d, { garder })`).
+  La chaîne et la référence sont **dessinées sur la carte** (`dessinerChaine`, SVG du volet des outils, à leur
+  distance `s` sur l'axe : `PROFIL.pointSurAxe`). C'est une **constante** : valable sur un sol plat
   ou pour un seul bâtiment, pas un MNT (dit dans l'aide ; le sol comblé est R7).
 - **Une seule mesure.** Le graphique alimente la chaîne de mesure de la carte
   (`MESURE.tableauHtml`, partagé) : ses points deviennent `{ x: distance sur

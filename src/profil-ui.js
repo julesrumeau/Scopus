@@ -3,6 +3,13 @@
 // Fabrique à dépendances explicites (comme `creerVueCartes`) : tout ce qui vient d'`app.js` arrive par
 // `d`, rien n'est lu en global hors des modules (`PROFIL`, `MESURE`, `CONFIG`, `ProfilGraphique`).
 
+/** Ce que dit la ligne sous les outils du graphique, par outil. */
+const CONSIGNES_OUTIL = {
+  deplacement: 'Glissez pour déplacer le graphique, molette pour zoomer. Un clic ne pose rien.',
+  reference: 'Cliquez un point du graphique : il devient le 0. Un nouveau clic le remplace.',
+  mesure: 'Cliquez des points du graphique pour mesurer, de suite.',
+};
+
 function creerProfilUI(d) {
   const { $, carte, traceOutils, versLatLng, projVue, majLien, relief, flux, classesMasquees,
     milliers, NOMS_CLASSES } = d;
@@ -14,10 +21,14 @@ function creerProfilUI(d) {
   const profil = {
     A: null, B: null, largeur: CONFIG.profil.largeurDefautM,
     donnees: null,          // le dernier profil calculé
-    masquees: new Set(),    // classes décochées dans la modale
+    masquees: null,         // classes décochées dans la modale : celles de la légende 3D à la première ouverture, puis le choix de la personne
     numero: 0,              // un calcul plus récent invalide les réponses en retard
+    ligneChangee: true,     // A ou B a bougé depuis le dernier calcul : la chaîne, la référence, la tranche et le zoom ne valent plus
+    largeurCalculee: null,  // la largeur du dernier calcul : une autre largeur remet la tranche et le zoom, pas la chaîne
   };
   let profilGroupe = null;
+  let chaineGroupe = null;
+  let graphique = null;
   const iconePoignee = (lettre) => L.divIcon({ className: '', html: `<div class="poignee-profil">${lettre}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] });
 
   /** (Re)dessine A, B et la bande. Pendant un glissé, seules la bande et l'axe bougent. */
@@ -37,6 +48,7 @@ function creerProfilUI(d) {
     [['A', profil.A], ['B', profil.B]].forEach(([cle, p]) => {
       if (!p) return;
       const m = L.marker(versLatLng(p[0], p[1]), { pane: 'outilsVue', draggable: true, keyboard: false, icon: iconePoignee(cle) }).addTo(profilGroupe);
+      m.on('dragstart', nouvelleLigne);
       m.on('drag', () => {
         const ll = m.getLatLng();
         const q = projVue().versLocal(ll.lng, ll.lat);
@@ -63,7 +75,14 @@ function creerProfilUI(d) {
     majLien();   // la bande est dans le lien
   }
 
+  /** A ou B vient de bouger (ou la bande est effacée) : ce qui s'y rapportait dans la coupe s'efface avec. */
+  function nouvelleLigne() {
+    profil.ligneChangee = true;
+    graphique?.reinitialiser();
+  }
+
   function effacerProfil() {
+    nouvelleLigne();
     profil.A = profil.B = null;
     dessinerProfil();
     majFenetreProfil();
@@ -72,6 +91,7 @@ function creerProfilUI(d) {
   /** Un clic en mode Profil : A, puis B ; avec les deux posés, un clic recommence en A (voir `PROFIL.pointSuivant`). */
   function poserPointProfil(ll) {
     const q = projVue().versLocal(ll.lng, ll.lat);
+    nouvelleLigne();
     ({ A: profil.A, B: profil.B } = PROFIL.pointSuivant(profil.A, profil.B, [q.x, q.y]));
     dessinerProfil();
     majFenetreProfil();
@@ -84,21 +104,24 @@ function creerProfilUI(d) {
     majFenetreProfil();
   }
 
-  $('profil-largeur').addEventListener('input', (e) => fixerLargeur(PROFIL.largeurDepuisCurseur(Number(e.target.value))));
-  $('profil-largeur-n').addEventListener('change', (e) => fixerLargeur(e.target.value));
-  $('profil-effacer').addEventListener('click', effacerProfil);
-  $('profil-valider').addEventListener('click', () => validerProfil());
-  // Un clic ou une molette sur la fenêtre ne doit pas arriver à la carte
-  // (il poserait un point, ou zoomerait).
-  L.DomEvent.disableClickPropagation($('fenetre-profil'));
-  L.DomEvent.disableScrollPropagation($('fenetre-profil'));
+  /** La fenêtre flottante du mode Profil : largeur, Effacer, Valider. */
+  function brancherBande() {
+    $('profil-largeur').addEventListener('input', (e) => fixerLargeur(PROFIL.largeurDepuisCurseur(Number(e.target.value))));
+    $('profil-largeur-n').addEventListener('change', (e) => fixerLargeur(e.target.value));
+    $('profil-effacer').addEventListener('click', effacerProfil);
+    $('profil-valider').addEventListener('click', () => validerProfil());
+    // Un clic ou une molette sur la fenêtre ne doit pas arriver à la carte
+    // (il poserait un point, ou zoomerait).
+    L.DomEvent.disableClickPropagation($('fenetre-profil'));
+    L.DomEvent.disableScrollPropagation($('fenetre-profil'));
+  }
+  brancherBande();
   majFenetreProfil();
 
   // ── Le profil : lire la coupe ──
   // La validation ouvre la modale et demande les points de la bande au worker ;
   // changer la largeur dans la modale recalcule sur place (au `change`, pas à
   // l'`input` : l'essai le plus fréquent sur un arbre est « un peu plus large »).
-  let graphique = null;
 
   /** Les classes affichées : toutes celles de la bande, sauf les décochées dans la modale. */
   const visiblesProfil = () => new Set([...profil.donnees.parClasse.keys()].filter((c) => !profil.masquees.has(c)));
@@ -140,6 +163,7 @@ function creerProfilUI(d) {
     // Le graphique en (distance le long de l'axe, altitude) devient des points de la mesure :
     // l'horizontale est alors l'écart de distance, le dénivelé celui d'altitude.
     const chaine = pts.map((p) => ({ x: p.s, y: 0, sol: p.z, hauteur: 0 }));
+    dessinerChaine(pts, graphique?.reference);
     $('profil-mesure-vide').hidden = chaine.length > 0;
     $('profil-mesure-detail').hidden = !chaine.length;
     $('profil-mesure-actions').hidden = !chaine.length;
@@ -154,11 +178,6 @@ function creerProfilUI(d) {
   // le précédent ; il s'efface par un bouton (ou Retour arrière / Suppr quand son outil est
   // actif) et à la fermeture de la fenêtre.
   profil.outil = 'mesure';
-  const CONSIGNES_OUTIL = {
-    deplacement: 'Glissez pour déplacer le graphique, molette pour zoomer. Un clic ne pose rien.',
-    reference: 'Cliquez un point du graphique : il devient le 0. Un nouveau clic le remplace.',
-    mesure: 'Cliquez des points du graphique pour mesurer, de suite.',
-  };
 
   function majOutilsProfil() {
     for (const b of document.querySelectorAll('#dlg-profil [data-outil]')) {
@@ -175,14 +194,32 @@ function creerProfilUI(d) {
   function afficherReferenceProfil(p) {
     $('profil-reference-ligne').hidden = !p;
     if (p) $('profil-reference-etat').textContent = `Référence : ${p.z.toFixed(1)} m`;
+    dessinerChaine(graphique ? graphique.mesure : [], p);
+  }
+
+  /**
+   * Les points cliqués sur le graphique, posés sur la carte : chacun est à sa distance `s` sur l'axe A→B.
+   * Ils y restent quand la fenêtre est fermée (on revient à la carte pour les situer) ; la référence est
+   * un point à part, d'une autre couleur. Effacés avec la bande.
+   */
+  function dessinerChaine(pts, reference) {
+    chaineGroupe?.remove();
+    chaineGroupe = null;
+    if (!profil.A || !profil.B || (!pts.length && !reference)) return;
+    const ll = (q) => { const m = PROFIL.pointSurAxe(profil.A, profil.B, q.s); return m && versLatLng(m[0], m[1]); };
+    chaineGroupe = L.layerGroup().addTo(carte.map);
+    const lls = pts.map(ll).filter(Boolean);
+    const style = { pane: 'outilsVue', renderer: traceOutils, interactive: false };
+    if (lls.length > 1) L.polyline(lls, { ...style, color: '#ffd24a', weight: 2, dashArray: '4 4', className: 'chaine-profil' }).addTo(chaineGroupe);
+    for (const p of lls) L.circleMarker(p, { ...style, radius: 4, color: '#fff', weight: 1.5, fillColor: '#ffd24a', fillOpacity: 1, className: 'point-profil' }).addTo(chaineGroupe);
+    const r = reference && ll(reference);
+    if (r) L.circleMarker(r, { ...style, radius: 5, color: '#fff', weight: 1.5, fillColor: '#ff6bd6', fillOpacity: 1, className: 'reference-profil' }).addTo(chaineGroupe);
   }
 
   for (const b of document.querySelectorAll('#dlg-profil [data-outil]')) {
     b.addEventListener('click', () => { profil.outil = b.dataset.outil; majOutilsProfil(); });
   }
   $('profil-reference-effacer').addEventListener('click', () => graphique?.effacerReference());
-  // Fermer la fenêtre (croix, Échap) efface la référence : changer la ligne la rendrait caduque.
-  $('dlg-profil').addEventListener('close', () => { graphique?.effacerReference(); });
   majOutilsProfil();
 
   /** La ligne d'état : combien de points, quelle bande, et ce qui peut tromper. */
@@ -209,30 +246,33 @@ function creerProfilUI(d) {
     }
     if (num !== profil.numero) return;   // un calcul plus récent a pris la suite
     if (!graphique) { graphique = new ProfilGraphique($('profil-canvas'), afficherMesureProfil, afficherReferenceProfil); graphique.definirOutil(profil.outil); }
-    $('profil-d0').value = 0;
-    $('profil-d1').value = 1000;
+    // Même ligne et même largeur : la vue zoomée et la tranche restent ; une autre largeur les remet
+    // (la tranche se lit dans la largeur), mais la chaîne et la référence restent (mêmes distances).
+    const garder = !profil.ligneChangee && profil.largeurCalculee === profil.largeur;
+    profil.ligneChangee = false;
+    profil.largeurCalculee = profil.largeur;
+    if (!garder) { $('profil-d0').value = 0; $('profil-d1').value = 1000; }
     if (r.vide) {
       profil.donnees = null;
       graphique.definir(null);
       $('profil-etat').textContent = r.raison;
     } else {
       profil.donnees = { ...r, parClasse: new Map(r.parClasse) };
-      graphique.definir(profil.donnees);
+      graphique.definir(profil.donnees, { garder });
       graphique.definirVisibles(visiblesProfil());
       $('profil-etat').textContent = texteEtatProfil(r);
     }
     listerClassesProfil();
     appliquerTrancheProfil();
-    afficherMesureProfil([]);
+    afficherReferenceProfil(graphique.reference);
   }
 
   function validerProfil() {
     if (!profil.A || !profil.B || !PROFIL.verdict(profil.A, profil.B).ok) return Promise.resolve();
-    // Les classes de départ sont celles de la légende 3D ; les changer ici ne
-    // touche pas la légende.
-    profil.masquees = new Set(classesMasquees);
-    profil.outil = 'mesure';          // chaque ouverture repart de la mesure, sans référence
-    graphique?.effacerReference();
+    // Les classes de départ sont celles de la légende 3D (les changer ici ne touche pas la légende),
+    // la première fois ; ensuite on garde le choix fait ici, comme l'outil, la chaîne et la référence
+    // tant que la ligne ne bouge pas.
+    profil.masquees = profil.masquees || new Set(classesMasquees);
     majOutilsProfil();
     $('dlg-profil').showModal();
     return calculerProfil();
@@ -258,24 +298,28 @@ function creerProfilUI(d) {
     $('aide-profil-croix').addEventListener('click', () => $('dlg-aide-profil').close());
   }
   brancherAide();
-  $('profil-largeur-modale').addEventListener('change', (e) => { fixerLargeur(e.target.value); calculerProfil(); });
-  $('profil-classes').addEventListener('change', (e) => {
-    const c = e.target.closest('input[data-cls]');
-    if (!c || !profil.donnees) return;
-    const cls = Number(c.dataset.cls);
-    if (c.checked) profil.masquees.delete(cls); else profil.masquees.add(cls);
-    graphique.definirVisibles(visiblesProfil());
-    majLien();
-  });
-  // Les deux curseurs de la tranche ne se croisent pas : au moins 1 % d'écart.
-  for (const id of ['profil-d0', 'profil-d1']) {
-    $(id).addEventListener('input', () => {
-      let a = Number($('profil-d0').value), b = Number($('profil-d1').value);
-      if (id === 'profil-d0' && a > b - 10) { a = Math.max(0, b - 10); $('profil-d0').value = a; }
-      if (id === 'profil-d1' && b < a + 10) { b = Math.min(1000, a + 10); $('profil-d1').value = b; }
-      appliquerTrancheProfil();
+  /** La modale : largeur, classes visibles, tranche de la bande. */
+  function brancherModale() {
+    $('profil-largeur-modale').addEventListener('change', (e) => { fixerLargeur(e.target.value); calculerProfil(); });
+    $('profil-classes').addEventListener('change', (e) => {
+      const c = e.target.closest('input[data-cls]');
+      if (!c || !profil.donnees) return;
+      const cls = Number(c.dataset.cls);
+      if (c.checked) profil.masquees.delete(cls); else profil.masquees.add(cls);
+      graphique.definirVisibles(visiblesProfil());
+      majLien();
     });
+    // Les deux curseurs de la tranche ne se croisent pas : au moins 1 % d'écart.
+    for (const id of ['profil-d0', 'profil-d1']) {
+      $(id).addEventListener('input', () => {
+        let a = Number($('profil-d0').value), b = Number($('profil-d1').value);
+        if (id === 'profil-d0' && a > b - 10) { a = Math.max(0, b - 10); $('profil-d0').value = a; }
+        if (id === 'profil-d1' && b < a + 10) { b = Math.min(1000, a + 10); $('profil-d1').value = b; }
+        appliquerTrancheProfil();
+      });
+    }
   }
+  brancherModale();
   /** Les commandes du graphique : recadrer, échelles égales, mesure, clavier, redimensionnement. */
   function brancherGraphique() {
     // La chaîne de mesure se corrige comme sur la carte : bouton, ou Retour arrière / Suppr.

@@ -157,3 +157,13 @@ test('cadrageEgal — un profil plat et long : c’est la largeur qui commande, 
   assert.ok(Math.abs(v.s0) < 1e-9 && Math.abs(v.s1 - 100) < 1e-9, `abscisses ${v.s0}…${v.s1}`);
   assert.ok(v.z0 <= 300 && v.z1 >= 310);
 });
+
+test('pointSurAxe : la position sur la carte d’un point du graphique (distance s le long de A→B)', () => {
+  const ctx = chargerScripts(['config.js', 'profil.js']);
+  const A = [10, 20], B = [40, 60];                 // axe de 50 m
+  const eq = (p, x, y) => assert.ok(Math.abs(p[0] - x) < 1e-9 && Math.abs(p[1] - y) < 1e-9, `${p} au lieu de ${[x, y]}`);
+  eq(ctx.PROFIL.pointSurAxe(A, B, 0), 10, 20);
+  eq(ctx.PROFIL.pointSurAxe(A, B, 25), 25, 40);
+  eq(ctx.PROFIL.pointSurAxe(A, B, 50), 40, 60);
+  assert.equal(ctx.PROFIL.pointSurAxe(A, A, 5), null, 'axe nul : pas de position');
+});
