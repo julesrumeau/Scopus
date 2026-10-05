@@ -12,7 +12,7 @@
 const FONDS_OSM = (() => {
   const standard = {
     cle: 'osm',
-    libelle: 'OpenStreetMap',
+    libelle: 'OpenStreetMap (standard)',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     /**
      * L'aide sous la liste. Page ouverte en `file://` : pas de Referer, le serveur refuse les

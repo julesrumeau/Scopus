@@ -30,7 +30,9 @@ test('le dernier niveau servi est le 19 : au-delà, la tuile est agrandie au lie
 
 test('le fond porte une clé et un nom lisibles pour les listes et le lien', () => {
   assert.equal(FONDS_OSM.standard.cle, 'osm');
-  assert.equal(FONDS_OSM.standard.libelle, 'OpenStreetMap');
+  // « (standard) » : le nom que la Fondation donne à ce rendu, et ce qui le distinguera de
+  // « OpenStreetMap France » le jour où celui-ci arrive.
+  assert.equal(FONDS_OSM.standard.libelle, 'OpenStreetMap (standard)');
   assert.equal(FONDS_OSM.parCle.osm, FONDS_OSM.standard);
 });
 
