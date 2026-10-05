@@ -326,19 +326,10 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   // `placerRideau`, qu'on enveloppe sur cette instance.
   const placerRideauSeul = reliefCalque.placerRideau.bind(reliefCalque);
   reliefCalque.placerRideau = (part) => { placerRideauSeul(part); majLien(); };
-  // Le calcul du relief tourne dans un worker (relief-travailleur.js) : sur le
-  // fil principal, il figeait la carte une à plusieurs secondes à chaque
-  // arrivée de blocs. S'il ne démarre pas, le même calcul se fait ici.
-  // Le rangement des points se fait au processeur, même dans le worker : sur
-  // la carte graphique, la page gelait pendant chaque calcul — elle partage
-  // la carte (et le processus graphique de Chrome) avec le worker, et son
-  // affichage attendait que le calcul soit passé : gels de 0,5 à 1 s sur la
-  // carte AMD, jusqu'à 11 s sous émulation, sans une ligne de script (mesuré
-  // avec &chrono, API long-animation-frame).
-  // Les couches (SVF…), elles, passent par la carte graphique : un calcul
-  // court, qui ne fait pas geler la page à l'usage (essayé, aucun
-  // ralentissement ressenti), là où le rangement des points la gelait. « &cpu » : tout au processeur ; « &gpu » : tout sur la carte,
-  // pour comparer.
+  // Le calcul du relief tourne dans un worker (relief-travailleur.js), sinon il figeait la carte ; s'il ne démarre
+  // pas, il se fait ici. Le rangement des points y est au processeur (sur la carte graphique la page gelait, 0,5 à
+  // 11 s, mesuré avec &chrono) ; les couches (SVF…) passent par la carte graphique. « &cpu » : tout au processeur ;
+  // « &gpu » : tout sur la carte, pour comparer.
   const params = new URLSearchParams(location.search);
   const optionsRelief = params.has('gpu') ? {} : params.has('cpu') ? { moteur: 'cpu' } : { moteur: 'cpu', couches: 'gpu' };
   let relief = RELIEF_TRAVAILLEUR.creer(optionsRelief);
@@ -359,7 +350,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   // rangé qu'une fois, le budget n'a plus à être réduit pour lui.
   const budget = surAppareilPortatif ? CONFIG.flux.budgetPointsMobile : CONFIG.flux.budgetPoints;
 
-  let dernierEtat = null, vueCourante = null;
+  let dernierEtat = null, vueCourante = null, etatNuage3D = null;   // `etatNuage3D` : posé avec le nuage 3D, que le flux prévient quand des blocs arrivent
   // Ce que porte chaque côté du rideau, comme dans l'onglet 2D : « carte »
   // (la carte Leaflet, qui remplace ici la photo aérienne) ou une couche de
   // relief. Par défaut, la carte à gauche et le Sky-View Factor à droite.
@@ -452,7 +443,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
     config: { ...CONFIG.flux, budgetPoints: budget },
     surBloc: (b) => { calque?.ajouter(b, projVue().versGeo); relief.ajouter(b); planifierRelief(1500); },
     surLibere: (cle) => { calque?.retirer(cle); relief.retirer(cle); },
-    surEtat: (e) => { dernierEtat = e; majStatut(); },
+    surEtat: (e) => { dernierEtat = e; majStatut(); etatNuage3D?.(e); },
   };
   if (chronometrer) {
     // Seule la part synchrone est comptée : ce qui bloque le fil principal.
@@ -466,7 +457,8 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   outils.liaisons.dalleAuPoint = (x, y) => flux.dalleAu(x, y);
   if (chronometrer) for (const n of ['majVue']) flux[n] = mesurer(`flux : ${n}`, flux[n]);
 
-  const majVueFlux = () => {
+  const majVueFlux = (rect = null) => {
+    if (!rect && !$('vue-3d').hidden) return;   // en 3D la carte est masquée (taille nulle) : la zone est celle de la 3D
     const b = carte.map.getBounds();
     // Le territoire sous le centre fixe la projection de tout ce qui suit ;
     // en mer, entre deux, le dernier reste.
@@ -480,7 +472,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
     const ne = versLocal(b.getEast(), b.getNorth());
     const no = versLocal(b.getWest(), b.getNorth());
     const se = versLocal(b.getEast(), b.getSouth());
-    vueCourante = {
+    vueCourante = rect || {
       xmin: Math.min(so.x, no.x), xmax: Math.max(ne.x, se.x),
       ymin: Math.min(so.y, se.y), ymax: Math.max(ne.y, no.y),
       largeurPx: carte.map.getSize().x,
@@ -515,7 +507,9 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
     vueCourante: () => vueCourante, dernierEtat: () => dernierEtat,
     reliefAJour: () => calcul.aJour(),
     majLegende, majHUD, majAttributNuage, majLien,
+    carte, projVue, majVueFlux: (rect) => majVueFlux(rect), basculerVue, LIEN, RECTANGLE_3D, apresNuage: () => outils.republier3D(),
   });
+  etatNuage3D = nuage3D.etatChange;
   surPassage3D = nuage3D.construire;
   surPassageCarte = () => { vueCartes.cartes()[1]?.invalidateSize(); planifierRelief(0); };
 
@@ -628,6 +622,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
         planifierRelief(0);
       }
       if (p.vue) panneau.depuisLien(p.vue);
+      if (p.vue?.onglet === '3d') nuage3D.ouvrirDepuisLien(lien);
       if (p.sel) {
         const l = projVue().versLocal(p.sel.lon, p.sel.lat);
         // Sans relief calculé là, l'altitude arrive avec l'image suivante (voir plus haut).

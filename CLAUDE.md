@@ -208,7 +208,19 @@ Nuage de ce que la carte affichait, sans rien télécharger de plus
   fenêtre** seulement (FreeCAD ignore la classe, d'où l'export par sélection ;
   non essayé dans FreeCAD). Coordonnées **locales** (Blender perdrait ~50 cm en
   absolu). Logique dans `SORTIE.resumerExport` / `exporterPoints`.
-- Non fait (TODO #4) : caméra 3D qui pilote le téléchargement.
+- **Le rectangle de la 3D** (5 octobre 2026, `rectangle-3d.js` pur et testé, `pose-3d.js`) : la 3D est une
+  **fenêtre sur la zone de la carte**. Le rectangle au sol est celui que la carte montrerait à ce zoom sur la
+  taille de la scène (`RECTANGLE_3D.depuisCentre`, calculé et non lu sur la carte : Leaflet arrondit le zoom,
+  un lien en a deux décimales). La caméra y est posée **à l'échelle de la carte** (`distance = mpp × hauteur /
+  (2 tan(fov/2))`) et **n'en sort pas** : cible bornée au rectangle, distance bornée à 1,3 fois ce qui le
+  montre entier (`Pose3D.borner`, appelée par `_bouger`). Un lien porte `onglet=3d` (`&onglet=3d` après
+  `map=zoom/lat/lon/orientation/inclinaison`) : il **ouvre la 3D**, à la zone et aux angles du lien
+  (`nuage3D.ouvrirDepuisLien`) — la règle « jamais l'onglet » est levée ; la bascule manuelle reprend la même
+  zone et la même échelle (angles par défaut). Le nuage **s'étoffe tout seul** tant que des blocs arrivent :
+  reconstruit en silence (ni voile, ni retour de la caméra : `definirNuage(…, { cadrer: false })`) au plus une
+  fois par `CONFIG.rendu.affinage3dMs` (4 s), la carte restant en pause. Une seule densité : celle que la
+  carte aurait chargée à ce zoom ; **la 3D ne télécharge pas plus fin en zoomant** (décision : trop lourd).
+- Non fait : une caméra 3D qui pilote le niveau de détail du téléchargement (TODO #4, phase 2, écartée).
 
 ## Le profil
 
@@ -494,9 +506,7 @@ vue (plus bas). Fonctions pures dans `lien.js` (`ecrirePartage`, `lirePartage`),
   (millions de points), `edl=0` (ombrage de profondeur, case de l'onglet 3D), `cachees=`
   (classes masquées en 3D) ; **seul ce qui diffère du défaut** est écrit
   (`reglagesVue`), chacun se lit et tombe **seul**. Remis par `reglerVue`, qui passe par les
-  vrais contrôles (leurs gestionnaires font le reste). **Jamais l'onglet** : ouvrir un lien
-  ne doit pas lancer la 3D (nuage de millions de points) ; ses réglages s'appliquent quand
-  on l'ouvre soi-même. Le plafond est écrit, mais dépend de l'appareil : celui qui ouvre
+  vrais contrôles (leurs gestionnaires font le reste). **L'onglet 3D** s'écrit (`onglet=3d`) et se rouvre : voir « La 3D de la vue ». Les réglages de la 3D (plafond, couleur…) s'appliquent à l'ouverture. Le plafond est écrit, mais dépend de l'appareil : celui qui ouvre
   le change à sa guise. La position du rideau passe par `placerRideau` (enveloppé pour
   `majLien`).
 - **Le lien suit tout changement** (bande, largeur, sélection, règle, sol, réglages) par

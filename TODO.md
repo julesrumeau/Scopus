@@ -4,7 +4,7 @@ Topo du 5 octobre 2026 (`main` = `dev` au commit `18d9bd3`, plus ce fichier). Le
 
 **À faire, dans l'ordre proposé**
 1. **R18, profil** : points gardés et montrés sur la carte (fait) ; déplacer et supprimer sur le graphique (fait, `feat/profil-points-editables`) ; reste : l'insertion entre deux points (question à poser à la personne), déplacer les points sur la carte ; l'export (GeoJSON + `.osm`, avec R4) est **en pause**, il attend un axe défini finement (la polyligne).
-2. **#4 / R13, la 3D qui télécharge** (et le lien 3D qui ouvre la 3D) : gros chantier, voie 2a d'abord.
+2. ~~**#4 / R13, la 3D qui télécharge**~~ : phase 1 faite (rectangle borné, lien 3D qui ouvre la 3D, nuage qui s'étoffe) ; la phase 2 (plus fin en zoomant) est écartée.
 3. **Petits fixes** (#6) : panneau latéral qui recouvre la barre d'outils entre 600 et 900 px, petits points du profil, HUD de la seconde carte, deux côtés du rideau sur deux surfaces.
 4. **R15b / R15c, ombrage** (multidirectionnel « cramé », « trop lissé » face à l'IGN) : à mesurer avant d'agir.
 
@@ -185,7 +185,9 @@ masquée : son effet n'a pas convaincu à l'usage. Le réglage
 (il faisait les étoiles du SVF, voir R14) ; les non classés s'ajoutent aux classes
 du sol. À vérifier sur une ruine connue avant de rendre la case, ou de la retirer.
 
-### #4 — La 3D qui télécharge (étape 2)
+### #4 — La 3D qui télécharge (étape 2) — phase 1 faite sur `feat/3d-rectangle` (5 octobre 2026)
+
+**Phase 1 faite** : rectangle fixe d'après le lien ou la carte, caméra bornée, angles et échelle repris, nuage qui s'étoffe seul (voir CLAUDE.md, « La 3D de la vue »). **Phase 2 écartée** (décision du 5 octobre) : une 3D qui télécharge plus fin en zoomant. Texte d'origine ci-dessous.
 
 L'étape 1 est faite (27 septembre 2026, voir CLAUDE.md, « La 3D de la
 vue ») : l'onglet 3D montre le nuage de la zone vue sur la carte, avec les
@@ -458,7 +460,7 @@ l'exemple du Bois des Caures en lien discret si on le juge utile.
   depuis le bord déclenche « retour ». Garder la poignée visible (butée avant le
   bord, ou languette) ; mobile = `pointer: coarse`, bande déjà à 44 px.
 
-### R13 — Défauts du lien 3D et de la sélection (2) — désélection faite ; lien 3D en suspens
+### R13 — Défauts du lien 3D et de la sélection (2) — désélection faite ; lien 3D fait le 5 octobre (`feat/3d-rectangle`)
 
 - **EN SUSPENS — décision à prendre (4 octobre 2026).** Le lien 3D est laissé de côté : la vraie réponse est sans doute la 3D qui pilote le téléchargement (#4), qui ferait d'un lien une caméra et supprimerait le double cadrage ; en attendant, on pourrait seulement corriger le cadrage à la bascule manuelle (reprendre l'échelle de la carte, petit et indépendant). À trancher : faire #4 d'abord (conception avant code), ou le correctif seul ; `ouvrirLien` en vue normale ignore aujourd'hui orientation et inclinaison (seul `?dalle` les relit). Texte d'origine ci-dessous.
 - **Un lien de partage pris en 3D n'ouvre pas la 3D**, et en basculant à la main

@@ -220,8 +220,8 @@ test('ecrirePartage : une couche ou une couleur aux caractères douteux n’entr
   assert.equal(LIEN.ecrirePartage({ vue: { gauche: 'a b' } }), '');
   assert.equal(LIEN.ecrirePartage({ vue: { gauche: '<script>', droite: 'x,y' } }), '');
   assert.equal(LIEN.ecrirePartage({ vue: { couleur: 'inconnue' } }), '');
-  // L'onglet n'est jamais écrit : ouvrir un lien ne doit pas lancer la 3D (nuage de millions de points).
-  assert.equal(LIEN.ecrirePartage({ vue: { onglet: '3d' } }), '');
+  // Seule la 3D s'écrit (`onglet=3d`) ; une autre valeur n'entre pas dans le lien.
+  assert.equal(LIEN.ecrirePartage({ vue: { onglet: 'inconnu' } }), '');
 });
 
 test('le lien avec tous les réglages reste sûr dans le forum et court', () => {
@@ -265,7 +265,7 @@ test('lirePartage : chaque réglage abîmé tombe seul, les autres de la vue res
   for (const abime of ['couleur=inconnue', 'couleur=', 'couleur=Hauteur', 'couleur=intensite']) assert.equal(lu(abime).couleur, undefined, abime);
   for (const abime of ['plafond=0', 'plafond=21', 'plafond=abc', 'plafond=1e1', 'plafond=-3']) assert.equal(lu(abime).plafond, undefined, abime);
   for (const abime of ['cachees=3.x', 'cachees=300', 'cachees=', 'cachees=3,4']) assert.equal(lu(abime).cachees, undefined, abime);
-  for (const autre of ['onglet=3d', 'onglet=carte', 'onglet=']) assert.deepEqual(lu(autre), { rideau: 30 }, autre);   // ignoré, jamais lu : le reste de la vue demeure
+  for (const autre of ['onglet=carte', 'onglet=', 'onglet=2d']) assert.deepEqual(lu(autre), { rideau: 30 }, autre);   // ignoré : le reste de la vue demeure
 });
 
 test('lirePartage : une vue sans aucun réglage valide n’a pas de clé « vue »', () => {
@@ -316,4 +316,24 @@ test('cartes=2 : le mode « deux cartes synchronisées » s’écrit, se relit, 
   for (const abime of ['cartes=1', 'cartes=3', 'cartes=deux', 'cartes=', 'cartes=2.5']) {
     assert.equal(plat(LIEN.lirePartage('#map=18/42.8/1.0&rideau=30&' + abime)).vue.cartes, undefined, abime);
   }
+});
+
+test('onglet=3d : un lien pris en 3D le dit, se relit, et tout autre valeur tombe', () => {
+  assert.equal(LIEN.ecrirePartage({ vue: { onglet: '3d' } }), '&onglet=3d');
+  assert.equal(LIEN.ecrirePartage({ vue: { onglet: 'carte' } }), '', 'la carte est le défaut : rien à écrire');
+  assert.equal(LIEN.ecrirePartage({ vue: { onglet: undefined } }), '');
+  assert.deepEqual(plat(LIEN.lirePartage('#map=17/42.8/1.0/45/58&onglet=3d')), { vue: { onglet: '3d' } });
+  for (const abime of ['onglet=2d', 'onglet=3D', 'onglet=', 'onglet=3d3', 'onglet=carte']) {
+    assert.equal(plat(LIEN.lirePartage('#map=17/42.8/1.0&' + abime)).vue?.onglet, undefined, abime);
+  }
+});
+
+test('onglet=3d : il se combine avec les autres réglages sans les gêner, et reste un lien sûr', () => {
+  const f = LIEN.ecrirePartage({ vue: { onglet: '3d', couleur: 'hauteur', plafond: 2 } });
+  assert.match(f, /onglet=3d/);
+  assert.match(f, /couleur=hauteur/);
+  assert.ok(!/[,()"+]/.test(f), f);
+  const relu = plat(LIEN.lirePartage('#map=17/42.8/1.0/45/58' + f));
+  assert.equal(relu.vue.onglet, '3d');
+  assert.equal(relu.vue.couleur, 'hauteur');
 });
