@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chargerScripts } from './charger.js';
 
-const { ProfilGraphique } = chargerScripts(['config.js', 'profil.js', 'profil-graphique.js']);
+const { ProfilGraphique } = chargerScripts(['config.js', 'profil.js', 'profil-geste.js', 'profil-graphique.js']);
 
 function canevasFactice() {
   const ctx = new Proxy({}, { get: () => () => {}, set: () => true });
@@ -140,7 +140,7 @@ function canevasCompte() {
 }
 
 test('plusieurs changements dans la même image ne dessinent qu’une fois', () => {
-  const page = chargerScripts(['config.js', 'profil.js', 'profil-graphique.js']);
+  const page = chargerScripts(['config.js', 'profil.js', 'profil-geste.js', 'profil-graphique.js']);
   const file = [];
   page.requestAnimationFrame = (f) => { file.push(f); return file.length; };
   const c = canevasCompte();
@@ -528,4 +528,100 @@ test('reinitialiser efface la chaîne, la référence, la tranche et le zoom, et
 test('reinitialiser sur un graphique vide ne lève pas', () => {
   const { g } = graphique();
   assert.doesNotThrow(() => g.reinitialiser());
+});
+
+// ── Modifier la chaîne : saisir, déplacer, supprimer un point (R18 n°2) ──────
+
+/** Un graphique avec trois points de mesure posés : A (0 m), B (50 m, cime), C (100 m). */
+function avecTroisPoints() {
+  const r = graphique();
+  r.g.definir(donnees());
+  for (const [s, z] of [[0, 300], [50, 325], [100, 300]]) { const p = r.g.px(s, z); r.g.clic(p.x, p.y); }
+  return r;
+}
+
+test('pointMesureProche : l’indice du point de la chaîne sous le curseur, -1 sinon', () => {
+  const { g } = avecTroisPoints();
+  const b = g.px(50, 325);
+  assert.equal(g.pointMesureProche(b.x + 3, b.y - 4, 'mouse'), 1);
+  assert.equal(g.pointMesureProche(b.x + 40, b.y, 'mouse'), -1);
+  assert.equal(graphique().g.pointMesureProche(10, 10, 'mouse'), -1, 'chaîne vide');
+});
+
+test('pointMesureProche : la zone de saisie est plus large au doigt qu’à la souris', () => {
+  const { g } = avecTroisPoints();
+  const b = g.px(50, 325);
+  assert.equal(g.pointMesureProche(b.x + 18, b.y, 'mouse'), -1);
+  assert.equal(g.pointMesureProche(b.x + 18, b.y, 'touch'), 1);
+});
+
+test('pointMesureProche : de deux points proches, le plus proche gagne', () => {
+  const r = graphique();
+  r.g.definir(donnees());
+  const a = r.g.px(48, 325), b = r.g.px(52, 325);
+  r.g.mesure = [{ s: 48, z: 325 }, { s: 52, z: 325 }];
+  assert.equal(r.g.pointMesureProche(b.x - 1, b.y, 'mouse'), 1);
+  assert.equal(r.g.pointMesureProche(a.x + 1, a.y, 'mouse'), 0);
+});
+
+test('deplacerPoint : le point suit le curseur, accroché au point visible le plus proche, et l’appelant le sait', () => {
+  const { g, vus } = avecTroisPoints();
+  const cible = g.px(50, 325);
+  g.deplacerPoint(0, cible.x + 3, cible.y + 2);          // près de la cime
+  assert.deepEqual(vus.at(-1)[0], { s: 50, z: 325 });
+  assert.equal(vus.at(-1).length, 3, 'les autres points ne bougent pas, aucun ajout');
+  const libre = g.px(20, 310);
+  g.deplacerPoint(2, libre.x, libre.y);                  // loin de tout : à la position du curseur
+  assert.ok(Math.abs(vus.at(-1)[2].s - 20) < 0.5 && Math.abs(vus.at(-1)[2].z - 310) < 0.5);
+});
+
+test('deplacerPoint : un indice hors chaîne ne fait rien et ne lève pas', () => {
+  const { g, vus } = avecTroisPoints();
+  const avant = vus.length;
+  g.deplacerPoint(7, 100, 100);
+  g.deplacerPoint(-1, 100, 100);
+  assert.equal(vus.length, avant);
+});
+
+test('retirerPoint : retire ce point et le dit ; les autres gardent leur ordre', () => {
+  const { g, vus } = avecTroisPoints();
+  g.retirerPoint(1);
+  assert.deepEqual(vus.at(-1), [{ s: 0, z: 300 }, { s: 100, z: 300 }]);
+  g.retirerPoint(5);                                     // hors chaîne : rien
+  assert.equal(vus.at(-1).length, 2);
+});
+
+test('le geste : souris sur un point, glisser, relâcher déplace ce point et ne pose rien', () => {
+  const { g, vus } = avecTroisPoints();
+  const b = g.px(50, 325), cible = g.px(25, 312);
+  g.debutGeste(b.x, b.y);                                // saisi tout de suite à la souris
+  g.deplacerGeste(cible.x, cible.y);
+  g.finGeste(cible.x, cible.y);
+  assert.equal(vus.at(-1).length, 3);
+  assert.ok(Math.abs(vus.at(-1)[1].s - 25) < 1);
+});
+
+test('le geste : souris hors des points, glisser déplace toujours le graphique (comme avant)', () => {
+  const { g, vus } = avecTroisPoints();
+  g.zoomer(300, 150, 4);
+  const [s0] = [g.s0];
+  const avant = vus.length;
+  g.debutGeste(500, 20);
+  g.deplacerGeste(560, 20);
+  g.finGeste(560, 20);
+  assert.notEqual(g.s0, s0);
+  assert.equal(vus.length, avant, 'aucun point posé ni déplacé');
+});
+
+test('saisi et survolé : le point grossi est connu pour le dessin, et se libère', () => {
+  const { g } = avecTroisPoints();
+  const b = g.px(50, 325);
+  g.survoler(b.x, b.y);
+  assert.equal(g.survole, 1);
+  g.survoler(5, 5);
+  assert.equal(g.survole, -1);
+  g.debutGeste(b.x, b.y);
+  assert.equal(g.saisi, 1);
+  g.finGeste(b.x, b.y);
+  assert.equal(g.saisi, -1);
 });

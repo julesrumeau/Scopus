@@ -38,10 +38,7 @@ function creerOutilsPoint(d) {
     $('canvas3d').classList.toggle('mode-vise', mode !== 'deplacement');
     $('vue-carte').classList.toggle('mode-vise', mode !== 'deplacement');
   }
-  $('mode-deplacement').addEventListener('click', () => definirModeInteraction('deplacement'));
-  $('mode-selection').addEventListener('click', () => definirModeInteraction('selection'));
-  $('mode-mesure').addEventListener('click', () => definirModeInteraction('mesure'));
-  $('mode-profil').addEventListener('click', () => definirModeInteraction('profil'));
+  for (const m of ['deplacement', 'selection', 'mesure', 'profil']) $(`mode-${m}`).addEventListener('click', () => definirModeInteraction(m));
 
   // Coordonnées du point actuellement affiché — lues par les liens « Ouvrir
   // dans » au clic, pas mémorisées dans `etat` : rien d'autre n'en a besoin.
@@ -205,6 +202,17 @@ function creerOutilsPoint(d) {
     pointsMesure.push({ x, y, sol, hauteur });
     afficherMesure();
   }
+
+  /** La croix du tableau : retire le point `i` de la chaîne (la mesure de la carte et celle du profil partagent le tableau). */
+  function retirerPointMesure(i) {
+    pointsMesure = MESURE.retirerPoint(pointsMesure, i);
+    afficherMesure();
+  }
+
+  $('detail-mesure').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-retirer]');
+    if (b) retirerPointMesure(Number(b.dataset.retirer));
+  });
 
   function retirerDernierPointMesure() {
     if (!pointsMesure.length) return;
