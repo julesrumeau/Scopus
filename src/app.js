@@ -2677,6 +2677,18 @@ if (MODE_VUE) (async () => {
   // Les contours des blocs chargés, pour voir le chargement : « &debug ».
   const calque = new URLSearchParams(location.search).has('debug') ? new CalqueFlux().addTo(carte.map) : null;
   const reliefCalque = new CalqueRelief().addTo(carte.map);
+  // Le mode d'affichage : carte scindée par le rideau, ou une seule couche en pleine page (un troisième
+  // mode, deux cartes synchronisées, viendra : TODO R10).
+  $('modes-carte').hidden = false;
+  const majBoutonsMode = () => {
+    const unique = !!reliefCalque.coteUnique();
+    for (const [id, actif] of [['mode-carte-scinde', !unique], ['mode-carte-unique', unique]]) {
+      $(id).classList.toggle('actif', actif);
+      $(id).setAttribute('aria-pressed', String(actif));
+    }
+  };
+  $('mode-carte-scinde').addEventListener('click', () => { reliefCalque.definirUnique(null); majBoutonsMode(); });
+  $('mode-carte-unique').addEventListener('click', () => { reliefCalque.definirUnique(reliefCalque.derniereCoteUnique()); majBoutonsMode(); });
   // La position du rideau est dans le lien : le geste (et « Rideau au centre ») passent par
   // `placerRideau`, qu'on enveloppe sur cette instance.
   const placerRideauSeul = reliefCalque.placerRideau.bind(reliefCalque);

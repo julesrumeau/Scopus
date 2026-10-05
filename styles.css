@@ -997,6 +997,47 @@ input[type=range]::-moz-range-thumb {
 .rideau-flux-libelle.droite { left: 16px; }
 .rideau-flux-libelle:empty { display: none; }
 
+/* Une seule carte : le rideau, rangé au bord, n'a ni trait ni poignée et ne se tire plus. Seule
+   l'étiquette du côté montré reste, cliquable : elle fait passer à l'autre couche. */
+.rideau.rideau-unique { pointer-events: none; }
+.rideau-unique::before, .rideau-unique .rideau-poignee { display: none; }
+.rideau-unique .rideau-flux-libelle { pointer-events: auto; cursor: pointer; }
+.rideau-unique .rideau-flux-libelle::after { content: " ⇄"; opacity: 0.8; }
+.rideau-unique .rideau-flux-libelle:empty::after { display: none; }
+/* Le côté droit montré en entier : son étiquette serait sous les boutons de zoom et de mode, à gauche. */
+.rideau-unique .rideau-flux-libelle.droite { left: 56px; }
+
+/* Le bouton de mode : sous les boutons de zoom, au-dessus du rideau (700) et du HUD (760), sous
+   les contrôles de Leaflet. Deux états aujourd'hui, un troisième viendra. */
+.modes-carte {
+  position: absolute;
+  top: 82px;
+  left: 10px;
+  z-index: 800;
+  display: flex;
+  flex-direction: column;
+  background: var(--fond-2);
+  border: 1px solid var(--bord);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.modes-carte button {
+  width: 30px; height: 30px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--texte-2);
+  cursor: pointer;
+}
+.modes-carte button + button { border-top: 1px solid var(--bord); }
+.modes-carte button:hover { color: var(--texte); }
+.modes-carte button.actif { background: var(--fond-3); color: var(--texte); }
+.modes-carte svg { width: 18px; height: 18px; display: block; }
+@media (pointer: coarse) { .modes-carte button { width: 40px; height: 40px; } .modes-carte { top: 100px; } .rideau-unique .rideau-flux-libelle.droite { left: 66px; } }
+
 /* Les deux sélecteurs de couche, côte à côte comme les deux moitiés de l'image. */
 .deux-cotes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .deux-cotes .champ { margin-bottom: 8px; }

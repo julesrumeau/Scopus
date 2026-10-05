@@ -77,6 +77,8 @@ const CalqueRelief = L.Layer.extend({
   onAdd(map) {
     this._carte = map;
     this._part = 0.5;
+    this._unique = null;   // le côté montré en entier (mode « une seule carte »), ou null : carte scindée
+    this._partScindee = null;   // la position du rideau avant de passer en une seule carte
     // Un volet par côté, découpé à la position du rideau : le relief peut être
     // à gauche comme à droite, comme dans l'onglet 2D. Le voile et l'image
     // d'un côté vivent dans son volet : le découpage leur vaut à tous deux.
@@ -148,6 +150,33 @@ const CalqueRelief = L.Layer.extend({
     this._decouper();
   },
 
+  /**
+   * Une seule carte en pleine page : `cote` est montré en entier (le rideau part à l'opposé, sans
+   * trait ni poignée) ; `null` revient à la carte scindée, le rideau où il était.
+   */
+  definirUnique(cote) {
+    if (cote) {
+      if (!this._unique && this._part > 0 && this._part < 1) this._partScindee = this._part;
+      this._unique = cote;
+      this._derniereUnique = cote;
+      this._rideau.classList.add('rideau-unique');
+      this.placerRideau(MODE_CARTE.partRideau(cote, this._partScindee ?? 0.5));
+    } else if (this._unique) {
+      this._unique = null;
+      this._rideau.classList.remove('rideau-unique');
+      this.placerRideau(MODE_CARTE.partRideau(null, this._partScindee ?? 0.5));
+    }
+    for (const c of ['gauche', 'droite']) {
+      this._libelles[c].title = this._unique ? 'Cliquer pour voir l’autre couche' : '';
+    }
+  },
+
+  /** Le côté montré en entier, ou null en carte scindée. */
+  coteUnique() { return this._unique; },
+
+  /** Le dernier côté montré en une seule carte, pour y revenir ; la droite au premier passage. */
+  derniereCoteUnique() { return this._derniereUnique || MODE_CARTE.coteParDefaut; },
+
   /** Le côté du rideau sous un point de la carte (pixels du conteneur). */
   coteSous(x) {
     return x < this._carte.getSize().x * this._part ? 'gauche' : 'droite';
@@ -161,6 +190,16 @@ const CalqueRelief = L.Layer.extend({
       gauche: L.DomUtil.create('span', 'rideau-flux-libelle gauche', r),
       droite: L.DomUtil.create('span', 'rideau-flux-libelle droite', r),
     };
+    // Une seule carte : l'étiquette du côté montré fait passer à l'autre couche. Le `pointerdown` ne
+    // doit pas arriver au rideau, qui capturerait le pointeur et avalerait le clic.
+    for (const cote of ['gauche', 'droite']) {
+      const l = this._libelles[cote];
+      l.addEventListener('pointerdown', (e) => e.stopPropagation());
+      l.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this._unique) this.definirUnique(MODE_CARTE.autreCote(this._unique));
+      });
+    }
     // Le geste appartient au rideau, pas à la carte : sans ça, tirer le rideau
     // déplacerait la carte en même temps.
     L.DomEvent.disableClickPropagation(r);
