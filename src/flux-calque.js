@@ -77,7 +77,7 @@ const CalqueRelief = L.Layer.extend({
   onAdd(map) {
     this._carte = map;
     this._part = 0.5;
-    this._unique = false;   // une seule carte : la gauche en entier, rideau rangé au bord ; sinon carte scindée
+    this._coteSeul = null;   // le côté montré en entier, rideau rangé au bord ('gauche' ou 'droite') ; null : carte scindée
     this._partScindee = null;   // la position du rideau avant de passer en une seule carte
     // Un volet par côté, découpé à la position du rideau : le relief peut être
     // à gauche comme à droite, comme dans l'onglet 2D. Le voile et l'image
@@ -151,20 +151,24 @@ const CalqueRelief = L.Layer.extend({
   },
 
   /**
-   * Une seule carte en pleine page : la gauche est montrée en entier (le rideau part tout à droite,
-   * sans trait ni poignée) ; `false` revient à la carte scindée, le rideau où il était.
+   * Un côté montré en entier, le rideau rangé à l'opposé, sans trait ni poignée : `'gauche'` pour le mode
+   * « une seule carte », `'droite'` pour la seconde de deux cartes synchronisées. `null` revient à la
+   * carte scindée, le rideau où il était.
    */
-  definirUnique(unique) {
-    unique = !!unique;
-    if (unique === this._unique) return;
-    if (unique && this._part > 0 && this._part < 1) this._partScindee = this._part;
-    this._unique = unique;
-    this._rideau.classList.toggle('rideau-unique', unique);
-    this.placerRideau(MODE_CARTE.partRideau(unique, this._partScindee ?? 0.5));
+  definirUnique(cote) {
+    cote = cote === 'gauche' || cote === 'droite' ? cote : null;
+    if (cote === this._coteSeul) return;
+    if (cote && !this._coteSeul && this._part > 0 && this._part < 1) this._partScindee = this._part;
+    this._coteSeul = cote;
+    this._rideau.classList.toggle('rideau-unique', !!cote);
+    this.placerRideau(MODE_CARTE.partRideau(cote, this._partScindee ?? 0.5));
   },
 
-  /** Une seule carte ? */
-  estUnique() { return this._unique; },
+  /** Un côté est-il montré en entier ? */
+  estUnique() { return this._coteSeul !== null; },
+
+  /** Le côté montré en entier (`'gauche'` ou `'droite'`), ou null en carte scindée. */
+  coteSeul() { return this._coteSeul; },
 
   /** Le côté du rideau sous un point de la carte (pixels du conteneur). */
   coteSous(x) {
