@@ -400,8 +400,9 @@ Un bouton à trois états sous le zoom (`MODE_CARTE`, `mode-carte.js`) : **carte
 **une seule carte** (la gauche, une seule liste « Couche affichée », la droite ni calculée ni chargée),
 **deux cartes synchronisées** (la gauche à gauche, la droite à droite ; empilées sous 600 px). La gestion des cartes est une **fabrique à dépendances explicites** (`creerVueCartes`, `vue-cartes.js`, testée avec des
 cartes factices : ni DOM ni Leaflet), `app.js` ne fait que lui passer ce qui lui est étranger — c'est le modèle suivi par le reste de `app.js`
-(`creerProfilUI`, `creerPanneauRelief`, `creerNuage3D`, `creerOutilsCarte`, `creerOutilsPoint`, `creerChrono`,
-`creerPanneauMobile`, `creerAccueil`) : une fabrique par métier, ce qui naît plus tard dans le démarrage arrive par
+(`creerProfilUI`, `creerPanneauRelief`, `creerCalculRelief`, `creerNuage3D`, `creerPanneau3D`, `creerOutilsCarte`,
+`creerOutilsPoint`, `creerPartage`, `creerRechercheLieu`, `creerChrono`, `creerPanneauMobile`, `creerAccueil` ;
+modules purs testés : `creerCatalogueVue`, `STATUT_RELIEF`) : une fabrique par métier, ce qui naît plus tard dans le démarrage arrive par
 un objet `liaisons` ou par des fonctions, jamais par une variable recopiée (TODO, « Dette de structure »). Les
 gestes de la 3D sont dans `ControlesVue3D` (`controles-3d.js`). Chaque carte est un
 **volet** (`VOLETS`, `volets.js`) : sa carte Leaflet, son `CalqueRelief`, ses côtés ; le calcul pose l'image de
