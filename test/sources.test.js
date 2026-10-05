@@ -122,14 +122,14 @@ test('chaque onglet ouvre sur sa section principale, puis Point sélectionné et
   // 3D, Affichage (3D seule) la précédant. Septembre 2026, retour
   // d'usage : sur la carte, Relief précède « Point sélectionné » et en 3D
   // Affichage la suivait — l'ordre différait d'un onglet à l'autre. La règle
-  // retenue : la section principale de chaque onglet (Relief, Affichage,
-  // la 2D) d'abord, puis « Point sélectionné », puis « Mesure ».
+  // retenue : la section principale de chaque onglet (Relief, Affichage)
+  // d'abord, puis « Point sélectionné », puis « Mesure ».
   const html = readFileSync(fileURLToPath(new URL('index.html', RACINE)), 'utf8');
   const i = (id) => html.indexOf(`id="${id}"`);
-  for (const id of ['section-vue', 'section-affichage', 'section-2d', 'section-selection', 'section-mesure']) {
+  for (const id of ['section-vue', 'section-affichage', 'section-selection', 'section-mesure']) {
     assert.ok(i(id) > -1, `${id} doit exister`);
   }
-  for (const principale of ['section-vue', 'section-affichage', 'section-2d']) {
+  for (const principale of ['section-vue', 'section-affichage']) {
     assert.ok(i(principale) < i('section-selection'), `${principale} doit précéder section-selection`);
   }
   assert.ok(i('section-selection') < i('section-mesure'), 'section-selection doit précéder section-mesure');

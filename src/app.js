@@ -9,79 +9,12 @@
 const $ = (id) => document.getElementById(id);
 
 const etat = {
-  // `dalle` est celle qu'on vient de désigner sur la carte ; `dalleChargee`
-  // celle dont le nuage et les grilles sont en mémoire. Les confondre faisait
-  // qu'après avoir cliqué une dalle voisine, le rapprochement BD TOPO et les
-  // noms de fichiers exportés désignaient une emprise qu'on n'avait pas
-  // analysée.
-  dalle: null,
-  dalleChargee: null,
-  entete: null,
-  hierarchie: null,
-  couts: [],
-  niveau: 0,
-  abandonIndex: null,
-  promesseIndex: null,
-  // Vue d'un lien ouvert (`LIEN.lire`), en attente du chargement de sa dalle
-  // pour s'appliquer en 2D et en 3D — voir `appliquerVueDuLien`.
-  vueDuLien: null,
   // Un lien du profil est en train de se remettre (carte cadrée, points chargés, modale rouverte) :
   // ne pas réécrire le fragment d'ici là, il perdrait ce qu'il porte encore.
   restaurationPartage: false,
+  // Le nuage 3D affiché (voir `construire3D`), ou null.
   nuage: null,
-  grille: null,
-  resultat: null,
-  // Statistiques de la voie par la forme. Les candidats qu'elle trouve, eux,
-  // rejoignent `resultat.candidats` : une seule liste, une seule sélection, un
-  // seul export — seul le champ `voie` dit d'où vient chacun.
-  resultatFormes: null,
-  sentiers: null,
-  reliefGrille: null,
-  selection: null,
-  abandon: null,
-  // Classes de sol qui ont servi à bâtir `grille` — un instantané, pas la
-  // sélection courante des cases à cocher, qui peut avoir bougé depuis. Sert
-  // uniquement à savoir si « Mettre à jour » (§ Classes du sol) a quelque
-  // chose à faire.
-  classesSolChargees: null,
 };
-
-/**
- * Détection automatique masquée, structures **et** sentiers.
- *
- * Décision du 18 août 2026, prise en regardant l'outil s'en servir : sur une
- * couche d'ouverture ou de Sky-View Factor, un mur ruiné, une terrasse ou un
- * chemin creux **se voient à l'œil en une seconde**. C'est d'ailleurs ainsi que
- * la prospection LiDAR travaille depuis toujours — on lit des images ombrées, on
- * ne s'en remet pas à un détecteur. Les deux chaînes automatiques, elles,
- * demandent des seuils justes pour rendre le même service en moins bien, et
- * aucune des deux n'a jamais été confrontée à une structure réelle connue.
- *
- * Ce qui a emporté la décision : une chaîne livrée qui promet et rend zéro fait
- * conclure que l'**outil** est cassé, pas cette fonction-là. Mieux vaut ne rien
- * promettre. La détection par la forme venait précisément de rendre zéro en
- * silence sur une dalle réelle, faute d'un réglage lu au mauvais endroit.
- *
- * **Rien n'est supprimé** : `detection.js`, `lignes.js` et `sentiers.js`
- * restent, avec leurs 71 tests. Remettre `false` ici rend l'interface entière.
- * Ce qui manque pour ça n'est pas du code, c'est un contrôle positif — une ruine
- * dont on connaisse les coordonnées.
- */
-const ANALYSE_MASQUEE = true;
-
-/**
- * Remasqué le 20 août 2026 après un premier vrai usage sur plusieurs dalles.
- *
- * Le retour a corrigé un bogue réel (des tracés en pelote, voir #2 du TODO,
- * `CONFIG.sentiers.compaciteMax`) mais n'a pas réglé la question de fond :
- * même sans boucle, une bonne part de ce qui reste suit vraisemblablement du
- * ravinement naturel plutôt que de vrais chemins — signature identique, et
- * rien à part une coordonnée de sentier connu ne permet de trancher. Démasquer
- * sans ce contrôle promettait plus que la chaîne ne rend, exactement l'écueil
- * qui avait fait masquer les structures. Le drapeau se remet à `false` en une
- * ligne dès qu'un chemin connu existe pour recalibrer.
- */
-const SENTIERS_MASQUES = true;
 
 // ── Retours à l'utilisateur ─────────────────────────────────────────────────
 
@@ -159,13 +92,13 @@ try {
   statut('Nuage 3D indisponible — la carte et la vue 2D fonctionnent', 'erreur');
 }
 
-// ── Vue 2D ──────────────────────────────────────────────────────────────────
+// ── Le curseur ──────────────────────────────────────────────────────────────
 
 /**
  * Ce que le relief dit sous le curseur, en une ligne : position, sol, hauteur
  * de ce qui s'y dresse, et la valeur de la couche nommée. La couche est celle
  * du côté survolé : sous le curseur il n'y a qu'une image, et dire laquelle
- * évite de lire une valeur pour une autre. Commun à l'onglet 2D et à la carte.
+ * évite de lire une valeur pour une autre.
  */
 function texteCurseur(p, nomCouche) {
   return `x ${p.x.toFixed(0)} · y ${p.y.toFixed(0)}`
@@ -175,21 +108,6 @@ function texteCurseur(p, nomCouche) {
       ? ` · ${echapper(nomCouche)} <b>${p.valeur.toFixed(2)}</b>` : '');
 }
 
-const vue2d = new Vue2D($('canvas-2d'), {
-  surCurseur: (p) => {
-    $('hud-2d').innerHTML = p ? texteCurseur(p, p.couche || '') : '';
-  },
-  // Cliquer une boîte sélectionne la détection dans toutes les vues à la fois.
-  surClic: (id) => {
-    const c = (etat.resultat?.candidats || []).find((x) => x.id === id);
-    if (c) selectionner_(c);
-  },
-  // Mode sélection : `p` est déjà résolu par `lire()`, la même valeur que le
-  // survol affiche dans le HUD.
-  surSelectionPoint: (p) => { if (p) afficherSelection(p.x, p.y, p.altitude, p.hauteur); },
-  surVue: () => majLien(),
-});
-vue2d.demarrer();
 
 // ── Sélection d'un point (#4) ────────────────────────────────────────────────
 //
@@ -204,10 +122,13 @@ vue2d.demarrer();
 // retour sur la carte : sans cela, la bande restait dessinée sans sa fenêtre.
 let profilAReprendre = false;
 
+// L'outil du clic sur la carte et dans la 3D : déplacement, sélection, mesure ou profil.
+let modeOutil = 'deplacement';
+
 function definirModeInteraction(mode, parOnglet = false) {
   // Un choix de mode explicite annule la reprise ; seul le changement d'onglet la garde.
   if (!parOnglet) profilAReprendre = false;
-  vue2d.mode = mode;
+  modeOutil = mode;
   if (vue3d) vue3d.mode = mode;
   $('mode-deplacement').classList.toggle('actif', mode === 'deplacement');
   $('mode-selection').classList.toggle('actif', mode === 'selection');
@@ -220,7 +141,6 @@ function definirModeInteraction(mode, parOnglet = false) {
   // un style en ligne l'emporterait aussi sur `:active { cursor: grabbing }`
   // pendant un glissé effectif, ce qui casserait le déplacement en sélection
   // comme en mesure.
-  $('canvas-2d').classList.toggle('mode-vise', mode !== 'deplacement');
   $('canvas3d').classList.toggle('mode-vise', mode !== 'deplacement');
   $('vue-carte').classList.toggle('mode-vise', mode !== 'deplacement');
 }
@@ -290,9 +210,7 @@ function afficherSelection(x, y, sol, hauteur = 0) {
   $('selection-liens').hidden = false;
   $('selection-effacer').hidden = false;
 
-  // Même point dans les deux vues : sélectionner en 2D puis passer en 3D (ou
-  // l'inverse) doit retrouver le marqueur au même endroit, pas le perdre.
-  vue2d.definirPointSelectionne([x, y]);
+  // Même point sur la carte et en 3D : passer de l'une à l'autre retrouve le marqueur au même endroit.
   vue3d?.definirPointSelectionne({ x, y, altitude: sommetPoint });
   carteOutils?.selection([x, y]);
   majLien();   // la sélection est dans le lien
@@ -304,7 +222,6 @@ function effacerSelection() {
   $('detail-selection').hidden = true;
   $('selection-liens').hidden = true;
   $('selection-effacer').hidden = true;
-  vue2d.definirPointSelectionne(null);
   vue3d?.definirPointSelectionne(null);
   carteOutils?.selection(null);
   majLien();
@@ -337,42 +254,20 @@ async function chercherPoint() {
 
   const p = PROJ.depuisTexte(texte);
   if (!p) { alerter('Coordonnées non reconnues — attendu « latitude, longitude ».'); return; }
-  // En vue normale, tout territoire couvert ; l'ancien parcours par dalle
-  // reste en Lambert-93, donc en métropole.
   const terr = PROJ.territoireAuPoint(p.lon, p.lat);
-  if (!terr || (!MODE_VUE && terr.code !== 'FXX')) {
-    alerter(MODE_VUE ? 'Ces coordonnées sont hors des territoires couverts par le LiDAR HD.' : 'Ces coordonnées sont hors de France métropolitaine.');
+  if (!terr) {
+    alerter('Ces coordonnées sont hors des territoires couverts par le LiDAR HD.');
     return;
   }
-  if (MODE_VUE) {
-    if (terr.code !== territoireVue) surChangementTerritoire?.();
-    territoireVue = terr.code;
-  }
+  if (terr.code !== territoireVue) surChangementTerritoire?.();
+  territoireVue = terr.code;
   const lambert = projVue().versLocal(p.lon, p.lat);
-  // Mode vue : la carte va au point, et l'altitude se lit dans le relief —
-  // tout de suite s'il est déjà calculé là, sinon dès la prochaine image.
-  if (MODE_VUE && lireVue) {
-    carte.allerA(p.lon, p.lat, Math.max(carte.map.getZoom(), 17));
-    const pt = await lireVue(lambert.x, lambert.y);
-    afficherSelection(lambert.x, lambert.y, pt?.altitude ?? null, pt?.hauteur ?? 0);
-    return;
-  }
-  const t = etat.reliefGrille;
-  let altitude = null, hauteur = 0;
-  if (t) {
-    const cx = Math.floor((lambert.x - t.emprise.xmin) / t.pas);
-    const cy = Math.floor((lambert.y - t.emprise.ymin) / t.pas);
-    if (cx < 0 || cx >= t.W || cy < 0 || cy >= t.H) {
-      alerter('Ce point est en dehors de la dalle chargée.');
-      return;
-    }
-    const i = cy * t.W + cx;
-    if (t.valide[i]) { altitude = t.mnt[i] + t.origine[2]; hauteur = t.hauteur[i]; }
-  }
-
-  afficherSelection(lambert.x, lambert.y, altitude, hauteur);
-  vue2d.viser(lambert.x, lambert.y);
-  if (altitude != null) vue3d?.centrerSur(lambert.x, lambert.y, altitude + hauteur);
+  // La carte va au point, et l'altitude se lit dans le relief — tout de suite s'il est déjà calculé là,
+  // sinon dès la prochaine image.
+  if (!lireVue) { afficherSelection(lambert.x, lambert.y, null, 0); return; }
+  carte.allerA(p.lon, p.lat, Math.max(carte.map.getZoom(), 17));
+  const pt = await lireVue(lambert.x, lambert.y);
+  afficherSelection(lambert.x, lambert.y, pt?.altitude ?? null, pt?.hauteur ?? 0);
 }
 $('btn-recherche-point').addEventListener('click', chercherPoint);
 $('recherche-point').addEventListener('keydown', (e) => {
@@ -389,10 +284,8 @@ $('recherche-point').addEventListener('keydown', (e) => {
 // seuil (clic imprécis, ou zone du terrain sans point rendu tout près),
 // l'enveloppe du MNT en repli plutôt que de rendre la main bredouille.
 function viserPoint3D(rayon) {
-  // Sans grille de dalle (vue normale), pas d'enveloppe de repli : le point
-  // visé est dans le nuage, ou nulle part.
-  return vue3d.pointDuNuage(rayon, classesMasquees)
-    || (etat.reliefGrille ? TERRAIN.pointDuTerrain(rayon, etat.reliefGrille, CONFIG.rendu.exagerationZ, vue3d.zmin, classesMasquees) : null);
+  // Pas d'enveloppe de repli : le point visé est dans le nuage, ou nulle part.
+  return vue3d.pointDuNuage(rayon, classesMasquees);
 }
 
 if (vue3d) {
@@ -424,7 +317,6 @@ let pointsMesure = [];   // [{ x, y, sol, hauteur }, ...] Lambert-93 absolu, dan
 function afficherMesure() {
   majLien();   // la règle est dans le lien
   const versVue3D = (p) => (MESURE.sommet(p) != null ? { x: p.x, y: p.y, altitude: MESURE.sommet(p) } : null);
-  vue2d.definirMesure(pointsMesure.map((p) => [p.x, p.y]));
   vue3d?.definirMesure(pointsMesure.map(versVue3D));
   carteOutils?.mesure(pointsMesure);
 
@@ -471,12 +363,11 @@ $('btn-mesure-annuler').addEventListener('click', retirerDernierPointMesure);
 // seulement en mode Mesure et hors saisie, sinon la touche reprendrait son
 // rôle habituel (revenir en arrière dans un champ de texte).
 window.addEventListener('keydown', (e) => {
-  if (vue2d.mode !== 'mesure' || !pointsMesure.length) return;
+  if (modeOutil !== 'mesure' || !pointsMesure.length) return;
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); retirerDernierPointMesure(); }
 });
 
-vue2d.cb.surPointMesure = (p) => { if (p) ajouterPointMesure(p.x, p.y, p.altitude, p.hauteur); };
 if (vue3d) {
   vue3d.onPointMesure = (rayon) => {
     const pt = viserPoint3D(rayon);
@@ -489,19 +380,11 @@ if (vue3d) {
 //
 // Le lien porte la **vue**, au format d'osm.org (`#map=zoom/lat/lon`) complété
 // comme MapLibre en 3D (`/orientation/inclinaison`) — voir `lien.js`. Il suit
-// l'onglet affiché : la carte, le centre et l'échelle de la 2D, ou le point
-// visé et les angles de la caméra 3D. Pas les seuils ni les couches : ouvrir un
-// lien cadre la carte et sélectionne la dalle sous le centre, exactement comme
-// un clic, et laisse le choix de charger le nuage à qui l'ouvre.
+// l'onglet affiché : la carte, ou le point visé et les angles de la caméra 3D.
 
 /** La vue de l'onglet affiché, dans les termes du lien. `null` si rien à dire. */
 function vueCourante() {
   const onglet = $('panneau').dataset.vue;
-  if (onglet === '2d' && vue2d.grille) {
-    const v = vue2d.vue();
-    const { lon, lat } = projVue().versGeo(v.x, v.y);
-    return { lat, lon, zoom: LIEN.zoomDepuisResolution(v.metresParPixelCss, lat) };
-  }
   if (onglet === '3d') {
     const c = vue3d?.camera();
     if (!c) return null;
@@ -525,7 +408,6 @@ let partageEnAttente = null;
 
 /** Ce que le fragment porte en plus de la vue : la coupe, sa mesure, la sélection, les classes du sol. */
 function etatPartage() {
-  if (!MODE_VUE) return {};
   const e = etatPartageVue ? etatPartageVue() : {};
   if (selectionActuelle) e.sel = { lat: selectionActuelle.lat, lon: selectionActuelle.lon };
   if (pointsMesure.length) {
@@ -536,7 +418,7 @@ function etatPartage() {
 
 /** Un lien ouvert : s'il porte quelque chose de la coupe ou de la sélection, le remettre. */
 function demanderPartage(partage) {
-  if (!MODE_VUE || !partage || !Object.keys(partage).length) return;
+  if (!partage || !Object.keys(partage).length) return;
   partageEnAttente = partage;
   etat.restaurationPartage = true;
   appliquerPartageVue?.();
@@ -555,7 +437,6 @@ function ecrireLien() {
   // Un lien qui vient d'être ouvert attend le chargement de sa dalle pour
   // s'appliquer en 2D et en 3D (`appliquerVueDuLien`) : ne pas l'écraser
   // d'ici là par la vue de carte, qui n'en garde ni l'échelle fine ni les angles.
-  if (etat.vueDuLien) return;
   if (etat.restaurationPartage) return;
   const v = vueCourante();
   if (!v) return;
@@ -573,71 +454,10 @@ function majLien() {
   minuteurLien = setTimeout(ecrireLien, 300);
 }
 
-/**
- * Ouvre un lien : cadre la carte et, assez près pour qu'une dalle ait un sens,
- * sélectionne celle sous le centre. La vue fine (échelle 2D, angles 3D) attend
- * que la dalle soit chargée — il n'y a rien à cadrer avant.
- */
+/** Ouvre un lien : le lien cadre la carte, et le relief de la vue suit. */
 function ouvrirLien(lien) {
-  // Vue normale : le lien cadre la carte, et le relief de la vue suit. Plus de
-  // dalle à sélectionner, ni rien à charger d'un bloc.
-  if (MODE_VUE) {
-    requestAnimationFrame(() => { carte.invalider(); carte.map.setView([lien.lat, lien.lon], lien.zoom); });
-    demanderPartage(LIEN.lirePartage(location.hash));
-    return;
-  }
-  // Loin de tout, aucune dalle n'est sélectionnée : rien n'attendra de
-  // chargement, et retenir la vue bloquerait l'écriture du lien pour rien.
-  const selectionnable = lien.zoom >= CONFIG.carte.zoomGrille
-    && PROJ.dansEmpriseFrance(lien.lon, lien.lat);
-  etat.vueDuLien = selectionnable ? lien : null;
-  requestAnimationFrame(async () => {
-    // Fermer l'accueil rend au panneau sa colonne de 380 px, redimensionnement
-    // purement CSS que Leaflet ne détecte pas tout seul.
-    carte.invalider();
-    carte.map.setView([lien.lat, lien.lon], lien.zoom);
-    if (!selectionnable) return;
-    // Après ce cadrage, le moindre déplacement de la carte — geste, recherche,
-    // bouton, clavier — abandonne la vue du lien : qui est allé ailleurs ne
-    // veut plus y être ramené après le chargement, et le lien doit de nouveau
-    // suivre la vue. `movestart` et pas des évènements de pointeur : la
-    // recherche déplace la carte sans qu'on la touche. `setView` sans
-    // animation émet le sien avant de rendre la main, d'où `once` posé après.
-    carte.map.once('movestart', abandonnerVueDuLien);
-    await carte.selectionnerAuPoint(lien.lon, lien.lat);
-  });
-}
-
-function abandonnerVueDuLien() {
-  if (!etat.vueDuLien) return;
-  etat.vueDuLien = null;
-  majLien();
-}
-
-/**
- * Après le chargement d'une dalle : si un lien ouvert attendait, et que son
- * centre est dans cette dalle, la 2D et la 3D reprennent sa vue. Un lien
- * écrit depuis la 3D — donc incliné ou tourné — y ramène directement.
- */
-function appliquerVueDuLien(dalle) {
-  const v = etat.vueDuLien;
-  if (!v) return;
-  etat.vueDuLien = null;
-  const { x, y } = PROJ.versLambert93(v.lon, v.lat);
-  const e = dalle.emprise;
-  if (x < e.xmin || x > e.xmax || y < e.ymin || y > e.ymax) return;
-
-  const resolution = LIEN.resolutionDepuisZoom(v.zoom, v.lat);
-  vue2d.placer(x, y, resolution);
-  if (vue3d && (v.orientation || v.inclinaison)) {
-    // L'onglet d'abord : la distance se déduit de la hauteur du canevas, qui
-    // ne se mesure qu'une fois affiché — masqué, le zoom repris dérivait d'un
-    // quart de cran.
-    basculerVue('3d');
-    const { azimut, elevation } = LIEN.cameraDepuisOrientation(v.orientation, v.inclinaison);
-    vue3d.placerCamera(x, y, vue2d.lire(x, y)?.altitude ?? null, resolution, azimut, elevation);
-  }
-  majLien();
+  requestAnimationFrame(() => { carte.invalider(); carte.map.setView([lien.lat, lien.lon], lien.zoom); });
+  demanderPartage(LIEN.lirePartage(location.hash));
 }
 
 /**
@@ -703,28 +523,12 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape') basculerMenu
   }
 }
 
-const MODE_VUE = !new URLSearchParams(location.search).has('dalle');
 // « &debug » ou « &chrono » : les chiffres de diagnostic (statut, HUD 3D).
 const DIAGNOSTIC = ['debug', 'chrono'].some((p) => new URLSearchParams(location.search).has(p));
-document.body.dataset.mode = MODE_VUE ? 'vue' : 'dalle';
 
 // ── Carte ───────────────────────────────────────────────────────────────────
 
 const carte = new Carte($('vue-carte'), {
-  surDalle: (d) => {
-    const dl = $('detail-dalle');
-    dl.hidden = false;
-    dl.innerHTML = ligneDetail('Nom', d.nom)
-      + ligneDetail('Points', d.nbPoints ? milliers(d.nbPoints) : '—')
-      + ligneDetail('Acquisition', d.dateAcquisition || '—')
-      + ligneDetail('Altimétrie', d.systemeAltimetrique || '—')
-      + ligneDetail('Emprise', `X ${d.emprise.xmin}–${d.emprise.xmax}\nY ${d.emprise.ymin}–${d.emprise.ymax}`);
-    $('info-dalle').hidden = true;
-    // Publiée sur `etat` : c'est ce que le bouton « Voir un exemple » attend
-    // pour savoir quand l'index COPC est lu et déclencher le chargement à sa
-    // place, sans dupliquer cette lecture.
-    etat.promesseIndex = ouvrirDalle(d);
-  },
   surRecherche: (m) => statut(m, 'travail'),
   surErreur: alerter,
 });
@@ -771,7 +575,7 @@ async function rechercher() {
 function allerAu(lieu) {
   $('resultats-recherche').hidden = true;
   carte.allerA(lieu.lon, lieu.lat);
-  statut(MODE_VUE ? lieu.label : `${lieu.label} — cliquez une dalle`);
+  statut(lieu.label);
 }
 
 $('btn-recherche').addEventListener('click', rechercher);
@@ -798,855 +602,6 @@ function ligneDetail(cle, valeur) {
   return `<dt>${echapper(cle)}</dt><dd>${echapper(valeur).replace(/\n/g, '<br>')}</dd>`;
 }
 
-// ── Étape 1 : dalle choisie → index COPC lu, résolution proposée ────────────
-
-/**
- * Lit l'index d'une dalle dès qu'elle est cliquée, et déplie la résolution.
- *
- * Il y avait autrefois un bouton « Ouvrir la dalle » avant celui-ci. Il ne
- * décidait de rien : l'index coûte deux requêtes de plage et ~50 Ko, et on ne
- * choisit une dalle que pour la charger. Le faire à la sélection laisse un seul
- * bouton dans le panneau, « Charger le nuage », qui est le seul choix réel —
- * celui qui engage des centaines de mégaoctets.
- */
-async function ouvrirDalle(d) {
-  // Un clic sur une autre dalle prime : l'index en cours de lecture comme le
-  // nuage en cours de téléchargement portent sur celle qu'on vient de quitter.
-  etat.abandonIndex?.abort();
-  etat.abandon?.abort();
-  const ctrl = new AbortController();
-  etat.abandonIndex = ctrl;
-
-  etat.dalle = d;
-  etat.entete = null;
-  etat.hierarchie = null;
-  etat.couts = [];
-
-  $('bloc-resolution').hidden = false;
-  $('niveau').disabled = true;
-  $('btn-charger').disabled = true;
-  $('btn-annuler').hidden = true;
-  $('progression').hidden = true;
-  $('barre-progression').style.width = '0';
-  $('progression-pct').textContent = '0 %';
-  $('progression-detail').textContent = '—';
-  $('val-niveau').textContent = '—';
-  $('cout').textContent = 'Lecture de l’index COPC…';
-  statut('Lecture de l’index COPC…', 'travail');
-
-  try {
-    // Deux requêtes de plage — ~50 Ko — pour connaître l'octree entier d'un
-    // fichier de 190 Mo. C'est toute la raison d'être du format COPC ici.
-    const entete = await COPC.lireEntete(d.url, ctrl.signal);
-    const hierarchie = await COPC.lireHierarchie(entete, ctrl.signal);
-    if (ctrl.signal.aborted) return;
-
-    etat.entete = entete;
-    etat.hierarchie = hierarchie;
-    majCouts();
-    statut(`Index lu : ${milliers(hierarchie.size)} nœuds, ${milliers(entete.nbPoints)} points`
-      + ' — réglez la résolution puis chargez');
-  } catch (e) {
-    if (ctrl.signal.aborted || e.name === 'AbortError') return;
-    $('cout').innerHTML = '<span class="att">Index illisible.</span>';
-    alerterPanne('Ouverture de la dalle', e);
-  }
-}
-
-/**
- * Recalcule le coût de chaque niveau d'octree pour la zone courante et cale le
- * curseur de résolution.
- */
-function majCouts() {
-  if (!etat.entete || !etat.dalle) return;
-  etat.couts = COPC.coutParNiveau(etat.entete, etat.hierarchie, etat.dalle.emprise);
-
-  const curseur = $('niveau');
-  if (!etat.couts.length) {
-    curseur.disabled = true;
-    $('cout').innerHTML = '<span class="att">Aucun point dans cette zone.</span>';
-    $('btn-charger').disabled = true;
-    return;
-  }
-
-  curseur.disabled = false;
-  curseur.max = etat.couts.length - 1;
-
-  // Par défaut, le niveau le plus fin qui tienne dans les budgets : c'est
-  // celui qu'on veut presque toujours, et le baisser reste possible.
-  //
-  // Sur un appareil portatif, le budget est ramené à ce qui a une chance
-  // d'aboutir. Proposer 190 Mo par défaut sur un téléphone, c'est proposer un
-  // échec : le curseur reste libre, mais il ne faut pas y pousser.
-  const budgetOctets = surMobile()
-    ? Math.min(CONFIG.nuage.budgetOctets, CONFIG.nuage.budgetOctetsMobile)
-    : CONFIG.nuage.budgetOctets;
-  let defaut = 0;
-  for (let i = 0; i < etat.couts.length; i++) {
-    const c = etat.couts[i];
-    if (c.nbPoints <= CONFIG.nuage.budgetPoints && c.octets <= budgetOctets) defaut = i;
-  }
-  // Un réglage explicite se conserve d'une dalle à l'autre — on inspecte
-  // rarement la seconde à une autre finesse que la première.
-  etat.niveau = curseur.dataset.touche
-    ? Math.min(Number(curseur.value), etat.couts.length - 1)
-    : defaut;
-  curseur.value = etat.niveau;
-
-  majAffichageCout();
-}
-
-function majAffichageCout() {
-  const c = etat.couts[etat.niveau];
-  if (!c) return;
-
-  $('val-niveau').textContent = `${c.espacement < 1 ? (c.espacement * 100).toFixed(0) + ' cm' : c.espacement.toFixed(1) + ' m'}`;
-
-  // Le pas de grille est annoncé avant le chargement : sur 1 km² il peut être
-  // relevé automatiquement, et l'utilisateur doit le savoir avant d'attendre.
-  const cote = etat.dalle.emprise.xmax - etat.dalle.emprise.xmin;
-  const pasReel = Math.max(CONFIG.raster.pasM,
-    Math.ceil(Math.sqrt((cote * cote) / CONFIG.raster.cellulesMax) * 20) / 20);
-  const niveauVue = NUAGE.niveauPourAffichage(etat.couts.slice(0, etat.niveau + 1));
-
-  $('cout').innerHTML =
-    `Niveau ${c.niveau} · ${milliers(c.nbNoeuds)} nœuds<br>`
-    + `<b>${milliers(c.nbPoints)}</b> points · <b>${octets(c.octets)}</b> à télécharger<br>`
-    + `Espacement ≈ <b>${c.espacement < 1 ? (c.espacement * 100).toFixed(0) + ' cm' : c.espacement.toFixed(2) + ' m'}</b>`
-    + ` · grille <b>${pasReel.toFixed(2)} m</b><br>`
-    + `<span class="doux">Aperçu 3D au niveau ${niveauVue} ; la détection lit tout.</span>`
-    // Le dire avant, plutôt que de laisser un téléphone ramer puis planter. Une
-    // dalle pleine, c'est 190 Mo à télécharger et 400 à 520 Mo de grilles en
-    // mémoire — au-delà de ce qu'un navigateur mobile accorde à un onglet.
-    + (surMobile() && c.octets > 40 * 1024 * 1024
-      ? `<br><span class="att">Sur téléphone, ${octets(c.octets)} est beaucoup :`
-        + ` le téléchargement sera long et l'onglet peut être fermé par le système`
-        + ` avant la fin. Baissez la résolution, ou revenez sur un ordinateur.</span>`
-      : '');
-
-  $('btn-charger').disabled = false;
-}
-
-$('niveau').addEventListener('input', (e) => {
-  e.target.dataset.touche = '1';
-  etat.niveau = Number(e.target.value);
-  majAffichageCout();
-});
-
-// ── Étape 1 → 2 : chargement du nuage ───────────────────────────────────────
-//
-// Fonction nommée plutôt qu'un gestionnaire anonyme : « Mettre à jour » (§
-// Classes du sol, plus bas) rejoue exactement cette même chaîne — même dalle,
-// même résolution, seule la sélection de classes change — plutôt que de la
-// dupliquer.
-
-async function chargerNuage() {
-  if (!etat.entete || !etat.dalle) return;
-  const dalle = etat.dalle;
-
-  const emprise = etat.dalle.emprise;
-  // Budgets neutralisés : la sélection est bornée par le niveau demandé, et la
-  // mémoire ne dépend plus du nombre de points depuis que les blocs sont
-  // rastérisés puis jetés.
-  const sel = COPC.selectionner(etat.entete, etat.hierarchie, emprise, Infinity, Infinity);
-
-  // La sélection est cumulative par niveau : on coupe à celui demandé.
-  const noeuds = sel.noeuds.filter((n) => n.cle.n <= etat.couts[etat.niveau].niveau);
-  if (!noeuds.length) { alerter('Aucun nœud à charger dans cette zone.'); return; }
-
-  const ctrl = new AbortController();
-  etat.abandon = ctrl;
-  $('btn-charger').disabled = true;
-  $('btn-classes-sol-appliquer').disabled = true;
-  $('btn-annuler').hidden = false;
-  $('progression').hidden = false;
-  const debut = performance.now();
-
-  const origine = [(emprise.xmin + emprise.xmax) / 2, (emprise.ymin + emprise.ymax) / 2,
-    etat.entete.bbox.zmin];
-
-  try {
-    // Les grilles sont allouées d'emblée et remplies bloc par bloc : c'est ce
-    // qui permet d'analyser 1 km² à pleine résolution sans jamais détenir les
-    // 39 M de points en mémoire.
-    //
-    // Elles restent LOCALES jusqu'au succès. Publiées d'emblée dans `etat`, une
-    // annulation à mi-parcours laissait la grille à moitié remplie de la
-    // nouvelle dalle pendant que la 3D montrait encore l'ancienne — et la
-    // détection lisait alors ce mélange sans que rien ne le signale.
-    const grille = RASTER.creerGrilles(emprise, origine, undefined, classesSol);
-    etat.classesSolChargees = new Set(classesSol);   // instantané : `classesSol` peut encore bouger après ce point
-    const niveauVue = NUAGE.niveauPourAffichage(etat.couts.slice(0, etat.niveau + 1));
-
-    // Expérimental (branche `experiment/octets-compresses`) : capturé à
-    // chaque avancement, ne sert qu'au message de fin — le volume resservi
-    // depuis le cache local plutôt que redemandé au réseau.
-    let octetsResservisFinal = 0;
-
-    const nuage = await NUAGE.charger(etat.entete, noeuds, emprise, {
-      niveauAffichage: niveauVue,
-      surBloc: (bloc) => RASTER.accumuler(grille, bloc),
-      surAvancement: (a) => {
-        // En octets, pas en blocs : les plages groupées n'ont pas toutes la
-        // même taille, et c'est le volume — pas leur nombre — qu'on annonce
-        // juste à côté (« X / Y Mo »). Les deux chiffres doivent s'accorder.
-        const totalOctets = etat.couts[etat.niveau].octets;
-        const pct = totalOctets ? Math.min(100, (a.octets / totalOctets) * 100) : 0;
-        $('barre-progression').style.width = `${pct}%`;
-        $('progression-pct').textContent = `${pct.toFixed(0)} %`;
-        octetsResservisFinal = a.octetsResservis;
-        $('progression-detail').textContent =
-          `${octets(a.octets)} / ${octets(totalOctets)} · ${milliers(a.points)} points`
-          + (a.octetsResservis ? ` · ${octets(a.octetsResservis)} resservis du cache local` : '');
-        statut(`Téléchargement ${a.faits}/${a.total} — ${milliers(a.points)} points`, 'travail');
-      },
-      signal: ctrl.signal,
-    });
-
-    if (!nuage.n) { alerter('Dalle vide : aucun point dans cette emprise.'); return; }
-
-    etat.grille = grille;
-    etat.nuage = nuage;
-    etat.sentiers = null;
-    etat.resultat = null;
-    etat.resultatFormes = null;
-    etat.reliefGrille = null;
-    viderCache2D();
-    vue2d.definirGrille(null);
-    carte.effacerSentiers();
-    $('liste-sentiers').innerHTML = '';
-    $('compte-sentiers').textContent = '';
-    $('stats-sentiers').hidden = true;
-    $('exports-sentiers').hidden = true;
-    $('liste').innerHTML = '';
-    $('compte').textContent = '';
-    $('stats-detection').hidden = true;
-    $('bloc-resultats').hidden = true;
-    carte.afficherDetections([], selectionner_);
-    // Un point sélectionné ou une mesure sur l'ancienne dalle n'a plus de
-    // sens ici.
-    effacerSelection();
-    effacerMesure();
-
-    // On bascule AVANT l'analyse, pas après : le voile se poserait sinon sur la
-    // carte, qui n'a rien à voir avec ce qui se calcule et qui charge par
-    // ailleurs sa couverture à chaque déplacement. Il couvre maintenant la vue
-    // qui va recevoir le résultat.
-    $('section-vide-3d').hidden = true;
-    $('section-affichage').hidden = false;
-    $('section-analyse').hidden = ANALYSE_MASQUEE && SENTIERS_MASQUES;
-    $('section-selection').hidden = false;
-    $('section-mesure').hidden = false;
-    $('section-sol').hidden = false;
-    // Le nuage est le résultat le plus spectaculaire, mais ce n'est pas celui
-    // qu'on vient chercher : un objet de six mètres ne se voit pas dans un
-    // kilomètre carré de points. La 2D est la vue d'arrivée.
-    basculerVue('2d');
-
-    // Le téléchargement est fini ; ce qui suit est synchrone et bloque le fil
-    // principal — d'où le voile, et non plus un simple `statut`.
-    await ATTENTE.pendant('Analyse de la dalle', async (etape) => {
-      await etape('Nuage vers le GPU…', `${milliers(etat.nuage.n)} points`);
-      vue3d?.definirNuage(etat.nuage);
-      vue3d?.definirClassesMasquees(classesMasquees);
-      vue3d?.definirSentiers([], null);
-      vue3d?.definirSentierChoisi(null, null);
-      vue3d?.definirDetections([], null);
-      vue3d?.definirSelection(null, null);
-
-      await etape('Modèle de terrain…', 'comblement des trous sous les structures');
-      RASTER.finaliser(etat.grille);
-
-      await etape('Hauteurs au-dessus du sol…');
-      vue3d?.definirHauteurs(RASTER.hauteurParPoint(etat.nuage, etat.grille));
-
-      // La grille d'affichage se prépare ici, sous le même voile : la 2D est la
-      // vue d'arrivée, et elle serait sinon vide au moment précis où on y
-      // arrive.
-      await etape('Grille de relief…', 'agrégation à 50 cm');
-      etat.reliefGrille = RELIEF.preparer(etat.grille, { inclureBati: reglages.inclureBati });
-    });
-
-    // Puis les deux couches, hors du voile d'analyse : la photo demande une
-    // centaine de tuiles, et `preparer2D` pose son propre voile pour chacune.
-    await preparer2D();
-    appliquerVueDuLien(dalle);
-
-    // Si l'utilisateur regardait le nuage en mode relief, la nouvelle dalle doit
-    // s'afficher pareil : sans ça elle reviendrait en hauteurs, sous un bouton
-    // qui dit toujours « Relief ».
-    if (CONFIG.rendu.coloration === 'relief') await majAttributNuage();
-
-    etat.dalleChargee = dalle;
-    carte.marquerChargee(dalle);
-    majBandeau();
-
-    majLegende();
-    majListeClassesSol();
-    majHUD();
-
-    const secondes = ((performance.now() - debut) / 1000).toFixed(1);
-    statut(`Dalle analysée en ${secondes} s — grille ${etat.grille.pas.toFixed(2)} m, `
-      + `aperçu ${milliers(etat.nuage.n)} points`
-      + (octetsResservisFinal ? ` (${octets(octetsResservisFinal)} resservis du cache local, sans réseau)` : ''));
-
-    if (etat.grille.pas > CONFIG.raster.pasM + 1e-6) {
-      alerter(`Grille relevée à ${etat.grille.pas.toFixed(2)} m : ${CONFIG.raster.pasM} m dépasserait le plafond de cellules.`);
-    }
-  } catch (e) {
-    if (e.name !== 'AbortError') alerterPanne('Chargement', e);
-    // Une annulation venue d'un clic sur une autre dalle n'a rien à dire : le
-    // message de celle-ci est déjà à l'écran, et ce chargement-là est caduc.
-    else if (etat.dalle === dalle) statut('Chargement annulé');
-  } finally {
-    // Le panneau appartient peut-être déjà à une autre dalle : ne rendre la
-    // main sur les boutons que si celle-ci est encore la dalle courante.
-    if (etat.dalle === dalle) {
-      $('btn-charger').disabled = !etat.entete;
-      $('btn-annuler').hidden = true;
-      $('progression').hidden = true;
-      $('barre-progression').style.width = '0';
-      $('progression-pct').textContent = '0 %';
-      $('progression-detail').textContent = '—';
-      // Sur un échec, `majListeClassesSol()` (appelée seulement en cas de
-      // succès, plus haut) n'aura pas tourné : sans ce rappel, un rechargement
-      // raté laisserait le bouton bloqué à « désactivé » pour toujours.
-      majBoutonClassesSol();
-    }
-    if (etat.abandon === ctrl) etat.abandon = null;
-  }
-}
-$('btn-charger').addEventListener('click', chargerNuage);
-
-$('btn-annuler').addEventListener('click', () => etat.abandon?.abort());
-
-// ── Le nuage chargé : le nommer, et pouvoir le fermer ───────────────────────
-
-/**
- * Bandeau du nuage en mémoire, et libellé du bouton de chargement.
- *
- * Deux choses à dire, que rien ne disait : quelle dalle est réellement chargée —
- * la sélection sur la carte a pu changer depuis — et le fait que charger la
- * suivante remplacera celle-là.
- */
-function majBandeau() {
-  const d = etat.dalleChargee;
-  $('bandeau-nuage').hidden = !d;
-  if (d) {
-    $('bandeau-nom').textContent = d.nom;
-    $('bandeau-info').textContent = etat.nuage
-      ? `${milliers(etat.nuage.n)} pts · ${etat.grille?.pas.toFixed(2) ?? '—'} m`
-      : '';
-  }
-  $('btn-charger').textContent = d ? 'Remplacer le nuage' : 'Charger le nuage';
-}
-
-/**
- * Décharge le nuage et tout ce qui en découle, sans toucher à la sélection.
- *
- * Il n'existait aucune façon de revenir à l'état vide : on rechargeait la page.
- * Et comme les grilles et le nuage d'affichage pèsent 400 à 520 Mo, ils
- * restaient en mémoire pendant tout le temps passé à explorer la carte ensuite.
- *
- * La dalle sélectionnée, elle, survit : fermer un nuage n'est pas renoncer à la
- * zone, et on veut pouvoir le recharger à une autre résolution.
- */
-function fermerNuage() {
-  etat.abandon?.abort();
-
-  etat.nuage = null;
-  etat.grille = null;
-  etat.resultat = null;
-  etat.resultatFormes = null;
-  etat.sentiers = null;
-  etat.selection = null;
-  etat.dalleChargee = null;
-  etat.reliefGrille = null;
-  viderCache2D();
-  NUAGE.viderCacheOctets();
-
-  vue3d?.vider();
-  vue2d.definirGrille(null);
-  $('relief-controles').hidden = true;
-  $('relief-vide').hidden = false;
-  $('relief-stats').hidden = true;
-  $('rideau').hidden = true;
-  carte.marquerChargee(null);
-  carte.effacerSentiers();
-  carte.afficherDetections([], selectionner_);
-
-  $('section-affichage').hidden = true;
-  $('section-analyse').hidden = true;
-  $('section-vide-3d').hidden = false;
-  $('section-selection').hidden = true;
-  effacerSelection();
-  $('section-mesure').hidden = true;
-  effacerMesure();
-  $('section-sol').hidden = true;
-  $('liste').innerHTML = '';
-  $('liste-sentiers').innerHTML = '';
-  $('compte').textContent = '';
-  $('compte-sentiers').textContent = '';
-  $('stats-detection').hidden = true;
-  $('stats-sentiers').hidden = true;
-  $('bloc-resultats').hidden = true;
-  $('exports-sentiers').hidden = true;
-
-  majBandeau();
-  majLegende();
-  majListeClassesSol();
-  majHUD();
-  basculerVue('carte');
-  statut('Nuage fermé — mémoire libérée');
-}
-
-$('btn-fermer-nuage').addEventListener('click', fermerNuage);
-
-// ── Onglet 2D ───────────────────────────────────────────────────────────────
-//
-// Deux couches à la fois, une de chaque côté du rideau. C'est la démonstration
-// la plus parlante de l'outil — une structure invisible sur la photo apparaît
-// dans le relief — et c'est aussi la vue d'arrivée après le chargement d'une
-// dalle.
-//
-// « Photo aérienne » est une couche comme les autres de ce point de vue : elle
-// est rééchantillonnée une fois dans la grille Lambert-93 (`ortho.js`), donc
-// elle se lit sur les mêmes cellules que le relief, et le rideau tombe au pixel.
-
-const PHOTO = 'photo';
-const PLAN = 'plan';
-// Trois soleils à 120°, un par canal RGB, plutôt que moyennés en gris comme
-// « Ombrage » — voir `RELIEF.ombrageRGB`. Hors de `RELIEF.COUCHES` : cette
-// couche ne suit pas le contrat des autres (palette + étalement), elle
-// produit directement un RGBA, comme la photo aérienne — `sourceCouche`
-// la traite donc à part plutôt que via `RELIEF.calculer`.
-const OMBRAGE_RGB = 'ombrage-rgb';
-// Les deux valent 'ortho'/'plan' côté service IGN (`CONFIG.ign.fonds`) — les
-// clés ici sont celles du sélecteur, `ortho.js` fait la correspondance.
-const FONDS = { [PHOTO]: 'ortho', [PLAN]: 'plan' };
-
-/** Ce que les deux listes proposent : les fonds WMTS, puis les couches de relief. */
-const CHOIX_2D = [
-  {
-    cle: PHOTO,
-    libelle: 'Photo aérienne',
-    aide: 'Orthophoto de l’IGN, redressée dans la grille Lambert-93. C’est le contexte : ce qu’on verrait en survolant.',
-  },
-  {
-    cle: PLAN,
-    libelle: 'Plan IGN',
-    aide: 'Carte IGN — routes, toponymes, courbes de niveau — redressée dans la grille comme la photo. Plus lisible pour se repérer que la photo aérienne là où le couvert végétal cache tout.',
-  },
-  ...RELIEF.COUCHES.map((c) => ({ cle: c.cle, libelle: c.libelle, aide: c.aide })),
-  {
-    cle: OMBRAGE_RGB,
-    libelle: 'Ombrage coloré (3 soleils)',
-    aide: 'Trois soleils à 120°, un par canal — l’orientation d’un mur ou d’un talus se lit en teinte, là où « Ombrage » l’aplatit dans une moyenne grise.',
-  },
-];
-
-const def2D = (cle) => CHOIX_2D.find((c) => c.cle === cle) || CHOIX_2D[0];
-
-// Photo à gauche, relief à droite : c'est le sens de lecture de la comparaison.
-// Le Sky-View Factor par défaut coûte plus cher que l'ombrage (calcul « lent »,
-// balayage d'horizons) mais lit pareillement versant et plat, sans direction
-// d'éclairage à deviner — préféré après usage réel.
-let couches2D = { gauche: PHOTO, droite: 'svf' };
-let contrasteRelief = CONFIG.relief.contraste;
-
-/**
- * Cache des couches calculées, par dalle.
- *
- * Une seule couche était gardée jusqu'ici. Avec deux côtés, un aller-retour du
- * sélecteur recalculerait un Sky-View Factor à chaque mouvement — cinq secondes
- * la pièce. Le cache est vidé avec la grille, jamais avant : c'est elle qui
- * définit la validité de ce qui est dedans.
- */
-const couches2DCalculees = new Map();
-// Un fond (photo ou plan) par entrée, chacun avec son résultat, sa promesse en
-// cours et son contrôleur d'annulation — la photo et le plan peuvent être
-// demandés en même temps si les deux côtés du rideau les choisissent.
-const fondsCharges = new Map();
-const fondsEnCours = new Map();
-const fondsAbort = new Map();
-
-/** Les couches calculées seulement : les fonds ne dépendent pas de la surface. */
-function viderCouches2D() {
-  couches2DCalculees.clear();
-}
-
-/** Tout, fonds compris : à réserver au changement de dalle. */
-function viderCache2D() {
-  viderCouches2D();
-  fondsCharges.clear();
-  fondsEnCours.clear();
-  for (const controleur of fondsAbort.values()) controleur.abort();
-  fondsAbort.clear();
-}
-
-for (const cote of ['gauche', 'droite']) {
-  $(`couche-${cote}`).innerHTML = CHOIX_2D.map((c) =>
-    `<option value="${c.cle}">${echapper(c.libelle)}</option>`).join('');
-  $(`couche-${cote}`).value = couches2D[cote];
-  $(`couche-${cote}`).addEventListener('change', (e) => choisirCouche2D(cote, e.target.value));
-}
-
-/**
- * Réglages du balayage d'horizons (directions, rayon) : propres au
- * Sky-View Factor, affichés seulement quand cette couche est choisie d'un
- * côté ou de l'autre — les autres couches n'en ont pas besoin, les montrer
- * tout le temps encombrerait le panneau pour rien.
- */
-function majVisibiliteReglagesSVF() {
-  $('svf-reglages').hidden = couches2D.gauche !== 'svf' && couches2D.droite !== 'svf';
-}
-majVisibiliteReglagesSVF();
-
-$('svf-directions').value = CONFIG.relief.svfDirections;
-$('val-svf-directions').textContent = CONFIG.relief.svfDirections;
-$('svf-rayon').value = CONFIG.relief.svfRayonM;
-$('val-svf-rayon').textContent = `${CONFIG.relief.svfRayonM} m`;
-
-// Coût linéaire au nombre de directions et au rayon (`balayerHorizons`), donc
-// on ne recalcule qu'au relâchement (`change`), pas à chaque cran glissé
-// (`input`, qui ne fait que rafraîchir le chiffre affiché) — recalculer à
-// chaque cran ferait tourner un balayage de plusieurs secondes en boucle
-// pendant le glissé.
-$('svf-directions').addEventListener('input', (e) => {
-  $('val-svf-directions').textContent = e.target.value;
-});
-$('svf-directions').addEventListener('change', async (e) => {
-  CONFIG.relief.svfDirections = Number(e.target.value);
-  await recalculerSVF();
-});
-$('svf-rayon').addEventListener('input', (e) => {
-  $('val-svf-rayon').textContent = `${e.target.value} m`;
-});
-$('svf-rayon').addEventListener('change', async (e) => {
-  CONFIG.relief.svfRayonM = Number(e.target.value);
-  await recalculerSVF();
-});
-
-/** Le SVF partage son balayage avec les deux ouvertures : on vide tout le cache. */
-async function recalculerSVF() {
-  viderCouches2D();
-  await appliquerCote('gauche');
-  await appliquerCote('droite');
-}
-
-$('btn-echanger').addEventListener('click', async () => {
-  const { gauche, droite } = couches2D;
-  await choisirCouche2D('gauche', droite);
-  await choisirCouche2D('droite', gauche);
-});
-
-$('btn-rideau-centre').addEventListener('click', () => placerRideau(0.5));
-
-/**
- * Complément du sol par les retours non classés.
- *
- * Change la surface elle-même, donc la grille d'affichage et toutes les couches
- * qui en dérivent — mais pas la photo, qui n'en dépend pas et coûte cent
- * requêtes.
- */
-$('inclure-sursol').checked = CONFIG.relief.inclureSursol;
-$('inclure-sursol').addEventListener('change', async (e) => {
-  CONFIG.relief.inclureSursol = e.target.checked;
-  etat.reliefGrille = null;
-  viderCouches2D();
-  if ($('panneau').dataset.vue === '2d') await preparer2D();
-});
-
-/**
- * Prépare la grille d'affichage, au premier passage sur l'onglet.
- *
- * Paresseux à dessein : c'est une passe sur les 16 M de cellules de la grille
- * fine, inutile tant qu'on n'a pas demandé à voir la dalle en 2D.
- */
-async function preparer2D() {
-  const dispo = !!etat.grille?.mnt;
-  $('relief-vide').hidden = dispo;
-  $('relief-controles').hidden = !dispo;
-  $('rideau').hidden = !dispo;
-  // `mnt` n'existe qu'après `RASTER.finaliser` : la bascule vers cet onglet a
-  // lieu **avant** le comblement, pour que le voile se pose sur la vue qui va
-  // recevoir le résultat. Préparer le relief sur une grille non comblée
-  // rendrait une surface pleine de trous, sans que rien ne le signale.
-  if (!dispo) { vue2d.invalider(); return; }
-
-  if (!etat.reliefGrille) {
-    await ATTENTE.pendant('Préparation du relief', () => {
-      etat.reliefGrille = RELIEF.preparer(etat.grille, { inclureBati: reglages.inclureBati });
-    }, 'agrégation des grilles de détection');
-  }
-
-  // Idempotent : on ne recadre pas la vue à chaque retour sur l'onglet, sinon
-  // le zoom qu'on venait d'ajuster serait perdu au moindre aller-retour.
-  if (vue2d.grille !== etat.reliefGrille) {
-    vue2d.definirGrille(etat.reliefGrille);
-    vue2d.definirDetections(candidatsVisibles(), etat.grille);
-    vue2d.definirTraces(etat.sentiers?.traces || []);
-    vue2d.definirSelection(etat.selection);
-    placerRideau(vue2d.rideau);
-  }
-
-  // La droite d'abord : c'est le relief, ce pour quoi on est venu. La photo,
-  // elle, demande une centaine de tuiles au réseau.
-  if (!vue2d.source('droite')) await appliquerCote('droite');
-  if (!vue2d.source('gauche')) await appliquerCote('gauche');
-  $('relief-aide').textContent = def2D(couches2D.droite).aide;
-  vue2d.invalider();
-  avertirReliefVide();
-}
-
-/**
- * Une dalle sans sol connu rend un canevas gris, et rien ne dit pourquoi.
- *
- * Le cas existe : couvert dense, plan d'eau, dalle de bord de chantier. Toutes
- * les couches y valent NaN — ce qui est juste — mais un aplat neutre sans un mot
- * se lit comme une panne de l'outil, pas comme une absence de donnée.
- */
-function avertirReliefVide() {
-  const t = etat.reliefGrille;
-  if (!t) return;
-  let connues = 0;
-  for (let i = 0; i < t.N; i++) if (t.valide[i]) connues++;
-  const part = connues / t.N;
-  if (part >= 0.02) return;
-
-  alerter(part === 0
-    ? 'Aucun point classé « sol » dans cette dalle : le relief ne peut pas être calculé. '
-      + 'La photo aérienne, elle, reste lisible.'
-    : `Presque aucun sol dans cette dalle (${(part * 100).toFixed(1)} % des cellules) : `
-      + 'le relief y est surtout du vide. Essayez une dalle voisine.');
-}
-
-async function choisirCouche2D(cote, cle) {
-  couches2D[cote] = cle;
-  $(`couche-${cote}`).value = cle;
-  $('relief-aide').textContent = def2D(cle).aide;
-  majVisibiliteReglagesSVF();
-  await appliquerCote(cote);
-}
-
-/**
- * Installe d'un côté la couche qui lui est assignée, en la calculant au besoin.
- *
- * La durée est remontée à l'écran : sur le Sky-View Factor elle dépend de la
- * machine, du pas et du rayon, et l'annoncer vaut mieux que de l'estimer.
- */
-async function appliquerCote(cote) {
-  const cle = couches2D[cote];
-  if (!etat.reliefGrille) return;
-
-  try {
-    const source = (cle === PHOTO || cle === PLAN) ? await sourceFond(cle) : await sourceCouche(cle);
-    // Le sélecteur a pu rebouger pendant le calcul : on ne pose que ce qui est
-    // encore demandé, sans quoi une couche lente écraserait la couche rapide
-    // choisie entre-temps.
-    if (couches2D[cote] !== cle) return;
-    vue2d.definirSource(cote, source);
-    vue2d.definirContraste(contrasteRelief);
-    majStats2D();
-    majDrapage3D();
-    statut(`2D : ${def2D(couches2D.gauche).libelle.toLowerCase()} | ${def2D(couches2D.droite).libelle.toLowerCase()}`);
-  } catch (e) {
-    if (e.name === 'AbortError') return;
-    alerterPanne(`Couche ${def2D(cle).libelle.toLowerCase()}`, e);
-    // Une couche qui manque ne doit pas laisser un côté noir sans explication :
-    // on retombe sur l'ombrage, qui ne dépend ni du réseau ni d'un calcul long.
-    if (cle !== 'ombrage') await choisirCouche2D(cote, 'ombrage');
-  }
-}
-
-async function sourceCouche(cle) {
-  if (cle === OMBRAGE_RGB) {
-    // Hors du contrat des autres couches (pas de palette, pas d'étalement) :
-    // un RGBA tout fait, consommé comme la photo aérienne — voir la
-    // définition d'OMBRAGE_RGB.
-    if (!couches2DCalculees.has(cle)) couches2DCalculees.set(cle, RELIEF.ombrageRGB(etat.reliefGrille));
-    return { type: 'photo', rgba: couches2DCalculees.get(cle), libelle: def2D(cle).libelle };
-  }
-
-  if (!couches2DCalculees.has(cle)) {
-    const def = RELIEF.COUCHES.find((c) => c.cle === cle);
-    const calcul = () => RELIEF.calculer(etat.reliefGrille, cle, {
-      inclureBati: reglages.inclureBati,
-      contraste: contrasteRelief,
-    });
-    // Seules les couches déclarées lentes passent par le voile : sur un calcul
-    // de cent millisecondes, l'apparition et la disparition immédiates du voile
-    // sont plus désagréables que l'attente elle-même.
-    couches2DCalculees.set(cle, def.lent
-      ? await ATTENTE.pendant(def.libelle, calcul,
-        `${CONFIG.relief.svfDirections} directions sur ${CONFIG.relief.svfRayonM} m`)
-      : calcul());
-  }
-  return { type: 'couche', couche: couches2DCalculees.get(cle), libelle: def2D(cle).libelle };
-}
-
-/**
- * Fond WMTS de la dalle (photo aérienne ou Plan IGN), redressé dans la grille.
- *
- * Une centaine de tuiles passent par la file bornée de `reseau.js` — jamais par
- * Leaflet, qui n'y passe pas et sature la connexion HTTP/2 partagée. Le résultat
- * est gardé pour la dalle : on ne repaie pas cent requêtes parce qu'on a bougé
- * un sélecteur. Photo et plan sont mis en cache séparément — les deux peuvent
- * être demandés à la fois si chaque côté du rideau choisit l'un des deux.
- */
-async function sourceFond(cle) {
-  if (!fondsCharges.has(cle)) {
-    // La promesse en cours est partagée : les deux côtés peuvent demander le
-    // même fond, et deux chargements simultanés feraient deux cents requêtes
-    // pour la même image.
-    if (!fondsEnCours.has(cle)) {
-      const t = etat.reliefGrille;
-      const controleur = new AbortController();
-      fondsAbort.set(cle, controleur);
-      const promesse = ATTENTE.pendant(def2D(cle).libelle, (etape) =>
-        ORTHO.charger(t.emprise, t.pas, t.W, t.H, {
-          fond: FONDS[cle],
-          signal: controleur.signal,
-          surProgres: (faites, total) => {
-            if (faites % 5 === 0 || faites === total) etape(null, `${faites} / ${total} tuiles`);
-          },
-        }), 'tuiles WMTS de l’IGN');
-      fondsEnCours.set(cle, promesse);
-      // Un échec ne doit pas laisser une promesse rejetée en cache : la
-      // prochaine tentative doit repartir de zéro.
-      promesse.catch(() => { fondsEnCours.delete(cle); });
-    }
-    const resultat = await fondsEnCours.get(cle);
-    fondsCharges.set(cle, resultat);
-    if (resultat.manquantes) {
-      statut(`${def2D(cle).libelle} : ${resultat.manquantes} tuile(s) manquante(s)`, 'erreur');
-    }
-  }
-  return { type: 'photo', rgba: fondsCharges.get(cle).rgba, libelle: def2D(cle).libelle };
-}
-
-/**
- * Couche de relief que le nuage 3D drape sur ses points.
- *
- * La droite d'abord, parce que c'est le côté du relief par convention ; la
- * gauche si la droite porte la photo. Si les deux portent la photo, il n'y a
- * rien à draper.
- */
-function coucheDeReference() {
-  return vue2d.couche('droite') || vue2d.couche('gauche');
-}
-
-function majDrapage3D() {
-  // Le nuage 3D affiche peut-être cette même couche : changer de couche ici
-  // doit se voir là-bas aussi, sans quoi les deux vues montreraient deux choses
-  // différentes sous le même nom.
-  if (CONFIG.rendu.coloration !== 'relief' || !etat.nuage) return;
-  const c = coucheDeReference();
-  if (!c) return;
-  const cote = vue2d.couche('droite') ? 'droite' : 'gauche';
-  const [min, max] = vue2d.etendue(cote);
-  vue3d?.definirHauteurs(RELIEF.valeurParPoint(etat.nuage, etat.reliefGrille, { ...c, min, max }));
-}
-
-function majStats2D() {
-  const t = etat.reliefGrille;
-  if (!t) { $('relief-stats').hidden = true; return; }
-  const lignes = [`Grille <b>${t.pas.toFixed(2)} m</b> · ${milliers(t.W)} × ${milliers(t.H)} cellules`];
-  for (const cote of ['gauche', 'droite']) {
-    const c = vue2d.couche(cote);
-    if (!c) continue;
-    const [min, max] = vue2d.etendue(cote);
-    lignes.push(`${cote} : étalement <b>${min.toFixed(2)}</b> à <b>${max.toFixed(2)}</b>`
-      + ` · calcul <b>${c.duree.toFixed(0)} ms</b>`);
-  }
-  for (const [cle, fond] of fondsCharges) {
-    lignes.push(`${def2D(cle).libelle.toLowerCase()} : niveau <b>${fond.zoom}</b> · ${fond.tuiles} tuiles`
-      + ` · <b>${(fond.duree / 1000).toFixed(1)} s</b>`);
-  }
-  $('relief-stats').hidden = false;
-  $('relief-stats').innerHTML = lignes.join('<br>');
-}
-
-/**
- * Le contraste ne relance aucun calcul : seul l'intervalle étalé sur la palette
- * change, et la vue se contente de redessiner. Sur le Sky-View Factor, refaire
- * le calcul à chaque cran coûterait des secondes par mouvement du curseur.
- */
-$('lisser-2d').addEventListener('change', (e) => vue2d.definirLissage(e.target.checked));
-$('contraste-relief').addEventListener('input', (e) => {
-  contrasteRelief = Number(e.target.value);
-  $('val-contraste').textContent = `×${contrasteRelief.toFixed(1)}`;
-  vue2d.definirContraste(contrasteRelief);
-  majStats2D();
-  // Le contraste ne recalcule pas la couche, il ne fait que resserrer
-  // l'intervalle affiché — mais le nuage 3D lit le même intervalle, et doit donc
-  // le suivre pour que les deux vues restent la même image.
-  majDrapage3D();
-});
-
-// Une superposition n'a rien à superposer tant que sa détection est masquée :
-// sa case est retirée avec elle, plutôt que de laisser un réglage qui ne fait
-// visiblement rien. Les deux chaînes n'étant plus masquées ensemble, chacune
-// suit désormais son propre drapeau.
-$('relief-detections').closest('label').hidden = ANALYSE_MASQUEE;
-$('relief-sentiers').closest('label').hidden = SENTIERS_MASQUES;
-$('relief-detections').addEventListener('change', (e) =>
-  vue2d.definirCalques({ detections: e.target.checked }));
-$('relief-sentiers').addEventListener('change', (e) =>
-  vue2d.definirCalques({ sentiers: e.target.checked }));
-$('btn-relief-cadrer').addEventListener('click', () => vue2d.cadrer());
-
-// ── Le rideau ───────────────────────────────────────────────────────────────
-//
-// Il se **glisse**, et ne se pose pas au clic. La question s'est posée — poser
-// le rideau au clic éviterait d'avoir à viser la poignée — mais le clic est déjà
-// pris : il sélectionne une détection, et un clic qui téléporte la ligne de
-// comparaison au milieu d'un déplacement désoriente plus qu'il n'aide. La bande
-// sensible fait 22 px de large sur toute la hauteur, ce qui règle le problème
-// qu'on voulait résoudre : on n'a jamais à viser la poignée.
-
-function placerRideau(part) {
-  const p = Math.max(0, Math.min(1, part));
-  vue2d.definirRideau(p);
-  $('rideau').style.left = `${p * 100}%`;
-}
-
-brancherRideau($('rideau'), $('vue-2d'), placerRideau);
-
-
-// ── Volets d'analyse ────────────────────────────────────────────────────────
-
-/**
- * Bascule entre les deux chaînes de détection.
- *
- * Les deux vivent dans la même section : seuils, bouton, statistiques et liste
- * d'une chaîne restent ensemble. Réparties sur quatre sections, elles
- * obligeaient à faire l'aller-retour entre les réglages d'en haut et les
- * résultats d'en bas, pour deux traitements qui n'ont rien à voir l'un avec
- * l'autre.
- */
-function montrerVolet(nom) {
-  // Les structures restent masquées quel que soit l'appelant : sans ce garde,
-  // un appel resté câblé sur 'structures' (sélection d'une détection, par
-  // exemple) rouvrirait un volet que `ANALYSE_MASQUEE` est censé fermer.
-  if (ANALYSE_MASQUEE && nom === 'structures') nom = 'sentiers';
-  for (const b of $('volets').children) b.classList.toggle('actif', b.dataset.volet === nom);
-  for (const v of document.querySelectorAll('#section-analyse .volet')) {
-    v.hidden = v.dataset.volet !== nom;
-  }
-}
-
-$('volets').addEventListener('click', (e) => {
-  const b = e.target.closest('button');
-  if (b) montrerVolet(b.dataset.volet);
-});
-
-// Un commutateur à deux options n'a de sens que si les deux mènent quelque
-// part : structures masquée, il ne reste qu'un choix, donc plus de choix du
-// tout. On force le volet initial en conséquence.
-$('volets').hidden = ANALYSE_MASQUEE;
-montrerVolet(ANALYSE_MASQUEE ? 'sentiers' : 'structures');
-
 // ── Affichage du nuage ──────────────────────────────────────────────────────
 
 $('coloration').addEventListener('click', async (e) => {
@@ -1661,30 +616,12 @@ $('coloration').addEventListener('click', async (e) => {
 });
 
 /**
- * Recharge l'attribut par point que le mode courant consomme.
- *
- * Les modes « hauteur » et « relief » partagent le même attribut de sommet :
- * l'un y met la hauteur au-dessus du sol, l'autre la valeur de la couche de
- * relief. Un second attribut coûterait 18 Mo de mémoire graphique sur une dalle
- * pour une donnée dont on n'a jamais besoin des deux à la fois — on réécrit donc
- * le même tampon au changement de mode.
- *
- * Passer en relief prépare la grille et calcule la couche si besoin : on ne va
- * pas demander à l'utilisateur d'aller d'abord dans l'onglet 2D pour que le
- * bouton d'à côté fonctionne. La couche drapée est celle du côté droit du
- * rideau, ou la gauche si la droite porte la photo.
+ * Recharge l'attribut par point que le mode courant consomme : la hauteur au-dessus du sol ou la valeur de la
+ * couche de relief drapée (même tampon de sommet, réécrit au changement de mode — un second attribut coûterait
+ * 18 Mo de mémoire graphique pour une donnée dont on n'a jamais besoin des deux à la fois). Voir `majAttributVue`.
  */
 async function majAttributNuage() {
-  if (MODE_VUE) { await majAttributVue?.(); return; }
-  if (!vue3d || !etat.nuage || !etat.grille) return;
-
-  if (CONFIG.rendu.coloration === 'relief') {
-    await preparer2D();
-    if (!coucheDeReference()) return;
-    majDrapage3D();
-  } else if (CONFIG.rendu.coloration === 'hauteur') {
-    vue3d?.definirHauteurs(RASTER.hauteurParPoint(etat.nuage, etat.grille));
-  }
+  await majAttributVue?.();
 }
 
 $('taille-point').addEventListener('input', (e) => {
@@ -1816,545 +753,22 @@ $('legende').addEventListener('click', (e) => {
   majLien();   // les classes cachées sont dans le lien
 });
 
-// ── Classes du sol ────────────────────────────────────────────────────────
-//
-// Quelles classes ASPRS forment le sol (`RASTER.accumuler`, `g.solZ`) : sol +
-// eau par défaut (`CONFIG.raster.classesSolDefaut`), réglable une fois la
-// dalle chargée et ses classes connues — on ne les sait pas avant, un LAS
-// n'annonce pas d'avance ce qu'il contient. Persiste d'un nuage à l'autre,
-// comme `classesMasquees`.
-//
-// Redéfinir le sol change la surface elle-même — mnt, donc les couches de
-// relief ET le point visé au clic en 2D (`Vue2D.lire`) — jamais un simple
-// filtre d'affichage. D'où le bouton « Mettre à jour » plutôt qu'un recalcul
-// au clic sur une case : les points bruts ne sont pas gardés (voir
-// `RASTER.creerGrilles`), la seule façon de refaire `solZ` avec une autre
-// sélection est de retélécharger la dalle — `chargerNuage()` déjà écrit pour
-// « Charger le nuage » fait exactement ça.
-let classesSol = new Set(CONFIG.raster.classesSolDefaut);
-
-function majListeClassesSol() {
-  const l = $('liste-classes-sol');
-  if (!etat.nuage) { l.innerHTML = ''; majBoutonClassesSol(); return; }
-
-  const presentes = [...etat.nuage.parClasse.entries()].sort((a, b) => b[1] - a[1]);
-  l.innerHTML = presentes.map(([cls, n]) => {
-    const part = (100 * n / etat.nuage.n).toFixed(1);
-    const coche = classesSol.has(cls) ? ' checked' : '';
-    return `<label class="case">`
-      + `<input type="checkbox" data-cls="${cls}"${coche}>`
-      + `<span>${NOMS_CLASSES[cls] || `classe ${cls}`} <b>${part} %</b></span></label>`;
-  }).join('');
-  majBoutonClassesSol();
-}
-
-/**
- * « Mettre à jour » n'a de raison d'être actif que si la sélection courante
- * diffère de celle qui a servi à bâtir la grille en mémoire (`memeEnsemble`),
- * et jamais pendant qu'un chargement tourne déjà (`btn-charger` porte ce
- * second état, réutilisé plutôt que dupliqué). Appelée aussi bien après un
- * chargement réussi qu'après un échec — sans quoi un rechargement raté
- * laisserait le bouton bloqué à « désactivé » pour toujours.
- */
-function majBoutonClassesSol() {
-  const memeEnsemble = etat.classesSolChargees
-    && classesSol.size === etat.classesSolChargees.size
-    && [...classesSol].every((c) => etat.classesSolChargees.has(c));
-  $('btn-classes-sol-appliquer').disabled = !etat.nuage || $('btn-charger').disabled || memeEnsemble;
-}
-
-$('liste-classes-sol').addEventListener('change', (e) => {
-  const cb = e.target.closest('input[data-cls]');
-  if (!cb) return;
-  const cls = Number(cb.dataset.cls);
-  if (cb.checked) classesSol.add(cls); else classesSol.delete(cls);
-  majBoutonClassesSol();
-});
-
-$('btn-classes-sol-appliquer').addEventListener('click', chargerNuage);
-
 function majHUD() {
   if (!etat.nuage) { $('hud').textContent = ''; return; }
   const e = etat.nuage.emprise;
   $('hud').innerHTML = `${milliers(etat.nuage.n)} points · ${Math.round(e.xmax - e.xmin)} × ${Math.round(e.ymax - e.ymin)} m<br>`
     + `altitudes ${(etat.nuage.origine[2] + etat.nuage.zmin).toFixed(0)} – ${(etat.nuage.origine[2] + etat.nuage.zmax).toFixed(0)} m`
-    + (etat.grille ? ` · grille ${etat.grille.pas.toFixed(2)} m` : '')
     // Avec &debug ou &chrono : la part dessinée pendant le dernier geste.
     + (DIAGNOSTIC && vue3d?.dernierMouvement
       ? `<br>en mouvement : ${milliers(vue3d.dernierMouvement.dessines)} points`
         + ` (${Math.round((100 * vue3d.dernierMouvement.dessines) / vue3d.dernierMouvement.total)} %)` : '');
 }
 
-// ── Étape 3 : détection ─────────────────────────────────────────────────────
-
-const REGLAGES = [
-  { cle: 'hauteurMin', libelle: 'Hauteur min.', min: 0.1, max: 2, pas: 0.05, unite: ' m' },
-  { cle: 'hauteurMax', libelle: 'Hauteur max.', min: 1, max: 15, pas: 0.5, unite: ' m' },
-  { cle: 'surfaceMinM2', libelle: 'Surface min.', min: 1, max: 30, pas: 1, unite: ' m²' },
-  { cle: 'surfaceMaxM2', libelle: 'Surface max.', min: 20, max: 400, pas: 10, unite: ' m²' },
-  { cle: 'penteMaxDeg', libelle: 'Pente moy. max.', min: 5, max: 45, pas: 1, unite: '°' },
-  { cle: 'penteLocaleMaxDeg', libelle: 'Pente locale max.', min: 20, max: 89, pas: 1, unite: '°' },
-  { cle: 'partNonClasseMin', libelle: 'Part « non classé » min.', min: 0, max: 0.9, pas: 0.05, unite: '' },
-  { cle: 'rectangulariteMin', libelle: 'Rectangularité min.', min: 0.2, max: 0.95, pas: 0.05, unite: '' },
-  { cle: 'elongationMax', libelle: 'Élongation max.', min: 1.5, max: 10, pas: 0.5, unite: '' },
-];
-
-const reglages = { ...CONFIG.detection };
-
-function construireReglages() {
-  $('reglages').innerHTML = REGLAGES.map((r) => `
-    <label class="champ">
-      <span>${r.libelle} <b id="v-${r.cle}">${reglages[r.cle]}${r.unite}</b></span>
-      <input type="range" id="r-${r.cle}" min="${r.min}" max="${r.max}" step="${r.pas}" value="${reglages[r.cle]}">
-    </label>`).join('');
-
-  for (const r of REGLAGES) {
-    $(`r-${r.cle}`).addEventListener('input', (e) => {
-      reglages[r.cle] = Number(e.target.value);
-      $(`v-${r.cle}`).textContent = `${reglages[r.cle]}${r.unite}`;
-    });
-  }
-}
-construireReglages();
-
-$('inclure-bati').addEventListener('change', (e) => {
-  reglages.inclureBati = e.target.checked;
-  // La couche « hauteur des structures » lit le même signal : sa grille est
-  // périmée, on la refera au prochain passage sur l'onglet 2D — et tout ce qui
-  // en dérive est périmé avec elle. La photo, non : elle ne dépend pas du sol.
-  etat.reliefGrille = null;
-  viderCouches2D();
-  if ($('panneau').dataset.vue === '2d') preparer2D();
-});
-
-$('btn-defauts').addEventListener('click', () => {
-  Object.assign(reglages, CONFIG.detection);
-  construireReglages();
-  $('inclure-bati').checked = reglages.inclureBati;
-});
-
-$('btn-detecter').addEventListener('click', async () => {
-  if (!etat.grille) return;
-  $('btn-detecter').disabled = true;
-  montrerVolet('structures');
-
-  try {
-    const { erreur } = await ATTENTE.pendant('Détection de structures', async (etape) => {
-      etat.resultat = DETECTION.detecter(etat.grille, reglages);
-
-      if ($('voie-forme').checked) {
-        await etape('Recherche par la forme du relief…', 'ouverture, fermeture des lignes');
-        etat.resultatFormes = detecterParLaForme();
-      } else {
-        etat.resultatFormes = null;
-      }
-
-      await etape('Rapprochement avec la BD TOPO…', 'bâti connu, interrogé en direct');
-      return SORTIE.rapprocher(etat.resultat.candidats, etat.dalleChargee.emprise);
-    }, 'morphologie et filtres de forme');
-    if (erreur) alerter(`BD TOPO indisponible (${erreur}) — aucun rapprochement effectué.`);
-
-    afficherResultats();
-
-    const s = etat.resultat.stats;
-    const f = etat.resultatFormes;
-    $('stats-detection').hidden = false;
-    $('stats-detection').innerHTML =
-      `Grille <b>${s.pas.toFixed(2)} m</b> · <b>${milliers(s.cellulesRetenues)}</b> cellules candidates sur ${milliers(s.cellules)}<br>`
-      + `<b>${s.tachesBrutes}</b> taches, <b>${s.retenus}</b> retenues<br>`
-      + `écartées — surface ${s.rejets.surface} · forme ${s.rejets.forme} · élongation ${s.rejets.elongation}`
-      + ` · pente ${s.rejets.pente} · composition ${s.rejets.composition} · hauteur ${s.rejets.hauteur}`
-      + (f ? `<br>Par la forme — <b>${f.retenues}</b> ligne(s) fermée(s), dont <b>${f.nouvelles}</b> que le classement n’avait pas vue(s)<br>`
-        + `écartées — ouvertes ${f.rejets.ouvert} · taille ${f.rejets.taille} · intérieur ouvert ${f.rejets.interieurOuvert}`
-        + ` · trop plates ${f.rejets.tropPlat}` : '');
-
-    statut(`${etat.resultat.candidats.length} structure(s) candidate(s)`);
-  } catch (e) {
-    alerter(`Détection : ${e.message}`);
-  } finally {
-    $('btn-detecter').disabled = false;
-  }
-});
-
-/**
- * Voie par la forme : lignes fermées du relief, versées dans la même liste.
- *
- * Les deux voies ne voient pas les mêmes objets, et c'est tout l'intérêt. Celle
- * par classement lit un signal — des points « non classés » ou « bâtiment »
- * au-dessus du sol — et rate tout ce que le classificateur de l'IGN a rangé en
- * « sol », ce qui est le sort ordinaire d'un mur écroulé. Celle par la forme ne
- * lit que le relief et ne voit pas la différence entre une ruine et un rocher,
- * mais elle voit la ruine. On les réunit donc, en gardant la trace de qui a
- * trouvé quoi — sans quoi on ne saurait plus quel seuil régler.
- *
- * La grille de relief est à 50 cm et la détection à 25 cm : chaque cellule de
- * l'une en recouvre exactement quatre de l'autre, et c'est sur la grille fine
- * que le candidat est mesuré, pour que les deux voies rendent des fiches
- * comparables.
- */
-function detecterParLaForme() {
-  if (!etat.reliefGrille) {
-    etat.reliefGrille = RELIEF.preparer(etat.grille, { inclureBati: reglages.inclureBati });
-  }
-  const rel = etat.reliefGrille;
-  const r = LIGNES.extraire(rel);
-  const f = Math.max(1, Math.round(rel.pas / etat.grille.pas));
-  const sig = etat.resultat.signal;
-  const candidats = etat.resultat.candidats;
-  let nouvelles = 0;
-
-  for (const s of r.structures) {
-    // Une cellule de relief en recouvre f × f de la grille fine.
-    const fines = [];
-    for (const i of s.pleines) {
-      const x = (i % rel.W) * f, y = ((i / rel.W) | 0) * f;
-      for (let dy = 0; dy < f; dy++) {
-        for (let dx = 0; dx < f; dx++) {
-          const xx = x + dx, yy = y + dy;
-          if (xx < etat.grille.W && yy < etat.grille.H) fines.push(yy * etat.grille.W + xx);
-        }
-      }
-    }
-    if (!fines.length) continue;
-
-    const c = DETECTION.qualifier(fines, etat.grille, sig);
-    c.voie = 'forme';
-    c.fermeture = s.couverture;
-    c.interieur = s.interieur;
-    c.hauteurMur = s.hauteurMur;
-    c.score = noterForme(s);
-
-    // Déjà trouvée par l'autre voie ? On ne la compte pas deux fois — on note
-    // qu'elle a deux témoins, ce qui est le meilleur indice dont on dispose.
-    const jumelle = candidats.find((x) => Math.hypot(x.x - c.x, x.y - c.y) < CONFIG.lignes.rayonMaxM);
-    if (jumelle) {
-      jumelle.voie = 'les deux';
-      jumelle.fermeture = c.fermeture;
-      jumelle.interieur = c.interieur;
-      jumelle.hauteurMur = c.hauteurMur;
-      jumelle.score = Math.max(jumelle.score, c.score);
-      continue;
-    }
-    c.id = candidats.length + 1;
-    candidats.push(c);
-    nouvelles++;
-  }
-
-  candidats.sort((a, b) => b.score - a.score);
-  candidats.forEach((c, i) => { c.rang = i + 1; });
-  return { retenues: r.structures.length, nouvelles, rejets: r.rejets, chrono: r.chrono };
-}
-
-/**
- * Score d'une structure trouvée par la forme.
- *
- * Il ne peut pas être celui de `DETECTION.noter` : celui-là pèse la part de
- * points non classés et la hauteur du signal, qui valent zéro pour une ruine
- * que l'IGN a classée « sol » — la meilleure trouvaille de cette voie y
- * marquerait donc le plus mauvais score. On note ici sur les trois preuves
- * propres à la voie : la ligne se referme, l'intérieur est fermé au ciel, le mur
- * dépasse. Pondération assumée, comme l'autre, faute de jeu étiqueté.
- */
-function noterForme(s) {
-  const fermeture = Math.min(1, (s.couverture - CONFIG.lignes.couvertureMin)
-    / (1 - CONFIG.lignes.couvertureMin));
-  const enfermement = Math.min(1, (90 - s.interieur) / 25);
-  const mur = Math.min(1, s.hauteurMur / 0.8);
-  return Math.max(0, 0.4 * enfermement + 0.35 * fermeture + 0.25 * mur);
-}
-
-// ── Étape 3 bis : sentiers ──────────────────────────────────────────────────
-
-const REGLAGES_SENTIERS = [
-  { cle: 'longueurMinM', libelle: 'Longueur min.', min: 10, max: 200, pas: 5, unite: ' m' },
-  { cle: 'profondeurMinM', libelle: 'Creux min.', min: 0.05, max: 1, pas: 0.05, unite: ' m' },
-  { cle: 'profondeurMaxM', libelle: 'Creux max.', min: 0.5, max: 6, pas: 0.5, unite: ' m' },
-  { cle: 'penteLongueMaxDeg', libelle: 'Pente du tracé max.', min: 5, max: 45, pas: 1, unite: '°' },
-  { cle: 'alignementMax', libelle: 'Tolérance « ravine »', min: 0.3, max: 1, pas: 0.05, unite: '' },
-  { cle: 'seuilHaut', libelle: 'Seuil de déclenchement', min: 0.05, max: 0.8, pas: 0.05, unite: '' },
-  { cle: 'compaciteMax', libelle: 'Tolérance « pelote »', min: 1.2, max: 8, pas: 0.1, unite: '' },
-];
-
-const reglagesSentiers = { ...CONFIG.sentiers };
-
-function construireReglagesSentiers() {
-  $('reglages-sentiers').innerHTML = REGLAGES_SENTIERS.map((r) => `
-    <label class="champ">
-      <span>${r.libelle} <b id="vs-${r.cle}">${reglagesSentiers[r.cle]}${r.unite}</b></span>
-      <input type="range" id="rs-${r.cle}" min="${r.min}" max="${r.max}" step="${r.pas}"
-             value="${reglagesSentiers[r.cle]}">
-    </label>`).join('');
-
-  for (const r of REGLAGES_SENTIERS) {
-    $(`rs-${r.cle}`).addEventListener('input', (e) => {
-      reglagesSentiers[r.cle] = Number(e.target.value);
-      $(`vs-${r.cle}`).textContent = `${reglagesSentiers[r.cle]}${r.unite}`;
-    });
-  }
-}
-construireReglagesSentiers();
-
-$('btn-defauts-sentiers').addEventListener('click', () => {
-  Object.assign(reglagesSentiers, CONFIG.sentiers);
-  construireReglagesSentiers();
-});
-
-$('btn-sentiers').addEventListener('click', async () => {
-  if (!etat.grille) return;
-  $('btn-sentiers').disabled = true;
-  montrerVolet('sentiers');
-
-  try {
-    const t0 = performance.now();
-    etat.sentiers = await ATTENTE.pendant('Recherche de sentiers',
-      () => SENTIERS.detecterSentiers(etat.grille, reglagesSentiers),
-      'relief local, puis amincissement');
-    const secondes = ((performance.now() - t0) / 1000).toFixed(1);
-
-    const st = etat.sentiers.stats;
-    $('stats-sentiers').hidden = false;
-    $('stats-sentiers').innerHTML =
-      `Grille <b>${st.pas.toFixed(2)} m</b> · <b>${st.chainesBrutes}</b> tracés bruts, `
-      + `<b>${st.retenues}</b> retenus — ${secondes} s<br>`
-      + `écartés — longueur ${st.rejets.longueur} · pelote ${st.rejets.pelote}`
-      + ` · ravine ${st.rejets.ravine} · pente ${st.rejets.penteLongue}`
-      + ` · profondeur ${st.rejets.profondeur}`;
-
-    afficherSentiers();
-    statut(`${etat.sentiers.traces.length} sentier(s) candidat(s)`);
-
-    $('diag-sentiers').hidden = false;
-    dessinerDiagnosticSentiers();
-  } catch (e) {
-    alerter(`Sentiers : ${e.message}`);
-  } finally {
-    $('btn-sentiers').disabled = false;
-  }
-});
-
-$('diag-sentiers-couche').addEventListener('change', dessinerDiagnosticSentiers);
-
-/**
- * Diagnostic (#2 du todo) : affiche telle quelle une étape interne de
- * `SENTIERS.detecterSentiers`, jamais visible autrement puisque seul le
- * résultat final (`squelette` vectorisé) sort de la chaîne. Sans vérité
- * terrain, c'est le seul moyen de voir où un tracé repéré à l'œil disparaît.
- *
- * Étirement min/max simple, propre à chaque couche : le but est de voir la
- * structure du signal, pas de comparer des amplitudes d'une couche à l'autre.
- *
- * La grille des sentiers suit la même convention que `RASTER` — ligne 0 au
- * sud — alors qu'un canevas peint sa ligne 0 en haut. Le piège est documenté
- * pour la photo aérienne (voir CLAUDE.md) et reproduit ici à l'identique
- * faute d'inverser : nord en haut, comme partout ailleurs dans l'outil.
- */
-function dessinerDiagnosticSentiers() {
-  const t = etat.sentiers?.carte;
-  if (!t) return;
-  const valeurs = t[$('diag-sentiers-couche').value];
-  const { W, H } = t;
-
-  const canvas = $('diag-sentiers-canvas');
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d');
-  const img = ctx.createImageData(W, H);
-
-  let min = Infinity, max = -Infinity;
-  for (let i = 0; i < valeurs.length; i++) {
-    const v = valeurs[i];
-    if (Number.isFinite(v) && v < min) min = v;
-    if (Number.isFinite(v) && v > max) max = v;
-  }
-  const etendue = (max - min) || 1;
-
-  for (let cy = 0; cy < H; cy++) {
-    const sy = H - 1 - cy; // ligne 0 de `t` = sud, ligne 0 du canevas = haut
-    for (let cx = 0; cx < W; cx++) {
-      const v = valeurs[sy * W + cx];
-      const g = Number.isFinite(v) ? Math.round(255 * (v - min) / etendue) : 0;
-      const o = (cy * W + cx) * 4;
-      img.data[o] = img.data[o + 1] = img.data[o + 2] = g;
-      img.data[o + 3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-}
-
-function afficherSentiers() {
-  const traces = etat.sentiers?.traces || [];
-  $('compte-sentiers').textContent = traces.length;
-  $('exports-sentiers').hidden = !traces.length;
-
-  const liste = $('liste-sentiers');
-  liste.innerHTML = traces.length ? '' :
-    '<li class="vide" style="cursor:default;border-style:dashed">Aucun tracé avec ces seuils. '
-    + 'Baissez le seuil de déclenchement ou la longueur minimale.</li>';
-
-  for (const s of traces) {
-    const l = SORTIE.liens(s);
-    const li = document.createElement('li');
-    li.dataset.id = s.id;
-    li.innerHTML = `
-      <div class="ligne-titre">
-        <span class="rang">#${s.rang}</span>
-        <span class="score">${s.score.toFixed(2)}</span>
-        <span class="puce" style="background:${s.score > 0.6 ? '#ff8a3c' : s.score > 0.4 ? '#ffc247' : '#ffe9a3'}"></span>
-      </div>
-      <div class="mesures">${s.longueur.toFixed(0)} m · creux ${(s.profondeurMed * 100).toFixed(0)} cm
-        · large ${s.largeurMed.toFixed(1)} m · pente ${s.penteLongueMed.toFixed(0)}°
-        · ravine ${s.alignementPente.toFixed(2)} · pelote ${s.compacite.toFixed(1)}
-        · croise ${s.autocroisements}</div>
-      <div class="coords">${l.dms} · ${s.altitude.toFixed(0)} m</div>
-      <div class="actions">
-        <a href="${l.earth}" target="_blank" rel="noopener">Google&nbsp;Earth</a>
-        <a href="${l.geoportail}" target="_blank" rel="noopener">Géoportail</a>
-      </div>`;
-    li.addEventListener('click', (e) => {
-      if (e.target.tagName === 'A') return;
-      choisirSentier(s, true);
-    });
-    liste.appendChild(li);
-  }
-
-  carte.afficherSentiers(traces, (s) => choisirSentier(s, false));
-  vue2d.definirTraces(traces);
-  vue3d?.definirSentiers(traces, etat.grille);
-  vue3d?.definirSentierChoisi(null, etat.grille);
-}
-
-/**
- * Sélectionne un tracé dans les deux vues à la fois.
- *
- * On ne bascule pas d'office : depuis la carte on veut rester sur la carte,
- * depuis la liste on veut voir le relief. Mais les deux vues restent
- * synchronisées, si bien qu'un `v` suffit ensuite à passer de l'une à l'autre
- * sans rien reperdre.
- */
-function choisirSentier(s, versLa3D) {
-  const traces = etat.sentiers?.traces || [];
-  montrerVolet('sentiers');
-  for (const li of $('liste-sentiers').children) {
-    li.classList?.toggle('actif', li.dataset.id === String(s.id));
-  }
-  document.querySelector(`#liste-sentiers li[data-id="${s.id}"]`)?.scrollIntoView({ block: 'nearest' });
-
-  carte.surlignerSentier(s, traces);
-  vue2d.definirTraceChoisie(s);
-  vue3d?.definirSentierChoisi(s, etat.grille);
-  vue3d?.viserTrace(s, etat.grille);
-  if (versLa3D) basculerVue('3d');
-}
-
-$('exp-sent-gpx').addEventListener('click', () => SORTIE.telecharger(
-  `${NOM_BASE()}_sentiers.gpx`, SORTIE.tracesVersGPX(etat.sentiers?.traces || []), 'application/gpx+xml'));
-$('exp-sent-geojson').addEventListener('click', () => SORTIE.telecharger(
-  `${NOM_BASE()}_sentiers.geojson`, SORTIE.tracesVersGeoJSON(etat.sentiers?.traces || [], META()),
-  'application/geo+json'));
-
-// ── Étape 4 : résultats ─────────────────────────────────────────────────────
-
-function candidatsVisibles() {
-  const tous = etat.resultat?.candidats || [];
-  return $('masquer-repertories').checked ? tous.filter((c) => !c.dejaRepertorie) : tous;
-}
-
-function afficherResultats() {
-  const visibles = candidatsVisibles();
-  $('bloc-resultats').hidden = false;
-  $('compte').textContent = visibles.length;
-
-  const liste = $('liste');
-  liste.innerHTML = '';
-
-  if (!visibles.length) {
-    liste.innerHTML = '<li class="vide" style="cursor:default;border-style:dashed">Rien à cet endroit avec ces seuils. '
-      + 'Élargissez la surface ou baissez la rectangularité.</li>';
-  }
-
-  for (const c of visibles) {
-    const l = SORTIE.liens(c);
-    const couleur = c.dejaRepertorie ? '#7d8794'
-      : c.score > 0.65 ? '#ff5a3c' : c.score > 0.45 ? '#ffa62b' : '#ffe066';
-
-    const li = document.createElement('li');
-    li.className = c.dejaRepertorie ? 'repertorie' : '';
-    li.dataset.id = c.id;
-    li.innerHTML = `
-      <div class="ligne-titre">
-        <span class="rang">#${c.rang}</span>
-        <span class="score">${c.score.toFixed(2)}</span>
-        ${c.voie && c.voie !== 'classement' ? `<span class="marque voie">${c.voie === 'les deux' ? 'les deux voies' : 'forme du relief'}</span>` : ''}
-        ${c.dejaRepertorie ? `<span class="marque">BD TOPO · ${echapper(c.batimentProche)}</span>` : ''}
-        <span class="puce" style="background:${couleur}"></span>
-      </div>
-      <div class="mesures">${c.surface.toFixed(0)} m² · ${c.longueur.toFixed(1)} × ${c.largeur.toFixed(1)} m
-        · h ${c.hauteurMoy.toFixed(1)} m · rect. ${c.rectangularite.toFixed(2)} · pente ${c.penteMoy.toFixed(0)}°</div>
-      ${c.fermeture !== undefined ? `<div class="mesures">mur fermé à ${(c.fermeture * 100).toFixed(0)} %
-        · intérieur ${(90 - c.interieur).toFixed(0)}° sous le ciel ouvert · mur ${(c.hauteurMur * 100).toFixed(0)} cm</div>` : ''}
-      <div class="coords">${l.dms} · ${c.altitude.toFixed(0)} m</div>
-      <div class="actions">
-        <a href="${l.earth}" target="_blank" rel="noopener">Google&nbsp;Earth</a>
-        <a href="${l.maps}" target="_blank" rel="noopener">Maps</a>
-        <a href="${l.geoportail}" target="_blank" rel="noopener">Géoportail</a>
-      </div>`;
-    li.addEventListener('click', (e) => {
-      if (e.target.tagName === 'A') return;   // les liens gardent leur comportement
-      selectionner_(c);
-    });
-    liste.appendChild(li);
-  }
-
-  carte.afficherDetections(visibles, selectionner_);
-  vue3d?.definirDetections(visibles, etat.grille);
-  vue2d.definirDetections(visibles, etat.grille);
-  selectionner_(null);
-}
-
-function selectionner_(c) {
-  etat.selection = c;
-  if (c) montrerVolet('structures');
-  for (const li of $('liste').children) {
-    li.classList?.toggle('actif', c && li.dataset.id === String(c.id));
-  }
-  carte.surlignerDetection(c, candidatsVisibles());
-  vue2d.definirSelection(c);
-
-  if (c) {
-    vue3d?.viser(c);
-    vue2d.viser(c.x, c.y, Math.max(80, Math.sqrt(c.surface) * 12));
-    vue3d?.definirSelection(c, etat.grille);
-    document.querySelector(`#liste li[data-id="${c.id}"]`)?.scrollIntoView({ block: 'nearest' });
-  } else {
-    vue3d?.effacerFocus();
-    vue3d?.definirSelection(null, etat.grille);
-  }
-}
-
-$('masquer-repertories').addEventListener('change', afficherResultats);
-
-const NOM_BASE = () => `scopus_${etat.dalleChargee?.nom || 'zone'}`;
-const META = () => ({
-  dalle: etat.dalleChargee?.nom,
-  emprise_lambert93: etat.dalleChargee?.emprise,
-  pas_grille_m: etat.grille?.pas,
-  seuils: reglages,
-});
-
-$('exp-gpx').addEventListener('click', () =>
-  SORTIE.telecharger(`${NOM_BASE()}.gpx`, SORTIE.versGPX(candidatsVisibles()), 'application/gpx+xml'));
-$('exp-geojson').addEventListener('click', () =>
-  SORTIE.telecharger(`${NOM_BASE()}.geojson`, SORTIE.versGeoJSON(candidatsVisibles(), META()), 'application/geo+json'));
-$('exp-csv').addEventListener('click', () =>
-  SORTIE.telecharger(`${NOM_BASE()}.csv`, SORTIE.versCSV(candidatsVisibles()), 'text/csv'));
-
 // ── Onglets ─────────────────────────────────────────────────────────────────
 
 const VUES = [
   ['carte', 'cartes', 'onglet-carte',
-    'Cliquez pour choisir une dalle · vert : dalle chargée · jaune : sélection'],
-  ['2d', 'vue-2d', 'onglet-2d',
-    'Glisser la poignée du milieu pour comparer · glisser l’image : déplacer · molette : zoom sous le curseur'],
+    'Zoomez sur une zone : le relief se calcule tout seul · glisser le rideau pour comparer'],
   ['3d', 'vue-3d', 'onglet-3d',
     'Glisser : déplacer · molette : zoom sous le curseur · Maj+glisser : pivoter · double-clic : recentrer le pivot'],
 ];
@@ -2378,29 +792,23 @@ function basculerVue(quoi) {
     $(onglet).classList.toggle('actif', nom === quoi);
     if (nom === quoi) $('aide-vue').textContent = (TACTILE && AIDE_TACTILE[nom]) || aide;
   }
-  // Le mode sélection n'a de sens qu'en 2D et en 3D — « cliquer un point » sur
-  // la carte n'en est pas un.
-  // En mode vue, la carte porte le relief : sélection et mesure s'y font.
-  $('barre-mode').hidden = quoi === 'carte' && !MODE_VUE;
   // Le profil se pose sur la carte : en 3D le bouton est grisé, et le mode
   // quitté s'il était actif.
   $('mode-profil').disabled = quoi !== 'carte';
-  if (quoi !== 'carte' && vue2d.mode === 'profil') { definirModeInteraction('deplacement', true); profilAReprendre = true; }
+  if (quoi !== 'carte' && modeOutil === 'profil') { definirModeInteraction('deplacement', true); profilAReprendre = true; }
   // Retour sur la carte : le mode Profil revient, avec sa fenêtre, si rien d'autre n'a été choisi entre-temps.
-  if (quoi === 'carte' && profilAReprendre && vue2d.mode === 'deplacement') definirModeInteraction('profil', true);
+  if (quoi === 'carte' && profilAReprendre && modeOutil === 'deplacement') definirModeInteraction('profil', true);
   if (quoi === 'carte') profilAReprendre = false;
 
   // Leaflet mesure son conteneur à l'initialisation ; masqué, il l'a mesuré à
   // zéro et n'affiche aucune tuile tant qu'on ne le lui redit pas.
   if (quoi === 'carte') { requestAnimationFrame(() => carte.invalider()); surPassageCarte?.(); }
   else if (quoi === '3d') { vue3d?.invalider(); surPassage3D?.(); }
-  else preparer2D();
   majOutilsCarte?.();
   majLien();   // le lien décrit l'onglet affiché
 }
 
 $('onglet-carte').addEventListener('click', () => basculerVue('carte'));
-$('onglet-2d').addEventListener('click', () => basculerVue('2d'));
 $('onglet-3d').addEventListener('click', () => basculerVue('3d'));
 
 // ── Le panneau sous 900 px ──────────────────────────────────────────────────
@@ -2487,7 +895,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'c' || e.key === '1') basculerVue('carte');
   if (e.key === 'r' || e.key === '2') basculerVue('2d');
   if (e.key === 'v' || e.key === '3') basculerVue('3d');
-  if (e.key === 'f') { if ($('panneau').dataset.vue === '2d') vue2d.cadrer(); else vue3d?.cadrer(); }
+  if (e.key === 'f') vue3d?.cadrer();
   if (e.key === 't') { vue3d?.vueDeDessus(); basculerVue('3d'); }
 });
 
@@ -2535,46 +943,13 @@ function entrerDansLaCarte() {
   $('recherche').focus();
 }
 
-/**
- * Sélectionne la dalle dont les indices kilométriques Lambert-93 sont `x, y`
- * — le calcul commun au lien partagé (`#d=x,y`) et au bouton « Voir un
- * exemple ». Recentre la carte dessus et attend la fin de la sélection avant
- * de résoudre, pour qu'un appelant puisse enchaîner sur `etat.promesseIndex`.
- */
-function selectionnerDalleParIndices(x, y, zoom = 16) {
-  const centre = PROJ.versWGS84(x * 1000 + 500, y * 1000 + 500);
-  return new Promise((resolve) => {
-    // `carte.invalider()` d'abord : fermer l'accueil rend au panneau sa colonne
-    // de 380 px, et Leaflet ne le détecte pas tout seul — un redimensionnement
-    // purement CSS, sans évènement `resize` — même piège que le retour sur
-    // l'onglet Carte.
-    requestAnimationFrame(async () => {
-      carte.invalider();
-      carte.allerA(centre.lon, centre.lat, zoom);
-      await carte.selectionnerAuPoint(centre.lon, centre.lat);
-      resolve();
-    });
-  });
-}
-
-$('btn-exemple').addEventListener('click', async () => {
+$('btn-exemple').addEventListener('click', () => {
   masquerAccueil();
   basculerVue('carte');
-  if (MODE_VUE) {
-    // Le Bois des Caures cadré : le relief de la vue arrive seul.
-    const { x, y } = CONFIG.carte.dalleExemple;
-    const c = PROJ.versWGS84(x * 1000 + 500, y * 1000 + 500);
-    requestAnimationFrame(() => { carte.invalider(); carte.allerA(c.lon, c.lat, 16); });
-    return;
-  }
+  // Le Bois des Caures cadré : le relief de la vue arrive seul.
   const { x, y } = CONFIG.carte.dalleExemple;
-  await selectionnerDalleParIndices(x, y);
-  // `surDalle` publie `etat.promesseIndex` de façon synchrone avant que
-  // `selectionnerAuPoint` ne rende la main : l'attendre à son tour signale que
-  // l'index COPC est prêt, sans relire ce que la sélection a déjà lu.
-  await etat.promesseIndex;
-  if (!etat.entete) return;   // sélection ou lecture d'index en échec : déjà signalé par une alerte
-  $('btn-charger').click();
+  const c = PROJ.versWGS84(x * 1000 + 500, y * 1000 + 500);
+  requestAnimationFrame(() => { carte.invalider(); carte.allerA(c.lon, c.lat, 16); });
 });
 $('btn-carte-directe').addEventListener('click', entrerDansLaCarte);
 // La croix : la carte telle qu'elle est, sans rien viser (ni exemple, ni champ de
@@ -2590,21 +965,12 @@ $('accueil-croix').addEventListener('click', () => {
 // Spec docs/superpowers/specs/2026-09-26-flux-vue-design.md : les blocs de la
 // vue se chargent (flux.js), le relief se calcule dans un worker
 // (relief-travailleur.js) et se pose sur la carte derrière un rideau
-// (CalqueRelief). « ?dalle » dans l'adresse rend l'ancien parcours à la place.
+// (CalqueRelief).
 // Diagnostic : « &debug » (contours des blocs, statut chiffré), « &chrono »
 // (temps du fil principal, gels détaillés).
-if (MODE_VUE) (async () => {
-  // Pas de dalle à sélectionner au clic ; la 2D et la 3D attendent leur
-  // retour sur le relief de la vue (TODO #3, #4) — désactivées, y compris aux
-  // raccourcis clavier, que basculerVue refuse pour un onglet désactivé.
-  carte.selectionAuClic = false;
-  // Ni le quadrillage kilométrique : il servait à choisir une dalle, et sur
-  // le relief il ne faisait que rayer l'image. Gardé avec « &debug », où il
-  // aide à lire les contours des blocs.
-  if (!new URLSearchParams(location.search).has('debug')) carte.grille.remove();
-  $('onglet-2d').disabled = true;
-  // La 3D, elle, revient : le nuage de la zone vue sur la carte (spec
-  // 2026-09-27-vue-3d-design). Sans WebGL2, elle reste désactivée.
+(async () => {
+  // La 3D : le nuage de la zone vue sur la carte (spec 2026-09-27-vue-3d-design). Sans WebGL2, elle reste
+  // désactivée, y compris aux raccourcis clavier, que basculerVue refuse pour un onglet désactivé.
   $('onglet-3d').disabled = !vue3d;
 
   // Chronométrage du fil principal, avec « &chrono » dans l'adresse : où part
@@ -2730,7 +1096,7 @@ if (MODE_VUE) (async () => {
   const majOutils = () => {
     const surCarte = $('panneau').dataset.vue === 'carte';
     const double = vueCartes.mode() === 'double' && surCarte;
-    if (double && vue2d.mode !== 'deplacement') definirModeInteraction('deplacement');
+    if (double && modeOutil !== 'deplacement') definirModeInteraction('deplacement');
     for (const id of ['mode-selection', 'mode-mesure', 'mode-profil']) $(id).disabled = double || (id === 'mode-profil' && !surCarte);
   };
   majOutilsCarte = majOutils;
@@ -2782,7 +1148,12 @@ if (MODE_VUE) (async () => {
   // L'ombrage gris en avait été retiré (« sur une grille au pixel, il sortait
   // pâle ») : revenu avec ses curseurs d'azimut et de hauteur, qui rendent le
   // contraste que la moyenne de quatre soleils efface.
-  const COUCHES_VUE = CHOIX_2D.filter((c) => c.cle !== PHOTO && c.cle !== PLAN);
+  const OMBRAGE_RGB = 'ombrage-rgb';
+  const COUCHES_VUE = [
+    ...RELIEF.COUCHES.map((c) => ({ cle: c.cle, libelle: c.libelle, aide: c.aide })),
+    // L'ombrage coloré ne suit pas le contrat de `RELIEF.calculer` (palette + étalement) : il rend directement des couleurs.
+    { cle: OMBRAGE_RGB, libelle: 'Ombrage coloré (3 soleils)', aide: 'Trois soleils à 120°, un par canal — l’orientation d’un mur ou d’un talus se lit en teinte, là où « Ombrage » l’aplatit dans une moyenne grise.' },
+  ];
   // Ce qui n'est pas du relief : la carte telle qu'affichée, et le Plan IGN,
   // posé dans le côté même — la carte n'a qu'un fond à la fois, et ainsi un
   // côté peut montrer la photo et l'autre le plan.
@@ -3160,10 +1531,6 @@ if (MODE_VUE) (async () => {
   // relief étaient décalées, et la première emprise glissait de ~17 m au
   // premier redimensionnement suivant — un nuage 3D reconstruit pour rien.
   carte.invalider();
-  for (const id of ['section-selection', 'section-mesure']) {
-    $(id).dataset.vue = 'carte 2d 3d';
-    $(id).hidden = false;
-  }
   lireVue = (x, y) => relief.lire(x, y);
 
   // ── L'onglet 3D : le nuage de la zone vue sur la carte ──
@@ -3301,7 +1668,7 @@ if (MODE_VUE) (async () => {
   // Un clic (pas un glisser : Leaflet ne l'émet pas après un déplacement)
   // vise un point en mode Sélection ou Mesure, et pose un point de la bande en mode Profil.
   carte.map.on('click', async (e) => {
-    const mode = vue2d.mode;
+    const mode = modeOutil;
     if (mode === 'profil') { poserPointProfil(e.latlng); return; }
     if (mode !== 'selection' && mode !== 'mesure') return;
     const { x, y } = projVue().versLocal(e.latlng.lng, e.latlng.lat);
@@ -3811,12 +2178,11 @@ if (MODE_VUE) (async () => {
 // fragment au format courant dès qu'elle bouge.
 function suivreLien() {
   const lien = LIEN.lire(location.hash);
-  if (lien?.dalle && MODE_VUE) {
+  if (lien?.dalle) {
     // Un ancien lien « #d=x,y » : le centre de la dalle, au zoom où l'on lit.
     const c = PROJ.versWGS84(lien.dalle.x * 1000 + 500, lien.dalle.y * 1000 + 500);
     ouvrirLien({ lon: c.lon, lat: c.lat, zoom: 16 });
-  } else if (lien?.dalle) selectionnerDalleParIndices(lien.dalle.x, lien.dalle.y);
-  else if (lien) ouvrirLien(lien);
+  } else if (lien) ouvrirLien(lien);
 }
 if (location.hash.length > 1) {
   masquerAccueil();
