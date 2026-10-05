@@ -3492,6 +3492,7 @@ if (MODE_VUE) (async () => {
   }
   // La chaîne de mesure se corrige comme sur la carte : bouton, ou Retour arrière / Suppr.
   $('profil-recadrer').addEventListener('click', () => graphique?.recadrer());
+  $('profil-egales').addEventListener('change', (e) => graphique?.definirEgales(e.target.checked));
   $('profil-mesure-annuler').addEventListener('click', () => graphique?.retirerDernier());
   $('profil-mesure-effacer').addEventListener('click', () => graphique?.effacerMesure());
   window.addEventListener('keydown', (e) => {

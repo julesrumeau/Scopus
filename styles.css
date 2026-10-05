@@ -1414,6 +1414,7 @@ dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
 #profil-etat { order: 2; flex: 1 1 14em; min-width: 0; margin: 0; }
 .profil-gestes { order: 3; }
 #profil-recadrer { order: 4; }
+.profil-reglages .profil-egales { order: 4; margin: 0; white-space: nowrap; }
 @media (max-width: 700px) {
   .profil-bande, .profil-suite { display: none; }
   #profil-etat { order: 5; flex-basis: 100%; }
