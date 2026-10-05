@@ -122,12 +122,18 @@ function tableauHtml(points) {
       <td>${signe(s.denivele)}</td>
       <td>${penteTexte(s)}</td>
       <td>${m(s.totale)}</td>
+      <td class="retirer"><button type="button" class="retirer-point" data-retirer="${i + 1}" aria-label="Retirer le point ${lettre(i + 1)}" title="Retirer le point ${lettre(i + 1)}">✕</button></td>
     </tr>`).join('');
   return `<div class="mesure-scroll"><table class="tableau-mesure">
-      <thead><tr><th>Segment</th><th>Horizontale</th><th>Dénivelé</th><th>Pente</th><th>3D</th></tr></thead>
+      <thead><tr><th>Segment</th><th>Horizontale</th><th>Dénivelé</th><th>Pente</th><th>3D</th><th></th></tr></thead>
       <tbody>${rangees}</tbody>
-      <tfoot><tr><td>Total</td><td>${m(totaleHorizontale)}</td><td></td><td></td><td>${m(totale3D)}</td></tr></tfoot>
+      <tfoot><tr><td>Total</td><td>${m(totaleHorizontale)}</td><td></td><td></td><td>${m(totale3D)}</td><td></td></tr></tfoot>
     </table></div>`;
 }
 
-const MESURE = { sommet, distances, segments, totaux, pente, tableauHtml };
+/** La chaîne sans son point `i` (l'originale n'est pas touchée) ; un indice hors chaîne la rend telle quelle. */
+function retirerPoint(points, i) {
+  return i >= 0 && i < points.length ? points.filter((_, k) => k !== i) : points.slice();
+}
+
+const MESURE = { sommet, distances, segments, totaux, pente, tableauHtml, retirerPoint };

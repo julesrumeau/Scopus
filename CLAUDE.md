@@ -251,6 +251,16 @@ d'arbres et de bâtiments sans QGIS. Conception :
   La chaîne et la référence sont **dessinées sur la carte** (`dessinerChaine`, SVG du volet des outils, à leur
   distance `s` sur l'axe : `PROFIL.pointSurAxe`). C'est une **constante** : valable sur un sol plat
   ou pour un seul bâtiment, pas un MNT (dit dans l'aide ; le sol comblé est R7).
+- **Modifier la chaîne** (`profil-geste.js`, machine à états pure, minuteur injecté, testée à froid) : à la
+  **souris** (ou au stylet) un appui à moins de 10 px d'un point de la chaîne le **saisit** tout de suite (il
+  grossit au survol, le curseur devient une main) et le glisse en gardant l'accrochage de la pose ; au **doigt**
+  il faut un **appui long** (`CONFIG.profil.appuiLongMs`, 400 ms) dans une zone de 24 px, sinon c'est un
+  déplacement du graphique (un doigt qui glisse de plus de 8 px avant le délai l'annule). Un doigt posé puis levé
+  sur un point **ne pose rien** (pas de doublon). Seul l'outil Mesure saisit les points. La **croix** en bout de
+  ligne du tableau (`data-retirer`, `MESURE.tableauHtml`) retire le **point d'arrivée** du segment : le tableau
+  est partagé, donc la mesure de la carte l'a aussi (`retirerPointMesure`) ; pour corriger A, on le déplace.
+  **Pas essayé sur un vrai téléphone** (émulation tactile seulement) : le menu contextuel d'un appui long est
+  bloqué (`contextmenu`, `touch-callout: none`) mais à vérifier sur iOS et Android.
 - **Une seule mesure.** Le graphique alimente la chaîne de mesure de la carte
   (`MESURE.tableauHtml`, partagé) : ses points deviennent `{ x: distance sur
   l'axe, sol: altitude }`. Le clic s'accroche au point visible le plus proche

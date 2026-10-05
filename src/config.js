@@ -357,6 +357,13 @@ const CONFIG = {
     longueurAvertM: 500,
     // Plafond de points rendus (tirage par hachage au-delà, comme la 3D).
     budgetPoints: 1e6,
+    // Déplacer un point de la mesure sur le graphique : à la souris, un appui à moins de `saisiePx` le saisit ;
+    // au doigt, il faut un appui long (`appuiLongMs`) dans la zone plus large `saisieTactilePx`, sinon c'est un
+    // déplacement du graphique. Le délai se règle ici : trop court on saisit par accident, trop long on croit
+    // que rien ne marche.
+    appuiLongMs: 400,
+    saisiePx: 10,
+    saisieTactilePx: 24,
     // Sous cette densité, le zoom n'a chargé que des niveaux grossiers.
     densiteMinPtsM2: 2,
   },

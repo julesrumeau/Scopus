@@ -173,3 +173,23 @@ test('tableauHtml — une pente impossible s’écrit « — » dans sa cellule'
   const h = MESURE.tableauHtml([{ x: 0, y: 0, sol: 100, hauteur: 0 }, { x: 0, y: 0, sol: 110, hauteur: 0 }]);
   assert.match(h, /<td>\+10\.0 m<\/td>\s*<td>—<\/td>/);
 });
+
+test('tableauHtml — chaque segment a sa croix : elle retire le point d’arrivée (B, C…), son indice dans la chaîne', () => {
+  const pts = [{ x: 0, y: 0, sol: 1 }, { x: 3, y: 4, sol: 2 }, { x: 6, y: 8, sol: 3 }];
+  const h = MESURE.tableauHtml(pts);
+  const croix = [...h.matchAll(/<button[^>]*data-retirer="(\d+)"[^>]*>/g)].map((m) => Number(m[1]));
+  assert.equal(croix.join(), '1,2');
+  assert.match(h, /aria-label="Retirer le point B"/);
+  assert.match(h, /aria-label="Retirer le point C"/);
+  assert.equal((h.match(/<th>/g) || []).length, 6, 'une colonne de plus en tête');
+  assert.match(h, /<tfoot>.*<td><\/td><\/tr>\s*<\/tfoot>/s, 'et une cellule vide en pied');
+});
+
+test('retirerPoint : la chaîne sans ce point, sans toucher à l’originale ; un indice hors chaîne la rend telle quelle', () => {
+  const pts = [{ x: 0 }, { x: 1 }, { x: 2 }];
+  const sans = MESURE.retirerPoint(pts, 1);
+  assert.equal(sans.map((p) => p.x).join(), '0,2');
+  assert.equal(pts.length, 3);
+  assert.equal(MESURE.retirerPoint(pts, 9).length, 3);
+  assert.equal(MESURE.retirerPoint(pts, -1).length, 3);
+});

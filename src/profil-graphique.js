@@ -36,7 +36,21 @@ class ProfilGraphique {
     // déformé ne se lit pas). Alors l'étendue verticale se **déduit** de l'horizontale ; `zv` ne
     // garde que son centre. Désactivées : l'ancienne vue, la hauteur ajustée aux points.
     this.egales = true;
-    this.geste = null;    // un appui en cours : clic ou déplacement, selon qu'on a bougé
+    this.survole = -1;    // le point de la chaîne sous la souris, ou -1 : il grossit
+    this.saisi = -1;      // le point de la chaîne qu'on déplace, ou -1
+    // Le geste (profil-geste.js) : saisir un point, poser un clic, glisser le graphique.
+    this.gesteur = creerGesteProfil({
+      saisir: (x, y, type) => (this.outil === 'mesure' ? this.pointMesureProche(x, y, type) : -1),
+      delaiMs: CONFIG.profil.appuiLongMs,
+      minuteur: { demarrer: (f, ms) => globalThis.setTimeout(f, ms), annuler: (id) => globalThis.clearTimeout(id) },
+      actions: {
+        saisi: (i) => this._saisir(i),
+        deplacerPoint: (i, x, y) => this.deplacerPoint(i, x, y),
+        pose: () => this._saisir(-1),
+        clic: (x, y) => this.clic(x, y),
+        deplacerVue: (dx, dy) => this.deplacer(dx, dy),
+      },
+    });
     brancherGestesProfil(this, canvas);
   }
 
@@ -199,29 +213,65 @@ class ProfilGraphique {
     this.planifier();
   }
 
-  /** Un appui : clic ou déplacement, selon qu'on bouge de plus de 4 px avant de relâcher. */
-  debutGeste(x, y) { this.geste = { x0: x, y0: y, x, y, deplace: false }; }
+  /** Un appui (`type` : 'mouse', 'touch' ou 'pen') : saisie d'un point, clic ou glissé (voir `profil-geste.js`). */
+  debutGeste(x, y, type = 'mouse') { this.gesteur.appui(x, y, type); }
 
-  deplacerGeste(x, y) {
-    const g = this.geste;
-    if (!g) return;
-    if (!g.deplace && Math.hypot(x - g.x0, y - g.y0) < 4) return;
-    g.deplace = true;
-    this.deplacer(x - g.x, y - g.y);
-    g.x = x; g.y = y;
-  }
+  deplacerGeste(x, y) { this.gesteur.deplacement(x, y); }
 
-  finGeste(x, y) {
-    const g = this.geste;
-    this.geste = null;
-    if (g && !g.deplace) this.clic(x, y);
-  }
+  finGeste(x, y) { this.gesteur.relache(x, y); }
 
   /** Retire le dernier point de la chaîne de mesure. */
   retirerDernier() {
     if (!this.mesure.length) return;
     this.mesure.pop();
     this.rappel(this.mesure.slice());
+    this.planifier();
+  }
+
+  /** Retire le point `i` de la chaîne de mesure (la croix du tableau). Un indice hors chaîne ne fait rien. */
+  retirerPoint(i) {
+    if (!(i >= 0 && i < this.mesure.length)) return;
+    this.mesure.splice(i, 1);
+    this.survole = this.saisi = -1;
+    this.rappel(this.mesure.slice());
+    this.planifier();
+  }
+
+  /** Le point `i` suit le curseur : accroché au point visible le plus proche, comme à la pose. */
+  deplacerPoint(i, x, y) {
+    if (!(i >= 0 && i < this.mesure.length) || !this.d) return;
+    this.mesure[i] = this._accrocher(x, y);
+    this.rappel(this.mesure.slice());
+    this.planifier();
+  }
+
+  /**
+   * L'indice du point de la chaîne le plus proche du pixel (x, y), ou -1 s'il n'en est pas assez près :
+   * 10 px à la souris, 24 px au doigt (un doigt couvre bien plus qu'un pointeur).
+   */
+  pointMesureProche(x, y, type = 'mouse') {
+    const rayon = type === 'touch' ? CONFIG.profil.saisieTactilePx : CONFIG.profil.saisiePx;
+    let meilleur = -1, dmin = rayon * rayon;
+    this.mesure.forEach((p, i) => {
+      const q = this.px(p.s, p.z);
+      const dd = (q.x - x) ** 2 + (q.y - y) ** 2;
+      if (dd <= dmin) { dmin = dd; meilleur = i; }
+    });
+    return meilleur;
+  }
+
+  /** Le point `i` est celui qu'on déplace (il grossit), ou -1 : plus aucun. */
+  _saisir(i) {
+    this.saisi = i;
+    this.planifier();
+  }
+
+  /** La souris survole le point `i` de la chaîne : il grossit et le curseur dit qu'on peut le saisir. */
+  survoler(x, y) {
+    const i = this.outil === 'mesure' ? this.pointMesureProche(x, y, 'mouse') : -1;
+    if (i === this.survole) return;
+    this.survole = i;
+    this.c.style.cursor = i >= 0 ? 'grab' : '';
     this.planifier();
   }
 
@@ -240,17 +290,7 @@ class ProfilGraphique {
 
   /** Les indices des points rangés par classe : `debut[c]` à `debut[c + 1]` dans `ordre`. */
   _ranger() {
-    const d = this.d;
-    this.ordre = new Uint32Array(0);
-    this.debut = new Uint32Array(257);
-    if (!d) return;
-    const compte = new Uint32Array(257);
-    for (let i = 0; i < d.n; i++) compte[d.cls[i] + 1]++;
-    for (let k = 1; k < 257; k++) compte[k] += compte[k - 1];
-    this.debut = compte.slice();
-    const rang = compte.slice();
-    this.ordre = new Uint32Array(d.n);
-    for (let i = 0; i < d.n; i++) this.ordre[rang[d.cls[i]]++] = i;
+    ({ ordre: this.ordre, debut: this.debut } = rangerParClasse(this.d));
   }
 
   /** Les classes présentes et affichées, le sol en dernier : il se lit par-dessus la végétation. */
@@ -296,15 +336,9 @@ class ProfilGraphique {
     return { x: e.x(s), y: e.y(z) };
   }
 
-  /**
-   * Un clic au pixel (x, y) du canevas : il s'accroche au point visible le plus
-   * proche s'il en est à moins de 14 px — pour mesurer la cime, pas l'endroit
-   * où la souris est tombée —, sinon il pose un repère au curseur. Chaque
-   * clic ajoute un point à la chaîne, comme l'outil de mesure de la carte.
-   */
-  clic(x, y) {
+  /** Le point (s, z) où tombe le pixel (x, y) : celui du profil le plus proche s'il est à moins de 14 px, sinon la position du curseur. */
+  _accrocher(x, y) {
     const d = this.d;
-    if (!d || this.outil === 'deplacement') return;
     const e = this._echelles();
     let meilleur = -1, dmin = 14 * 14;
     for (const c of this._classes()) {
@@ -316,7 +350,18 @@ class ProfilGraphique {
         if (q < dmin) { dmin = q; meilleur = i; }
       }
     }
-    const p = meilleur >= 0 ? { s: d.s[meilleur], z: d.z[meilleur] } : { s: e.s(x), z: e.z(y) };
+    return meilleur >= 0 ? { s: d.s[meilleur], z: d.z[meilleur] } : { s: e.s(x), z: e.z(y) };
+  }
+
+  /**
+   * Un clic au pixel (x, y) du canevas : il s'accroche au point visible le plus
+   * proche s'il en est à moins de 14 px — pour mesurer la cime, pas l'endroit
+   * où la souris est tombée —, sinon il pose un repère au curseur. Chaque
+   * clic ajoute un point à la chaîne, comme l'outil de mesure de la carte.
+   */
+  clic(x, y) {
+    if (!this.d || this.outil === 'deplacement') return;
+    const p = this._accrocher(x, y);
     if (this.outil === 'reference') {
       // Un seul point à la fois : le clic suivant remplace le précédent.
       this.reference = p;
@@ -356,32 +401,7 @@ class ProfilGraphique {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, r.width, r.height);
     const e = this._echelles(), m = this.marge;
-    ctx.font = '11px system-ui, sans-serif';
-    ctx.lineWidth = 1;
-    // Graduations : altitude (lignes), distance (repères en bas).
-    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    // Autant de graduations que la place en porte : trop serrées, elles
-    // s'écrivent les unes sur les autres (« 0 m5 m10 m15 m… » sur un téléphone).
-    const nbX = Math.max(2, Math.floor((e.W - m.g - m.d) / 90)), nbZ = Math.max(2, Math.floor((e.H - m.h - m.b) / 48));
-    // Avec une référence, les graduations se lisent depuis elle (0 en son point, négatif
-    // en bas et à gauche) ; sans, ce sont des altitudes.
-    const sr = this.reference ? this.reference.s : 0, zr = this.reference ? this.reference.z : 0;
-    for (const v of PROFIL.graduations(e.zmin - zr, e.zmax - zr, nbZ)) {
-      const z = v + zr;
-      const y = e.y(z);
-      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-      ctx.beginPath(); ctx.moveTo(m.g, y); ctx.lineTo(e.W - m.d, y); ctx.stroke();
-      ctx.fillStyle = '#9aa4b2';
-      ctx.fillText(`${v} m`, m.g - 6, y);
-    }
-    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    for (const v of PROFIL.graduations(this.s0 - sr, this.s1 - sr, nbX)) {
-      const x = e.x(v + sr);
-      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-      ctx.beginPath(); ctx.moveTo(x, m.h); ctx.lineTo(x, e.H - m.b); ctx.stroke();
-      ctx.fillStyle = '#9aa4b2';
-      ctx.fillText(`${v} m`, x, e.H - m.b + 6);
-    }
+    dessinerGraduationsProfil(ctx, e, m, this.s0, this.s1, this.reference);
     if (!this.d) return;
     // Zoomé, ni points ni mesure ne débordent sur les graduations.
     ctx.save();
@@ -397,43 +417,97 @@ class ProfilGraphique {
         ctx.fillRect(e.x(this.d.s[i]) - 1.25, e.y(this.d.z[i]) - 1.25, 2.5, 2.5);
       }
     }
-    // Le point de référence : deux traits fins qui le traversent (les axes du 0), et une croix
-    // cernée de noir marquée « 0 », d'une autre couleur que les points de mesure.
-    if (this.reference) {
-      const rx = e.x(this.reference.s), ry = e.y(this.reference.z);
-      ctx.strokeStyle = 'rgba(74,208,255,0.55)'; ctx.lineWidth = 1;
-      ctx.setLineDash([5, 4]);
-      ctx.beginPath(); ctx.moveTo(m.g, ry); ctx.lineTo(e.W - m.d, ry); ctx.moveTo(rx, m.h); ctx.lineTo(rx, e.H - m.b); ctx.stroke();
-      ctx.setLineDash([]);
-      for (const [couleur, largeur] of [['#000', 4], ['#4ad0ff', 2]]) {
-        ctx.strokeStyle = couleur; ctx.lineWidth = largeur;
-        ctx.beginPath(); ctx.moveTo(rx - 8, ry); ctx.lineTo(rx + 8, ry); ctx.moveTo(rx, ry - 8); ctx.lineTo(rx, ry + 8); ctx.stroke();
-      }
-      ctx.fillStyle = '#4ad0ff'; ctx.font = 'bold 12px system-ui, sans-serif';
-      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-      ctx.fillText('0', rx + 10, ry + 6);
-    }
-    // La chaîne de mesure : un trait cerné de noir pour se lire sur tout fond, et des anneaux lettrés A, B, C… comme sur la carte.
-    const pts = this.mesure.map((p) => ({ x: e.x(p.s), y: e.y(p.z) }));
-    if (pts.length > 1) {
-      for (const [couleur, largeur] of [['#000', 4], ['#ffd24a', 2]]) {
-        ctx.strokeStyle = couleur; ctx.lineWidth = largeur;
-        ctx.beginPath();
-        pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-        ctx.stroke();
-      }
-    }
-    pts.forEach((p, i) => {
-      for (const [couleur, largeur] of [['#000', 4], ['#ffd24a', 2]]) {
-        ctx.strokeStyle = couleur; ctx.lineWidth = largeur;
-        ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, 2 * Math.PI); ctx.stroke();
-      }
-      ctx.fillStyle = '#ffd24a'; ctx.font = 'bold 12px system-ui, sans-serif';
-      ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
-      ctx.fillText(i < 26 ? String.fromCharCode(65 + i) : String(i + 1), p.x + 9, p.y - 7);
-    });
+    if (this.reference) dessinerReferenceProfil(ctx, e, m, this.reference);
+    dessinerChaineProfil(ctx, this.mesure.map((p) => ({ x: e.x(p.s), y: e.y(p.z) })), this.saisi >= 0 ? this.saisi : this.survole, this.saisi >= 0);
     ctx.restore();
   }
+}
+
+/** Les indices des points rangés par classe : `debut[c]` à `debut[c + 1]` dans `ordre` (rien sans données). */
+function rangerParClasse(d) {
+  if (!d) return { ordre: new Uint32Array(0), debut: new Uint32Array(257) };
+  const compte = new Uint32Array(257);
+  for (let i = 0; i < d.n; i++) compte[d.cls[i] + 1]++;
+  for (let k = 1; k < 257; k++) compte[k] += compte[k - 1];
+  const debut = compte.slice();
+  const rang = compte.slice();
+  const ordre = new Uint32Array(d.n);
+  for (let i = 0; i < d.n; i++) ordre[rang[d.cls[i]]++] = i;
+  return { ordre, debut };
+}
+
+/** Les graduations : altitudes (lignes) et distances (repères en bas), lues depuis la référence quand il y en a une. */
+function dessinerGraduationsProfil(ctx, e, m, s0, s1, reference) {
+  ctx.font = '11px system-ui, sans-serif';
+  ctx.lineWidth = 1;
+  // Graduations : altitude (lignes), distance (repères en bas).
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  // Autant de graduations que la place en porte : trop serrées, elles
+  // s'écrivent les unes sur les autres (« 0 m5 m10 m15 m… » sur un téléphone).
+  const nbX = Math.max(2, Math.floor((e.W - m.g - m.d) / 90)), nbZ = Math.max(2, Math.floor((e.H - m.h - m.b) / 48));
+  // Avec une référence, les graduations se lisent depuis elle (0 en son point, négatif
+  // en bas et à gauche) ; sans, ce sont des altitudes.
+  const sr = reference ? reference.s : 0, zr = reference ? reference.z : 0;
+  for (const v of PROFIL.graduations(e.zmin - zr, e.zmax - zr, nbZ)) {
+    const z = v + zr;
+    const y = e.y(z);
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    ctx.beginPath(); ctx.moveTo(m.g, y); ctx.lineTo(e.W - m.d, y); ctx.stroke();
+    ctx.fillStyle = '#9aa4b2';
+    ctx.fillText(`${v} m`, m.g - 6, y);
+  }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (const v of PROFIL.graduations(s0 - sr, s1 - sr, nbX)) {
+    const x = e.x(v + sr);
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    ctx.beginPath(); ctx.moveTo(x, m.h); ctx.lineTo(x, e.H - m.b); ctx.stroke();
+    ctx.fillStyle = '#9aa4b2';
+    ctx.fillText(`${v} m`, x, e.H - m.b + 6);
+  }
+}
+
+// Le point de référence : deux traits fins qui le traversent (les axes du 0), et une croix
+// cernée de noir marquée « 0 », d'une autre couleur que les points de mesure.
+function dessinerReferenceProfil(ctx, e, m, ref) {
+  const rx = e.x(ref.s), ry = e.y(ref.z);
+  ctx.strokeStyle = 'rgba(74,208,255,0.55)'; ctx.lineWidth = 1;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.moveTo(m.g, ry); ctx.lineTo(e.W - m.d, ry); ctx.moveTo(rx, m.h); ctx.lineTo(rx, e.H - m.b); ctx.stroke();
+  ctx.setLineDash([]);
+  for (const [couleur, largeur] of [['#000', 4], ['#4ad0ff', 2]]) {
+    ctx.strokeStyle = couleur; ctx.lineWidth = largeur;
+    ctx.beginPath(); ctx.moveTo(rx - 8, ry); ctx.lineTo(rx + 8, ry); ctx.moveTo(rx, ry - 8); ctx.lineTo(rx, ry + 8); ctx.stroke();
+  }
+  ctx.fillStyle = '#4ad0ff'; ctx.font = 'bold 12px system-ui, sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillText('0', rx + 10, ry + 6);
+}
+
+/**
+ * La chaîne de mesure : un trait cerné de noir pour se lire sur tout fond, et des anneaux lettrés A, B, C… comme
+ * sur la carte. Le point `actif` (survolé, ou saisi pour être déplacé) grossit ; saisi, il grossit davantage
+ * et se remplit, pour qu'on sache qu'il suit le doigt.
+ */
+function dessinerChaineProfil(ctx, pts, actif, saisi) {
+  if (pts.length > 1) {
+    for (const [couleur, largeur] of [['#000', 4], ['#ffd24a', 2]]) {
+      ctx.strokeStyle = couleur; ctx.lineWidth = largeur;
+      ctx.beginPath();
+      pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+      ctx.stroke();
+    }
+  }
+  pts.forEach((p, i) => {
+    const rayon = i === actif ? (saisi ? 12 : 9) : 6;
+    for (const [couleur, largeur] of [['#000', 4], ['#ffd24a', 2]]) {
+      ctx.strokeStyle = couleur; ctx.lineWidth = largeur;
+      ctx.beginPath(); ctx.arc(p.x, p.y, rayon, 0, 2 * Math.PI); ctx.stroke();
+    }
+    if (i === actif && saisi) { ctx.fillStyle = 'rgba(255,210,74,0.35)'; ctx.beginPath(); ctx.arc(p.x, p.y, rayon, 0, 2 * Math.PI); ctx.fill(); }
+    ctx.fillStyle = '#ffd24a'; ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText(i < 26 ? String.fromCharCode(65 + i) : String(i + 1), p.x + rayon + 3, p.y - rayon - 1);
+  });
 }
 
 /** Les gestes sur le canevas : appui, déplacement, relâchement (clic ou glisser selon qu'on a bougé), molette. */
@@ -446,18 +520,21 @@ function brancherGestesProfil(g, canvas) {
     if (e.button !== 0) return;
     canvas.setPointerCapture?.(e.pointerId);
     const p = pos(e);
-    g.debutGeste(p.x, p.y);
+    g.debutGeste(p.x, p.y, e.pointerType || 'mouse');
   });
   canvas.addEventListener('pointermove', (e) => {
-    if (!g.geste) return;
     const p = pos(e);
-    g.deplacerGeste(p.x, p.y);
+    if (g.gesteur.enCours()) g.deplacerGeste(p.x, p.y);
+    else if (e.pointerType === 'mouse') g.survoler(p.x, p.y);
   });
   canvas.addEventListener('pointerup', (e) => {
     const p = pos(e);
     g.finGeste(p.x, p.y);
   });
-  canvas.addEventListener('pointercancel', () => { g.geste = null; });
+  canvas.addEventListener('pointercancel', () => { g.gesteur.annuler(); g._saisir(-1); });
+  canvas.addEventListener('pointerleave', () => { if (!g.gesteur.enCours()) g.survoler(-1e6, -1e6); });
+  // Un appui long (la saisie d'un point au doigt) ne doit pas ouvrir le menu du navigateur.
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const p = pos(e);

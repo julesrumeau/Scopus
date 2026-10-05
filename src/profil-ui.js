@@ -326,6 +326,11 @@ function creerProfilUI(d) {
     $('profil-recadrer').addEventListener('click', () => graphique?.recadrer());
     $('profil-egales').addEventListener('change', (e) => graphique?.definirEgales(e.target.checked));
     $('profil-mesure-annuler').addEventListener('click', () => graphique?.retirerDernier());
+    // La croix d'une ligne du tableau retire le point d'arrivée de ce segment.
+    $('profil-mesure-detail').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-retirer]');
+      if (b) graphique?.retirerPoint(Number(b.dataset.retirer));
+    });
     $('profil-mesure-effacer').addEventListener('click', () => graphique?.effacerMesure());
     window.addEventListener('keydown', (e) => {
       if (!$('dlg-profil').open || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
