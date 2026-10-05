@@ -14,17 +14,28 @@ const MODE_CARTE = (() => {
     unique: 'Une seule carte en pleine page',
   };
 
+  /** Le côté montré par le mode « une seule carte » : toujours la gauche. */
+  const coteUnique = 'gauche';
+
   /**
-   * Où se place le rideau : une seule carte, c'est la gauche **en entier**, donc le rideau tout à
-   * droite ; scindée, la position d'avant.
+   * Où se place le rideau quand `cote` est montré **en entier** : tout à l'opposé (la gauche seule =
+   * rideau à 100 %, la droite seule = rideau à 0 %) ; sans côté seul, la position d'avant.
+   * La droite seule sert à la seconde des deux cartes synchronisées (TODO R10).
    */
-  function partRideau(unique, partScindee) {
-    return unique ? 1 : partScindee;
+  function partRideau(cote, partScindee) {
+    if (cote === 'gauche') return 1;
+    if (cote === 'droite') return 0;
+    return partScindee;
   }
 
-  /** Les côtés qui portent une couche à l'écran (et à calculer). */
+  /** Les côtés qu'une carte porte : celui qu'elle montre seul, ou les deux. */
+  function cotesDe(cote) {
+    return cote === 'gauche' || cote === 'droite' ? [cote] : ['gauche', 'droite'];
+  }
+
+  /** Les côtés qui portent une couche à l'écran (et à calculer) selon qu'on est en une seule carte ou non. */
   function cotesAffiches(unique) {
-    return unique ? ['gauche'] : ['gauche', 'droite'];
+    return cotesDe(unique ? coteUnique : null);
   }
 
   /** Ce que montre le panneau « Relief » : une seule liste en une seule carte, plus d'échange ni de rideau à centrer. */
@@ -36,5 +47,5 @@ const MODE_CARTE = (() => {
     };
   }
 
-  return { libelles, partRideau, cotesAffiches, panneau };
+  return { libelles, coteUnique, partRideau, cotesDe, cotesAffiches, panneau };
 })();

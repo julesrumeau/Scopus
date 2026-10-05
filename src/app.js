@@ -2687,7 +2687,7 @@ if (MODE_VUE) (async () => {
   // seule liste : voir `MODE_CARTE`.
   $('modes-carte').hidden = false;
   const changerMode = (unique) => {
-    reliefCalque.definirUnique(unique);
+    reliefCalque.definirUnique(unique ? MODE_CARTE.coteUnique : null);
     for (const [id, actif] of [['mode-carte-scinde', !unique], ['mode-carte-unique', unique]]) {
       $(id).classList.toggle('actif', actif);
       $(id).setAttribute('aria-pressed', String(actif));

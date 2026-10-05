@@ -9,13 +9,25 @@ import { chargerScripts } from './charger.js';
 
 const { MODE_CARTE } = chargerScripts(['mode-carte.js']);
 
-test('une seule carte : le rideau part tout à droite, la gauche est montrée en entier', () => {
-  assert.equal(MODE_CARTE.partRideau(true, 0.4), 1);
+test('le rideau se range à l’opposé du côté montré en entier', () => {
+  // La gauche seule : rideau tout à droite (100 %) ; la droite seule : rideau tout à gauche (0 %).
+  assert.equal(MODE_CARTE.partRideau('gauche', 0.4), 1);
+  assert.equal(MODE_CARTE.partRideau('droite', 0.4), 0);
 });
 
 test('carte scindée : le rideau reprend la position d’avant', () => {
-  assert.equal(MODE_CARTE.partRideau(false, 0.4), 0.4);
-  assert.equal(MODE_CARTE.partRideau(false, 0.7), 0.7);
+  assert.equal(MODE_CARTE.partRideau(null, 0.4), 0.4);
+  assert.equal(MODE_CARTE.partRideau(null, 0.7), 0.7);
+});
+
+test('une seule carte montre la gauche : une constante, pas un choix à deviner', () => {
+  assert.equal(MODE_CARTE.coteUnique, 'gauche');
+});
+
+test('cotesDe — le côté montré seul, ou les deux quand aucun n’est seul', () => {
+  assert.deepEqual([...MODE_CARTE.cotesDe('gauche')], ['gauche']);
+  assert.deepEqual([...MODE_CARTE.cotesDe('droite')], ['droite']);
+  assert.deepEqual([...MODE_CARTE.cotesDe(null)], ['gauche', 'droite']);
 });
 
 test('les côtés affichés : la gauche seule en une seule carte, les deux sinon', () => {
