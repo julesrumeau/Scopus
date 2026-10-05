@@ -128,3 +128,32 @@ test('graduations : zoomé à fond, des valeurs courtes — jamais « 1.20000000
   assert.deepEqual(g(0, 100, 5), [0, 20, 40, 60, 80, 100]);
 });
 
+
+// ── Échelles égales : mêmes mètres par pixel en X et en Z ────────────────────
+
+test('etendueEgale — la portée verticale se déduit de l’horizontale, centrée sur zCentre', () => {
+  const { PROFIL } = chargerScripts(['profil.js']);
+  // 100 m sur 500 px = 0,2 m/px ; 250 px de haut = 50 m de portée verticale.
+  const e = PROFIL.etendueEgale(0, 100, 500, 250, 312.5);
+  assert.ok(Math.abs((e.zmax - e.zmin) - 50) < 1e-9, `portée ${e.zmax - e.zmin}`);
+  assert.ok(Math.abs((e.zmin + e.zmax) / 2 - 312.5) < 1e-9);
+});
+
+test('cadrageEgal — tout le profil tient, avec le même nombre de mètres par pixel des deux côtés', () => {
+  const { PROFIL } = chargerScripts(['profil.js']);
+  // Un profil haut : 100 m de long, 100 m de dénivelé, dans 500 × 250 px. C'est la hauteur qui commande.
+  const v = PROFIL.cadrageEgal(100, 300, 400, 500, 250);
+  const mx = (v.s1 - v.s0) / 500, mz = (v.z1 - v.z0) / 250;
+  assert.ok(Math.abs(mx - mz) < 1e-9, `m/px : ${mx} contre ${mz}`);
+  assert.ok(v.s0 <= 0 && v.s1 >= 100, `abscisses ${v.s0}…${v.s1}`);
+  assert.ok(v.z0 <= 300 && v.z1 >= 400, `altitudes ${v.z0}…${v.z1}`);
+  // Centré : le vide se répartit des deux côtés.
+  assert.ok(Math.abs((v.s0 + v.s1) / 2 - 50) < 1e-9);
+});
+
+test('cadrageEgal — un profil plat et long : c’est la largeur qui commande, rien ne dépasse', () => {
+  const { PROFIL } = chargerScripts(['profil.js']);
+  const v = PROFIL.cadrageEgal(100, 300, 310, 500, 250);
+  assert.ok(Math.abs(v.s0) < 1e-9 && Math.abs(v.s1 - 100) < 1e-9, `abscisses ${v.s0}…${v.s1}`);
+  assert.ok(v.z0 <= 300 && v.z1 >= 310);
+});

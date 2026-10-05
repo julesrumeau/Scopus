@@ -32,6 +32,10 @@ class ProfilGraphique {
     this.lat = { min: -Infinity, max: Infinity };   // la tranche de largeur gardée
     this.mesure = [];
     this.zv = null;       // l'étendue verticale choisie en zoomant ; absente : ajustée aux points
+    // Échelles égales : autant de mètres par pixel en X qu'en Z (le défaut : mesurer sur un graphique
+    // déformé ne se lit pas). Alors l'étendue verticale se **déduit** de l'horizontale ; `zv` ne
+    // garde que son centre. Désactivées : l'ancienne vue, la hauteur ajustée aux points.
+    this.egales = true;
     this.geste = null;    // un appui en cours : clic ou déplacement, selon qu'on a bougé
     const pos = (e) => {
       const r = canvas.getBoundingClientRect();
@@ -86,9 +90,38 @@ class ProfilGraphique {
     this.lat = { min: -Infinity, max: Infinity };
     this.zv = null;
     this.mesure = [];
+    if (d && this.egales) this._cadrerEgal();
     this._ranger();
     this.rappel([]);
     this.rendre();
+  }
+
+  /** Active ou coupe les échelles égales, et remet la vue entière à la nouvelle échelle. */
+  definirEgales(actives) {
+    this.egales = !!actives;
+    this.recadrer();
+  }
+
+  /** La zone de tracé en pixels : largeur et hauteur utiles, hors marges. */
+  _zone() {
+    const r = this.c.getBoundingClientRect(), m = this.marge;
+    return { largeur: Math.max(1, r.width - m.g - m.d), hauteur: Math.max(1, r.height - m.h - m.b) };
+  }
+
+  /** Le cadrage à échelle égale de tout le profil : abscisses, et altitudes avec la même marge qu'ajustées. */
+  _cadrageEgal() {
+    const d = this.d, e = PROFIL.etendueZ(d, 0, d.longueur, this.visibles, this.lat);
+    const z0 = e ? e.zmin : 0, z1 = e ? e.zmax : 1;
+    const marge = Math.max(0.5, (z1 - z0) * 0.06);
+    const { largeur, hauteur } = this._zone();
+    return PROFIL.cadrageEgal(d.longueur, z0 - marge, z1 + marge, largeur, hauteur);
+  }
+
+  _cadrerEgal() {
+    const v = this._cadrageEgal();
+    this.s0 = v.s0;
+    this.s1 = v.s1;
+    this.zv = { z0: v.z0, z1: v.z1 };
   }
 
   /** Les classes affichées (un `Set`), ou `null` pour toutes. */
@@ -109,15 +142,26 @@ class ProfilGraphique {
 
   /** Rend la vue entière : toute la bande, l'étendue verticale ajustée aux points. */
   recadrer() {
-    this.s0 = 0;
-    this.s1 = this.d ? this.d.longueur : 1;
-    this.zv = null;
+    if (this.d && this.egales) {
+      this._cadrerEgal();
+    } else {
+      this.s0 = 0;
+      this.s1 = this.d ? this.d.longueur : 1;
+      this.zv = null;
+    }
     this.planifier();
   }
 
   /** Cale un tronçon [a, b] dans la bande en gardant sa largeur ; plus large qu'elle : la bande entière. */
   _caler(a, b) {
     const L = this.d ? this.d.longueur : 1, span = b - a;
+    // À échelle égale la fenêtre peut être plus large que la bande (du vide de chaque côté, quand
+    // la hauteur commande) : elle glisse alors tant que la bande reste dedans.
+    if (this.egales) {
+      const lo = Math.min(0, L - span), hi = Math.max(0, L - span);
+      const s0 = Math.min(hi, Math.max(lo, a));
+      return [s0, s0 + span];
+    }
     if (span >= L) return [0, L];
     if (a < 0) return [0, span];
     if (b > L) return [L - span, L];
@@ -134,10 +178,14 @@ class ProfilGraphique {
     const e = this._echelles();
     const sc = e.s(x), zc = e.z(y);
     const span = Math.max(0.5, (this.s1 - this.s0) / f);
-    if (span >= this.d.longueur) { this.recadrer(); return; }
+    const v = this.egales ? this._cadrageEgal() : null;
+    // Pas plus loin que la vue entière : la bande, ou à échelle égale le cadrage qui montre tout.
+    if (span >= (v ? v.s1 - v.s0 : this.d.longueur)) { this.recadrer(); return; }
     const r = span / (this.s1 - this.s0);
     [this.s0, this.s1] = this._caler(sc - (sc - this.s0) * r, sc - (sc - this.s0) * r + span);
-    const zspan = Math.max(0.5, (e.zmax - e.zmin) / f), rz = zspan / (e.zmax - e.zmin);
+    // Échelle égale : la portée verticale suit la même raison que l'horizontale.
+    const zspan = this.egales ? (e.zmax - e.zmin) * r : Math.max(0.5, (e.zmax - e.zmin) / f);
+    const rz = zspan / (e.zmax - e.zmin);
     const z0 = zc - (zc - e.zmin) * rz;
     this.zv = { z0, z1: z0 + zspan };
     this.planifier();
@@ -226,7 +274,12 @@ class ProfilGraphique {
     const W = r.width, H = r.height, m = this.marge;
     const e = this.d && PROFIL.etendueZ(this.d, this.s0, this.s1, this.visibles, this.lat);
     let zmin = 0, zmax = 1;
-    if (this.zv) {
+    const largeur = Math.max(1, W - m.g - m.d), hauteur = Math.max(1, H - m.h - m.b);
+    if (this.egales) {
+      // Déduite de l'horizontale : seul le centre vient de `zv` ou des points.
+      const zc = this.zv ? (this.zv.z0 + this.zv.z1) / 2 : e ? (e.zmin + e.zmax) / 2 : 0.5;
+      ({ zmin, zmax } = PROFIL.etendueEgale(this.s0, this.s1, largeur, hauteur, zc));
+    } else if (this.zv) {
       zmin = this.zv.z0;
       zmax = this.zv.z1;
     } else if (e) {
@@ -234,7 +287,6 @@ class ProfilGraphique {
       zmin = e.zmin - marge;
       zmax = e.zmax + marge;
     }
-    const largeur = Math.max(1, W - m.g - m.d), hauteur = Math.max(1, H - m.h - m.b);
     return {
       W, H, zmin, zmax,
       x: (s) => m.g + ((s - this.s0) / (this.s1 - this.s0)) * largeur,

@@ -113,6 +113,29 @@ function fabriqueProfil() {
     return n ? { zmin, zmax, n } : null;
   }
 
-  return { axe, largeurValide, largeurDepuisCurseur, curseurDepuisLargeur, pointSuivant, verdict, coins, emprise, graduations, etendueZ };
+  /**
+   * L'étendue verticale d'un tracé à **la même échelle** que l'horizontale : autant de
+   * mètres par pixel en Z qu'en X. Elle ne dépend plus des points mais de la portée
+   * horizontale, de la taille de la zone de tracé et de l'altitude du centre.
+   */
+  function etendueEgale(s0, s1, largeurPx, hauteurPx, zCentre) {
+    const mpp = (s1 - s0) / Math.max(1, largeurPx);
+    const demi = (mpp * Math.max(1, hauteurPx)) / 2;
+    return { zmin: zCentre - demi, zmax: zCentre + demi };
+  }
+
+  /**
+   * La vue qui montre tout le profil (`longueur` de long, d'altitudes `zmin`…`zmax`) à
+   * échelle égale : c'est la dimension la plus contraignante qui fixe le nombre de
+   * mètres par pixel, l'autre garde du vide de chaque côté.
+   */
+  function cadrageEgal(longueur, zmin, zmax, largeurPx, hauteurPx) {
+    const W = Math.max(1, largeurPx), H = Math.max(1, hauteurPx);
+    const mpp = Math.max(longueur / W, (zmax - zmin) / H, 1e-6);
+    const sc = longueur / 2, zc = (zmin + zmax) / 2;
+    return { s0: sc - (mpp * W) / 2, s1: sc + (mpp * W) / 2, z0: zc - (mpp * H) / 2, z1: zc + (mpp * H) / 2 };
+  }
+
+  return { axe, largeurValide, largeurDepuisCurseur, curseurDepuisLargeur, pointSuivant, verdict, coins, emprise, graduations, etendueZ, etendueEgale, cadrageEgal };
 }
 const PROFIL = fabriqueProfil();

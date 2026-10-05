@@ -409,3 +409,72 @@ test('un outil inconnu est refusé : on garde l’outil courant', () => {
   g.definirOutil('nimporte');
   assert.equal(g.outil, 'reference');
 });
+
+// ── Échelles égales ──────────────────────────────────────────────────────────
+
+/** Mètres par pixel en X (distance) et en Z (altitude), lus sur le graphique lui-même. */
+const metresParPixel = (g) => {
+  const a = g.px(0, 300), b = g.px(100, 300), c = g.px(0, 325);
+  return { x: 100 / (b.x - a.x), z: 25 / (a.y - c.y) };
+};
+
+test('échelles égales par défaut : autant de mètres par pixel en X qu’en Z', () => {
+  const { g } = graphique();
+  g.definir(donnees());
+  const m = metresParPixel(g);
+  assert.ok(Math.abs(m.x - m.z) / m.x < 1e-6, `X ${m.x} m/px, Z ${m.z} m/px`);
+});
+
+test('sans les échelles égales, l’ancienne vue : la hauteur est ajustée aux points', () => {
+  const { g } = graphique();
+  g.definirEgales(false);
+  g.definir(donnees());
+  const m = metresParPixel(g);
+  assert.ok(m.z < m.x * 0.7, `X ${m.x}, Z ${m.z} : l'étendue verticale n'aurait pas dû suivre l'horizontale`);
+});
+
+test('échelles égales : un profil haut tient tout entier dans la zone de tracé, vide de part et d’autre', () => {
+  const { g } = graphique();
+  g.definir({ n: 3, s: Float32Array.of(0, 50, 100), z: Float32Array.of(300, 400, 300), d: Float32Array.of(0, 0, 0), cls: Uint8Array.of(2, 5, 2), longueur: 100 });
+  const m = g.marge, W = 600, H = 300;
+  for (const [s, z] of [[0, 300], [100, 300], [50, 400]]) {
+    const p = g.px(s, z);
+    assert.ok(p.x >= m.g - 0.5 && p.x <= W - m.d + 0.5, `x ${p.x} pour (${s}, ${z})`);
+    assert.ok(p.y >= m.h - 0.5 && p.y <= H - m.b + 0.5, `y ${p.y} pour (${s}, ${z})`);
+  }
+  const a = g.px(0, 300), b = g.px(100, 300);
+  assert.ok(a.x > m.g + 20, 'le profil est plus étroit que la zone : de l’espace de chaque côté');
+  assert.ok(b.x < W - m.d - 20);
+});
+
+test('échelles égales : zoomer garde l’égalité et le point sous le curseur en place', () => {
+  const { g } = graphique();
+  g.definir(donnees());
+  const avant = g.px(50, 325);
+  g.zoomer(avant.x, avant.y, 2);
+  const apres = g.px(50, 325);
+  assert.ok(Math.abs(apres.x - avant.x) < 0.5 && Math.abs(apres.y - avant.y) < 0.5, `(${avant.x}, ${avant.y}) → (${apres.x}, ${apres.y})`);
+  const m = metresParPixel(g);
+  assert.ok(Math.abs(m.x - m.z) / m.x < 1e-6, `X ${m.x}, Z ${m.z}`);
+});
+
+test('échelles égales : déplacer la vue garde l’égalité', () => {
+  const { g } = graphique();
+  g.definir(donnees());
+  const p = g.px(50, 312);
+  g.zoomer(p.x, p.y, 3);
+  g.deplacer(40, -25);
+  const m = metresParPixel(g);
+  assert.ok(Math.abs(m.x - m.z) / m.x < 1e-6, `X ${m.x}, Z ${m.z}`);
+});
+
+test('définirEgales rebascule et recadre : le profil entier, à la nouvelle échelle', () => {
+  const { g } = graphique();
+  g.definirEgales(false);
+  g.definir(donnees());
+  g.definirEgales(true);
+  const m = metresParPixel(g);
+  assert.ok(Math.abs(m.x - m.z) / m.x < 1e-6, `X ${m.x}, Z ${m.z}`);
+  const a = g.px(0, 300), b = g.px(100, 300);
+  assert.ok(a.x >= g.marge.g - 0.5 && b.x <= 600 - g.marge.d + 0.5);
+});
