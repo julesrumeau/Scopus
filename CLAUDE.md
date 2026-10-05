@@ -404,7 +404,9 @@ défaire :
 
 Un bouton à trois états sous le zoom (`MODE_CARTE`, `mode-carte.js`) : **carte scindée** par le rideau,
 **une seule carte** (la gauche, une seule liste « Couche affichée », la droite ni calculée ni chargée),
-**deux cartes synchronisées** (la gauche à gauche, la droite à droite ; empilées sous 600 px). Chaque carte est un
+**deux cartes synchronisées** (la gauche à gauche, la droite à droite ; empilées sous 600 px). La gestion des cartes est une **fabrique à dépendances explicites** (`creerVueCartes`, `vue-cartes.js`, testée avec des
+cartes factices : ni DOM ni Leaflet), `app.js` ne fait que lui passer ce qui lui est étranger — c'est le modèle à suivre
+pour le reste du bloc de la vue normale (TODO, « Dette de structure »). Chaque carte est un
 **volet** (`VOLETS`, `volets.js`) : sa carte Leaflet, son `CalqueRelief`, ses côtés ; le calcul pose l'image de
 chaque côté dans le volet qui le porte, avec **son propre écran** (`VOLETS.ecran`). La seconde carte est un
 `L.map` simple créé au premier passage, photo en fond ; `SYNCHRO.lier` (`synchro.js`) copie le déplacement et le
@@ -762,6 +764,13 @@ plus des contrôles mécaniques nés de fautes réelles : syntaxe de chaque fich
 `src/`, correspondance avec les balises d'`index.html` (scripts chargés et
 **identifiants lus par `app.js`**), absence d'`import`, absence de backtick dans
 les commentaires GLSL.
+
+**Garde-fou de taille** (`test/taille-code.test.js`, mesureur sans dépendance dans `test/taille-code.js`,
+validé contre acorn : 888 fonctions et classes, aucun écart) : une fonction tient en **100 lignes propres**
+(sans compter ce qu'elle imbrique), une classe en **400**, un fichier en **1000**. Ce qui dépasse déjà est un
+**cliquet** (`taille-code.limites.json`) : rien de neuf ne dépasse, rien d'ancien ne grossit, et chaque réduction
+doit être inscrite (`node test/taille-code.js --ecrire`) — le test échoue si la limite est restée plus lâche que le
+code. Le plan de découpage est dans `TODO.md`, « Dette de structure ».
 
 `.tmp/` (non versionné) : harnais à reconstruire au besoin — `pipeline.mjs`
 (pipeline hors navigateur sur données réelles), `selftest.html`, `run-browser.js`
