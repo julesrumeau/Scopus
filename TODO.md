@@ -1,26 +1,17 @@
 # Scopus — Reste à faire
 
-Liste renumérotée le 19 août 2026 : les tâches achevées depuis la version
-précédente ont été retirées d'ici et, quand elles laissaient un fait mesuré
-sans autre trace écrite, repliées dans la section du document qui décrit
-l'endroit du code concerné (la carte pour #17 et #12 ; les autres n'avaient
-rien à replier, leur détail vivait déjà plus haut). Les numéros ne
-correspondent donc plus à ceux des versions antérieures de ce fichier — les
-renvois `(#N)` ailleurs dans le document ont été mis à jour en conséquence.
-L'ordre reste celui d'origine ; seuls les *(prioritaire)* sont un jugement de
-priorité explicite, le reste est classé par ancienneté et non par urgence.
+Topo du 5 octobre 2026 (`main` = `dev` au commit `18d9bd3`, plus ce fichier). Le détail de chaque point est plus bas ; les numéros `#N` sont les anciennes tâches, `R1…R19` les retours reçus du forum OSM-FR (depuis le 1er octobre).
 
-**5 tâches restent.** Les deux premières sont marquées *(prioritaire)* : ce
-sont les seules dont l'issue est incertaine. Les suivantes (#3, #4, #6)
-sont ce que le relief piloté par la vue laisse hors de ses plans (spec
-`docs/superpowers/specs/2026-09-26-flux-vue-design.md`). #5 (un relief de
-secours pour les vues trop larges) est tranché le 27 septembre 2026 : rien
-que du COPC, la carte voilée et la dernière image gardée (CLAUDE.md, « Le
-calcul de la vue »).
+**À faire, dans l'ordre proposé**
+1. **R19, ce qui a cassé en ligne** : le bouton Profil caché par une règle CSS orpheline (corrigé le 5 octobre) ; l'absence de test de fumée dans un vrai navigateur (à écrire : `tools/fumee.js`) ; les fichiers servis avec `max-age=600` sans version (HTML neuf avec CSS ou JS d'avant pendant 10 minutes : « il suffit de recharger entre deux versions ») ; les icônes invisibles sur Safari iOS (à confirmer).
+2. **R18, profil** : garder les points de la mesure et les montrer sur la carte (un défaut), puis déplacer / ajouter / supprimer des points, puis l'export (GeoJSON + `.osm`, avec R4), la polyligne seulement ensuite.
+3. **#4 / R13, la 3D qui télécharge** (et le lien 3D qui ouvre la 3D) : gros chantier, voie 2a d'abord.
+4. **Petits fixes** (#6) : panneau latéral qui recouvre la barre d'outils entre 600 et 900 px, petits points du profil, HUD de la seconde carte, deux côtés du rideau sur deux surfaces.
+5. **R15b / R15c, ombrage** (multidirectionnel « cramé », « trop lissé » face à l'IGN) : à mesurer avant d'agir.
 
-**Retours du forum** : les demandes arrivées après la publication du profil
-(1er et 2 octobre 2026) sont numérotées **R1 à R7**, à part des #, dans la
-section « Retours du forum » en fin de fichier.
+**En attente d'autrui ou de décision** : R8 fond OpenStreetMap France (accord du CA d'OSM France, pas avant la semaine du 12 octobre) ; R4 export GeoJSON (rejoint R18) ; R7 combler le sol (à ne pas commencer) ; #3 case « non classés » (à vérifier sur une ruine connue). Détection de structures et de sentiers (#1, #2) : code retiré le 5 octobre (tag `archive-avant-retrait-dalle`).
+
+**Fait ce jour (5 octobre)** : fond OpenStreetMap, bouton Réinitialiser le soleil, échelles égales du profil, listes de couches par famille, une seule carte et deux cartes synchronisées, retrait de `?dalle`, découpage d'`app.js` et de `Vue3D` (voir « Dette de structure »).
 
 ## Dette de structure : audit SOLID (5 octobre 2026)
 
@@ -510,4 +501,17 @@ Même personne que les mesures de pente (escalier, chemin en paliers et marches)
 4. **Tracer une polyligne sur la carte (et/ou charger un way OSM), avec interaction entre carte et profil.** Gros chantier : aujourd'hui une bande est **droite** (A, B, largeur) ; une polyligne demande une bande qui suit des segments (distances cumulées, coins, recouvrements) dans `profil.js` et dans le worker (`VUE_RELIEF.profil`). Charger un way OSM : une requête Overpass (CORS ouvert, mais un service de plus, avec sa politique d'usage). À concevoir (spec) **après** 1 à 3 ; demander à la personne si une bande droite par segment suffit (profil de chaque tronçon d'un escalier).
 
 Ordre proposé : **1**, puis **2**, puis **3** ; **4** seulement si 1 à 3 ne suffisent pas à l'usage.
+
+### R19 — Ce qui s'est cassé en ligne : icônes invisibles, rechargement, test de fumée (utilisateurs, 5 octobre 2026)
+
+Deux retours : « soit il suffit de recharger la page (constaté entre deux versions), soit il faut changer de navigateur » ; une personne ne voit **pas les icônes** sur son téléphone (**Safari sous iOS**), le demandeur sous **Chrome Android**.
+
+Ce qui est établi :
+- **Le bouton Profil a vraiment disparu** de tout le site publié après le retrait de `?dalle` (une règle `body:not([data-mode="vue"]) #mode-profil { display: none }` restée alors que plus rien ne posait l'attribut). Corrigé et publié (`18d9bd3`), avec un test qui interdit toute règle `body[data-mode]`. C'est sans doute le cas « Chrome Android ». Les autres boutons de la barre (déplacement, sélection, mesure) restaient visibles.
+- **Les fichiers sont servis avec `cache-control: max-age=600`** (GitHub Pages) et sans version dans leur adresse (`styles.css`, `src/*.js`). Pendant dix minutes après une publication, un navigateur peut avoir un `index.html` neuf avec un `styles.css` ou un script d'avant (ou l'inverse) : des éléments qui manquent, des erreurs sans cause visible. « Recharger suffit entre deux versions » est exactement ce symptôme. Un rechargement forcé règle ; un changement de navigateur aussi (autre cache).
+
+À faire :
+1. **Version dans l'adresse des fichiers**, sans étape de construction : un petit script `tools/estamper.js` écrit dans `index.html` un `?v=<empreinte>` (hachage du contenu de `styles.css` et de `src/`) sur chaque fichier local ; un test échoue si l'empreinte écrite n'est plus celle du contenu (on a oublié de l'estamper). Deux fichiers jamais mélangés : une publication change l'adresse de tout ce qui a changé. À lancer avant chaque publication (un `git push` déploie toujours : le test oblige à y penser).
+2. **Test de fumée versionné** (`tools/fumee.js`, à la main avant une publication, hors `npm test` pour garder zéro dépendance) : ouvrir la page, l'exemple, cliquer **chaque bouton de la barre d'outils** (le profil jusqu'à la modale), la 3D, un lien complet ; échouer si un bouton est invisible, une erreur de console, un script en 404.
+3. **Safari iOS** : non reproductible ici (Chromium seulement). Demander à la personne quelles icônes manquent (la barre d'outils ? les trois boutons sous le zoom ?), la version d'iOS, et si un rechargement force les voir. Pistes si cela persiste : les icônes sont des `<svg>` en ligne dont la couleur vient de `fill: currentColor` ; vérifier un contraste de bouton non défini par Safari, `focusable`, et les `fill-opacity` des trois modes de la carte.
 
