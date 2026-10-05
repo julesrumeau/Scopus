@@ -13,10 +13,7 @@ France (métropole + DROM). Il calcule et affiche le relief caché sous la
 végétation — ombrage, micro-relief, Sky-View Factor, ouverture — et le compare à
 la photo aérienne : cabanes, ruines, sentiers, terrasses s'y lisent à l'œil.
 
-Deux détections automatiques existent (structures par règles géométriques
-explicites, sans apprentissage ; sentiers) mais sont **masquées dans
-l'interface** : jamais confrontées à une structure réelle connue. Voir « Code
-existant mais masqué ».
+Aucune détection automatique : l'œil lit le relief (voir « Détection retirée »).
 
 ---
 
@@ -86,7 +83,7 @@ bornée, réessais 429/5xx).
   ≈ 6,2 M, résolu à ~0,5 m seulement).
 - `grouperPlages` fusionne les nœuds contigus (1554 requêtes → 24) ; redécoupage
   à 8 Mo pour garder une progression.
-- **Rastériser au vol, ne rien garder** (parcours `?dalle`) : chaque bloc est
+- **Rastériser au vol, ne rien garder** : chaque bloc est
   versé dans les grilles (`RASTER.accumuler`) puis abandonné. Grilles dégraissées
   (21 octets/cellule). **Ne pas réintroduire un tableau par cellule sans
   compter** : à 16 M de cellules, un `Float32Array` = 64 Mo.
@@ -97,7 +94,6 @@ bornée, réessais 429/5xx).
 
 ## Le chargement piloté par la vue (`flux.js`)
 
-Vue par défaut ; l'ancien parcours « charger une dalle » est derrière `?dalle`.
 `&debug` ajoute un calque des blocs (`flux-calque.js`). Conception :
 `docs/superpowers/specs/2026-09-26-flux-vue-design.md`.
 
@@ -125,8 +121,7 @@ Vue par défaut ; l'ancien parcours « charger une dalle » est derrière `?dall
 - **Seules les couches lues** : le relief ne lit que les 4 premières couches
   LAZ 1.4 (XY, Z, classe, drapeaux ≈ 60 % du bloc). Un bloc ≥ `coupeMinOctets`
   est demandé tronqué (`fractionCoupe` 68 %, reste redemandé si besoin via
-  `COPC.tailleUtileBloc`) puis **réduit** (`COPC.reduireBloc`). Prix : plus
-  d'intensité dans la vue normale (reste derrière `?dalle`). Un bloc se décode
+  `COPC.tailleUtileBloc`) puis **réduit** (`COPC.reduireBloc`). Un bloc se décode
   **dès que ses octets sont là**.
 - **Centimètres entiers** : les workers rendent `xc/yc/zc` relatifs au coin de
   la dalle (échelle 0,01, décalage 0 chez l'IGN) : l'affectation d'un point à
@@ -177,11 +172,11 @@ Grille de la vue → rangement des points → terrain → surface → couche par
   réétire que l'intervalle).
 - **Ombrage coloré** : `RELIEF.ombrageRGB`, reprojeté par `VUE_IMAGE.peindreRGBA`,
   sans palette ni contraste.
-- **Deux côtés comme en 2D** : chaque côté du rideau = « Photo aérienne » (la
+- **Deux côtés** : chaque côté du rideau = « Photo aérienne » (la
   carte Leaflet), « Plan IGN » (couche de tuiles dans le volet du côté) ou une
   couche de relief ; défaut carte à gauche, SVF à droite. Le worker garde
   plusieurs couches par surface : un aller-retour ne refait rien.
-- **Outils de la 2D sur la carte** (modes, point sélectionné, mesure en
+- **Outils sur la carte** (modes, point sélectionné, mesure en
   chaîne) : le point se **lit** dans la dernière vue calculée (`relief.lire`),
   jamais recalculé. Marqueurs et traits en **SVG** dans un volet à part. La case
   « Compléter le sol par les non classés » est masquée (TODO #3).
@@ -292,8 +287,7 @@ d'arbres et de bâtiments sans QGIS. Conception :
   exactement `[X·1000, (X+1)·1000] × [(Y−1)·1000, Y·1000]` en Lambert-93. Le
   WFS plafonne à **600 entités en silence** (triées par colonne → bandes vides)
   et ne s'interroge qu'**au point**, lors d'un clic.
-- Quadrillage kilométrique dès le zoom 11, uniquement derrière `?dalle` et
-  `&debug`. La couche WFS des emprises de chantier (`bloc`) a disparu fin
+- Plus de quadrillage kilométrique. La couche WFS des emprises de chantier (`bloc`) a disparu fin
   septembre 2026 : les zones bleues sont retirées, pas remplacées.
 - **Un carré Lambert-93 est tourné en WGS84** : toute emprise est un polygone de
   côtés reprojetés (`GRILLE.contourEmprise`), jamais `L.rectangle`.
@@ -311,7 +305,7 @@ d'octree ; **seule la projection change** (UTM 40 S Réunion, 20 N Antilles,
 `PROJ.projectionDe(code)` (Krüger ordre 4, vérifié au mm). Aucun changement de
 datum. En vue normale, `territoireVue` (`app.js`) suit le centre de la carte et
 tout passe par `projVue()` ; le worker reçoit le territoire avec chaque image.
-`?dalle` reste en métropole. Martinique, Mayotte, Guyane : pas de dalle publiée
+Martinique, Mayotte, Guyane : pas de dalle publiée
 (27/09/2026), la carte dit « Pas de LiDAR HD ici ».
 
 ---
@@ -428,17 +422,13 @@ Format osm.org : `#map=zoom/lat/lon`, + `/orientation/inclinaison` en 3D si non
 nuls (MapLibre). `OSM.parseHash` ignore le reste : un lien Scopus s'ouvre tel
 quel dans osm.org/iD/JOSM (`test/lien.test.js` rejoue la lecture). Depuis le
 plan 3, ouvrir un lien cadre la carte (un ancien `#d=x,y` cadre le centre de sa
-dalle au zoom 16 et se réécrit) ; la sélection de dalle est derrière `?dalle`.
+dalle au zoom 16 et se réécrit) .
 
 - Zoom Leaflet/osm.org (256 px au zoom 0), déduit de la résolution au sol
   (`LIEN.zoomDepuisResolution`), deux décimales.
 - Le lien suit l'onglet affiché ; **`replaceState`, jamais `location.hash =`**,
   regroupé à 300 ms (`majLien`, Safari limite à 100 par 30 s). Rien d'écrit
   tant que l'accueil est ouvert.
-- En `?dalle` : `etat.vueDuLien` garde l'échelle fine et les angles jusqu'au
-  chargement ; afficher l'onglet 3D **avant** de placer la caméra ; abandonné
-  sur `movestart` (pas sur des évènements de pointeur) ; aucun téléchargement
-  lancé par un lien.
 - Conventions d'angle éprouvées contre le vrai `Vue3D._repere` : orientation 90
   = est, inclinaison 0 = verticale ; le 89° de la vue de dessus n'est pas écrit.
 - **Anciens `#d=x,y`** : indices du coin **sud-ouest** (`#d=877,6904` =
@@ -488,8 +478,7 @@ vue (plus bas). Fonctions pures dans `lien.js` (`ecrirePartage`, `lirePartage`),
   le change à sa guise. La position du rideau passe par `placerRideau` (enveloppé pour
   `majLien`).
 - **Le lien suit tout changement** (bande, largeur, sélection, règle, sol, réglages) par
-  `majLien`, déjà regroupé à 300 ms. Hors vue normale (`?dalle`), rien de tout cela
-  n'est écrit ni lu.
+  `majLien`, déjà regroupé à 300 ms.
 - **Le bouton « Partager »** copie `location.href` ; « Ouvrir dans OpenStreetMap » ne
   garde que la vue, ce qu'osm.org sait lire.
 - Vérifié en navigateur sur un scénario de bout en bout (bande, anciens liens, règle,
@@ -500,11 +489,6 @@ vue (plus bas). Fonctions pures dans `lien.js` (`ecrirePartage`, `lirePartage`),
 Une section porte `data-vue="carte"` ou `"3d"` ; `basculerVue()` écrit
 `panneau.dataset.vue`, le CSS masque le reste. Sans `data-vue` : valable
 partout. Les quinze curseurs de seuils sont repliés dans un `<details>`.
-
-**Sélectionnée n'est pas chargée** (`?dalle`) : `etat.dalle` (désignée) ≠
-`etat.dalleChargee` (en mémoire). Charger une dalle ne détruit rien tant qu'on ne
-l'a pas demandé ; `fermerNuage()` libère 400–520 Mo. **Les grilles d'une dalle en
-cours de chargement restent locales jusqu'au succès.**
 
 ### Mobile
 
@@ -536,36 +520,7 @@ calculs rapides (ombrage, micro-relief) n'y passent pas.
 
 ---
 
-## Parcours `?dalle` (ancienne interface)
-
-Trois onglets Carte / 2D / 3D ; charger une dalle bascule en **2D** (la vue qui
-montre). La bascule a lieu **avant** le comblement du MNT ; `preparer2D()` vérifie
-que `etat.grille.mnt` existe (grille finalisée).
-
-- **Rideau** : se glisse (bande sensible de 22 px sur toute la hauteur), état du
-  geste = drapeau (pas `hasPointerCapture`), étiquettes collées au rideau, deux
-  listes déroulantes.
-- **Cache de couches** (table vidée avec la grille) ; une couche qui échoue
-  **retombe sur l'ombrage**.
-- **Lissage** (`Vue2D._rendreLisse`) : bilinéaire entre centres de cellules
-  (décalage `fx - 0.5`), une voisine NaN fait retomber sur la plus proche, seulement
-  quand `parCellule < 1`.
-- **Photo aérienne déformée dans la grille Lambert-93** (`ortho.js`) : maillage
-  interpolé (un nœud tous les 64 cellules, < 1/10 px). Niveau = premier dont le
-  pixel au sol ≤ pas de grille, plafonné à 19. Tuiles dans leur **propre file**
-  (`CONFIG.reseau.requetesParallelesTuiles` = 16). Une tuile manquante laisse un
-  trou gris. Le WMS `HR.ORTHOIMAGERY.ORTHOPHOTOS` rend directement du Lambert-93
-  (jusqu'à 5010 px) : meilleur pour une photo à la taille de l'écran. Pièges :
-  - **La ligne 0 d'un raster est au sud** (`RASTER.centreCellule`). La photo a
-    été livrée retournée parce que les tests rejouaient la convention du code :
-    **un test qui rejoue l'hypothèse du code n'éprouve rien**. Le contrôle fait
-    venir la position de `RASTER.centreCellule`.
-  - Les nœuds du maillage restent à **pas constant**, même si le dernier tombe
-    hors grille (sinon 13 px de décalage en bord).
-  - Une photo décalée reste plausible : indices de tuiles recoupés avec la
-    formule « slippy map ».
-
-## Lecture du relief (`relief.js`, `vue-2d.js`)
+## Lecture du relief (`relief.js`)
 
 Une cellule = un pixel en Lambert-93, nord en haut. Algorithmes de la
 littérature (Horn 1981, LRM de Hesse 2010, SVF de Zakšek et al. 2011,
@@ -603,13 +558,6 @@ ouverture de Yokoyama 1998), **vérifiés contre des surfaces à réponse connue
     dominant, interpolation sur l'autre) : l'arrondi donnait 88,6° au lieu de 90.
   - **Ne jamais chronométrer dans le harnais de test** (`vm.createContext` :
     7× plus lent).
-- **Banc synthétique** (`npm run banc`, `tools/banc-lignes.js`) : un banc doit
-  passer par la chaîne de production (`RASTER.rasteriser` →
-  `RELIEF.preparer`). Il a tranché : la couche est l'ouverture négative (sur une
-  croupe, le micro-relief fait franchir le seuil à 96–99,5 % du versant) ; la
-  surface d'entrée est **MNT + hauteur**, jamais le MNT seul ; le pas est
-  **50 cm** (25 cm : 54 % de cellules vides). Grille d'affichage à 50 cm.
-
 ## Calcul sur la carte graphique (`gpu-relief.js`, noyaux dans `shaders.js`)
 
 Porte sur WebGL2 le balayage d'horizons, les ombrages, le micro-relief et le
@@ -632,85 +580,18 @@ ombrage et micro-relief ne gagnent rien.
 
 ## Classes du sol
 
-`g.classesSol` (un `Set`, `CONFIG.raster.classesSolDefaut = [2, 9]`) remplace le
-codage en dur ; le panneau liste les classes réellement présentes. **Une classe
-choisie comme sol cesse de nourrir le signal de détection** (`if`/`else if`, sol
-testé en premier). Pas de recalcul au clic : un bouton **« Mettre à jour »**
-recharge (les points bruts ne sont jamais gardés), actif seulement si la
-sélection diffère de `etat.classesSolChargees`, jamais pendant un chargement ;
-`majBoutonClassesSol` est rappelé après succès **et** échec.
-
-**Filtrage des classes** (autre chose : quels points *se voient*) : alpha 0 dans
-la palette (`paletteClasses`), le vertex shader **rejette** le point (un point
-transparent écrirait dans le tampon de profondeur).
+**Filtrage des classes en 3D** (quels points *se voient*) : alpha 0 dans la palette (`paletteClasses`), le
+vertex shader **rejette** le point (un point transparent écrirait dans le tampon de profondeur). Les classes
+du sol du relief sont un autre réglage (`CONFIG.raster.classesSolDefaut = [2, 9]`, lien `&sol=`).
 
 ---
 
-## Code existant mais masqué
+## Détection retirée
 
-`ANALYSE_MASQUEE = true` dans `app.js` retire le volet Structures ; la détection
-de sentiers (`SENTIERS_MASQUES`) a été brièvement ouverte le 20/08/2026 puis
-refermée. `montrerVolet()` refuse d'ouvrir le volet tant qu'`ANALYSE_MASQUEE`
-tient. **Pourquoi** : sur une couche d'ouverture ou de SVF, un mur, une terrasse ou
-un chemin creux se voient à l'œil (confirmé sur une ruine réelle) ; une fonction qui
-promet et rend zéro fait conclure que l'outil est cassé. Ce qui manque pour
-rallumer n'est pas du code : **une ruine de coordonnées connues** pour vérifier que
-l'algorithme la retrouve avec un score juste. Le drapeau se remet à `false` en une
-ligne.
-
-### Détection de structures — décisions à ne pas défaire
-
-**Par classement** (`detection.js`) :
-- Le signal inclut la classe 6 (bâtiment), pas seulement 1 : une cabane debout
-  est classée 6 (Beille, 1.68416 / 42.74010). Décochable.
-- **Le MNT comblé est indispensable** : sans surface sous la structure, sa
-  hauteur est incalculable.
-- **Fermeture puis ouverture, pas l'inverse** (0,6 point par cellule à 25 cm :
-  l'ouverture d'abord efface une structure réelle).
-- **La rectangularité est un filtre de régularité** (disque = π/4 ≈ 0,785) ;
-  seuil à 0,55, **ne pas le remonter au-dessus de 0,785** (les orris ronds
-  disparaîtraient). Le classement se joue surtout sur `partTrouSol`.
-- Falaise : pente moyenne ≤ 22° et pente locale max ≤ 55°.
-- Rapprochement BD TOPO : à moins de 25 m d'un bâtiment, marqué et masquable,
-  **jamais supprimé** ; distance au **contour**, pas au centre.
-- La voie par classement rejette structurellement les anneaux (taux de
-  remplissage, un anneau est creux).
-
-**Par la forme** (`lignes.js`, sans lire le classement) : une structure est une
-ligne qui se referme, mesurée en **couverture angulaire** autour d'un centre
-ajusté (Kåsa) ; le seuil est en **degrés sous 90°**, jamais en quantile (une
-réponse creuse ferait tomber le seuil à zéro et inonderait la grille). Frangi et
-l'amincissement ont été **démentis par le banc** (gardés, désactivés). Ce qui
-sépare cabane et plateforme est **l'intérieur**, lu en ouverture positive (18–26°
-contre 9,9°, marge de 2°, **seul critère à marge étroite**), plus un mur
-dépassant son intérieur d'au moins 25 cm. Agrégation à 50 cm par le **maximum des
-cellules mesurées** (`solZ` brut), d'où deux surfaces : `mnt` (moyenne, affichage)
-et `analyse` (maximum, `lignes.js` seul) — donc balayage non partagé, ~5 s. Les
-deux voies versent dans la même liste (champ `voie`) ; `noterForme` note sur les
-trois preuves propres à la voie. **Mode de panne à ne pas reproduire** :
-`extraire` ne fusionnait que `CONFIG.lignes` alors que `svfRayonM` vit dans
-`CONFIG.relief` → marge `NaN` → masque vide en silence. **Un test qui surcharge un
-réglage n'éprouve pas le chemin de l'application** ; `extraire` lève si la marge
-n'est pas finie. Résultat du banc : 8 structures sur 8, 0 faux positif sur 12.
-
-### Détection de sentiers (`sentiers.js`)
-
-Sur le **relief seul**, jamais les classes : relief local → rugosité locale →
-Frangi multi-échelle → hystérésis → Zhang-Suen → vectorisation → filtres. Ne
-partage rien avec `relief.js`. Décisions :
-
-- Seuil en **multiples de la rugosité locale**, jamais en mètres (2 cm sur
-  synthétique, 79 cm sur Beille).
-- Lissage par **convolution normalisée** (poids et valeurs séparés) ; marge de
-  bord = **trois rayons** de lissage.
-- **L'alignement à la pente est le critère décisif** (ravine ≠ chemin creux).
-- **L'envergure se mesure bout à bout**, jamais par boîte englobante
-  (`CONFIG.sentiers.compaciteMax`) : les « pelotes » signalées par l'utilisateur
-  sur Beille ont été corrigées ainsi.
-- Garde-fou : masque > 45 % de la surface → arrêt avec message.
-- Non validé sur chemin réel connu ; sentes de brebis non traitées.
-
----
+Le parcours `?dalle` (choix et chargement d'une dalle, onglet 2D, détection de structures et de sentiers)
+a été retiré le 05/10/2026 : jamais confronté à une structure réelle connue, il alourdissait `app.js`
+(3 834 → 2 200 lignes). Le code et ses décisions (rectangularité, couverture angulaire, ouverture
+négative, Frangi démenti par le banc…) sont récupérables au tag `archive-avant-retrait-dalle`.
 
 ## Pièges connus
 
@@ -733,8 +614,6 @@ partage rien avec `relief.js`. Décisions :
   juste zéro résultat.
 - **WMTS** : `PLANIGNV2` en `image/png`, `ORTHOPHOTOS` en `image/jpeg` ; l'autre
   combinaison renvoie une erreur XML. `FORMAT` reste percent-encodé.
-- **Leaflet ne publie rien pendant l'animation de zoom** : `GrilleDalles` se
-  masque sur `zoomstart`, se redessine sur `zoomend`.
 - **Leaflet mesure son conteneur à l'initialisation** : monté masqué, il faut
   `invalidateSize`.
 - **Un 200 en réponse à un `Range` ne veut pas dire que la plage a été
@@ -777,19 +656,15 @@ code. Le plan de découpage est dans `TODO.md`, « Dette de structure ».
 (Chrome headless, verdict par POST), `app2d.html` (parcours complet dans un
 iframe, seul à éprouver le câblage).
 
-**Non validé** : aucune ruine effondrée connue n'a servi de contrôle positif à la
-détection automatique (voir « Code existant mais masqué »).
-
 ## État
 
 | Jalon | État |
 |---|---|
 | Carte, dalles, LAZ, rendu, Lambert-93 → WGS84, liens, exports | ✅ |
-| Relief piloté par la vue (carte + rideau, panneau « Relief », outils, 3D avec EDL) | ✅ — ancienne interface derrière `?dalle` |
+| Relief piloté par la vue (carte + rideau, panneau « Relief », outils, 3D avec EDL) | ✅ |
 | Lien partageable, accueil, DROM, états vides, borne de zoom | ✅ |
 | Profil topographique (bande, coupe, mesure) | ✅ vue normale, vérifié en Chromium (bureau, tablette, téléphone, paysage) ; poignées au doigt et pincement non essayés ; date d'acquisition dans « Point sélectionné » |
-| Détection de structures / de sentiers | 🙈 masquées (`ANALYSE_MASQUEE`, `SENTIERS_MASQUES`) |
-| Contrôle positif sur ruine connue | ❌ en attente de coordonnées |
+| Détection de structures / de sentiers | retirée (tag `archive-avant-retrait-dalle`) |
 | 3D qui pilote le téléchargement | TODO #4 |
 
 Reste à faire : `TODO.md`.
