@@ -763,6 +763,13 @@ plus des contrôles mécaniques nés de fautes réelles : syntaxe de chaque fich
 **identifiants lus par `app.js`**), absence d'`import`, absence de backtick dans
 les commentaires GLSL.
 
+**Garde-fou de taille** (`test/taille-code.test.js`, mesureur sans dépendance dans `test/taille-code.js`,
+validé contre acorn : 888 fonctions et classes, aucun écart) : une fonction tient en **100 lignes propres**
+(sans compter ce qu'elle imbrique), une classe en **400**, un fichier en **1000**. Ce qui dépasse déjà est un
+**cliquet** (`taille-code.limites.json`) : rien de neuf ne dépasse, rien d'ancien ne grossit, et chaque réduction
+doit être inscrite (`node test/taille-code.js --ecrire`) — le test échoue si la limite est restée plus lâche que le
+code. Le plan de découpage est dans `TODO.md`, « Dette de structure ».
+
 `.tmp/` (non versionné) : harnais à reconstruire au besoin — `pipeline.mjs`
 (pipeline hors navigateur sur données réelles), `selftest.html`, `run-browser.js`
 (Chrome headless, verdict par POST), `app2d.html` (parcours complet dans un

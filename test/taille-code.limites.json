@@ -1,0 +1,83 @@
+{
+  "seuils": {
+    "fonction": 100,
+    "classe": 400,
+    "fichier": 1000
+  },
+  "fonctions": {
+    "app.js::(IIFE)": [
+      945,
+      434
+    ],
+    "app.js::chargerNuage": [
+      141
+    ],
+    "carte.js::constructor": [
+      119
+    ],
+    "flux.js::creer": [
+      101
+    ],
+    "gpu-relief.js::fabriqueGpuRelief": [
+      123
+    ],
+    "gpu-relief.js::surfaceVue": [
+      105
+    ],
+    "lien.js::(IIFE)": [
+      119
+    ],
+    "lignes.js::(IIFE)": [
+      136
+    ],
+    "lignes.js::extraire": [
+      138
+    ],
+    "relief.js::balayerHorizons": [
+      163
+    ],
+    "relief.js::fabriqueRelief": [
+      330
+    ],
+    "relief.js::preparer": [
+      169
+    ],
+    "reseau.js::(anonyme)": [
+      126
+    ],
+    "sentiers.js::detecterSentiers": [
+      182
+    ],
+    "sentiers.js::mesurerTrace": [
+      106
+    ],
+    "vue-2d.js::_rendre": [
+      102
+    ],
+    "vue-relief.js::creer": [
+      115
+    ],
+    "vue3d.js::_rendre": [
+      173
+    ]
+  },
+  "classes": {
+    "profil-graphique.js::ProfilGraphique": [
+      438
+    ],
+    "vue-2d.js::Vue2D": [
+      770
+    ],
+    "vue3d.js::Vue3D": [
+      1252
+    ]
+  },
+  "fichiers": {
+    "app.js": [
+      3899
+    ],
+    "vue3d.js": [
+      1288
+    ]
+  }
+}
