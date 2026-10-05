@@ -80,6 +80,13 @@ licence ouverte Etalab. Leaflet et laz-perf, redistribués dans `vendor/`,
 gardent leurs licences respectives — détail dans
 [`vendor/LICENCES.md`](vendor/LICENCES.md).
 
+Le fond de carte **« OpenStreetMap (standard) »**, proposé dans les listes du rideau, est servi
+par la Fondation OpenStreetMap : données **© les contributeurs d'OpenStreetMap, licence
+[ODbL](https://www.openstreetmap.org/copyright)**. Scopus respecte la
+[politique d'usage des tuiles](https://operations.osmfoundation.org/policies/tiles/) : le site envoie
+son Referer, la mention et le lien de copyright restent affichés sur la carte, pas de téléchargement
+en masse. Cette licence ne s'applique pas au code du dépôt, seulement à ces tuiles.
+
 ---
 
 Un retour sur l'outil, un bug ? <jules.rumeau1@gmail.com>

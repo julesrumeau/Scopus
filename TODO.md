@@ -501,6 +501,10 @@ Même personne que les mesures de pente (escalier, chemin en paliers et marches)
 3. **Export des géométries au format OSM.** Rejoint **R4 (GeoJSON)** : même sujet, le besoin est maintenant formulé : exporter **la chaîne mesurée** (pas les points bruts), avec `ele` par point. Deux formats : **GeoJSON** (LineString + Points avec `ele`) et **`.osm`** (XML : nœuds `ele=*` et un way, ouvrable dans JOSM). Rien d'envoyé nulle part, comme le reste (fichier téléchargé). Dépend de 1 (une chaîne qui reste, avec ses positions sur la carte).
 4. **Tracer une polyligne sur la carte (et/ou charger un way OSM), avec interaction entre carte et profil.** Gros chantier : aujourd'hui une bande est **droite** (A, B, largeur) ; une polyligne demande une bande qui suit des segments (distances cumulées, coins, recouvrements) dans `profil.js` et dans le worker (`VUE_RELIEF.profil`). Charger un way OSM : une requête Overpass (CORS ouvert, mais un service de plus, avec sa politique d'usage). À concevoir (spec) **après** 1 à 3 ; demander à la personne si une bande droite par segment suffit (profil de chaque tronçon d'un escalier).
 
+**Ce qui est demandé « au format OSM » (à ne pas confondre avec R8, le fond de carte)** :
+- **Export** (point 3) : la chaîne mesurée en fichier **`.osm`** (nœuds `ele=*`, un way ; ids négatifs pour JOSM) et en GeoJSON. Nos propres points : aucun souci de licence ODbL.
+- **Import** (point 4) : **charger un way OSM** (chemin, escalier) pour en faire le profil. Passe par Overpass ; les données importées sont **© les contributeurs d'OpenStreetMap (ODbL)** : mention visible à l'affichage, et ne pas les réexporter sans cette mention.
+
 Ordre proposé : **1**, puis **2**, puis **3** ; **4** seulement si 1 à 3 ne suffisent pas à l'usage.
 
 ### R19 — Ce qui s'est cassé en ligne : icônes invisibles, rechargement, test de fumée (utilisateurs, 5 octobre 2026) — pas urgent
