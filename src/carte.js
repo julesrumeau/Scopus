@@ -19,9 +19,7 @@
 const ATTRIBUTION = '<a href="https://www.ign.fr/">IGN</a> — Géoplateforme';
 
 class Carte {
-  constructor(element, callbacks) {
-    this.cb = callbacks;
-
+  constructor(element) {
     this.map = L.map(element, {
       zoomControl: true,
       preferCanvas: true,
@@ -122,18 +120,6 @@ class Carte {
     ortho.addTo(this.map);
     this.controleFonds = L.control.layers({ 'Photo aérienne': ortho, 'Plan IGN': plan }, null, { collapsed: true }).addTo(this.map);
 
-    this.grille = new GRILLE.GrilleDalles().addTo(this.map);
-    this.coucheDetections = L.layerGroup().addTo(this.map);
-    this.coucheSentiers = L.layerGroup().addTo(this.map);
-    this.rectDalle = null;
-    this.dalleSelectionnee = null;
-    this.rectChargee = null;
-    this.dalleChargee = null;
-    this.marqueurs = new Map();
-
-    this.selectionAuClic = true;
-    this.map.on('click', (e) => this._surClic(e));
-
     // Dire qu'on est au maximum, plutôt que de laisser croire à une image
     // dégradée sans raison. Le bouton « + » de Leaflet se grise tout seul à la
     // borne ; ce qui manquait, c'était la phrase.
@@ -204,164 +190,9 @@ class Carte {
     if (el) el.hidden = this._echecsTuilesConsecutifs < CONFIG.carte.echecsTuilesPourAvis;
   }
 
-  async _surClic(e) {
-    // Vue normale (app.js, MODE_VUE) : le relief suit la vue, un clic ne
-    // sélectionne plus de dalle.
-    if (!this.selectionAuClic) return;
-    const { lat, lng } = e.latlng;
-    await this.selectionnerAuPoint(lng, lat);
-  }
-
-  /**
-   * Sélectionne la dalle contenant un point WGS84 — issu d'un clic sur la
-   * carte ou d'un lien partagé (#3). Les deux chemins convergent ici pour ne
-   * jamais diverger sur ce qui compte, l'emprise exacte et l'URL du COPC.
-   */
-  async selectionnerAuPoint(lon, lat) {
-    this.cb.surRecherche?.('Recherche de la dalle…');
-
-    // Hors de France, la question ne se pose même pas : on l'écarte avant
-    // d'interroger le WFS, et surtout avant de projeter en Lambert-93, qui n'est
-    // défini que pour la France.
-    if (!PROJ.dansEmpriseFrance(lon, lat)) {
-      this.cb.surErreur?.('Le LiDAR HD de l’IGN ne couvre que la France. '
-        + 'Revenez sur le territoire, puis cliquez sur la carte.');
-      return;
-    }
-
-    let dalle;
-    try {
-      dalle = await IGN.dalleAuPoint(lon, lat);
-    } catch (err) {
-      this.cb.surErreur?.(`Dalle : ${RESEAU.expliquer(err)}`);
-      return;
-    }
-    if (!dalle) {
-      this.cb.surErreur?.('Pas de LiDAR HD à cet endroit : cette zone n’a pas encore été volée, '
-        + 'ou n’est pas encore publiée.');
-      return;
-    }
-    this.selectionnerDalle(dalle);
-  }
-
-  selectionnerDalle(dalle) {
-    this.dalleSelectionnee = dalle;
-
-    if (this.rectDalle) this.map.removeLayer(this.rectDalle);
-    // Contour reconstruit depuis l'emprise kilométrique exacte, et non depuis la
-    // géométrie du WFS : c'est ce qui garantit qu'il se superpose au pixel près
-    // à la grille tracée localement.
-    this.rectDalle = L.polygon(GRILLE.contourEmprise(dalle.emprise), {
-      color: '#ffd24a', weight: 2, fillColor: '#ffd24a', fillOpacity: 0.06, interactive: false,
-    }).addTo(this.map);
-
-    this.cb.surDalle?.(dalle);
-  }
-
-  /**
-   * Marque la dalle dont le nuage est en mémoire. `null` efface la marque.
-   *
-   * Deux carrés distincts, et c'est le but : le vert dit ce qui est chargé et
-   * analysé, le jaune ce qu'on vient de désigner. Tant qu'il n'y en avait qu'un,
-   * choisir une autre dalle laissait l'écran montrer la précédente sans que rien
-   * ne dise laquelle des deux on regardait.
-   */
-  marquerChargee(dalle) {
-    if (this.rectChargee) { this.map.removeLayer(this.rectChargee); this.rectChargee = null; }
-    this.dalleChargee = dalle || null;
-    if (!dalle) return;
-
-    this.rectChargee = L.polygon(GRILLE.contourEmprise(dalle.emprise), {
-      color: '#4ade80', weight: 2, fillColor: '#4ade80', fillOpacity: 0.10, interactive: false,
-    }).addTo(this.map);
-    // Sous le carré de sélection : quand les deux coïncident — le cas juste
-    // après un chargement — c'est le liseré jaune qui doit rester lisible.
-    this.rectChargee.bringToBack();
-  }
-
   /** Recentre la carte sur un résultat de recherche. */
   allerA(lon, lat, zoom = 15) {
     this.map.setView([lat, lon], Math.max(this.map.getZoom(), zoom));
-  }
-
-  /** Marqueurs des détections, colorés par score. */
-  afficherDetections(candidats, surSelection) {
-    this.coucheDetections.clearLayers();
-    this.marqueurs.clear();
-
-    for (const c of candidats) {
-      const m = L.circleMarker([c.lat, c.lon], this._styleMarqueur(c, false))
-        .bindTooltip(`#${c.rang} · ${c.surface.toFixed(0)} m² · score ${c.score.toFixed(2)}`, { direction: 'top' })
-        .on('click', (e) => { L.DomEvent.stopPropagation(e); surSelection(c); });
-      this.coucheDetections.addLayer(m);
-      this.marqueurs.set(c.id, m);
-    }
-  }
-
-  _styleMarqueur(c, selectionne) {
-    const couleur = c.dejaRepertorie ? '#7d8794'
-      : c.score > 0.65 ? '#ff5a3c'
-      : c.score > 0.45 ? '#ffa62b'
-      : '#ffe066';
-    return {
-      radius: selectionne ? 11 : 7,
-      color: selectionne ? '#ffffff' : couleur,
-      weight: selectionne ? 3 : 2,
-      fillColor: couleur,
-      fillOpacity: c.dejaRepertorie ? 0.3 : 0.75,
-    };
-  }
-
-  surlignerDetection(candidat, candidats) {
-    for (const c of candidats) {
-      const m = this.marqueurs.get(c.id);
-      if (m) m.setStyle(this._styleMarqueur(c, candidat && c.id === candidat.id));
-    }
-    if (candidat) {
-      const m = this.marqueurs.get(candidat.id);
-      m?.bringToFront();
-      this.map.setView([candidat.lat, candidat.lon], Math.max(this.map.getZoom(), 18));
-    }
-  }
-
-  /** Tracés de sentiers, en polylignes. */
-  afficherSentiers(traces, surSelection) {
-    this.coucheSentiers.clearLayers();
-    this.lignes = new Map();
-
-    for (const s of traces) {
-      const l = L.polyline(s.gps, this._styleTrace(s, false))
-        .bindTooltip(`#${s.rang} · ${s.longueur.toFixed(0)} m · creux ${(s.profondeurMed * 100).toFixed(0)} cm`,
-          { sticky: true })
-        .on('click', (e) => { L.DomEvent.stopPropagation(e); surSelection(s); });
-      this.coucheSentiers.addLayer(l);
-      this.lignes.set(s.id, l);
-    }
-  }
-
-  _styleTrace(s, choisi) {
-    const couleur = s.score > 0.6 ? '#ff8a3c' : s.score > 0.4 ? '#ffc247' : '#ffe9a3';
-    return {
-      color: choisi ? '#ffffff' : couleur,
-      weight: choisi ? 5 : 3,
-      opacity: choisi ? 1 : 0.85,
-    };
-  }
-
-  surlignerSentier(trace, traces) {
-    for (const s of traces) this.lignes?.get(s.id)?.setStyle(this._styleTrace(s, trace && s.id === trace.id));
-    if (trace) {
-      const l = this.lignes?.get(trace.id);
-      l?.bringToFront();
-      if (l) this.map.fitBounds(l.getBounds(), { padding: [60, 60] });
-    }
-  }
-
-  effacerSentiers() { this.coucheSentiers.clearLayers(); this.lignes?.clear(); }
-
-  effacerDetections() {
-    this.coucheDetections.clearLayers();
-    this.marqueurs.clear();
   }
 
   invalider() { this.map.invalidateSize(); }

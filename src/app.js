@@ -528,10 +528,7 @@ const DIAGNOSTIC = ['debug', 'chrono'].some((p) => new URLSearchParams(location.
 
 // ── Carte ───────────────────────────────────────────────────────────────────
 
-const carte = new Carte($('vue-carte'), {
-  surRecherche: (m) => statut(m, 'travail'),
-  surErreur: alerter,
-});
+const carte = new Carte($('vue-carte'));
 carte.map.on('moveend', majLien);
 
 // ── Recherche de lieu ───────────────────────────────────────────────────────

@@ -6,11 +6,11 @@
   },
   "fonctions": {
     "app.js::(IIFE)": [
-      427,
-      426
+      426,
+      424
     ],
     "carte.js::constructor": [
-      119
+      105
     ],
     "flux.js::creer": [
       101
@@ -53,7 +53,7 @@
   },
   "fichiers": {
     "app.js": [
-      2200
+      2197
     ],
     "vue3d.js": [
       1288
