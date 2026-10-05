@@ -698,7 +698,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   // rangé qu'une fois, le budget n'a plus à être réduit pour lui.
   const budget = surAppareilPortatif ? CONFIG.flux.budgetPointsMobile : CONFIG.flux.budgetPoints;
 
-  let dernierEtat = null, texteRelief = '', vueCourante = null, minuteur = null;
+  let dernierEtat = null, vueCourante = null;
   // Ce que porte chaque côté du rideau, comme dans l'onglet 2D : « carte »
   // (la carte Leaflet, qui remplace ici la photo aérienne) ou une couche de
   // relief. Par défaut, la carte à gauche et le Sky-View Factor à droite.
@@ -762,132 +762,21 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
     }
     $('vue-etat').textContent = STATUT_RELIEF.ligneAttente(e);
     const { texte, genre } = STATUT_RELIEF.message({
-      e, lenteIGN, erreurRelief, texteRelief, diagnostic, sansLidar, milliers,
+      e, lenteIGN, erreurRelief: etatRelief.erreur, texteRelief: etatRelief.texte, diagnostic, sansLidar, milliers,
       reliefAffiche: ['gauche', 'droite'].some((c) => estRelief(cotes[c])), surfaceMaxKm2: CONFIG.flux.surfaceMaxPointsKm2,
     });
     statut(texte, genre);
   };
 
-  // Un seul calcul à la fois : le worker les traite dans l'ordre, et en
-  // empiler pendant un déplacement ne ferait que retarder le dernier, le seul
-  // qui compte. Une demande pendant un calcul est retenue, et relancée à la
-  // fin avec la vue du moment. `enCalcul` est la promesse du calcul en
-  // cours, qui se tient à la fin : qui doit l'attendre l'attend, sans sonder.
-  let enCalcul = null, aRefaire = false;
-  let dernieresClasses = [], erreurRelief = '';
-  // L'étirement de la dernière image de chaque côté : le relief drapé sur le
-  // nuage 3D reprend le même, pour que les deux vues soient la même image.
-  const derniersEtirements = {};
-  let classesAffichees = '';
-  // Une case par classe présente dans les points reçus, cochée si elle compte
-  // comme sol. Reconstruite seulement quand la liste change.
-  const majClassesSol = () => {
-    const cle = dernieresClasses.map(([c]) => c).join(',');
-    if (cle === classesAffichees) return;
-    classesAffichees = cle;
-    $('vue-classes-sol').innerHTML = dernieresClasses.map(([c]) => `<label class="case"><input type="checkbox" value="${c}"`
-      + `${reglages.classesSol.has(c) ? ' checked' : ''}><span>${NOMS_CLASSES[c] || `classe ${c}`}</span></label>`).join('');
-  };
-  // Palettes de 256 couleurs, une par couche, calculées une fois.
-  const luts = new Map();
-  const lutCouche = (cle) => {
-    const def = RELIEF.COUCHES.find((c) => c.cle === cle);
-    if (!def) return null;   // l'ombrage coloré porte ses couleurs
-    if (!luts.has(cle)) luts.set(cle, construireLUT(def.palette));
-    return luts.get(cle);
-  };
-  const calculerRelief = async (forcer = false) => {
-    // En 3D, la carte est masquée : ses images attendront le retour (spec
-    // 2026-09-27, « rien ne suit la carte pendant qu'on est en 3D »). Les
-    // calculer quand même mettait le nuage 3D en file derrière elles. Seul
-    // le nuage lui-même peut forcer un calcul, pour lire la bonne surface.
-    if (!forcer && !$('vue-3d').hidden) return;
-    if (enCalcul) { aRefaire = true; return; }
-    // Au-delà du seuil, aucun point n'est demandé, donc aucun relief de plus :
-    // la dernière image calculée reste, et rétrécit avec la carte ; ailleurs,
-    // le voile du côté laisse voir la carte, et le libellé du rideau dit de
-    // zoomer. Rien que du COPC (choix de l'utilisateur) : le MNT puis
-    // l'ombrage de l'IGN y ont été essayés, puis écartés.
-    const tropLarge = vueCourante && FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2;
-    const aCalculer = MODE_CARTE.cotesAffiches(vueCartes.mode()).filter((c) => estRelief(cotes[c]));
-    for (const c of ['gauche', 'droite']) {
-      voletDe(c).calque.definirLibelle(c, tropLarge && estRelief(cotes[c]) ? 'Zoomez pour calculer le relief' : libelleCouche(cotes[c]));
-    }
-    if (!vueCourante || tropLarge || !aCalculer.length) {
-      // Gardée seulement si c'est bien la couche du côté : après un
-      // changement de couche, l'ancienne image mentirait sous le libellé.
-      for (const c of aCalculer) if (derniersEtirements[c]?.cle !== cotes[c]) voletDe(c).calque.vider(c);
-      texteRelief = '';
-      majStatut();
-      return;
-    }
-    const pas = FLUX_CHOIX.pasPourVue(vueCourante.xmax - vueCourante.xmin, vueCourante.largeurPx, CONFIG.flux.pasMinM);
-    const geo = VUE_GRILLE.definir(vueCourante, pas, VUE_GRILLE.marge({ ...CONFIG.relief, ...CONFIG.flux, svfRayonM: reglages.svfRayonM }), infoRelief.coteMax);
-    let terminer;
-    enCalcul = new Promise((ok) => { terminer = ok; });
-    activite.relief = true;
-    try {
-      // L'écran de la carte au moment de la demande : le worker y reprojette
-      // le relief, et l'image se pose sur ces bornes-là — pas sur celles du
-      // retour, si la carte a bougé entre-temps.
-      // Un écran et des bornes par volet (une carte chacun).
-      const ecrans = new Map(vueCartes.volets().map((v) => {
-        const z = v.carte.getZoom();
-        const pb = v.carte.getPixelBounds();
-        return [v, {
-          ecran: VOLETS.ecran(pb, z, territoireVue),
-          bornes: L.latLngBounds(v.carte.unproject(pb.getBottomLeft(), z), v.carte.unproject(pb.getTopRight(), z)),
-        }];
-      }));
-      const actifs = [...flux.voulues()];
-      erreurRelief = '';
-      const textes = [];
-      // Un côté après l'autre : la surface est rangée une fois pour les deux,
-      // seule la couche change (gardée par le worker d'un calcul à l'autre).
-      for (const c of aCalculer) {
-        const cle = cotes[c];
-        const volet = voletDe(c);
-        const { ecran, bornes } = ecrans.get(volet);
-        const r = await relief.image(geo, cle, ecran, lutCouche(cle), {
-          contraste: reglages.contraste, lisser: reglages.lisser, actifs, couche: reglagesDe(cle),
-        });
-        if (cotes[c] !== cle) continue;   // le côté a changé pendant le calcul
-        if (!r) { volet.calque.vider(c); continue; }
-        volet.calque.afficher(c, r, bornes);
-        derniersEtirements[c] = { cle, min: r.min, max: r.max };
-        textes.push(`${c} ${(r.duree / 1000).toFixed(2)} s (${r.moteurSurface}${r.moteurCouche && r.moteurCouche !== r.moteurSurface ? ' + ' + r.moteurCouche : ''}`
-          + `${infoRelief.filPrincipal ? ', fil principal' : ''} ; surface ${(r.dureeSurface / 1000).toFixed(2)} s`
-          + `, couche ${r.recalcul ? (r.dureeCouche / 1000).toFixed(2) + ' s' : 'gardée'}, image ${((r.dureeImage || 0) / 1000).toFixed(2)} s)`);
-        dernieresClasses = r.classes || [];
-      }
-      texteRelief = textes.length ? `relief ${textes.join(' · ')} · ${geo.W}×${geo.H} cases de ${geo.pas.toFixed(2)} m` : '';
-      majClassesSol();
-      // Un point cherché par ses coordonnées avant que le relief n'y soit
-      // calculé : son altitude arrive avec cette image.
-      const sel = outils.selection();
-      if (sel && sel.sol == null) {
-        const pt = await relief.lire(sel.x, sel.y);
-        if (pt?.altitude != null) outils.afficherSelection(sel.x, sel.y, pt.altitude, pt.hauteur);
-      }
-    } catch (err) {
-      console.error(err);
-      texteRelief = `relief en échec : ${err.message}`;
-      erreurRelief = err.message;
-    } finally {
-      enCalcul = null;
-      terminer();
-      activite.relief = false;
-    }
-    majStatut();
-    if (aRefaire) { aRefaire = false; calculerRelief(); }
-  };
-  // Pendant l'arrivée des blocs, un recalcul au plus toutes les 1,5 s ; au
-  // déplacement, tout de suite — la vue d'avant n'a plus de sens.
-  const planifierRelief = (delai) => {
-    if (delai === 0 && minuteur) { clearTimeout(minuteur); minuteur = null; }
-    if (minuteur) return;
-    minuteur = setTimeout(() => { minuteur = null; calculerRelief(); }, delai);
-  };
+  // Le calcul du relief (images de chaque côté du rideau) : voir calcul-relief.js.
+  const calcul = creerCalculRelief({
+    $, relief, infoRelief, activite, FLUX_CHOIX, VUE_GRILLE, VOLETS, MODE_CARTE, RELIEF, CONFIG, L,
+    NOMS_CLASSES, construireLUT, vueCartes, voletDe, reglages, estRelief, libelleCouche, outils,
+    vueCourante: () => vueCourante, flux: () => flux, territoire: () => territoireVue,
+    reglagesDe: (cle) => panneau.reglagesDe(cle), majStatut: () => majStatut(),
+  });
+  const etatRelief = calcul.etat;
+  const planifierRelief = calcul.planifier;
 
   const depsFlux = {
     chercherDalles: (z) => {
@@ -963,7 +852,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   const nuage3D = creerNuage3D({
     $, vue3d, relief, flux, etat, ATTENTE, FLUX_CHOIX, CONFIG, milliers, surMobile, classesMasquees,
     vueCourante: () => vueCourante, dernierEtat: () => dernierEtat,
-    reliefAJour: async () => { while (enCalcul) await enCalcul; await calculerRelief(true); },
+    reliefAJour: () => calcul.aJour(),
     majLegende, majHUD, majAttributNuage, majLien,
   });
   surPassage3D = nuage3D.construire;
@@ -977,7 +866,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
     if (CONFIG.rendu.coloration === 'hauteur') { vue3d.definirHauteurs(etat.nuage.hauteur); return; }
     if (CONFIG.rendu.coloration !== 'relief') return;
     const cote = estRelief(cotes.droite) && cotes.droite !== OMBRAGE_RGB ? 'droite' : 'gauche';
-    const etirement = derniersEtirements[cote];
+    const etirement = etatRelief.etirements[cote];
     if (!estRelief(cotes[cote]) || !etirement || etirement.cle !== cotes[cote] || etirement.min == null) return;
     const valeurs = await relief.drape3d(etirement.cle, reglagesDe(etirement.cle), etirement.min, etirement.max);
     if (valeurs && etat.nuage && valeurs.length === etat.nuage.n) vue3d.definirHauteurs(valeurs);
@@ -1046,7 +935,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   };
 
   etatPartageVue = () => {
-    const e = { sol: LIEN.sansDefaut(reglages.classesSol, CONFIG.raster.classesSolDefaut, dernieresClasses.map(([c]) => c)) };
+    const e = { sol: LIEN.sansDefaut(reglages.classesSol, CONFIG.raster.classesSolDefaut, etatRelief.classes.map(([c]) => c)) };
     if (profil.A && profil.B) {
       e.profil = { a: versGeoProfil(profil.A), b: versGeoProfil(profil.B), largeur: profil.largeur };
     }
