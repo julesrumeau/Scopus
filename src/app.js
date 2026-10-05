@@ -130,14 +130,9 @@ let majAttributVue = null;
 const partage = creerPartage({ $, LIEN, carte: () => carte, vue3d, etat, projVue: () => projVue(), statut, outils: () => outils });
 const { majLien, ouvrirLien } = partage;
 
-// ── Mode ────────────────────────────────────────────────────────────────────
+// ── Soutenir ────────────────────────────────────────────────────────────────
 //
-// Par défaut, le relief se calcule pour la vue affichée, sans dalle à choisir
-// (spec docs/superpowers/specs/2026-09-26-flux-vue-design.md). « ?dalle » dans
-// l'adresse rend l'ancien parcours — choisir une dalle, la charger, la lire en
-// 2D ou en 3D — le temps de la transition. La feuille de style retire ce qui
-// n'a pas cours dans le mode (`body[data-mode]`).
-// Soutenir : le bouton vers Ko-fi (don ponctuel), Liberapay en petit lien
+// Le bouton vers Ko-fi : le bouton vers Ko-fi (don ponctuel), Liberapay en petit lien
 // dessous ; Liberapay seul, il prend le bouton. Rien de configuré : rien.
 {
   const { kofi, liberapay } = CONFIG.soutien;
@@ -160,73 +155,8 @@ const DIAGNOSTIC = ['debug', 'chrono'].some((p) => new URLSearchParams(location.
 const carte = new Carte($('vue-carte'));
 carte.map.on('moveend', majLien);
 
-// ── Recherche de lieu ───────────────────────────────────────────────────────
-
-let abandonRecherche = null;
-
-async function rechercher() {
-  const q = $('recherche').value.trim();
-  const liste = $('resultats-recherche');
-  if (!q) { liste.hidden = true; return; }
-
-  abandonRecherche?.abort();
-  abandonRecherche = new AbortController();
-  statut('Recherche…', 'travail');
-
-  try {
-    const lieux = await IGN.geocoder(q, abandonRecherche.signal);
-    liste.innerHTML = '';
-    if (!lieux.length) {
-      statut('Aucun lieu trouvé');
-      liste.hidden = true;
-      return;
-    }
-
-    // Un seul résultat : on y va directement, sans faire cliquer pour rien.
-    if (lieux.length === 1) { allerAu(lieux[0]); return; }
-
-    for (const l of lieux) {
-      const li = document.createElement('li');
-      li.textContent = l.label;
-      li.addEventListener('click', () => allerAu(l));
-      liste.appendChild(li);
-    }
-    liste.hidden = false;
-    statut(`${lieux.length} lieux — choisissez`);
-  } catch (e) {
-    if (e.name !== 'AbortError') alerterPanne('Recherche', e);
-  }
-}
-
-function allerAu(lieu) {
-  $('resultats-recherche').hidden = true;
-  carte.allerA(lieu.lon, lieu.lat);
-  statut(lieu.label);
-}
-
-$('btn-recherche').addEventListener('click', rechercher);
-$('recherche').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { e.preventDefault(); rechercher(); }
-  if (e.key === 'Escape') $('resultats-recherche').hidden = true;
-});
-
-/**
- * Neutralise le HTML d'une chaîne avant insertion.
- *
- * Les noms de dalle, dates et natures de bâtiment viennent des services de
- * l'IGN, pas de l'utilisateur. Le risque est donc théorique — mais ces valeurs
- * traversent le réseau avant d'atterrir dans un `innerHTML`, et rien ne garantit
- * qu'un champ de la BD TOPO ne contiendra jamais de chevron. Échapper coûte une
- * ligne ; s'en remettre à la bonne tenue d'une source tierce, non.
- */
-function echapper(v) {
-  return String(v).replace(/[&<>"']/g, (c) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-function ligneDetail(cle, valeur) {
-  return `<dt>${echapper(cle)}</dt><dd>${echapper(valeur).replace(/\n/g, '<br>')}</dd>`;
-}
+// ── Recherche de lieu (recherche-lieu.js) ─────────────────────────────────
+creerRechercheLieu({ $, IGN, carte, statut, alerterPanne });
 
 // ── Affichage du nuage ──────────────────────────────────────────────────────
 
