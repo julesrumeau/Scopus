@@ -261,6 +261,11 @@ d'arbres et de bâtiments sans QGIS. Conception :
   est partagé, donc la mesure de la carte l'a aussi (`retirerPointMesure`) ; pour corriger A, on le déplace.
   **Pas essayé sur un vrai téléphone** (émulation tactile seulement) : le menu contextuel d'un appui long est
   bloqué (`contextmenu`, `touch-callout: none`) mais à vérifier sur iOS et Android.
+- **Le pincement à deux doigts** (`creerPincementProfil`, pur et testé) : écarter ou rapprocher zoome autour du
+  milieu des deux doigts, les déplacer ensemble déplace le graphique, incrémental comme la molette. Un second
+  doigt **abandonne** le geste du premier (saisie d'un point, clic) ; le doigt resté après le pincement ne fait
+  rien. Il **n'existait pas** avant le 5 octobre (la ligne « pincement non essayé » le laissait croire) : le
+  graphique n'avait que la molette et un doigt. Vérifié en tactile émulé (CDP), pas sur un vrai téléphone.
 - **Une seule mesure.** Le graphique alimente la chaîne de mesure de la carte
   (`MESURE.tableauHtml`, partagé) : ses points deviennent `{ x: distance sur
   l'axe, sol: altitude }`. Le clic s'accroche au point visible le plus proche
@@ -680,7 +685,7 @@ iframe, seul à éprouver le câblage).
 | Carte, dalles, LAZ, rendu, Lambert-93 → WGS84, liens, exports | ✅ |
 | Relief piloté par la vue (carte + rideau, panneau « Relief », outils, 3D avec EDL) | ✅ |
 | Lien partageable, accueil, DROM, états vides, borne de zoom | ✅ |
-| Profil topographique (bande, coupe, mesure) | ✅ vue normale, vérifié en Chromium (bureau, tablette, téléphone, paysage) ; poignées au doigt et pincement non essayés ; date d'acquisition dans « Point sélectionné » |
+| Profil topographique (bande, coupe, mesure) | ✅ vue normale, vérifié en Chromium (bureau, tablette, téléphone, paysage) ; poignées A/B au doigt non essayées ; pincement et appui long vérifiés en tactile émulé seulement ; date d'acquisition dans « Point sélectionné » |
 | Détection de structures / de sentiers | retirée (tag `archive-avant-retrait-dalle`) |
 | 3D qui pilote le téléchargement | TODO #4 |
 

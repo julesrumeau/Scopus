@@ -39,6 +39,7 @@ class ProfilGraphique {
     this.survole = -1;    // le point de la chaîne sous la souris, ou -1 : il grossit
     this.saisi = -1;      // le point de la chaîne qu'on déplace, ou -1
     // Le geste (profil-geste.js) : saisir un point, poser un clic, glisser le graphique.
+    this.pincement = creerPincementProfil({ surZoom: (x, y, f) => this.zoomer(x, y, f), surDeplacer: (dx, dy) => this.deplacer(dx, dy) });
     this.gesteur = creerGesteProfil({
       saisir: (x, y, type) => (this.outil === 'mesure' ? this.pointMesureProche(x, y, type) : -1),
       delaiMs: CONFIG.profil.appuiLongMs,
@@ -218,6 +219,12 @@ class ProfilGraphique {
 
   deplacerGeste(x, y) { this.gesteur.deplacement(x, y); }
 
+  /** Un second doigt arrive : le geste du premier (saisie d'un point, clic, glissé) est abandonné. */
+  annulerGeste() {
+    this.gesteur.annuler();
+    this._saisir(-1);
+  }
+
   finGeste(x, y) { this.gesteur.relache(x, y); }
 
   /** Retire le dernier point de la chaîne de mesure. */
@@ -302,33 +309,8 @@ class ProfilGraphique {
     return sortie.sort((a, b) => (a === 2) - (b === 2));
   }
 
-  /** Les échelles du moment : portée en abscisse, étendue des points visibles en ordonnée. */
-  _echelles() {
-    const r = this.c.getBoundingClientRect();
-    const W = r.width, H = r.height, m = this.marge;
-    const e = this.d && PROFIL.etendueZ(this.d, this.s0, this.s1, this.visibles, this.lat);
-    let zmin = 0, zmax = 1;
-    const largeur = Math.max(1, W - m.g - m.d), hauteur = Math.max(1, H - m.h - m.b);
-    if (this.egales) {
-      // Déduite de l'horizontale : seul le centre vient de `zv` ou des points.
-      const zc = this.zv ? (this.zv.z0 + this.zv.z1) / 2 : e ? (e.zmin + e.zmax) / 2 : 0.5;
-      ({ zmin, zmax } = PROFIL.etendueEgale(this.s0, this.s1, largeur, hauteur, zc));
-    } else if (this.zv) {
-      zmin = this.zv.z0;
-      zmax = this.zv.z1;
-    } else if (e) {
-      const marge = Math.max(0.5, (e.zmax - e.zmin) * 0.06);
-      zmin = e.zmin - marge;
-      zmax = e.zmax + marge;
-    }
-    return {
-      W, H, zmin, zmax,
-      x: (s) => m.g + ((s - this.s0) / (this.s1 - this.s0)) * largeur,
-      y: (z) => H - m.b - ((z - zmin) / (zmax - zmin)) * hauteur,
-      s: (x) => this.s0 + ((x - m.g) / largeur) * (this.s1 - this.s0),
-      z: (y) => zmin + ((H - m.b - y) / hauteur) * (zmax - zmin),
-    };
-  }
+  /** Les échelles du moment : voir `echellesProfil`. */
+  _echelles() { return echellesProfil(this); }
 
   /** La position à l'écran (pixels CSS) d'un point (s, z). */
   px(s, z) {
@@ -436,6 +418,34 @@ function rangerParClasse(d) {
   return { ordre, debut };
 }
 
+/** Les échelles du moment : portée en abscisse, étendue des points visibles en ordonnée (`g` : le graphique). */
+function echellesProfil(g) {
+  const r = g.c.getBoundingClientRect();
+  const W = r.width, H = r.height, m = g.marge;
+  const e = g.d && PROFIL.etendueZ(g.d, g.s0, g.s1, g.visibles, g.lat);
+  let zmin = 0, zmax = 1;
+  const largeur = Math.max(1, W - m.g - m.d), hauteur = Math.max(1, H - m.h - m.b);
+  if (g.egales) {
+    // Déduite de l'horizontale : seul le centre vient de `zv` ou des points.
+    const zc = g.zv ? (g.zv.z0 + g.zv.z1) / 2 : e ? (e.zmin + e.zmax) / 2 : 0.5;
+    ({ zmin, zmax } = PROFIL.etendueEgale(g.s0, g.s1, largeur, hauteur, zc));
+  } else if (g.zv) {
+    zmin = g.zv.z0;
+    zmax = g.zv.z1;
+  } else if (e) {
+    const marge = Math.max(0.5, (e.zmax - e.zmin) * 0.06);
+    zmin = e.zmin - marge;
+    zmax = e.zmax + marge;
+  }
+  return {
+    W, H, zmin, zmax,
+    x: (s) => m.g + ((s - g.s0) / (g.s1 - g.s0)) * largeur,
+    y: (z) => H - m.b - ((z - zmin) / (zmax - zmin)) * hauteur,
+    s: (x) => g.s0 + ((x - m.g) / largeur) * (g.s1 - g.s0),
+    z: (y) => zmin + ((H - m.b - y) / hauteur) * (zmax - zmin),
+  };
+}
+
 /** Les graduations : altitudes (lignes) et distances (repères en bas), lues depuis la référence quand il y en a une. */
 function dessinerGraduationsProfil(ctx, e, m, s0, s1, reference) {
   ctx.font = '11px system-ui, sans-serif';
@@ -516,22 +526,41 @@ function brancherGestesProfil(g, canvas) {
     const r = canvas.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
+  // Les doigts posés (pointerType 'touch') : à deux, c'est un pincement ; un seul, le geste ordinaire.
+  const doigts = new Map();
+  const deuxDoigts = () => [...doigts.values()];
   canvas.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     canvas.setPointerCapture?.(e.pointerId);
     const p = pos(e);
+    if (e.pointerType === 'touch') {
+      doigts.set(e.pointerId, p);
+      if (doigts.size === 2) { g.annulerGeste(); g.pincement.debut(...deuxDoigts()); return; }
+      if (doigts.size > 2) return;
+    }
     g.debutGeste(p.x, p.y, e.pointerType || 'mouse');
   });
   canvas.addEventListener('pointermove', (e) => {
     const p = pos(e);
+    if (doigts.has(e.pointerId)) doigts.set(e.pointerId, p);
+    if (g.pincement.enCours()) { if (doigts.size === 2) g.pincement.deplacement(...deuxDoigts()); return; }
     if (g.gesteur.enCours()) g.deplacerGeste(p.x, p.y);
     else if (e.pointerType === 'mouse') g.survoler(p.x, p.y);
   });
-  canvas.addEventListener('pointerup', (e) => {
+  const lever = (e) => {
     const p = pos(e);
+    const pince = g.pincement.enCours();
+    doigts.delete(e.pointerId);
+    // Le doigt resté après un pincement ne doit ni poser un point ni déplacer : il n'a plus de geste.
+    if (pince) { if (doigts.size < 2) g.pincement.fin(); return; }
     g.finGeste(p.x, p.y);
+  };
+  canvas.addEventListener('pointerup', lever);
+  canvas.addEventListener('pointercancel', (e) => {
+    doigts.delete(e.pointerId);
+    g.pincement.fin();
+    g.annulerGeste();
   });
-  canvas.addEventListener('pointercancel', () => { g.gesteur.annuler(); g._saisir(-1); });
   canvas.addEventListener('pointerleave', () => { if (!g.gesteur.enCours()) g.survoler(-1e6, -1e6); });
   // Un appui long (la saisie d'un point au doigt) ne doit pas ouvrir le menu du navigateur.
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());

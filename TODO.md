@@ -227,8 +227,8 @@ parce que ça changerait un comportement ou demanderait une décision :
   diagonale, un point exactement sur le bord peut être écarté par arrondi de
   flottant (`vue-relief.js`) ; le champ de largeur de la modale n'a pas de
   garde si A ou B est nul ; pendant « Calcul… », l'ancien graphique reste
-  cliquable ; le glisser des poignées A et B et le pincement sur le graphique
-  n'ont pas été essayés au doigt.
+  cliquable ; le glisser des poignées A et B n'a pas été essayé au doigt
+  (le pincement sur le graphique, qui n'existait pas, est fait le 5 octobre, en tactile émulé).
 
 ---
 
