@@ -22,6 +22,26 @@ calcul de la vue »).
 (1er et 2 octobre 2026) sont numérotées **R1 à R7**, à part des #, dans la
 section « Retours du forum » en fin de fichier.
 
+## Dette de structure : audit SOLID (5 octobre 2026)
+
+Mesuré, pas ressenti (mesureur `test/taille-code.js`, validé contre acorn). Garde-fou : `test/taille-code.test.js` et son cliquet (une fonction 100 lignes propres, une classe 400, un fichier 1000 ; ce qui dépasse déjà ne peut que baisser). Contraintes qui bornent les solutions : scripts classiques et espace lexical global (pas de modules ES, `file://`), workers composés du **texte** des fonctions (modules en `function fabriqueX()`), aucune dépendance.
+
+| Principe | Constat | Preuves |
+|---|---|---|
+| **S** responsabilité unique | **Le principal défaut.** | `Vue3D` : 60 méthodes, au moins 5 métiers mêlés (caméra et animations, contrôles souris/tactile, tampons GPU du nuage et EDL, pointé, surcouches : sélection, mesure, détections, sentiers) ; `Vue2D` (48), `ProfilGraphique` (36 : échelles et zoom, gestes, dessin, chaîne de mesure), `Carte` (27 : enveloppe Leaflet et ancien choix de dalle) ; `app.js` : 3 900 lignes, 38 modules référencés, 204 lectures/écritures de `etat` sur 19 propriétés, de la logique d'usage au lieu de seulement brancher |
+| **O** ouvert/fermé | Partiel. | Ajouter une couche de relief touche `relief.js` (`COUCHES`), `choix-couches.js` (famille), `app.js` (ensembles `BALAYAGE`, `OMBRAGES`, `reglagesDe`) et `config.js` pour un fond ; un seul **registre déclaratif** des couches le réduirait à une ligne |
+| **L** substitution | Sans objet. | Presque aucun héritage (trois `.extend` de Leaflet) : composition et fonctions, pas de violation |
+| **I** ségrégation des interfaces | Correct, une exception. | Dépendances injectées étroites (`flux` : 9 membres, `Carte` : 3 rappels) ; mais `CONFIG` est lu partout (202 lectures, 23 fichiers sur 43) et `etat` est un sac global |
+| **D** inversion des dépendances | Bon aux marges, faible au centre. | 14 modules sans aucun global (purs : `flux-choix`, `volets`, `mode-carte`, `synchro`…) et `flux` reçoit ses dépendances ; mais `app.js` colle à 38 concrets et les modules lisent `CONFIG`, `PROJ`, `RESEAU` en global |
+
+Ordre de travail (une branche par étape, **sans changement visible**, vérifiée en navigateur avant et après, le cliquet baisse à chaque étape) :
+1. **`app.js`, bloc de la vue normale** : des fabriques `creerX(deps)` à dépendances explicites, une par métier — modes et volets de la carte (`creerVueCartes`), panneau du relief, calcul du relief, curseur, sélection et mesure, profil, nuage 3D, lien — et `app.js` ne fait plus que les assembler (racine de composition).
+2. **L'ancien parcours `?dalle`** (≈ 1 900 lignes de `app.js`, `Vue2D`, une part de `Carte`, détection, sentiers masqués) : à **retirer ou isoler** — décision à prendre, c'est le plus gros gain.
+3. **`Vue3D`** → `Camera3D`, `Controles3D`, `NuageGPU` (tampons, EDL), `Pointage3D`, `Surcouches3D`, composées.
+4. **Registre déclaratif des couches** (ouvert/fermé) : une entrée = clé, famille, libellé, aide, réglages, calcul.
+5. **`etat`** rendu à ses propriétaires ; **`CONFIG`** passé par sections aux fabriques (`CONFIG.flux`, …), sans tout réécrire d'un coup.
+6. `ProfilGraphique` (modèle d'échelles / gestes / dessin) et `vue-relief.creer` (stockage des blocs / grille / couches / nuage / profil).
+
 ## À annoncer au prochain message
 
 Publié sur le site mais **pas encore annoncé** sur le forum (liste tenue à jour à chaque publication ; une fois le message envoyé, la vider). Annoncer par lots, quand il y a quelque chose que quelqu'un a demandé.
