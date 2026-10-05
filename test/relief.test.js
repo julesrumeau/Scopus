@@ -569,3 +569,31 @@ test('ombrageRGB réglable — l’azimut tourne les trois soleils, 120° à par
   assert.ok(Math.abs(rgba[i * 4 + 1] - Math.round(v * 255)) <= 1);
   assert.ok(Math.abs(rgba[i * 4 + 2] - Math.round(b * 255)) <= 1);
 });
+
+// ── Réinitialiser le soleil des ombrages ─────────────────────────────────────
+
+test('soleilParDefaut — rend l’azimut et la hauteur de la configuration', () => {
+  const { RELIEF, CONFIG } = charger();
+  const d = RELIEF.soleilParDefaut();
+  assert.equal(d.azimut, CONFIG.relief.ombrageAzimut);
+  assert.equal(d.hauteur, CONFIG.relief.ombrageHauteur);
+  // Les valeurs de toujours : nord-ouest, 45° au-dessus de l'horizon.
+  assert.deepEqual([d.azimut, d.hauteur], [315, 45]);
+});
+
+test('soleilEstParDefaut — vrai seulement si les deux valeurs sont celles du défaut', () => {
+  const { RELIEF } = charger();
+  assert.equal(RELIEF.soleilEstParDefaut(315, 45), true);
+  assert.equal(RELIEF.soleilEstParDefaut(300, 45), false, 'azimut changé');
+  assert.equal(RELIEF.soleilEstParDefaut(315, 30), false, 'hauteur changée');
+  assert.equal(RELIEF.soleilEstParDefaut(0, 0), false);
+});
+
+test('soleilEstParDefaut — suit la configuration, pas un 315/45 codé en dur', () => {
+  const { RELIEF, CONFIG } = charger();
+  CONFIG.relief.ombrageAzimut = 200;
+  CONFIG.relief.ombrageHauteur = 20;
+  assert.deepEqual({ ...RELIEF.soleilParDefaut() }, { azimut: 200, hauteur: 20 });
+  assert.equal(RELIEF.soleilEstParDefaut(200, 20), true);
+  assert.equal(RELIEF.soleilEstParDefaut(315, 45), false);
+});

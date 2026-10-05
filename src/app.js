@@ -3044,9 +3044,24 @@ if (MODE_VUE) (async () => {
   $('vue-ombrage-hauteur').value = ombrageHauteur;
   $('val-vue-ombrage-hauteur').textContent = `${ombrageHauteur}°`;
   $('vue-ombrage-azimut').addEventListener('input', (e) => { $('val-vue-ombrage-azimut').textContent = `${e.target.value}°`; });
-  $('vue-ombrage-azimut').addEventListener('change', (e) => { ombrageAzimut = Number(e.target.value); $('val-vue-ombrage-azimut').textContent = `${e.target.value}°`; planifierRelief(0); majLien(); });
+  // « Réinitialiser » : grisé tant que le soleil est celui du défaut (rien à remettre).
+  const majReinitSoleil = () => { $('vue-ombrage-reinit').disabled = RELIEF.soleilEstParDefaut(ombrageAzimut, ombrageHauteur); };
+  $('vue-ombrage-reinit').addEventListener('click', () => {
+    const d = RELIEF.soleilParDefaut();
+    ombrageAzimut = d.azimut;
+    ombrageHauteur = d.hauteur;
+    $('vue-ombrage-azimut').value = d.azimut;
+    $('val-vue-ombrage-azimut').textContent = `${d.azimut}°`;
+    $('vue-ombrage-hauteur').value = d.hauteur;
+    $('val-vue-ombrage-hauteur').textContent = `${d.hauteur}°`;
+    majReinitSoleil();
+    planifierRelief(0);
+    majLien();
+  });
+  $('vue-ombrage-azimut').addEventListener('change', (e) => { ombrageAzimut = Number(e.target.value); $('val-vue-ombrage-azimut').textContent = `${e.target.value}°`; majReinitSoleil(); planifierRelief(0); majLien(); });
   $('vue-ombrage-hauteur').addEventListener('input', (e) => { $('val-vue-ombrage-hauteur').textContent = `${e.target.value}°`; });
-  $('vue-ombrage-hauteur').addEventListener('change', (e) => { ombrageHauteur = Number(e.target.value); $('val-vue-ombrage-hauteur').textContent = `${e.target.value}°`; planifierRelief(0); majLien(); });
+  $('vue-ombrage-hauteur').addEventListener('change', (e) => { ombrageHauteur = Number(e.target.value); $('val-vue-ombrage-hauteur').textContent = `${e.target.value}°`; majReinitSoleil(); planifierRelief(0); majLien(); });
+  majReinitSoleil();
   $('vue-lisser').addEventListener('change', (e) => { lisserFlux = e.target.checked; planifierRelief(0); majLien(); });
 
   // ── Sélection d'un point et mesure, sur la carte ──
@@ -3566,8 +3581,8 @@ if (MODE_VUE) (async () => {
     contraste: contrasteFlux !== 1 ? contrasteFlux : undefined,
     svf: svfDirections !== CONFIG.relief.svfDirections || svfRayonM !== CONFIG.relief.svfRayonM
       ? { directions: svfDirections, rayon: svfRayonM } : undefined,
-    soleil: ombrageAzimut !== CONFIG.relief.ombrageAzimut || ombrageHauteur !== CONFIG.relief.ombrageHauteur
-      ? { azimut: ombrageAzimut, hauteur: ombrageHauteur } : undefined,
+    soleil: RELIEF.soleilEstParDefaut(ombrageAzimut, ombrageHauteur) ? undefined
+      : { azimut: ombrageAzimut, hauteur: ombrageHauteur },
     lisse: lisserFlux ? undefined : false,
     couleur: CONFIG.rendu.coloration !== 'classification' ? CONFIG.rendu.coloration : undefined,
     plafond: budget3D !== (surMobile() ? CONFIG.rendu.budget3DMobile : CONFIG.rendu.budget3D) ? budget3D / 1e6 : undefined,

@@ -447,7 +447,7 @@ Cause trouvée (4 octobre 2026) : la **complétion par les non classés** (`incl
 
 ### R15 — Ombrage : réinitialiser, trop lissé, multidirectionnel « cramé » (naturaliste, 5 octobre 2026)
 
-- **Bouton « Réinitialiser »** des réglages d'ombrage (azimut, hauteur) aux valeurs par défaut (315° / 45°). Simple.
+- **Bouton « Réinitialiser le soleil »** : fait sur `feat/ombrage-reinit` (remet 315° / 45°, grisé quand le soleil est déjà au défaut, `RELIEF.soleilParDefaut` / `soleilEstParDefaut`, testés d'abord).
 - **« Trop lissé » par rapport à l'IGN** (celui de l'IGN est plus net) : à **mesurer** avant d'agir. Notre grille est au pas du pixel, jamais sous 50 cm, avec comblement et lissage réglés en mètres ; les tuiles IGN sont servies à leur résolution native. Comparer sur un même lieu.
 - **Le multidirectionnel est « trop cramé »**, on y voit moins de détails que dans l'ombrage simple. Rejoint ce qu'on a mesuré : quatre soleils opposés s'annulent deux à deux, ne reste presque qu'une carte de pente. Piste : une autre façon de combiner (pondération des directions, comme les hillshades multidirectionnels classiques à plusieurs azimuts pondérés, non vérifié ici) ; le demandeur renvoie à swisstopo, qui montre côte à côte le mono- et le multidirectionnel au même endroit (lien de comparaison à la frontière suisse, `#map=17/46.142244/6.111714` avec `gauche=ombrage-simple&droite=ombrage`).
 
