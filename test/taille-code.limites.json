@@ -6,8 +6,8 @@
   },
   "fonctions": {
     "app.js::(IIFE)": [
-      426,
-      424
+      206,
+      198
     ],
     "carte.js::constructor": [
       105
@@ -51,9 +51,5 @@
       663
     ]
   },
-  "fichiers": {
-    "app.js": [
-      2197
-    ]
-  }
+  "fichiers": {}
 }

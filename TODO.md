@@ -24,23 +24,18 @@ section « Retours du forum » en fin de fichier.
 
 ## Dette de structure : audit SOLID (5 octobre 2026)
 
-Mesuré, pas ressenti (mesureur `test/taille-code.js`, validé contre acorn). Garde-fou : `test/taille-code.test.js` et son cliquet (une fonction 100 lignes propres, une classe 400, un fichier 1000 ; ce qui dépasse déjà ne peut que baisser). Contraintes qui bornent les solutions : scripts classiques et espace lexical global (pas de modules ES, `file://`), workers composés du **texte** des fonctions (modules en `function fabriqueX()`), aucune dépendance.
+Mesuré, pas ressenti (mesureur `test/taille-code.js`, validé contre acorn). Garde-fou : `test/taille-code.test.js` et son cliquet (une fonction 100 lignes propres, une classe 400, un fichier 1000 ; ce qui dépasse déjà ne peut que baisser, et `node test/taille-code.js --ecrire` ne doit jamais inscrire un nouveau dépassement). Contraintes : scripts classiques et espace lexical global (pas de modules ES, `file://`), workers composés du **texte** des fonctions, aucune dépendance. Méthode des extractions : une fabrique `creerX(deps)` à dépendances explicites, aucun changement visible, vérifié en Chromium avant et après (le même scénario sur `dev` et sur la branche).
 
-| Principe | Constat | Preuves |
-|---|---|---|
-| **S** responsabilité unique | **Le principal défaut.** | `Vue3D` : 60 méthodes, au moins 5 métiers mêlés (caméra et animations, contrôles souris/tactile, tampons GPU du nuage et EDL, pointé, surcouches : sélection, mesure, détections, sentiers) ; `Vue2D` (48), `ProfilGraphique` (36 : échelles et zoom, gestes, dessin, chaîne de mesure), `Carte` (27 : enveloppe Leaflet et ancien choix de dalle) ; `app.js` : 3 900 lignes, 38 modules référencés, 204 lectures/écritures de `etat` sur 19 propriétés, de la logique d'usage au lieu de seulement brancher |
-| **O** ouvert/fermé | Partiel. | Ajouter une couche de relief touche `relief.js` (`COUCHES`), `choix-couches.js` (famille), `app.js` (ensembles `BALAYAGE`, `OMBRAGES`, `reglagesDe`) et `config.js` pour un fond ; un seul **registre déclaratif** des couches le réduirait à une ligne |
-| **L** substitution | Sans objet. | Presque aucun héritage (trois `.extend` de Leaflet) : composition et fonctions, pas de violation |
-| **I** ségrégation des interfaces | Correct, une exception. | Dépendances injectées étroites (`flux` : 9 membres, `Carte` : 3 rappels) ; mais `CONFIG` est lu partout (202 lectures, 23 fichiers sur 43) et `etat` est un sac global |
-| **D** inversion des dépendances | Bon aux marges, faible au centre. | 14 modules sans aucun global (purs : `flux-choix`, `volets`, `mode-carte`, `synchro`…) et `flux` reçoit ses dépendances ; mais `app.js` colle à 38 concrets et les modules lisent `CONFIG`, `PROJ`, `RESEAU` en global |
+**Fait (5 octobre 2026)**
+- `app.js` : 3 834 → 710 lignes, plus aucun fichier au-dessus du seuil de 1000. Retrait du parcours `?dalle` (Vue2D, détection, sentiers : tag `archive-avant-retrait-dalle`), puis une fabrique ou un module par métier : `creerVueCartes`, `creerProfilUI`, `creerPanneauRelief` (+ l'objet `reglages`), `creerCalculRelief`, `creerNuage3D`, `creerPanneau3D`, `creerOutilsCarte`, `creerOutilsPoint`, `creerPartage`, `creerRechercheLieu`, `creerChrono`, `creerPanneauMobile`, `creerAccueil`, et deux modules purs testés : `creerCatalogueVue` (couches et fonds du rideau) et `STATUT_RELIEF` (phrases du statut) ; `html.js` (`echapper`).
+- `Vue3D` : 1 252 → 663 lignes (méthodes mortes retirées, gestes et animations dans `ControlesVue3D`).
 
-Ordre de travail (une branche par étape, **sans changement visible**, vérifiée en navigateur avant et après, le cliquet baisse à chaque étape) :
-1. **`app.js`, bloc de la vue normale** — *commencé : `creerVueCartes` / `creerCreditsReunis` (`vue-cartes.js`, 11 tests, vérifié sans changement visible) ; restent le panneau du relief, le calcul, le curseur, la sélection et la mesure, le profil, le nuage 3D, le lien.* Des fabriques `creerX(deps)` à dépendances explicites, une par métier — modes et volets de la carte (`creerVueCartes`), panneau du relief, calcul du relief, curseur, sélection et mesure, profil, nuage 3D, lien — et `app.js` ne fait plus que les assembler (racine de composition).
-2. **L'ancien parcours `?dalle`** (≈ 1 900 lignes de `app.js`, `Vue2D`, une part de `Carte`, détection, sentiers masqués) : à **retirer ou isoler** — décision à prendre, c'est le plus gros gain.
-3. **`Vue3D`** → `Camera3D`, `Controles3D`, `NuageGPU` (tampons, EDL), `Pointage3D`, `Surcouches3D`, composées.
-4. **Registre déclaratif des couches** (ouvert/fermé) : une entrée = clé, famille, libellé, aide, réglages, calcul.
-5. **`etat`** rendu à ses propriétaires ; **`CONFIG`** passé par sections aux fabriques (`CONFIG.flux`, …), sans tout réécrire d'un coup.
-6. `ProfilGraphique` (modèle d'échelles / gestes / dessin) et `vue-relief.creer` (stockage des blocs / grille / couches / nuage / profil).
+**Reste, par ordre d'intérêt**
+1. `app.js` n'est plus que la racine de composition (deux IIFE de ~200 lignes propres) : ce qui reste, c'est le câblage lui-même (ordre de démarrage, `liaisons` posées après coup). Le dernier gain serait de le rendre déclaratif ; pas urgent.
+2. `Vue3D` (663) : tampons GPU du nuage + EDL, pointé, `_rendre` (147 lignes).
+3. **Registre déclaratif des couches** (ouvert/fermé) : `catalogue-vue.js` en est le premier pas (une seule liste des fonds et couches du rideau) ; reste `relief.js` `COUCHES` (calcul), `choix-couches.js` (famille) et `BALAYAGE`/`OMBRAGES` dans `panneau-relief.js`, à fondre dans une entrée par couche.
+4. **`etat`** rendu à ses propriétaires (il ne porte plus que `restaurationPartage` et `nuage`) ; **`CONFIG`** passé par sections aux fabriques.
+5. `ProfilGraphique` (438), `relief.js` (fabriqueRelief 330, preparer 169, balayerHorizons 163), `vue-relief.creer` (115), `flux.creer` (101), `carte.js` constructor (105).
 
 ## À annoncer au prochain message
 
@@ -58,6 +53,8 @@ Publié sur le site mais **pas encore annoncé** sur le forum (liste tenue à jo
 *À dire aussi, en attente :* OSM France a répondu que le fond « OpenStreetMap France » est jouable (point à l'ordre du jour du CA, pas avant la fin de la semaine du 12 octobre) ; le multidirectionnel « cramé » et l'ombrage « trop lissé » sont à l'étude (R15b, R15c).
 
 ### #1 — Rallumer la détection, ou renoncer *(prioritaire)*
+
+*Le code a été retiré le 5 octobre 2026 avec `?dalle` (tag `archive-avant-retrait-dalle`) : renoncer est devenu le défaut ; rallumer = repartir du tag.*
 
 Masquée le 18 août 2026 (`ANALYSE_MASQUEE`), les deux chaînes avec. La question
 à trancher n'est pas « comment la réparer » mais **à quoi elle sert**, puisque
