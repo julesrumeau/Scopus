@@ -151,3 +151,13 @@ test('majVueFlux n’est jamais passée telle quelle comme gestionnaire : Leafle
   const app = readFileSync(fileURLToPath(new URL('app.js', SRC)), 'utf8');
   assert.deepEqual(app.match(/\.on\([^)]*,\s*majVueFlux\s*\)/g) || [], []);
 });
+
+test('à 601–900 px, le panneau latéral commence sous la barre des onglets et des outils, il ne la recouvre pas', () => {
+  // Il la recouvrait toute (Carte, 3D, déplacement, sélection, mesure, profil) : tablette et téléphone couché.
+  const css = readFileSync(fileURLToPath(new URL('styles.css', RACINE)), 'utf8');
+  const bloc = css.slice(css.indexOf('@media (min-width: 601px) and (max-width: 900px)'));
+  const top = /\.panneau \{[^}]*?top:\s*([^;]+);/.exec(bloc)?.[1];
+  assert.ok(top, 'une règle top pour le panneau latéral');
+  assert.match(top, /calc\(46px \+ var\(--hauteur-barre\)\)/, `top = ${top}`);
+  assert.match(css, /--hauteur-barre:\s*46px/, 'la hauteur de la barre est une variable');
+});

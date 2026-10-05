@@ -554,3 +554,23 @@ test('profil : l’écart latéral de chaque point, positif à gauche de l’axe
   for (let i = 0; i < inverse.n; i++) if (inverse.s[i] === 0) g = Math.max(g, inverse.d[i]);
   assert.equal(g, 2);
 });
+
+test('profil : bande oblique 5-12-13, les points pile sur ses bords sont gardés (pas d’arrondi de flottant)', () => {
+  // Axe (5, 12) / 13 : sur cette oblique, ux et uy ne sont pas exacts en flottant, et un point
+  // mathématiquement pile sur le bord tombait à 1e-13 dehors (14 points perdus). On compte, en entiers, ce
+  // que la bande doit garder.
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(blocArbre('a', 1000, 2000));
+  const A = [1010, 2010], B = [1020, 2034];                 // 10 m est, 24 m nord : 26 m de long
+  const r = m.profil(A, B, 8, 1e9);                          // demi-largeur 400 cm
+  let attendu = 0;
+  for (let y = 0; y < 4000; y += 25) {
+    for (let x = 0; x < 4000; x += 25) {
+      const dx = x - 1000, dy = y - 1000;                   // par rapport à A, en cm
+      const s13 = 5 * dx + 12 * dy, lat13 = -12 * dx + 5 * dy;   // treize fois s et l'écart latéral, en entiers
+      if (s13 >= 0 && s13 <= 13 * 2600 && Math.abs(lat13) <= 13 * 400) attendu++;
+    }
+  }
+  assert.ok(attendu > 1000, `${attendu} points attendus`);
+  assert.equal(r.n, attendu);
+});

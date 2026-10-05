@@ -573,6 +573,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   const brancherCurseurHud = (map, volet) => {
     map.on('mousemove', (e) => {
       dedans = true;
+      if (hud.parentNode !== map.getContainer()) map.getContainer().appendChild(hud);   // il s'affiche dans la carte survolée
       hudProchain = { lng: e.latlng.lng, lat: e.latlng.lat, px: e.containerPoint.x, volet, get dedans() { return dedans; } };
       if (!hudEnCours) lireHud();
     });
