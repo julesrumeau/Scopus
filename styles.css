@@ -1042,6 +1042,9 @@ input[type=range]::-moz-range-thumb {
 .deux-cotes .champ > span { margin: 0; }
 .deux-cotes .champ select { min-width: 0; }
 select {
+  /* Dit au navigateur que le thème est sombre : le cadre du menu natif qui s'ouvre (le fond autour
+     de la liste, ses barres de défilement) n'est plus blanc, ce que l'émulation mobile montrait. */
+  color-scheme: dark;
   width: 100%;
   font: inherit;
   font-size: 12.5px;
