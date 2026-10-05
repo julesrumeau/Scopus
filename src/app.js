@@ -760,26 +760,12 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
         voletDe(cote).calque.vider(cote);
       }
     }
-    $('vue-etat').textContent = e.attente && !e.tropLarge
-      ? `Affinage… ${e.attente} bloc${e.attente > 1 ? 's' : ''} attendu${e.attente > 1 ? 's' : ''}` : '';
-    if (!diagnostic) {
-      statut(sansLidar || (e.tropLarge && ['gauche', 'droite'].some((c) => estRelief(cotes[c])) ? 'Zoomez pour calculer le relief'
-        : e.echecs ? `${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}`
-          : erreurRelief ? `Le relief n’a pas pu être calculé — ${erreurRelief}`
-            : !['gauche', 'droite'].some((c) => estRelief(cotes[c])) ? 'Aucune couche de relief affichée'
-              : e.attente && lenteIGN ? 'Chargement ralenti'
-              : e.attente ? 'Relief en cours d’affinage…'
-                : texteRelief ? 'Relief à jour' : 'Relief en calcul…'),
-      e.echecs || erreurRelief ? 'erreur' : e.attente ? 'travail' : undefined);
-      return;
-    }
-    statut(sansLidar ? `Flux : ${sansLidar}` : (e.tropLarge
-      ? `Flux : ${e.surfaceKm2.toFixed(0)} km² affichés, trop pour les points (seuil ${CONFIG.flux.surfaceMaxPointsKm2} km²) — zoomez`
-      : `Flux : ${e.surfaceKm2.toFixed(1)} km² · ${e.dallesOuvertes} dalles · ${e.charges} blocs · ${milliers(e.points)} points`
-        + (e.attente ? ` · ${e.attente} en attente` : '')
-        + (e.echecs ? ` · ${e.echecs} dalle${e.echecs > 1 ? 's' : ''} en échec, réessai en cours — ${e.erreur}` : ''))
-      + (texteRelief ? ` · ${texteRelief}` : ''),
-    e.echecs ? 'erreur' : e.attente ? 'travail' : undefined);
+    $('vue-etat').textContent = STATUT_RELIEF.ligneAttente(e);
+    const { texte, genre } = STATUT_RELIEF.message({
+      e, lenteIGN, erreurRelief, texteRelief, diagnostic, sansLidar, milliers,
+      reliefAffiche: ['gauche', 'droite'].some((c) => estRelief(cotes[c])), surfaceMaxKm2: CONFIG.flux.surfaceMaxPointsKm2,
+    });
+    statut(texte, genre);
   };
 
   // Un seul calcul à la fois : le worker les traite dans l'ordre, et en
