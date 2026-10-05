@@ -134,3 +134,13 @@ test('chaque onglet ouvre sur sa section principale, puis Point sélectionné et
   }
   assert.ok(i('section-selection') < i('section-mesure'), 'section-selection doit précéder section-mesure');
 });
+
+test('aucune règle de styles.css ne dépend de body[data-mode] : plus rien ne pose cet attribut', () => {
+  // Le retrait de `?dalle` a supprimé la ligne qui posait `data-mode="vue"` ; une règle
+  // « body:not([data-mode="vue"]) #mode-profil { display: none } » est restée et cachait le bouton
+  // Profil du site publié, sans qu'aucun test ne le voie.
+  const css = readFileSync(fileURLToPath(new URL('styles.css', RACINE)), 'utf8');
+  const poseAttribut = FICHIERS.some((f) => /dataset\.mode\s*=|setAttribute\(\s*['"]data-mode['"]/.test(readFileSync(fileURLToPath(new URL(f, SRC)), 'utf8')));
+  assert.equal(poseAttribut, false, 'un script repose data-mode : ce test est à revoir');
+  assert.deepEqual(css.match(/body[^{,]*\[data-mode[^{,]*/g) || [], [], 'règles dépendant de body[data-mode]');
+});

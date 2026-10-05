@@ -1278,16 +1278,6 @@ select:focus { outline: 1px solid var(--accent); }
   .accueil-boite { gap: 10px; padding: 20px 24px; }
 }
 
-/* ── Mode vue (par défaut) ──────────────────────────────────────────────────
-   Le relief se calcule pour la vue affichée : l'ancien parcours par dalle se
-   retire. « ?dalle » dans l'adresse le rend, le temps de la transition. */
-body[data-mode="vue"] #bandeau-nuage,
-body[data-mode="vue"] #info-dalle,
-body[data-mode="vue"] #detail-dalle,
-body[data-mode="vue"] #bloc-resolution,
-body[data-mode="vue"] #onglet-2d,
-body[data-mode="vue"] #section-analyse { display: none !important; }
-body[data-mode="dalle"] #section-vue { display: none !important; }
 .classes-sol { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; margin-top: 4px; }
 .classes-sol .case { margin: 0; }
 /* Info-bulle du curseur en mode vue : au-dessus du relief et du rideau, sous
@@ -1318,16 +1308,13 @@ body[data-mode="dalle"] #section-vue { display: none !important; }
   font-size: 14px;
   text-align: center;
 }
-/* Le plafond du nuage ne sert qu'en vue normale ; l'ancien parcours a le sien. */
-body[data-mode="dalle"] #champ-budget3d { display: none !important; }
 /* Le voile d'un côté de relief (CalqueRelief) : la carte se voit dessous,
    assombrie, là où rien n'est calculé. */
 .voile-relief {
   position: absolute; left: -500000px; top: -500000px; width: 1000000px; height: 1000000px;
   background: rgba(14, 17, 22, 0.62);
 }
-/* Vue normale : l'intensité n'est plus téléchargée (blocs coupés aux couches lues). */
-body[data-mode="vue"] #coloration [data-mode="intensite"] { display: none !important; }
+/* L'intensité n'est plus téléchargée (blocs coupés aux couches lues) : son bouton est retiré d'index.html. */
 
 
 /* Fenêtre d'export des points. Pas de `display` posé sur le <dialog> : une
@@ -1349,9 +1336,6 @@ dialog.fenetre .choix-format small { display: block; color: var(--texte-2); marg
 dialog.fenetre .legende button.cls { cursor: pointer; }
 
 /* ── Profil topographique ─────────────────────────────────────────────────── */
-
-/* Le bouton n'a de sens qu'en vue normale : `?dalle` n'a pas de profil. */
-body:not([data-mode="vue"]) #mode-profil { display: none !important; }
 
 /* La carte de choix de la bande : flottante sur la carte, en bas au centre
    (en haut sous 600 px, pour ne pas passer sous la feuille du panneau). Sombre
