@@ -456,3 +456,8 @@ Cause trouvée (4 octobre 2026) : la **complétion par les non classés** (`incl
 ### R16 — Profil : mêmes échelles en X et en Y (utilisateur, 5 octobre 2026) — fait sur `feat/profil-echelles`
 
 Le graphique ajustait l'échelle verticale à la fenêtre et aux points, ce qui déformait les proportions. Fait : une case **« Échelles égales »**, **cochée par défaut** (mesurer sur un graphique déformé ne se lit pas), dans la ligne de réglages de la fenêtre du profil. À échelle égale la portée verticale se **déduit** de l'horizontale (`PROFIL.etendueEgale`) et « Vue entière » cadre tout le profil (`PROFIL.cadrageEgal` : la dimension la plus contraignante fixe les mètres par pixel, du vide reste de chaque côté) ; le zoom garde le point sous le curseur et l'égalité ; la fenêtre peut dépasser la bande tant que la bande reste dedans. Décochée : l'ancienne vue. Tests écrits d'abord (`profil.test.js`, `profil-graphique.test.js`).
+
+
+### R17 — Rendre la liste des choix de relief plus claire (utilisateur, 5 octobre 2026)
+
+Les listes de gauche et de droite du rideau portent maintenant beaucoup d'éléments : Photo aérienne, Plan IGN, OpenStreetMap (standard), MNT ombré (IGN), MNS ombré (IGN), Sky-View Factor, Ombrage (4 soleils), Ombrage simple (1 soleil), Ouvertures positive et négative, Micro-relief, Hauteur des structures, Trous dans le sol, Ombrage coloré (3 soleils)… À rendre plus lisible, **sans idée arrêtée** : regrouper par famille (fonds de carte / relief calculé par nous / relief de l'IGN), séparateurs ou titres de groupe dans la liste (`<optgroup>`), ordre par usage, descriptions plus courtes. À décider plus tard ; les clés des couches ne changent pas (les liens partagés restent valables).
