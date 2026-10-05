@@ -710,38 +710,12 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
     contraste: 1, lisser: true, classesSol: new Set(CONFIG.raster.classesSolDefaut),
   };
   const cotes = reglages.cotes;
-  // Les couches de l'onglet 2D, fonds de carte à part (la carte Leaflet les
-  // porte, avec son propre choix de fond) : relief.js, plus l'ombrage coloré.
-  // L'ombrage gris en avait été retiré (« sur une grille au pixel, il sortait
-  // pâle ») : revenu avec ses curseurs d'azimut et de hauteur, qui rendent le
-  // contraste que la moyenne de quatre soleils efface.
-  const OMBRAGE_RGB = 'ombrage-rgb';
-  const COUCHES_VUE = [
-    ...RELIEF.COUCHES.map((c) => ({ cle: c.cle, libelle: c.libelle, aide: c.aide })),
-    // L'ombrage coloré ne suit pas le contrat de `RELIEF.calculer` (palette + étalement) : il rend directement des couleurs.
-    { cle: OMBRAGE_RGB, libelle: 'Ombrage coloré (3 soleils)', aide: 'Trois soleils à 120°, un par canal — l’orientation d’un mur ou d’un talus se lit en teinte, là où « Ombrage » l’aplatit dans une moyenne grise.' },
-  ];
-  // Ce qui n'est pas du relief : la carte telle qu'affichée, et le Plan IGN,
-  // posé dans le côté même — la carte n'a qu'un fond à la fois, et ainsi un
-  // côté peut montrer la photo et l'autre le plan.
-  const FONDS_VUE = {
-    carte: 'Photo aérienne', plan: 'Plan IGN',
-    'mnt-ign': 'MNT ombré (IGN)', 'mns-ign': 'MNS ombré (IGN)',
-    [FONDS_OSM.standard.cle]: FONDS_OSM.standard.libelle,
-  };
-  // Les fonds de tuiles posés dans le volet de leur côté, avec leurs réglages propres :
-  // l'estompage de l'IGN n'est servi que jusqu'au niveau 18, au-delà la tuile est agrandie.
-  const TUILES_VUE = { plan: {}, 'mnt-ign': { maxNativeZoom: 18 }, 'mns-ign': { maxNativeZoom: 18 }, [FONDS_OSM.standard.cle]: {} };
-  const AIDES_FONDS = {
-    [FONDS_OSM.standard.cle]: FONDS_OSM.standard.aide(location.protocol),
-    'mnt-ign': 'Estompage du MNT LiDAR HD (le sol nu), calculé par l’IGN : éclairage fixe, pas de réglage du soleil. Servi jusqu’au zoom 18.',
-    'mns-ign': 'Estompage du MNS LiDAR HD (le dessus : cimes, toits), calculé par l’IGN : éclairage fixe, pas de réglage du soleil. Servi jusqu’au zoom 18.',
-  };
+  // Ce que peut porter un côté du rideau : une couche de relief ou un fond de carte (catalogue-vue.js).
+  const { OMBRAGE_RGB, couches: COUCHES_VUE, fonds: FONDS_VUE, tuiles: TUILES_VUE, aides: AIDES_FONDS, estRelief, libelleCouche } =
+    creerCatalogueVue({ RELIEF, FONDS_OSM, protocole: location.protocol });
   // Les listes Gauche / Droite choisissent le fond de chaque côté : le
   // sélecteur de fond de Leaflet ferait doublon. La carte garde la photo.
   carte.controleFonds.remove();
-  const estRelief = (cle) => !(cle in FONDS_VUE);
-  const libelleCouche = (cle) => FONDS_VUE[cle] || COUCHES_VUE.find((c) => c.cle === cle).libelle;
   // Le statut dit à l'utilisateur où en est son relief ; le détail chiffré
   // (surface, dalles, blocs, points, durées) ne sert qu'au diagnostic, avec
   // « &debug » ou « &chrono ».
