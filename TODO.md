@@ -3,11 +3,12 @@
 Topo du 5 octobre 2026 (`main` = `dev` au commit `18d9bd3`, plus ce fichier). Le détail de chaque point est plus bas ; les numéros `#N` sont les anciennes tâches, `R1…R19` les retours reçus du forum OSM-FR (depuis le 1er octobre).
 
 **À faire, dans l'ordre proposé**
-1. **R19, ce qui a cassé en ligne** : le bouton Profil caché par une règle CSS orpheline (corrigé le 5 octobre) ; l'absence de test de fumée dans un vrai navigateur (à écrire : `tools/fumee.js`) ; les fichiers servis avec `max-age=600` sans version (HTML neuf avec CSS ou JS d'avant pendant 10 minutes : « il suffit de recharger entre deux versions ») ; les icônes invisibles sur Safari iOS (à confirmer).
-2. **R18, profil** : garder les points de la mesure et les montrer sur la carte (un défaut), puis déplacer / ajouter / supprimer des points, puis l'export (GeoJSON + `.osm`, avec R4), la polyligne seulement ensuite.
-3. **#4 / R13, la 3D qui télécharge** (et le lien 3D qui ouvre la 3D) : gros chantier, voie 2a d'abord.
-4. **Petits fixes** (#6) : panneau latéral qui recouvre la barre d'outils entre 600 et 900 px, petits points du profil, HUD de la seconde carte, deux côtés du rideau sur deux surfaces.
-5. **R15b / R15c, ombrage** (multidirectionnel « cramé », « trop lissé » face à l'IGN) : à mesurer avant d'agir.
+1. **R18, profil** : garder les points de la mesure et les montrer sur la carte (un défaut), puis déplacer / ajouter / supprimer des points, puis l'export (GeoJSON + `.osm`, avec R4), la polyligne seulement ensuite.
+2. **#4 / R13, la 3D qui télécharge** (et le lien 3D qui ouvre la 3D) : gros chantier, voie 2a d'abord.
+3. **Petits fixes** (#6) : panneau latéral qui recouvre la barre d'outils entre 600 et 900 px, petits points du profil, HUD de la seconde carte, deux côtés du rideau sur deux surfaces.
+4. **R15b / R15c, ombrage** (multidirectionnel « cramé », « trop lissé » face à l'IGN) : à mesurer avant d'agir.
+
+5. **R19, pas urgent** : un seul retour, venu d'une personne qui voulait aider celle du bug du profil. Le bouton Profil caché est corrigé ; reste à voir un jour les icônes sur Safari iOS, les fichiers servis sans version (`max-age=600`) et un test de fumée versionné.
 
 **En attente d'autrui ou de décision** : R8 fond OpenStreetMap France (accord du CA d'OSM France, pas avant la semaine du 12 octobre) ; R4 export GeoJSON (rejoint R18) ; R7 combler le sol (à ne pas commencer) ; #3 case « non classés » (à vérifier sur une ruine connue). Détection de structures et de sentiers (#1, #2) : code retiré le 5 octobre (tag `archive-avant-retrait-dalle`).
 
@@ -502,7 +503,9 @@ Même personne que les mesures de pente (escalier, chemin en paliers et marches)
 
 Ordre proposé : **1**, puis **2**, puis **3** ; **4** seulement si 1 à 3 ne suffisent pas à l'usage.
 
-### R19 — Ce qui s'est cassé en ligne : icônes invisibles, rechargement, test de fumée (utilisateurs, 5 octobre 2026)
+### R19 — Ce qui s'est cassé en ligne : icônes invisibles, rechargement, test de fumée (utilisateurs, 5 octobre 2026) — pas urgent
+
+*Un seul retour, d'une personne qui complétait celui du bug du profil : à garder en tête, sans y travailler tout de suite.*
 
 Deux retours : « soit il suffit de recharger la page (constaté entre deux versions), soit il faut changer de navigateur » ; une personne ne voit **pas les icônes** sur son téléphone (**Safari sous iOS**), le demandeur sous **Chrome Android**.
 
