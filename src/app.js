@@ -2737,7 +2737,7 @@ if (MODE_VUE) (async () => {
   // l'estompage de l'IGN n'est servi que jusqu'au niveau 18, au-delà la tuile est agrandie.
   const TUILES_VUE = { plan: {}, 'mnt-ign': { maxNativeZoom: 18 }, 'mns-ign': { maxNativeZoom: 18 }, [FONDS_OSM.standard.cle]: {} };
   const AIDES_FONDS = {
-    [FONDS_OSM.standard.cle]: 'Carte OpenStreetMap (rendu standard), servie par la Fondation OpenStreetMap. Données © contributeurs d’OpenStreetMap, licence ODbL.',
+    [FONDS_OSM.standard.cle]: FONDS_OSM.standard.aide(location.protocol),
     'mnt-ign': 'Estompage du MNT LiDAR HD (le sol nu), calculé par l’IGN : éclairage fixe, pas de réglage du soleil. Servi jusqu’au zoom 18.',
     'mns-ign': 'Estompage du MNS LiDAR HD (le dessus : cimes, toits), calculé par l’IGN : éclairage fixe, pas de réglage du soleil. Servi jusqu’au zoom 18.',
   };

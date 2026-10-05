@@ -39,3 +39,18 @@ test('le fond OSM France n’existe pas tant que l’association n’a pas donn�
   assert.equal(FONDS_OSM.france, undefined);
   assert.equal(FONDS_OSM.parCle.osmfr, undefined);
 });
+
+test('l’aide du fond standard prévient quand la page est ouverte en local : pas de Referer, tuiles refusées', () => {
+  const local = FONDS_OSM.standard.aide('file:');
+  assert.match(local, /local/i);
+  assert.match(local, /Referer/);
+  assert.match(local, /site en ligne/);
+});
+
+test('l’aide du fond standard reste neutre sur le site en ligne', () => {
+  for (const protocole of ['https:', 'http:']) {
+    const aide = FONDS_OSM.standard.aide(protocole);
+    assert.match(aide, /Fondation OpenStreetMap/);
+    assert.doesNotMatch(aide, /Referer/, protocole);
+  }
+});

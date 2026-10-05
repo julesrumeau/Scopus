@@ -14,6 +14,16 @@ const FONDS_OSM = (() => {
     cle: 'osm',
     libelle: 'OpenStreetMap',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    /**
+     * L'aide sous la liste. Page ouverte en `file://` : pas de Referer, le serveur refuse les
+     * tuiles (403) et la carte reste grise — on le dit plutôt que de laisser croire à une panne.
+     */
+    aide(protocole) {
+      const base = 'Carte OpenStreetMap (rendu standard), servie par la Fondation OpenStreetMap. Données © contributeurs d’OpenStreetMap, licence ODbL.';
+      return protocole === 'file:'
+        ? `${base} Ne s'affiche pas quand le fichier est ouvert en local : le serveur exige un Referer, que seule une page servie en ligne envoie. Utilisez le site en ligne.`
+        : base;
+    },
     options: {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       referrerPolicy: 'origin',
