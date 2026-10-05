@@ -457,6 +457,9 @@ function fabriqueVueRelief() {
       if (!dedans.length) return { raison: 'Aucun point chargé ici — zoomez sur la zone.' };
       const ax0 = Math.round(a[0] * 100), ay0 = Math.round(a[1] * 100);
       const longCm = ax.longueur * 100, demiCm = larg * 50;
+      // Sur une oblique, s et l'écart latéral ne sont pas exacts en flottant : un point pile sur le bord tombe à ~1e-13 cm
+      // dehors. Un millionième de centimètre de tolérance le garde, sans laisser entrer le point d'un centimètre plus loin.
+      const EPS_CM = 1e-6;
       // Le parcours commun aux deux passages : le visiteur reçoit s (cm le long
       // de l'axe), z (cm), la classe, x et y absolus (cm) pour le hachage, et
       // l'écart latéral (cm, positif à gauche de A→B).
@@ -467,9 +470,9 @@ function fabriqueVueRelief() {
             const xa = p.xc[i] + ox, ya = p.yc[i] + oy;
             const dx = xa - ax0, dy = ya - ay0;
             const s = dx * ax.ux + dy * ax.uy;
-            if (s < 0 || s > longCm) continue;
+            if (s < -EPS_CM || s > longCm + EPS_CM) continue;
             const lat = dx * ax.nx + dy * ax.ny;
-            if (Math.abs(lat) > demiCm) continue;
+            if (Math.abs(lat) > demiCm + EPS_CM) continue;
             visiteur(s, p.zc[i] + oz, p.cls[i], xa, ya, lat);
           }
         }

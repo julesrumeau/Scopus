@@ -4,12 +4,12 @@ Topo du 5 octobre 2026, fin de journée. `main` est au commit `4b4d7f1` ; `dev` 
 
 **Ce qui reste, dans l'ordre proposé**
 1. **R18, profil** (le plus récent, une vraie personne attend) : *fait* — points gardés et montrés sur la carte, déplacer et retirer (souris et appui long), croix du tableau, pincement à deux doigts. *Reste* : déplacer les points de la **carte** aussi (marqueurs non interactifs) ; l'**insertion** entre deux points (question à poser à la personne) ; l'**export** `.osm`/GeoJSON **en pause** (il attend un axe défini finement, donc la polyligne) ; l'import d'un way OSM et la polyligne (gros chantier, à décider).
-2. **Petits fixes** (#6) : panneau latéral qui recouvre la barre d'outils entre 600 et 900 px (cache le bouton Profil sur tablette) ; petits points du profil (arrondi d'un point pile sur le bord, garde sur la largeur, graphique cliquable pendant « Calcul… ») ; HUD de la seconde carte ; deux côtés du rideau sur deux surfaces.
+2. **Petits fixes** (#6) : *faits le 5 octobre sur `fix/petits-fixes`* — panneau latéral sous la barre (601–900 px), point pile sur le bord d'une bande oblique, garde sans A/B, graphique grisé pendant « Calcul… », HUD dans la carte survolée. *Reste* : les deux côtés du rideau sur deux surfaces (demander les deux côtés dans un seul message au worker : changement de protocole, transitoire et sans conséquence visible, à ne faire qu'avec une raison).
 3. **R15b / R15c, ombrage** (multidirectionnel « cramé », « trop lissé » face à l'IGN) : à mesurer avant d'agir.
 4. **À vérifier sur de vrais appareils** (aucun accès ici) : appui long et pincement du profil, poignées A/B au doigt, icônes sur Safari iOS (R19), lien 3D sur téléphone.
 5. **R19, pas urgent** : fichiers servis sans version (`max-age=600`), test de fumée versionné (`tools/fumee.js`). Le dernier incident (la page figée après « Voir un exemple », attrapée à la main) en rappelle l'intérêt.
 
-**En attente d'autrui ou de décision** : R8 fond OpenStreetMap France (accord du CA d'OSM France, pas avant la semaine du 12 octobre ; le message est prêt, pas envoyé) ; R7 combler le sol (à ne pas commencer) ; #3 case « non classés » (à vérifier sur une ruine connue). Détection de structures et de sentiers (#1, #2) : code retiré (tag `archive-avant-retrait-dalle`).
+**En attente d'autrui ou de décision** : R8 fond OpenStreetMap France (**demande envoyée le 5 octobre**, en attente : accord du CA d'OSM France, pas avant la semaine du 12 octobre) ; R7 combler le sol (à ne pas commencer) ; #3 case « non classés » (à vérifier sur une ruine connue). Détection de structures et de sentiers (#1, #2) : code retiré (tag `archive-avant-retrait-dalle`).
 
 **Fait ce jour (5 octobre)** : fond OpenStreetMap, Réinitialiser le soleil, échelles égales du profil, listes de couches par famille, une seule carte et deux cartes synchronisées, retrait de `?dalle`, découpage d'`app.js` et de `Vue3D`, **correctif du bouton Profil** (publié), **profil qui garde son état, déplacer/retirer/pincer**, **3D à rectangle borné** (lien 3D, échelle et angles repris, nuage qui s'étoffe seul : #4 phase 1 et R13), mentions OpenStreetMap (ODbL) dans le pied de page et le README.
 
@@ -224,16 +224,7 @@ parce que ça changerait un comportement ou demanderait une décision :
 - **`app.js` enveloppe la vue normale** dans un bloc de ~600 lignes : à
   sortir dans son propre fichier quand l'ancien parcours (`?dalle`) partira.
 
-- **Le panneau latéral recouvre la barre d'outils entre 600 et 900 px**, ouvert
-  par défaut : le bouton Profil (comme Déplacement, Sélection et Mesure) est
-  inaccessible tant qu'on ne l'a pas replié avec la languette. Vu en paysage sur
-  un téléphone (800 × 380) et sur tablette.
-- **Petits points du profil**, relevés à la relecture : sur une bande en
-  diagonale, un point exactement sur le bord peut être écarté par arrondi de
-  flottant (`vue-relief.js`) ; le champ de largeur de la modale n'a pas de
-  garde si A ou B est nul ; pendant « Calcul… », l'ancien graphique reste
-  cliquable ; le glisser des poignées A et B n'a pas été essayé au doigt
-  (le pincement sur le graphique, qui n'existait pas, est fait le 5 octobre, en tactile émulé).
+- **Faits le 5 octobre 2026** (`fix/petits-fixes`) : le panneau latéral qui recouvrait toute la barre (onglets et outils) entre 601 et 900 px (il commence maintenant sous la barre, `--hauteur-barre`) ; l'arrondi de flottant sur une bande **oblique** qui écartait des points pile sur le bord (tolérance d'un millionième de centimètre, testé sur un axe 5-12-13 : 8 points sur 3 339 perdus) ; le champ de largeur sans A ni B ; le graphique qui restait cliquable pendant « Calcul… » (grisé) ; le HUD de la seconde carte (il suit la carte survolée). Reste : le glisser des poignées A/B au doigt, à essayer sur un vrai appareil.
 
 ---
 

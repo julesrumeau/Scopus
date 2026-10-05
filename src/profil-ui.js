@@ -14,10 +14,8 @@ function creerProfilUI(d) {
   const { $, carte, traceOutils, versLatLng, projVue, majLien, relief, flux, classesMasquees,
     milliers, NOMS_CLASSES } = d;
 
-  // ── Le profil : choisir la bande ──
-  // Deux points A et B (coordonnées locales de la vue), une largeur ; la bande
-  // se dessine dans le volet SVG des outils, le graphique ne s'ouvre qu'à la
-  // validation. Pas de calcul tant qu'on n'a pas validé.
+  // ── Le profil : choisir la bande ── deux points A et B (coordonnées locales de la vue) et une largeur, dessinés
+  // dans le volet SVG des outils ; le graphique ne s'ouvre, et rien ne se calcule, qu'à la validation.
   const profil = {
     A: null, B: null, largeur: CONFIG.profil.largeurDefautM,
     donnees: null,          // le dernier profil calculé
@@ -118,10 +116,8 @@ function creerProfilUI(d) {
   brancherBande();
   majFenetreProfil();
 
-  // ── Le profil : lire la coupe ──
-  // La validation ouvre la modale et demande les points de la bande au worker ;
-  // changer la largeur dans la modale recalcule sur place (au `change`, pas à
-  // l'`input` : l'essai le plus fréquent sur un arbre est « un peu plus large »).
+  // ── Le profil : lire la coupe ── la validation ouvre la modale et demande les points au worker ; changer la
+  // largeur dans la modale recalcule sur place (au `change`, pas à l'`input`).
 
   /** Les classes affichées : toutes celles de la bande, sauf les décochées dans la modale. */
   const visiblesProfil = () => new Set([...profil.donnees.parClasse.keys()].filter((c) => !profil.masquees.has(c)));
@@ -172,11 +168,8 @@ function creerProfilUI(d) {
       : MESURE.tableauHtml(chaine);
   }
 
-  // ── Les outils du graphique : déplacement, point de référence, mesure ──
-  // L'outil décide de ce que fait un clic (le glisser et la molette déplacent et zooment
-  // toujours). La mesure par défaut. Le point de référence est un par un : un clic remplace
-  // le précédent ; il s'efface par un bouton (ou Retour arrière / Suppr quand son outil est
-  // actif) et à la fermeture de la fenêtre.
+  // ── Les outils du graphique : déplacement, point de référence, mesure ── l'outil décide de ce que fait un clic
+  // (le glisser et la molette déplacent et zooment toujours) ; la mesure par défaut ; un seul point de référence.
   profil.outil = 'mesure';
 
   function majOutilsProfil() {
@@ -233,7 +226,19 @@ function creerProfilUI(d) {
       + (avis.length ? ` · ${avis.join(' · ')}` : '');
   }
 
+  /** Calcule le profil ; pendant « Calcul… » l'ancien graphique est grisé et ne reçoit plus de clic (jusqu'au dernier calcul en vol). */
   async function calculerProfil() {
+    if (!profil.A || !profil.B) return;   // pas de bande : rien à calculer (un champ de largeur modifié sans A ni B)
+    profil.enVol = (profil.enVol || 0) + 1;
+    $('profil-canvas').classList.add('en-calcul');
+    try {
+      await calculerProfilDe();
+    } finally {
+      if (--profil.enVol === 0) $('profil-canvas').classList.remove('en-calcul');
+    }
+  }
+
+  async function calculerProfilDe() {
     const num = ++profil.numero;
     $('profil-etat').textContent = 'Calcul…';
     let r;

@@ -858,7 +858,8 @@ input[type=range]::-moz-range-thumb {
    garde plus de la moitié. */
 @media (min-width: 601px) and (max-width: 900px) {
   .panneau {
-    top: 46px;
+    /* Sous la barre des onglets et des outils : ouvert, il la recouvrait toute. */
+    top: calc(46px + var(--hauteur-barre));
     left: 0;
     bottom: 0;
     width: min(85vw, 340px);
@@ -895,7 +896,7 @@ input[type=range]::-moz-range-thumb {
    hauteurs. Repliée, elle montre la section principale de l'onglet — les
    listes Gauche / Droite sur la carte, les couleurs en 3D — : l'action la
    plus fréquente ne demande rien d'ouvrir. */
-:root { --feuille-repliee: 136px; }
+:root { --feuille-repliee: 136px; --hauteur-barre: 46px; }
 @media (max-width: 600px) {
   .panneau {
     left: 0;
@@ -1433,6 +1434,8 @@ dialog.fenetre .legende button.cls { cursor: pointer; }
 .profil-reference-ligne { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #4ad0ff; white-space: nowrap; }
 .profil-reference-ligne .btn-discret { padding: 4px 8px; }
 #profil-canvas.outil-deplacement { cursor: grab; }
+/* Pendant « Calcul… » : l'ancien graphique est grisé et ne reçoit plus de clic. */
+#profil-canvas.en-calcul { opacity: 0.45; pointer-events: none; }
 
 /* La fenêtre d'aide du profil : du texte, des titres courts, qui défile si l'écran est bas. */
 dialog.fenetre-aide { width: min(560px, calc(100% - 24px)); }
