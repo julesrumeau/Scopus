@@ -13,6 +13,12 @@ function fabriqueProfil() {
     return { longueur, ux: dx / longueur, uy: dy / longueur, nx: -dy / longueur, ny: dx / longueur };
   }
 
+  /** La position (coordonnées locales) du point à la distance `s` de A le long de l'axe A→B ; `null` si A = B. */
+  function pointSurAxe(a, b, s) {
+    const ax = axe(a, b);
+    return ax ? [a[0] + ax.ux * s, a[1] + ax.uy * s] : null;
+  }
+
   /** Une largeur utilisable : jamais nulle, négative ni infinie, même saisie à la main. */
   function largeurValide(l) {
     const { largeurMinM, largeurMaxM, largeurDefautM } = CONFIG.profil;
@@ -136,6 +142,6 @@ function fabriqueProfil() {
     return { s0: sc - (mpp * W) / 2, s1: sc + (mpp * W) / 2, z0: zc - (mpp * H) / 2, z1: zc + (mpp * H) / 2 };
   }
 
-  return { axe, largeurValide, largeurDepuisCurseur, curseurDepuisLargeur, pointSuivant, verdict, coins, emprise, graduations, etendueZ, etendueEgale, cadrageEgal };
+  return { axe, pointSurAxe, largeurValide, largeurDepuisCurseur, curseurDepuisLargeur, pointSuivant, verdict, coins, emprise, graduations, etendueZ, etendueEgale, cadrageEgal };
 }
 const PROFIL = fabriqueProfil();

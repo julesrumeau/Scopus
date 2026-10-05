@@ -115,14 +115,15 @@ test('la tranche de largeur écarte les points hors de la tranche : ni vus, ni v
   assert.equal(vus.at(-1)[0].z, 325);
 });
 
-test('definir(null) vide le graphique sans erreur et efface la mesure', () => {
+test('definir(null) vide le graphique sans erreur ; un clic sur un graphique vide ne pose rien', () => {
   const { g, vus } = graphique();
   g.definir(donnees());
   const { x, y } = g.px(50, 325);
   g.clic(x, y);
   g.definir(null);
-  assert.deepEqual(vus.at(-1), []);
+  const avant = vus.length;
   g.clic(100, 100);   // clic sur un graphique vide : rien, pas d'exception
+  assert.equal(vus.length, avant);
 });
 
 // ── Le coût d'un cran de curseur (relecture finale) ──────────────────────────
@@ -368,7 +369,7 @@ test('effacerReference : retire le point et le dit ; sans référence, ne dit ri
   assert.equal(g.reference, null);
 });
 
-test('la référence survit à un recalcul de la même bande (largeur changée) mais pas la mesure', () => {
+test('la référence ET la mesure survivent à un recalcul de la même ligne (largeur changée, fenêtre rouverte)', () => {
   const { g, mesures, refs } = avecReference();
   g.definir(donneesRef());
   const p = g.px(50, 312);
@@ -378,7 +379,7 @@ test('la référence survit à un recalcul de la même bande (largeur changée) 
   g.definir(donneesRef());                   // la largeur a changé : mêmes distances, mêmes altitudes
   assert.equal(g.reference.z, 312);          // la référence est gardée
   assert.equal(refs.at(-1) !== null, true);
-  assert.deepEqual(mesures.at(-1), []);      // la mesure est remise à zéro, comme avant
+  assert.deepEqual(mesures.at(-1), [{ s: 50, z: 312 }]);   // la chaîne aussi, et l'appelant la reçoit
 });
 
 test('avec une référence, les graduations se lisent depuis elle : 0 en son point, négatives en bas et à gauche', () => {
@@ -477,4 +478,54 @@ test('définirEgales rebascule et recadre : le profil entier, à la nouvelle éc
   assert.ok(Math.abs(m.x - m.z) / m.x < 1e-6, `X ${m.x}, Z ${m.z}`);
   const a = g.px(0, 300), b = g.px(100, 300);
   assert.ok(a.x >= g.marge.g - 0.5 && b.x <= 600 - g.marge.d + 0.5);
+});
+
+// ── Ce qui reste d'une ouverture à l'autre (R18) ─────────────────────────────
+
+test('definir garde la chaîne de mesure et la redit à l’appelant (la fenêtre rouverte la retrouve)', () => {
+  const { g, vus } = graphique();
+  g.definir(donnees());
+  const a = g.px(0, 300), b = g.px(50, 325);
+  g.clic(a.x, a.y);
+  g.clic(b.x, b.y);
+  g.definir(donnees());
+  assert.deepEqual(vus.at(-1), [{ s: 0, z: 300 }, { s: 50, z: 325 }]);
+  g.clic(g.px(100, 300).x, g.px(100, 300).y);
+  assert.equal(vus.at(-1).length, 3, 'la suite de la chaîne continue après la reprise');
+});
+
+test('definir(d, { garder }) garde la vue zoomée ; sans « garder », la vue entière', () => {
+  const { g } = graphique();
+  g.definir(donnees());
+  g.zoomer(300, 150, 4);
+  const [s0, s1] = [g.s0, g.s1];
+  assert.ok(s1 - s0 < 100);
+  g.definir(donnees(), { garder: true });
+  assert.deepEqual([g.s0, g.s1], [s0, s1]);
+  g.definir(donnees());
+  assert.deepEqual([g.s0, g.s1], [0, 100]);
+});
+
+test('reinitialiser efface la chaîne, la référence, la tranche et le zoom, et le dit', () => {
+  const mesures = [], refs = [];
+  const g = new ProfilGraphique(canevasFactice(), (p) => mesures.push(p.length), (r) => refs.push(r));
+  g.definir(donnees());
+  const p = g.px(50, 325);
+  g.clic(p.x, p.y);
+  g.definirOutil('reference');
+  g.clic(p.x, p.y);
+  g.definirLateral(-1, 1);
+  g.zoomer(300, 150, 4);
+  g.reinitialiser();
+  assert.equal(g.mesure.length, 0);
+  assert.equal(g.reference, null);
+  assert.equal(mesures.at(-1), 0);
+  assert.equal(refs.at(-1), null);
+  assert.deepEqual([g.s0, g.s1], [0, 100]);
+  assert.equal(g.lat.min, -Infinity);
+});
+
+test('reinitialiser sur un graphique vide ne lève pas', () => {
+  const { g } = graphique();
+  assert.doesNotThrow(() => g.reinitialiser());
 });

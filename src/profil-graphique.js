@@ -37,31 +37,7 @@ class ProfilGraphique {
     // garde que son centre. Désactivées : l'ancienne vue, la hauteur ajustée aux points.
     this.egales = true;
     this.geste = null;    // un appui en cours : clic ou déplacement, selon qu'on a bougé
-    const pos = (e) => {
-      const r = canvas.getBoundingClientRect();
-      return { x: e.clientX - r.left, y: e.clientY - r.top };
-    };
-    canvas.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
-      canvas.setPointerCapture?.(e.pointerId);
-      const p = pos(e);
-      this.debutGeste(p.x, p.y);
-    });
-    canvas.addEventListener('pointermove', (e) => {
-      if (!this.geste) return;
-      const p = pos(e);
-      this.deplacerGeste(p.x, p.y);
-    });
-    canvas.addEventListener('pointerup', (e) => {
-      const p = pos(e);
-      this.finGeste(p.x, p.y);
-    });
-    canvas.addEventListener('pointercancel', () => { this.geste = null; });
-    canvas.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      const p = pos(e);
-      this.zoomer(p.x, p.y, e.deltaY < 0 ? 1.25 : 0.8);
-    }, { passive: false });
+    brancherGestesProfil(this, canvas);
   }
 
   /** L'outil du clic : 'deplacement' (rien), 'reference' (pose le 0) ou 'mesure' (ajoute un point). */
@@ -78,22 +54,40 @@ class ProfilGraphique {
   }
 
   /**
-   * Les points du profil (ou `null`). Remet toute la bande et efface la mesure.
-   * **Garde la référence** : un recalcul de la même ligne (la largeur a changé) garde
-   * les mêmes distances et les mêmes altitudes, le point existe toujours. C'est la
-   * fermeture de la fenêtre qui l'efface, côté appelant.
+   * Les points du profil (ou `null`). **Garde la chaîne de mesure et la référence** : ce sont des
+   * positions sur l'axe (distance, altitude), valables tant que la ligne A→B ne change pas ; c'est
+   * l'appelant qui les efface (`reinitialiser`) quand elle bouge. Un recalcul de la même ligne (largeur,
+   * fenêtre rouverte) les retrouve donc, et l'appelant reçoit la chaîne gardée.
+   *
+   * @param {{garder?: boolean}} [options] `garder` : la vue zoomée et la tranche de largeur restent
+   *        (même ligne, même largeur) ; sinon la bande entière.
    */
-  definir(d) {
+  definir(d, { garder = false } = {}) {
     this.d = d;
-    this.s0 = 0;
-    this.s1 = d ? d.longueur : 1;
+    if (!(garder && d)) {
+      this.s0 = 0;
+      this.s1 = d ? d.longueur : 1;
+      this.lat = { min: -Infinity, max: Infinity };
+      this.zv = null;
+      if (d && this.egales) this._cadrerEgal();
+    }
+    this._ranger();
+    this.rappel(this.mesure.slice());
+    this.rendre();
+  }
+
+  /** La ligne a bougé : chaîne, référence, tranche et zoom n'ont plus de sens. Le dit à l'appelant. */
+  reinitialiser() {
+    const avait = this.mesure.length > 0 || this.reference !== null;
+    this.mesure = [];
+    this.reference = null;
     this.lat = { min: -Infinity, max: Infinity };
     this.zv = null;
-    this.mesure = [];
-    if (d && this.egales) this._cadrerEgal();
-    this._ranger();
-    this.rappel([]);
-    this.rendre();
+    this.s0 = 0;
+    this.s1 = this.d ? this.d.longueur : 1;
+    if (this.d && this.egales) this._cadrerEgal();
+    if (avait) { this.rappel([]); this.rappelReference(null); }
+    this.planifier();
   }
 
   /** Active ou coupe les échelles égales, et remet la vue entière à la nouvelle échelle. */
@@ -440,4 +434,33 @@ class ProfilGraphique {
     });
     ctx.restore();
   }
+}
+
+/** Les gestes sur le canevas : appui, déplacement, relâchement (clic ou glisser selon qu'on a bougé), molette. */
+function brancherGestesProfil(g, canvas) {
+  const pos = (e) => {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    canvas.setPointerCapture?.(e.pointerId);
+    const p = pos(e);
+    g.debutGeste(p.x, p.y);
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!g.geste) return;
+    const p = pos(e);
+    g.deplacerGeste(p.x, p.y);
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    const p = pos(e);
+    g.finGeste(p.x, p.y);
+  });
+  canvas.addEventListener('pointercancel', () => { g.geste = null; });
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const p = pos(e);
+    g.zoomer(p.x, p.y, e.deltaY < 0 ? 1.25 : 0.8);
+  }, { passive: false });
 }
