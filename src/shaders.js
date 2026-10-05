@@ -31,8 +31,6 @@ uniform sampler2D u_palette;
 // Zone mise en avant (une détection sélectionnée) : au-delà, les points sont
 // désaturés. C'est ce qui rend une tache de 3 m lisible au milieu d'un nuage
 // de plusieurs millions de points.
-uniform vec4 u_focus;          // xmin, ymin, xmax, ymax en coordonnées locales
-uniform float u_focusActif;
 
 out vec3 v_couleur;
 out float v_attenue;
@@ -122,12 +120,7 @@ void main() {
   // fois.
   else                  v_couleur = rampeRelief(a_hauteur);
 
-  float dedans = 1.0;
-  if (u_focusActif > 0.5) {
-    dedans = step(u_focus.x, a_pos.x) * step(a_pos.x, u_focus.z)
-           * step(u_focus.y, a_pos.y) * step(a_pos.y, u_focus.w);
-  }
-  v_attenue = mix(0.22, 1.0, dedans);
+  v_attenue = 1.0;
 }`,
 
   pointsFS: `#version 300 es

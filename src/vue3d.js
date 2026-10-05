@@ -1,6 +1,5 @@
-// Vue 3D du nuage : caméra orbitale, rendu par points, surlignage des
-// détections.
-
+// Vue 3D du nuage : caméra orbitale, rendu par points, marqueurs de sélection et de mesure. Les gestes
+// vivent dans `controles-3d.js`.
 // Décalage vertical des marqueurs (sélection, mesure) au-dessus du point
 // visé — assez pour ne plus coïncider en profondeur avec le point réel du
 // nuage à cet endroit (sans quoi le test de profondeur peut le ronger),
@@ -76,14 +75,6 @@ class Vue3D {
     this.zmin = 0;
     this.zref = 1;
 
-    this.vaoLignes = null;
-    this.bufLignes = null;
-    this.nbSommetsLignes = 0;
-    this.vaoSel = null;
-    this.bufSel = null;
-    this.nbSommetsSel = 0;
-    this.nbSommetsSentiers = 0;
-    this.nbSommetsTraceSel = 0;
     this.vaoPointSel = null;
     this.bufPointSel = null;
     this.nbSommetsPointSel = 0;
@@ -94,9 +85,6 @@ class Vue3D {
 
     // Caméra orbitale. Distance et cible en mètres, angles en radians.
     this.cam = { cible: [0, 0, 0], distance: 300, azimut: -Math.PI / 4, elevation: 0.6 };
-    this.focus = null;
-    this._animation = 0;
-    this._animationPivot = 0;
 
     // Mode d'interaction du clic — 'deplacement' (défaut), 'selection' (vise
     // un point) ou 'mesure' (vise deux points, l'un après l'autre) —
@@ -113,10 +101,11 @@ class Vue3D {
     this.onVue = null;
 
     this.boussole = elementBoussole
-      ? new Boussole(elementBoussole, (v) => this.orienterVers(v))
+      ? new Boussole(elementBoussole, (v) => this.controles.orienterVers(v))
       : null;
 
-    this._brancherControles();
+    this.controles = new ControlesVue3D(this);
+    this.controles.brancher();
     this.actif = false;
     this._planifie = false;
   }
@@ -282,22 +271,17 @@ class Vue3D {
   vider() {
     this._libererNuage();
     this.nuage = null;
-    this.nbSommetsLignes = 0;
-    this.nbSommetsSel = 0;
-    this.nbSommetsSentiers = 0;
-    this.nbSommetsTraceSel = 0;
     this.nbSommetsPointSel = 0;
     this.nbSommetsMesureLigne = 0;
     this.nbSommetsMesurePoints = 0;
-    this.focus = null;
-    this._arreterAnimation();
+    this.controles.arreter();
     this.invalider();
   }
 
   /** Recentre la caméra sur l'ensemble du nuage. */
   cadrer() {
     if (!this.nuage) return;
-    this._arreterAnimation();
+    this.controles.arreter();
     const e = this.nuage.emprise;
     const o = this.nuage.origine;
     const cote = Math.max(e.xmax - e.xmin, e.ymax - e.ymin);
@@ -309,26 +293,8 @@ class Vue3D {
     this.cam.distance = cote * 1.2;
     this.cam.azimut = -Math.PI / 4;
     this.cam.elevation = 0.55;
-    this.focus = null;
     this.invalider();
   }
-
-  /** Amène la caméra au-dessus d'une détection et la met en avant. */
-  viser(candidat, marge = 18) {
-    if (!this.nuage) return;
-    this._arreterAnimation();
-    const o = this.nuage.origine;
-    const lx = candidat.x - o[0];
-    const ly = candidat.y - o[1];
-    this.cam.cible = [lx, (candidat.altitude - o[2] - this.zmin) * CONFIG.rendu.exagerationZ, -ly];
-    this.cam.distance = Math.max(25, Math.sqrt(candidat.surface) * 3 + marge);
-    this.cam.elevation = 0.45;
-    const d = Math.sqrt(candidat.surface) * 1.6 + marge;
-    this.focus = [lx - d, ly - d, lx + d, ly + d];
-    this.invalider();
-  }
-
-  effacerFocus() { this.focus = null; this.invalider(); }
 
   /**
    * Caméra en coordonnées vraies : point visé en Lambert-93, distance en
@@ -349,43 +315,6 @@ class Vue3D {
   }
 
   /**
-   * Place la caméra sur un point Lambert-93 à une résolution au sol donnée
-   * (mètres par pixel CSS), sous les angles demandés — l'inverse de `camera`.
-   * `altitude` absolue, ou `null` pour garder celle de la cible actuelle.
-   */
-  placerCamera(x, y, altitude, metresParPixelCss, azimut, elevation) {
-    if (!this.nuage) return;
-    this._arreterAnimation();
-    const o = this.nuage.origine;
-    // Canevas masqué : la hauteur de la fenêtre est la meilleure estimation de
-    // celle qu'il aura, l'onglet 3D occupant toute la scène.
-    const hauteur = this.canvas.clientHeight || window.innerHeight;
-    const distance = metresParPixelCss * hauteur / (2 * Math.tan((FOV_Y_DEG * Math.PI / 180) / 2));
-    const cy = altitude == null
-      ? this.cam.cible[1]
-      : (altitude - o[2] - this.zmin) * CONFIG.rendu.exagerationZ;
-    this.cam.cible = [x - o[0], cy, -(y - o[1])];
-    this.cam.distance = Math.max(2, Math.min(6000, distance));
-    this.cam.azimut = azimut;
-    this.cam.elevation = elevation;
-    this.focus = null;
-    this.invalider();
-  }
-
-  /**
-   * Recentre la caméra sur un point donné, sans toucher à sa distance ni à
-   * son angle — contrairement à `viser`, qui cadre une détection. Sert à
-   * retrouver un point cherché par ses coordonnées (voir « Point
-   * sélectionné » dans app.js) sans le faire disparaître hors champ.
-   */
-  centrerSur(x, y, altitude) {
-    if (!this.nuage) return;
-    const o = this.nuage.origine;
-    this.cam.cible = [x - o[0], (altitude - o[2] - this.zmin) * CONFIG.rendu.exagerationZ, -(y - o[1])];
-    this.invalider();
-  }
-
-  /**
    * Masque des classifications. `masquees` est un itérable de numéros de classe.
    *
    * Le filtrage passe par l'alpha de la palette : une texture de 1 Ko réécrite,
@@ -400,23 +329,6 @@ class Vue3D {
   }
 
   /**
-   * Boîtes filaires des détections.
-   *
-   * Le rectangle englobant orienté serait plus fidèle, mais l'emprise en
-   * cellules suffit à guider l'œil et se calcule sans repasser par la géométrie
-   * de la tache — la lecture se fait de toute façon sur le nuage lui-même.
-   */
-  definirDetections(candidats, grille) {
-    this.nbSommetsLignes = this._remplirBoites(candidats, grille, 'Lignes');
-    this.invalider();
-  }
-
-  definirSelection(candidat, grille) {
-    this.nbSommetsSel = candidat ? this._remplirBoites([candidat], grille, 'Sel') : 0;
-    this.invalider();
-  }
-
-  /**
    * Marqueur du point choisi en mode Sélection (voir app.js) : un point
    * agrandi avec un liseré sombre, dessiné en `gl.POINTS` plutôt qu'une croix
    * reliée au sol — une croix se mélangeait avec les points du nuage en
@@ -425,7 +337,7 @@ class Vue3D {
    * le zoom, comme la sélection elle-même n'a pas d'échelle propre.
    *
    * `p` est en Lambert-93 absolu, comme partout ailleurs dans l'API publique
-   * (`viser`, `definirDetections`) ; la conversion vers le repère local du
+   * (`camera`) ; la conversion vers le repère local du
    * nuage se fait ici, une fois.
    */
   definirPointSelectionne(p) {
@@ -484,32 +396,6 @@ class Vue3D {
     this.invalider();
   }
 
-  _remplirBoites(candidats, grille, suffixe) {
-    const gl = this.gl;
-    const o = this.nuage.origine;
-    const sommets = [];
-
-    for (const c of candidats) {
-      const b = c.empriseCellules;
-      const x0 = grille.emprise.xmin + b.xmin * grille.pas - o[0];
-      const x1 = grille.emprise.xmin + (b.xmax + 1) * grille.pas - o[0];
-      const y0 = grille.emprise.ymin + b.ymin * grille.pas - o[1];
-      const y1 = grille.emprise.ymin + (b.ymax + 1) * grille.pas - o[1];
-      const zb = c.altitude - o[2];
-      const zh = zb + Math.max(1.2, c.hauteurMax + 0.4);
-
-      const coins = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-      for (let i = 0; i < 4; i++) {
-        const a = coins[i], d = coins[(i + 1) % 4];
-        sommets.push(a[0], a[1], zb, d[0], d[1], zb);   // ceinture basse
-        sommets.push(a[0], a[1], zh, d[0], d[1], zh);   // ceinture haute
-        sommets.push(a[0], a[1], zb, a[0], a[1], zh);   // montant
-      }
-    }
-
-    return this._televerserLignes(sommets, suffixe);
-  }
-
   /** Envoie une liste de sommets au GPU sous un jeu de buffers nommé. */
   _televerserLignes(sommets, suffixe) {
     const gl = this.gl;
@@ -531,83 +417,6 @@ class Vue3D {
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, donnees, gl.DYNAMIC_DRAW);
     return donnees.length / 3;
-  }
-
-  /**
-   * Tracés de sentiers, posés sur le terrain.
-   *
-   * Les polylignes sont **rééchantillonnées** avant d'être tracées : la
-   * simplification de Douglas-Peucker laisse parfois des dizaines de mètres
-   * entre deux sommets, et un segment droit sur cette distance traverserait le
-   * relief au lieu de l'épouser. On redécoupe donc au pas de la grille et l'on
-   * relève l'altitude du terrain en chaque point.
-   *
-   * Le tracé est relevé de quelques centimètres : posé exactement sur le MNT il
-   * disparaîtrait derrière les points du sol, à égalité de profondeur.
-   */
-  definirSentiers(traces, grille) {
-    this.nbSommetsSentiers = this._remplirTraces(traces, grille, 'Sentiers');
-    this.invalider();
-  }
-
-  definirSentierChoisi(trace, grille) {
-    this.nbSommetsTraceSel = trace ? this._remplirTraces([trace], grille, 'TraceSel') : 0;
-    this.invalider();
-  }
-
-  _remplirTraces(traces, grille, suffixe) {
-    if (!this.nuage || !grille) return 0;
-    const o = this.nuage.origine;
-    const sommets = [];
-
-    // Altitude du terrain en un point Lambert-93, relative à l'origine.
-    const solA = (x, y) => {
-      const cx = Math.min(grille.W - 1, Math.max(0, ((x - grille.emprise.xmin) / grille.pas) | 0));
-      const cy = Math.min(grille.H - 1, Math.max(0, ((y - grille.emprise.ymin) / grille.pas) | 0));
-      return grille.mnt[cy * grille.W + cx];
-    };
-
-    const PAS = 2;            // mètres entre deux échantillons
-    const HAUTEUR = 0.35;     // décollement du sol, en mètres
-
-    for (const t of traces) {
-      const pts = t.points || [];
-      let precedent = null;
-
-      for (let i = 1; i < pts.length; i++) {
-        const [x1, y1] = pts[i - 1];
-        const [x2, y2] = pts[i];
-        const n = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / PAS));
-
-        for (let k = 0; k <= n; k++) {
-          const x = x1 + (x2 - x1) * (k / n);
-          const y = y1 + (y2 - y1) * (k / n);
-          const p = [x - o[0], y - o[1], solA(x, y) + HAUTEUR];
-          // Le shader dessine des GL_LINES : chaque segment veut ses deux bouts.
-          if (precedent) sommets.push(...precedent, ...p);
-          precedent = p;
-        }
-      }
-    }
-    return this._televerserLignes(sommets, suffixe);
-  }
-
-  /** Amène la caméra sur un tracé, cadré sur toute sa longueur. */
-  viserTrace(trace, grille) {
-    if (!this.nuage || !trace?.points?.length) return;
-    this._arreterAnimation();
-    const o = this.nuage.origine;
-    const xs = trace.points.map((q) => q[0]);
-    const ys = trace.points.map((q) => q[1]);
-    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
-    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-    const etendue = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
-
-    this.cam.cible = [cx - o[0], (trace.altitude - o[2] - this.zmin) * CONFIG.rendu.exagerationZ, -(cy - o[1])];
-    this.cam.distance = Math.max(40, etendue * 1.6);
-    this.cam.elevation = 0.7;
-    this.focus = null;
-    this.invalider();
   }
 
   // ── Contrôles ─────────────────────────────────────────────────────────────
@@ -696,380 +505,7 @@ class Vue3D {
     });
   }
 
-  /**
-   * Point du plan horizontal passant par la cible, sous un pixel donné.
-   *
-   * Ce plan sert de sol virtuel : il donne un point d'accroche stable pour
-   * saisir le terrain et pour zoomer là où pointe le curseur, sans avoir à
-   * relire le tampon de profondeur. À l'échelle où l'on inspecte une structure,
-   * il colle de près au relief réel.
-   *
-   * Renvoie `null` en visée rasante, quand le rayon devient parallèle au plan
-   * et que l'intersection part à l'infini.
-   */
-  _pointSousCurseur(ev) {
-    const rayon = this._rayonBrut(ev);
-    if (!rayon) return null;
-    const { oeil, dir } = rayon;
-
-    if (Math.abs(dir[1]) < 1e-3) return null;
-    const t = (this.cam.cible[1] - oeil[1]) / dir[1];
-    if (!(t > 0)) return null;
-
-    const p = [oeil[0] + dir[0] * t, this.cam.cible[1], oeil[2] + dir[2] * t];
-    return p.every(Number.isFinite) ? p : null;
-  }
-
-  /**
-   * Contrôles « à la Google Earth » : glisser déplace le terrain, la molette
-   * zoome sous le curseur.
-   *
-   * L'inverse — glisser pour orbiter, molette vers le centre — est l'usage des
-   * visionneuses 3D, mais il est pénible ici. On balaie un kilomètre carré à la
-   * recherche de structures : le geste dominant est le déplacement, pas la
-   * rotation, et l'onglet Carte se manipule déjà ainsi. Surtout, zoomer vers le
-   * centre d'orbite éloigne de ce qu'on vient de repérer au bord de l'écran, et
-   * oblige à alterner déplacement et zoom sans fin.
-   */
-  _brancherControles() {
-    const c = this.canvas;
-    let glisse = null;
-
-    // Pincement à deux doigts : `wheel` ne se déclenche jamais pour un geste
-    // tactile réel — sans ce suivi, aucun zoom n'est possible au doigt. Un
-    // deuxième doigt qui touche par accident pendant un glissé (la paume, un
-    // pouce) est le cas courant à ne pas laisser corrompre le déplacement en
-    // cours : avant ce garde, un pointeur en trop remplaçait `glisse` par sa
-    // propre référence et son relâchement arrêtait tout le geste en cours,
-    // ce qui rendait le déplacement erratique dès qu'un second contact
-    // apparaissait — le mode courant sur un écran tactile.
-    //
-    // Les deux doigts portent aussi l'orientation : sur tactile, ni Maj ni
-    // clic droit n'existent pour distinguer orbite et déplacement, donc rien
-    // ne pouvait déclencher `glisse.orbite`. Le milieu des deux doigts qui
-    // glisse pivote la vue — écarter ou rapprocher les doigts zoome en même
-    // temps, les deux gestes se lisent indépendamment sur le même geste.
-    const doigts = new Map();
-    let pince = null;
-
-    // Point de départ en pixels, pour distinguer un clic d'un glissé — un
-    // clic en mode sélection vise un point, un glissé ne doit pas en viser un
-    // au relâchement. `pinceUtilisee` fait pareil pour un pincement à deux
-    // doigts qui se termine à un seul.
-    let depart = null;
-    let pinceUtilisee = false;
-
-    const milieu = () => {
-      const [a, b] = [...doigts.values()];
-      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-    };
-    const ecart = () => {
-      const [a, b] = [...doigts.values()];
-      return Math.hypot(a.x - b.x, a.y - b.y);
-    };
-
-    c.addEventListener('pointerdown', (e) => {
-      this._arreterAnimation();
-      c.setPointerCapture(e.pointerId);
-      doigts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-      if (doigts.size >= 2) {
-        glisse = null;
-        depart = null;
-        pinceUtilisee = true;
-        const m = milieu();
-        pince = { distance: ecart(), cx: m.x, cy: m.y };
-        return;
-      }
-      depart = [e.clientX, e.clientY];
-      const orbite = e.button === 1 || e.button === 2 || e.shiftKey;
-      glisse = {
-        x: e.clientX, y: e.clientY,
-        // Bouton principal : déplacement. Clic droit, bouton du milieu ou
-        // Maj+glissé : orbite. Trois voies parce que selon la souris ou le pavé
-        // tactile, l'une des trois manque.
-        orbite,
-      };
-    });
-
-    c.addEventListener('pointermove', (e) => {
-      if (doigts.has(e.pointerId)) doigts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-      if (pince && doigts.size >= 2) {
-        const m = milieu();
-        const d = ecart();
-
-        // Zoom sur l'écart, ancré au milieu courant — recalculé à chaque
-        // image, comme pour la molette, parce que ce milieu se déplace en
-        // même temps que la vue pivote.
-        if (pince.distance > 0) {
-          const avant = this._pointSousCurseur({ clientX: m.x, clientY: m.y });
-          const ancienne = this.cam.distance;
-          this._zoomVers(avant, ancienne, ancienne * (pince.distance / d));
-        }
-        pince.distance = d;
-
-        this.cam.azimut -= (m.x - pince.cx) * 0.006;
-        this.cam.elevation = Math.max(-1.553, Math.min(1.553, this.cam.elevation + (m.y - pince.cy) * 0.006));
-        pince.cx = m.x; pince.cy = m.y;
-
-        this._bouger();
-        return;
-      }
-
-      if (!glisse) return;
-      const dx = e.clientX - glisse.x;
-      const dy = e.clientY - glisse.y;
-
-      if (glisse.orbite) {
-        this.cam.azimut -= dx * 0.006;
-        // Bornes strictes : au zénith exact, le vecteur « haut » devient
-        // colinéaire à l'axe de visée et lookAt produit une matrice dégénérée.
-        // 89° laisse une vue quasi verticale sans l'atteindre.
-        this.cam.elevation = Math.max(-1.553, Math.min(1.553, this.cam.elevation + dy * 0.006));
-      } else {
-        this._deplacer(glisse, e, dx, dy);
-      }
-      glisse.x = e.clientX; glisse.y = e.clientY;
-      this._bouger();
-    });
-
-    const relacher = (e) => {
-      c.releasePointerCapture?.(e.pointerId);
-      doigts.delete(e.pointerId);
-      if (doigts.size < 2) pince = null;
-      if (doigts.size === 1) {
-        // Un doigt reste au sol : reprendre le glissé depuis sa position
-        // actuelle, pas depuis le point de départ d'origine — sinon la vue
-        // saute au relâchement du second doigt.
-        const [pos] = doigts.values();
-        glisse = { x: pos.x, y: pos.y, orbite: false };
-      } else if (doigts.size === 0) {
-        glisse = null;
-      }
-    };
-    c.addEventListener('pointerup', relacher);
-    c.addEventListener('pointercancel', relacher);
-    c.addEventListener('contextmenu', (e) => e.preventDefault());
-
-    c.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      const avant = this._pointSousCurseur(e);
-      const ancienne = this.cam.distance;
-      this._zoomVers(avant, ancienne, ancienne * Math.exp(e.deltaY * 0.0012));
-      this._bouger();
-    }, { passive: false });
-
-    c.addEventListener('click', (e) => {
-      const bouge = pinceUtilisee ||
-        (depart && Math.hypot(e.clientX - depart[0], e.clientY - depart[1]) > 4);
-      pinceUtilisee = false;
-      depart = null;
-      if (bouge || this.mode === 'deplacement') return;
-      const rayon = this.rayonEcran(e);
-      if (!rayon) return;
-      if (this.mode === 'selection') this.onSelectionPoint?.(rayon);
-      else if (this.mode === 'mesure') this.onPointMesure?.(rayon);
-    });
-
-    c.addEventListener('dblclick', (e) => {
-      if (this.mode !== 'deplacement') return;
-      this._recentrerPivot(e);
-    });
-  }
-
-  /**
-   * Replace le pivot d'orbite sur le point visé, sans toucher au zoom.
-   * Déclenché par un double-clic explicite, pas au début de chaque geste
-   * d'orbite : recalculer automatiquement à chaque Maj+glissé revient à
-   * parier que le clic de départ tombe pile sur la cible. Retour utilisateur
-   * du 22/08/2026, sur un cas concret : viser un bâtiment, Maj+glisser pour
-   * en faire le tour, et perdre le bâtiment de vue parce que le clic de
-   * départ — pas forcément exact — devenait le nouveau pivot. Un double-clic
-   * délibéré, qu'on peut viser et refaire si raté, n'a pas ce défaut ; c'est
-   * aussi le fonctionnement par défaut de Potree et CloudCompare.
-   *
-   * Le trajet est animé (`_animerPivot`), pas instantané : décaler le pivot
-   * décale la caméra d'autant pour garder distance et angle inchangés (la
-   * technique standard pour ne pas faire pivoter la vue au passage), mais
-   * pour un point cliqué loin de l'ancien pivot, ce décalage reste un vrai
-   * déplacement de caméra — visible d'un coup, il se lisait comme un saut.
-   * Retour utilisateur du 22/08/2026.
-   *
-   * `_pointSousCurseur` intersecte un plan horizontal **infini** : en visée
-   * presque rasante — typiquement en cliquant juste à côté du nuage, vers le
-   * ciel ou le bord de la vue — le calcul reste valide mais rend un point à
-   * des kilomètres. Le pivot s'y envolait. Un point hors de l'emprise réelle
-   * de la dalle (marge de 50 m) est donc ignoré plutôt que suivi aveuglément
-   * — le pivot reste où il était, ce qui ne se voit même pas, plutôt que de
-   * sauter n'importe où. Retour utilisateur du 22/08/2026.
-   */
-  _recentrerPivot(ev) {
-    const p = this._pointSousCurseur(ev);
-    if (!p || !this.nuage) return;
-    const o = this.nuage.origine, e = this.nuage.emprise, marge = 50;
-    const x = p[0] + o[0], y = o[1] - p[2];
-    if (x < e.xmin - marge || x > e.xmax + marge || y < e.ymin - marge || y > e.ymax + marge) return;
-    this._animerPivot(p[0], p[2]);
-  }
-
-  /**
-   * Anime `cam.cible[0]`/`[2]` vers `(x, z)` sur `duree` ms — jamais les
-   * angles, à la différence de `_animerVers` : l'utilisateur est en train de
-   * faire tourner la vue par son propre geste au même moment (voir
-   * `pointermove`), les deux doivent progresser en même temps sans se
-   * marcher dessus, d'où une animation et un handle séparés.
-   */
-  _animerPivot(x, z, duree = 200) {
-    if (this._animationPivot) cancelAnimationFrame(this._animationPivot);
-    const x0 = this.cam.cible[0], z0 = this.cam.cible[2];
-    const dx = x - x0, dz = z - z0;
-    if (Math.abs(dx) < 1e-4 && Math.abs(dz) < 1e-4) return;
-    const t0 = performance.now();
-
-    const pas = () => {
-      const u = Math.min(1, (performance.now() - t0) / duree);
-      const k = u * u * (3 - 2 * u);   // départ et arrivée amortis
-      this.cam.cible[0] = x0 + dx * k;
-      this.cam.cible[2] = z0 + dz * k;
-      this._bouger();
-      this._animationPivot = u < 1 ? requestAnimationFrame(pas) : 0;
-    };
-    pas();
-  }
-
-  /**
-   * Applique un zoom vers `voulue` (distance visée, avant plancher/plafond),
-   * ancré sur `avant` (le point du plan visé avant le zoom, ou `null` en
-   * visée rasante). Partagé par la molette et le pincement à deux doigts.
-   *
-   * Sous le plancher, la distance ne se bloque plus : la cible elle-même
-   * avance dans l'axe de visée (« infinityDolly », le correctif documenté
-   * par `camera-controls`, la référence three.js, pour ce symptôme précis —
-   * sans lui, continuer à zoomer près d'un point donnait l'impression d'un
-   * mur plutôt que de continuer à s'en approcher). Retour utilisateur du
-   * 22/08/2026.
-   */
-  _zoomVers(avant, ancienne, voulue) {
-    const MIN = 2, MAX = 6000;
-    this.cam.distance = Math.max(MIN, Math.min(MAX, voulue));
-
-    // Zoom sous le curseur : on rapproche la cible du point visé dans le même
-    // rapport que la distance. Ce point reste donc immobile à l'écran, et
-    // l'on plonge vers ce qu'on regarde au lieu de vers le centre.
-    if (avant) {
-      const k = this.cam.distance / ancienne;
-      for (const i of [0, 2]) {
-        this.cam.cible[i] = avant[i] + (this.cam.cible[i] - avant[i]) * k;
-      }
-    }
-
-    if (voulue < MIN) {
-      const { avant: dev } = this._repere();
-      const deficit = MIN - voulue;
-      for (const i of [0, 1, 2]) this.cam.cible[i] += dev[i] * deficit;
-    }
-  }
-
-  /**
-   * Déplacement : le terrain suit le curseur.
-   *
-   * On mesure le point du plan sous le curseur avant et après le mouvement, et
-   * l'on décale la cible de leur différence — la surface reste donc « collée »
-   * au doigt, à n'importe quelle inclinaison. En visée rasante l'intersection
-   * diverge, on retombe alors sur un déplacement à l'échelle de la distance.
-   */
-  _deplacer(glisse, ev, dx, dy) {
-    const avant = this._pointSousCurseur({ clientX: glisse.x, clientY: glisse.y });
-    const apres = this._pointSousCurseur(ev);
-
-    if (avant && apres) {
-      this.cam.cible[0] += avant[0] - apres[0];
-      this.cam.cible[2] += avant[2] - apres[2];
-      return;
-    }
-
-    const r = this.canvas.getBoundingClientRect();
-    const k = 2 * this.cam.distance * Math.tan((FOV_Y_DEG * Math.PI / 180) / 2) / Math.max(1, r.height);
-    const { droite, avant: dev } = this._repere();
-    // Composante horizontale de l'axe de visée : le déplacement vertical de la
-    // souris avance ou recule au sol, il ne doit pas changer l'altitude visée.
-    const sol = Math.hypot(dev[0], dev[2]) || 1;
-    for (const i of [0, 2]) {
-      this.cam.cible[i] -= droite[i] * dx * k;
-      this.cam.cible[i] += (dev[i] / sol) * dy * k;
-    }
-  }
-
-  /** Vue verticale, la plus lisible pour balayer une dalle. */
-  vueDeDessus() {
-    this._animerVers(0, 1.553);
-  }
-
   // ── Orientation ───────────────────────────────────────────────────────────
-
-  /**
-   * Amène la vue sur une direction du monde — ce que fait un clic sur la
-   * boussole.
-   *
-   * Deux lectures possibles pour un point cardinal, opposées : « se placer au
-   * nord » (le nord finit alors en bas de l'écran) ou « regarder vers le nord »
-   * (il finit en haut). C'est la seconde qui est retenue, parce que le besoin
-   * est de retrouver l'orientation d'une carte — le nord en haut. L'élévation ne
-   * bouge pas : on veut pivoter, pas changer de point de vue.
-   *
-   * L'axe vertical, lui, ne peut se lire que comme un déplacement : on se met
-   * au-dessus ou en dessous, l'azimut restant celui qu'on avait.
-   */
-  orienterVers(v) {
-    if (Math.abs(v[1]) > 0.5) {
-      this._animerVers(this.cam.azimut, v[1] > 0 ? 1.553 : -1.553);
-    } else {
-      // Inversion de `_repere` : l'axe de visée horizontal vaut (−sin a, −cos a).
-      this._animerVers(Math.atan2(-v[0], -v[2]), this.cam.elevation);
-    }
-  }
-
-  /**
-   * Pivote la caméra jusqu'aux angles demandés, en un quart de seconde.
-   *
-   * Le rendu est à la demande — c'est ici la seule chose qui l'anime, et elle
-   * s'arrête d'elle-même. Un saut instantané d'un quart de tour est
-   * désorientant : sans le mouvement, rien ne dit si l'on a tourné à gauche ou à
-   * droite, et il faut relire la scène entière pour s'y retrouver. C'est
-   * précisément ce que la boussole cherche à éviter.
-   */
-  _animerVers(azimut, elevation, duree = 260) {
-    this._arreterAnimation();
-    const a0 = this.cam.azimut;
-    const e0 = this.cam.elevation;
-    // Chemin le plus court : sans ce repli dans [−π, π], passer de 3,0 à −3,0
-    // rad ferait un tour complet pour 16° d'écart réel.
-    const da = Math.atan2(Math.sin(azimut - a0), Math.cos(azimut - a0));
-    const de = elevation - e0;
-    // Déjà orienté ainsi : une quinzaine d'images d'un nuage de plusieurs
-    // millions de points pour ne rien déplacer.
-    if (Math.abs(da) < 1e-4 && Math.abs(de) < 1e-4) return;
-    const t0 = performance.now();
-
-    const pas = () => {
-      const u = Math.min(1, (performance.now() - t0) / duree);
-      const k = u * u * (3 - 2 * u);   // départ et arrivée amortis
-      this.cam.azimut = a0 + da * k;
-      this.cam.elevation = e0 + de * k;
-      this._bouger();
-      this._animation = u < 1 ? requestAnimationFrame(pas) : 0;
-    };
-    pas();
-  }
-
-  /** Rend la main à l'utilisateur : tout geste prime sur l'animation en cours. */
-  _arreterAnimation() {
-    if (this._animation) cancelAnimationFrame(this._animation);
-    this._animation = 0;
-    if (this._animationPivot) cancelAnimationFrame(this._animationPivot);
-    this._animationPivot = 0;
-  }
 
   /**
    * Repère servant à dessiner la boussole.
@@ -1152,9 +588,6 @@ class Vue3D {
     gl.bindTexture(gl.TEXTURE_2D, this.palette);
     gl.uniform1i(p.u.u_palette, 0);
 
-    gl.uniform1f(p.u.u_focusActif, this.focus ? 1 : 0);
-    gl.uniform4fv(p.u.u_focus, this.focus || [0, 0, 0, 0]);
-
     gl.bindVertexArray(this.vao);
     const dessines = enMouvement ? Math.max(1, Math.round(this.nbPoints * this._partMouvement)) : this.nbPoints;
     gl.drawArrays(gl.POINTS, 0, dessines);
@@ -1193,8 +626,7 @@ class Vue3D {
     // détection derrière une crête reste masquée, ce qui donne la bonne lecture
     // spatiale.
     const l = this.progLignes;
-    if (this.nbSommetsLignes || this.nbSommetsSel || this.nbSommetsSentiers || this.nbSommetsTraceSel
-      || this.nbSommetsPointSel || this.nbSommetsMesureLigne || this.nbSommetsMesurePoints) {
+    if (this.nbSommetsPointSel || this.nbSommetsMesureLigne || this.nbSommetsMesurePoints) {
       gl.useProgram(l);
       gl.uniformMatrix4fv(l.u.u_vp, false, vp);
       gl.uniform1f(l.u.u_exagerationZ, CONFIG.rendu.exagerationZ);
@@ -1209,28 +641,6 @@ class Vue3D {
       // marqueur précédent ferait lire `gl_PointCoord` — non défini hors d'un
       // dessin en POINTS — pendant les tracés en LINES qui suivent.
       gl.uniform1f(l.u.u_pointRond, 0.0);
-    }
-    if (this.nbSommetsLignes) {
-      gl.uniform4f(l.u.u_couleur, 0.30, 0.85, 1.0, 1.0);
-      gl.bindVertexArray(this.vaoLignes);
-      gl.drawArrays(gl.LINES, 0, this.nbSommetsLignes);
-    }
-    if (this.nbSommetsSel) {
-      gl.uniform4f(l.u.u_couleur, 1.0, 0.85, 0.25, 1.0);
-      gl.bindVertexArray(this.vaoSel);
-      gl.drawArrays(gl.LINES, 0, this.nbSommetsSel);
-    }
-    // Sentiers en orangé, comme sur la carte : le même objet garde la même
-    // couleur d'une vue à l'autre.
-    if (this.nbSommetsSentiers) {
-      gl.uniform4f(l.u.u_couleur, 1.0, 0.54, 0.24, 1.0);
-      gl.bindVertexArray(this.vaoSentiers);
-      gl.drawArrays(gl.LINES, 0, this.nbSommetsSentiers);
-    }
-    if (this.nbSommetsTraceSel) {
-      gl.uniform4f(l.u.u_couleur, 1.0, 1.0, 1.0, 1.0);
-      gl.bindVertexArray(this.vaoTraceSel);
-      gl.drawArrays(gl.LINES, 0, this.nbSommetsTraceSel);
     }
     // Taille des marqueurs asservie au réglage « Taille des points » : sinon
     // un gros réglage de points fait paraître les marqueurs petits par
