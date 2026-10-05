@@ -808,89 +808,15 @@ function basculerVue(quoi) {
 $('onglet-carte').addEventListener('click', () => basculerVue('carte'));
 $('onglet-3d').addEventListener('click', () => basculerVue('3d'));
 
-// ── Le panneau sous 900 px ──────────────────────────────────────────────────
-// Sous 600 px, une feuille tirée du bas à trois hauteurs (`data-feuille`) ;
-// de 600 à 900 px, un panneau latéral replié par une languette (`.replie`).
-// La forme est dans styles.css : au-delà de 900 px, rien de ceci n'a d'effet
-// visible. Non modal dans les deux cas — la carte reste utilisable.
-
-const HAUTEURS_FEUILLE = ['replie', 'mi', 'plein'];
-/** Hauteur en pixels de chaque état, pour aimanter la feuille lâchée. */
-function hauteursFeuille() {
-  const repliee = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--feuille-repliee')) || 136;
-  return { replie: repliee, mi: window.innerHeight * 0.5, plein: window.innerHeight - 46 };
-}
-function poserFeuille(etat) {
-  const p = $('panneau');
-  p.dataset.feuille = etat;
-  p.style.height = '';
-  // Repliée, elle montre le haut de la section principale, pas un milieu.
-  if (etat === 'replie') p.scrollTop = 0;
-  $('poignee-panneau').setAttribute('aria-expanded', String(etat !== 'replie'));
-}
-function feuilleSuivante() {
-  const i = HAUTEURS_FEUILLE.indexOf($('panneau').dataset.feuille);
-  poserFeuille(HAUTEURS_FEUILLE[(i + 1) % HAUTEURS_FEUILLE.length]);
-}
-{
-  // Tirer la poignée suit le doigt ; lâchée, la feuille va à la hauteur la
-  // plus proche. Un appui sans glisser passe à la hauteur suivante.
-  const poignee = $('poignee-panneau');
-  let tire = null;
-  poignee.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    tire = { y: e.clientY, h: $('panneau').getBoundingClientRect().height, bouge: false };
-    $('panneau').classList.add('tiree');
-    try { poignee.setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
-  });
-  poignee.addEventListener('pointermove', (e) => {
-    if (!tire) return;
-    const dy = tire.y - e.clientY;
-    if (Math.abs(dy) > 6) tire.bouge = true;
-    if (tire.bouge) {
-      const h = hauteursFeuille();
-      $('panneau').style.height = `${Math.max(h.replie * 0.6, Math.min(h.plein, tire.h + dy))}px`;
-    }
-  });
-  const lacher = () => {
-    if (!tire) return;
-    $('panneau').classList.remove('tiree');
-    if (!tire.bouge) { tire = null; feuilleSuivante(); return; }
-    const actuelle = $('panneau').getBoundingClientRect().height;
-    const h = hauteursFeuille();
-    const proche = HAUTEURS_FEUILLE.reduce((a, b) => (Math.abs(h[b] - actuelle) < Math.abs(h[a] - actuelle) ? b : a));
-    tire = null;
-    poserFeuille(proche);
-  };
-  poignee.addEventListener('pointerup', lacher);
-  poignee.addEventListener('pointercancel', lacher);
-  poignee.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); feuilleSuivante(); }
-  });
-}
-function replierLateral(replie) {
-  $('panneau').classList.toggle('replie', replie);
-  const l = $('languette-panneau');
-  l.textContent = replie ? '▶' : '◀';
-  l.setAttribute('aria-expanded', String(!replie));
-  l.setAttribute('aria-label', replie ? 'Déplier le panneau' : 'Replier le panneau');
-}
-$('languette-panneau').addEventListener('click', () => replierLateral(!$('panneau').classList.contains('replie')));
-window.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  if ($('dlg-profil').open || $('dlg-aide-profil').open) return;   // Échap ferme la fenêtre, pas le panneau
-  poserFeuille('replie');
-  replierLateral(true);
-});
+// ── Le panneau sous 900 px (panneau-mobile.js) ─────────────────────────────
+creerPanneauMobile({ $ });
 
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (!$('accueil').hidden) return;   // l'accueil couvre tout : rien à piloter dessous
   if ($('dlg-profil').open || $('dlg-aide-profil').open) return;   // la modale du profil, et son aide, couvrent tout aussi
-  // Un chiffre par vue, plus les initiales d'avant : 'r' pour le relief est
-  // devenu la 2D, et le désapprendre n'apporterait rien.
+  // Un chiffre par vue, plus les initiales.
   if (e.key === 'c' || e.key === '1') basculerVue('carte');
-  if (e.key === 'r' || e.key === '2') basculerVue('2d');
   if (e.key === 'v' || e.key === '3') basculerVue('3d');
   if (e.key === 'f') vue3d?.cadrer();
   if (e.key === 't') { vue3d?.controles.vueDeDessus(); basculerVue('3d'); }
@@ -899,63 +825,8 @@ window.addEventListener('keydown', (e) => {
 $('btn-dessus').addEventListener('click', () => { vue3d?.controles.vueDeDessus(); basculerVue('3d'); });
 $('btn-cadrer').addEventListener('click', () => { vue3d?.cadrer(); basculerVue('3d'); });
 
-// ── Page d'accueil ──────────────────────────────────────────────────────────
-//
-// Sans elle, qui ouvre Scopus tombe sur une carte de France et doit deviner où
-// cliquer : tout le reste de l'outil devient inatteignable. Elle ne pose qu'une
-// question — voir un exemple, ou entrer avec ses propres coordonnées — et
-// s'efface au premier des deux gestes, définitivement.
-
-function masquerAccueil() {
-  $('accueil').hidden = true;
-}
-
-// Un `mailto:` suppose un client de bureau configuré — de moins en moins
-// vrai, la plupart ne lisant leur courrier que dans le navigateur, où cliquer
-// le lien ne fait alors rien de visible. Copier l'adresse marche partout,
-// même repli sur `prompt()` que le lien partageable (`copierLien`) si le
-// presse-papiers refuse. Reconstruite plutôt qu'écrite en clair dans le HTML :
-// freine les moissonneurs de spam les plus bêtes, sans prétendre à une vraie
-// protection.
-$('lien-contact').addEventListener('click', async (e) => {
-  e.preventDefault();
-  const adresse = `${'jules.rumeau1'}@${'gmail.com'}`;
-  try {
-    await navigator.clipboard.writeText(adresse);
-  } catch {
-    prompt('Copiez cette adresse :', adresse);
-    return;
-  }
-  const lien = e.target;
-  const texteAvant = lien.textContent;
-  lien.textContent = 'Adresse copiée !';
-  setTimeout(() => { lien.textContent = texteAvant; }, 2000);
-});
-
-function entrerDansLaCarte() {
-  masquerAccueil();
-  basculerVue('carte');
-  // « J'ai déjà des coordonnées » : le champ les accepte telles quelles
-  // (« 42.74, 1.68 »), autant y poser le curseur plutôt que de le faire viser.
-  $('recherche').focus();
-}
-
-$('btn-exemple').addEventListener('click', () => {
-  masquerAccueil();
-  basculerVue('carte');
-  // Le Bois des Caures cadré : le relief de la vue arrive seul.
-  const { x, y } = CONFIG.carte.dalleExemple;
-  const c = PROJ.versWGS84(x * 1000 + 500, y * 1000 + 500);
-  requestAnimationFrame(() => { carte.invalider(); carte.allerA(c.lon, c.lat, 16); });
-});
-$('btn-carte-directe').addEventListener('click', entrerDansLaCarte);
-// La croix : la carte telle qu'elle est, sans rien viser (ni exemple, ni champ de
-// recherche). Fermer l'accueil rend au panneau sa colonne : `invalider()` d'abord.
-$('accueil-croix').addEventListener('click', () => {
-  masquerAccueil();
-  basculerVue('carte');
-  requestAnimationFrame(() => carte.invalider());
-});
+// ── Page d'accueil (accueil.js) ─────────────────────────────────────────────
+const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ });
 
 // ── Le relief de la vue (mode par défaut) ───────────────────────────────────
 //
