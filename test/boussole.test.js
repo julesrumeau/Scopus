@@ -54,19 +54,20 @@ function charger() {
   });
   vm.runInContext(lire('boussole.js'), contexte);
   vm.runInContext(lire('vue3d.js'), contexte);
-  return vm.runInContext('({ Boussole, Vue3D })', contexte);
+  vm.runInContext(lire('controles-3d.js'), contexte);
+  return vm.runInContext('({ Boussole, Vue3D, ControlesVue3D })', contexte);
 }
 
 /**
  * Une vue3D sans WebGL : le constructeur veut un canevas et des shaders, mais
  * la géométrie de la caméra n'en dépend pas.
  */
-function faireVue(Vue3D, azimut, elevation) {
+function faireVue({ Vue3D, ControlesVue3D }, azimut, elevation) {
   const v = Object.create(Vue3D.prototype);
   v.cam = { cible: [0, 0, 0], distance: 100, azimut, elevation };
   v.actif = false;          // `invalider()` rend la main aussitôt
-  v._animation = 0;
   v.boussole = null;
+  v.controles = new ControlesVue3D(v);
   return v;
 }
 
@@ -91,11 +92,11 @@ const poignees = (hote) => Object.fromEntries(
   }));
 
 test('la rose place les cardinaux là où la caméra les voit', () => {
-  const { Boussole, Vue3D } = charger();
+  const { Boussole, ...classes } = charger();
 
   // Caméra tournée vers le nord, inclinée de 28,6° au-dessus de l'horizontale.
   const hote = faireHote();
-  new Boussole(hote, () => {}).orienter(faireVue(Vue3D, 0, 0.5)._repere());
+  new Boussole(hote, () => {}).orienter(faireVue(classes, 0, 0.5)._repere());
 
   const p = poignees(hote);
 
@@ -123,11 +124,11 @@ test('la rose place les cardinaux là où la caméra les voit', () => {
 });
 
 test('la rose suit l’azimut', () => {
-  const { Boussole, Vue3D } = charger();
+  const { Boussole, ...classes } = charger();
   const hote = faireHote();
 
   // Quart de tour : en regardant vers l'est, c'est le sud qui passe à droite.
-  new Boussole(hote, () => {}).orienter(faireVue(Vue3D, -Math.PI / 2, 0.5)._repere());
+  new Boussole(hote, () => {}).orienter(faireVue(classes, -Math.PI / 2, 0.5)._repere());
   const p = poignees(hote);
   assert.ok(p.E.y < -5, `E devrait être au fond, y = ${p.E.y}`);
   assert.ok(p.S.x > 30, `S devrait être à droite, x = ${p.S.x}`);
@@ -135,7 +136,7 @@ test('la rose suit l’azimut', () => {
 });
 
 test('cliquer un cardinal amène cette direction en haut de l’écran', () => {
-  const { Vue3D } = charger();
+  const classes = charger();
 
   // Direction monde → axe de visée attendu, en (x, z). Nord = −Z.
   const cas = [
@@ -146,10 +147,10 @@ test('cliquer un cardinal amène cette direction en haut de l’écran', () => {
   ];
 
   for (const [nom, v] of cas) {
-    const vue = faireVue(Vue3D, 2.4, 0);   // azimut quelconque, vue horizontale
+    const vue = faireVue(classes, 2.4, 0);   // azimut quelconque, vue horizontale
     let demande = null;
-    vue._animerVers = (azimut, elevation) => { demande = { azimut, elevation }; };
-    vue.orienterVers(v);
+    vue.controles._animerVers = (azimut, elevation) => { demande = { azimut, elevation }; };
+    vue.controles.orienterVers(v);
 
     assert.equal(demande.elevation, 0, `${nom} : l'inclinaison ne doit pas bouger`);
     vue.cam.azimut = demande.azimut;
@@ -162,13 +163,13 @@ test('cliquer un cardinal amène cette direction en haut de l’écran', () => {
 });
 
 test('cliquer haut ou bas change le point de vue, pas le cap', () => {
-  const { Vue3D } = charger();
+  const classes = charger();
 
   for (const [v, signe] of [[[0, 1, 0], 1], [[0, -1, 0], -1]]) {
-    const vue = faireVue(Vue3D, 2.4, 0.3);
+    const vue = faireVue(classes, 2.4, 0.3);
     let demande = null;
-    vue._animerVers = (azimut, elevation) => { demande = { azimut, elevation }; };
-    vue.orienterVers(v);
+    vue.controles._animerVers = (azimut, elevation) => { demande = { azimut, elevation }; };
+    vue.controles.orienterVers(v);
 
     assert.equal(demande.azimut, 2.4, 'le cap doit être conservé');
     assert.ok(Math.sign(demande.elevation) === signe && Math.abs(demande.elevation) > 1.5,
@@ -179,13 +180,13 @@ test('cliquer haut ou bas change le point de vue, pas le cap', () => {
 });
 
 test('la boussole reste lisible aux inclinaisons extrêmes', () => {
-  const { Vue3D } = charger();
+  const classes = charger();
 
   // Au ras du sol comme à la verticale, la rose s'écraserait sur un trait et
   // deux poignées opposées se superposeraient au centre : l'inclinaison de
   // dessin est bornée, l'azimut jamais.
   for (const e of [0, 0.05, 1.553, -1.553]) {
-    const vue = faireVue(Vue3D, 0.7, e);
+    const vue = faireVue(classes, 0.7, e);
     const rep = vue._repereBoussole();
     const versLeHaut = rep.haut[1];               // = cos(inclinaison dessinée)
     const aplatissement = Math.abs(rep.avant[1]); // = |sin(inclinaison dessinée)|

@@ -114,7 +114,7 @@ function texteCurseur(p, nomCouche) {
 // Un mode partagé par les onglets 2D et 3D, activé par la sous-barre sous les
 // onglets : par défaut on déplace la vue, en « Sélection » un clic vise un
 // point plutôt que la vue elle-même. En 3D, ce point ne vient pas du plan
-// horizontal qui sert au déplacement de la caméra (`_pointSousCurseur`, une
+// horizontal qui sert au déplacement de la caméra (`ControlesVue3D._pointSousCurseur`, une
 // approximation délibérée) mais d'une marche du rayon caméra contre le MNT
 // affiché — `etat.reliefGrille`, déjà calculé pour l'onglet 2D.
 
@@ -893,10 +893,10 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'r' || e.key === '2') basculerVue('2d');
   if (e.key === 'v' || e.key === '3') basculerVue('3d');
   if (e.key === 'f') vue3d?.cadrer();
-  if (e.key === 't') { vue3d?.vueDeDessus(); basculerVue('3d'); }
+  if (e.key === 't') { vue3d?.controles.vueDeDessus(); basculerVue('3d'); }
 });
 
-$('btn-dessus').addEventListener('click', () => { vue3d?.vueDeDessus(); basculerVue('3d'); });
+$('btn-dessus').addEventListener('click', () => { vue3d?.controles.vueDeDessus(); basculerVue('3d'); });
 $('btn-cadrer').addEventListener('click', () => { vue3d?.cadrer(); basculerVue('3d'); });
 
 // ── Page d'accueil ──────────────────────────────────────────────────────────
