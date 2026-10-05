@@ -22,6 +22,19 @@ calcul de la vue »).
 (1er et 2 octobre 2026) sont numérotées **R1 à R7**, à part des #, dans la
 section « Retours du forum » en fin de fichier.
 
+## À annoncer au prochain message
+
+Publié sur le site mais **pas encore annoncé** sur le forum (liste tenue à jour à chaque publication ; une fois le message envoyé, la vider). Annoncer par lots, quand il y a quelque chose que quelqu'un a demandé.
+
+*Publié le 5 octobre 2026 :*
+- **Bouton « Réinitialiser le soleil »** pour l'ombrage (R15, demande du naturaliste).
+- **Échelles égales du profil** : une case « Échelles égales », cochée par défaut, même échelle en distance et en altitude (R16, un utilisateur).
+- **Fond « OpenStreetMap (standard) »** dans les listes du rideau (R8, demandé par les deux).
+- **Bouton « une seule carte »** sous le zoom, avec une seule liste de couches (R10, le naturaliste : suppression du rideau, premier des trois modes prévus).
+- **Listes de couches rangées par famille**, l'une sous l'autre (R17, remarque de l'utilisateur lui-même).
+
+*À dire aussi, en attente :* OSM France a répondu que le fond « OpenStreetMap France » est jouable (point à l'ordre du jour du CA, pas avant la fin de la semaine du 12 octobre) ; le multidirectionnel « cramé » et l'ombrage « trop lissé » sont à l'étude (R15b, R15c).
+
 ### #1 — Rallumer la détection, ou renoncer *(prioritaire)*
 
 Masquée le 18 août 2026 (`ANALYSE_MASQUEE`), les deux chaînes avec. La question
