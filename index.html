@@ -158,10 +158,10 @@
       <!-- Un côté du rideau chacun, comme dans l'onglet 2D : « Carte » (la carte
            Leaflet, avec son propre fond) ou une couche de relief. -->
       <div class="deux-cotes">
-        <label class="champ"><span>Gauche</span><select id="vue-gauche"></select></label>
-        <label class="champ"><span>Droite</span><select id="vue-droite"></select></label>
+        <label class="champ"><span id="vue-gauche-libelle">Gauche</span><select id="vue-gauche"></select></label>
+        <label class="champ" id="vue-droite-champ"><span>Droite</span><select id="vue-droite"></select></label>
       </div>
-      <div class="rangee">
+      <div class="rangee" id="vue-rangee-rideau">
         <button id="vue-echanger" class="secondaire" title="Permuter les deux côtés">⇄ Échanger</button>
         <button id="vue-rideau-centre" class="secondaire" title="Remettre le rideau au milieu">Rideau au centre</button>
       </div>

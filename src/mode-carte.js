@@ -2,33 +2,39 @@
 // seule** couche en pleine page. Un troisième mode, deux cartes synchronisées, viendra plus tard
 // (TODO R10) : le bouton qui bascule est fait pour en porter trois.
 //
-// Ici, la logique sans écran ; `CalqueRelief` (flux-calque.js) l'applique au rideau.
+// Une seule carte montre **toujours la gauche** : une seule liste de couches, rien à deviner (avec
+// deux listes, on ne saurait pas laquelle commande ce qu'on voit). La droite n'est ni affichée ni
+// calculée, et reste telle quelle pour le retour à la carte scindée.
+//
+// Ici, la logique sans écran ; `CalqueRelief` (flux-calque.js) l'applique au rideau, `app.js` au panneau.
 
 const MODE_CARTE = (() => {
-  /** Le côté montré quand on passe en une seule carte : la droite, celle du relief par convention. */
-  const coteParDefaut = 'droite';
-
   const libelles = {
     scinde: 'Carte scindée par le rideau',
     unique: 'Une seule carte en pleine page',
   };
 
-  /** L'autre côté (la valeur inconnue retombe sur le côté par défaut). */
-  function autreCote(cote) {
-    if (cote === 'gauche') return 'droite';
-    if (cote === 'droite') return 'gauche';
-    return coteParDefaut;
-  }
-
   /**
-   * Où se place le rideau : une seule carte, c'est le côté montré **en entier**, donc le rideau
-   * tout à l'opposé (la gauche montrée = rideau à 100 %) ; scindée, la position d'avant.
+   * Où se place le rideau : une seule carte, c'est la gauche **en entier**, donc le rideau tout à
+   * droite ; scindée, la position d'avant.
    */
-  function partRideau(coteUnique, partScindee) {
-    if (coteUnique === 'gauche') return 1;
-    if (coteUnique === 'droite') return 0;
-    return partScindee;
+  function partRideau(unique, partScindee) {
+    return unique ? 1 : partScindee;
   }
 
-  return { coteParDefaut, libelles, autreCote, partRideau };
+  /** Les côtés qui portent une couche à l'écran (et à calculer). */
+  function cotesAffiches(unique) {
+    return unique ? ['gauche'] : ['gauche', 'droite'];
+  }
+
+  /** Ce que montre le panneau « Relief » : une seule liste en une seule carte, plus d'échange ni de rideau à centrer. */
+  function panneau(unique) {
+    return {
+      libelleGauche: unique ? 'Couche affichée' : 'Gauche',
+      listeDroite: !unique,
+      boutonsRideau: !unique,
+    };
+  }
+
+  return { libelles, partRideau, cotesAffiches, panneau };
 })();
