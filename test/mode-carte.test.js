@@ -31,21 +31,33 @@ test('cotesDe — le côté montré seul, ou les deux quand aucun n’est seul',
 });
 
 test('les côtés affichés : la gauche seule en une seule carte, les deux sinon', () => {
-  assert.deepEqual([...MODE_CARTE.cotesAffiches(true)], ['gauche']);
-  assert.deepEqual([...MODE_CARTE.cotesAffiches(false)], ['gauche', 'droite']);
+  assert.deepEqual([...MODE_CARTE.cotesAffiches('unique')], ['gauche']);
+  assert.deepEqual([...MODE_CARTE.cotesAffiches('scinde')], ['gauche', 'droite']);
+  assert.deepEqual([...MODE_CARTE.cotesAffiches('double')], ['gauche', 'droite']);
 });
 
-test('le panneau : une seule liste, « Couche affichée », et plus ni échange ni rideau au centre', () => {
-  const u = MODE_CARTE.panneau(true), s = MODE_CARTE.panneau(false);
-  assert.equal(u.libelleGauche, 'Couche affichée');
-  assert.equal(u.listeDroite, false);
-  assert.equal(u.boutonsRideau, false);
-  assert.equal(s.libelleGauche, 'Gauche');
-  assert.equal(s.listeDroite, true);
-  assert.equal(s.boutonsRideau, true);
+test('les cartes de chaque mode : le côté que chacune montre seul', () => {
+  const coteDe = (mode) => [...MODE_CARTE.cartes(mode)].map((c) => c.coteSeul);
+  assert.deepEqual(coteDe('scinde'), [null]);              // une carte, le rideau partage les deux côtés
+  assert.deepEqual(coteDe('unique'), ['gauche']);          // une carte, la gauche en entier
+  assert.deepEqual(coteDe('double'), ['gauche', 'droite']); // deux cartes, un côté chacune
+});
+
+test('le panneau : ce que chaque mode montre', () => {
+  const p = (mode) => ({ ...MODE_CARTE.panneau(mode) });
+  assert.deepEqual(p('scinde'), { libelleGauche: 'Gauche', listeDroite: true, echanger: true, rideauAuCentre: true });
+  assert.deepEqual(p('unique'), { libelleGauche: 'Couche affichée', listeDroite: false, echanger: false, rideauAuCentre: false });
+  // Deux cartes : les deux listes, l'échange, mais pas de rideau à centrer.
+  assert.deepEqual(p('double'), { libelleGauche: 'Gauche', listeDroite: true, echanger: true, rideauAuCentre: false });
 });
 
 test('chaque mode a un nom lisible, pour l’infobulle et les lecteurs d’écran', () => {
   assert.match(MODE_CARTE.libelles.scinde, /rideau/i);
   assert.match(MODE_CARTE.libelles.unique, /une seule/i);
+  assert.match(MODE_CARTE.libelles.double, /deux cartes/i);
+});
+
+test('un mode inconnu retombe sur la carte scindée', () => {
+  assert.deepEqual([...MODE_CARTE.cotesAffiches('bidon')], ['gauche', 'droite']);
+  assert.equal(MODE_CARTE.panneau('bidon').listeDroite, true);
 });

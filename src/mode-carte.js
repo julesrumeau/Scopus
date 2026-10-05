@@ -1,17 +1,16 @@
-// Le mode d'affichage de la carte en vue normale : **scindée** par le rideau (l'actuel), ou **une
-// seule** couche en pleine page. Un troisième mode, deux cartes synchronisées, viendra plus tard
-// (TODO R10) : le bouton qui bascule est fait pour en porter trois.
+// Le mode d'affichage de la carte en vue normale, trois états du bouton qui bascule :
+//   · `scinde`  une carte, deux couches séparées par le rideau glissant (l'actuel) ;
+//   · `unique`  une carte, **la gauche** en pleine page : une seule liste de couches, rien à deviner ;
+//   · `double`  deux cartes synchronisées, une couche chacune (la gauche à gauche, la droite à droite).
 //
-// Une seule carte montre **toujours la gauche** : une seule liste de couches, rien à deviner (avec
-// deux listes, on ne saurait pas laquelle commande ce qu'on voit). La droite n'est ni affichée ni
-// calculée, et reste telle quelle pour le retour à la carte scindée.
-//
-// Ici, la logique sans écran ; `CalqueRelief` (flux-calque.js) l'applique au rideau, `app.js` au panneau.
+// Ici, la logique sans écran ; `CalqueRelief` (flux-calque.js) l'applique au rideau, `app.js` au panneau
+// et aux cartes.
 
 const MODE_CARTE = (() => {
   const libelles = {
     scinde: 'Carte scindée par le rideau',
     unique: 'Une seule carte en pleine page',
+    double: 'Deux cartes synchronisées',
   };
 
   /** Le côté montré par le mode « une seule carte » : toujours la gauche. */
@@ -20,7 +19,6 @@ const MODE_CARTE = (() => {
   /**
    * Où se place le rideau quand `cote` est montré **en entier** : tout à l'opposé (la gauche seule =
    * rideau à 100 %, la droite seule = rideau à 0 %) ; sans côté seul, la position d'avant.
-   * La droite seule sert à la seconde des deux cartes synchronisées (TODO R10).
    */
   function partRideau(cote, partScindee) {
     if (cote === 'gauche') return 1;
@@ -33,19 +31,34 @@ const MODE_CARTE = (() => {
     return cote === 'gauche' || cote === 'droite' ? [cote] : ['gauche', 'droite'];
   }
 
-  /** Les côtés qui portent une couche à l'écran (et à calculer) selon qu'on est en une seule carte ou non. */
-  function cotesAffiches(unique) {
-    return cotesDe(unique ? coteUnique : null);
+  /** Les côtés qui portent une couche à l'écran (et à calculer). Un mode inconnu vaut la carte scindée. */
+  function cotesAffiches(mode) {
+    return cotesDe(mode === 'unique' ? coteUnique : null);
   }
 
-  /** Ce que montre le panneau « Relief » : une seule liste en une seule carte, plus d'échange ni de rideau à centrer. */
-  function panneau(unique) {
+  /**
+   * Les cartes du mode, et pour chacune le côté qu'elle montre **seul** (`null` : elle porte les deux,
+   * séparés par le rideau). Une carte par entrée, de gauche à droite (ou de haut en bas).
+   */
+  function cartes(mode) {
+    if (mode === 'unique') return [{ coteSeul: coteUnique }];
+    if (mode === 'double') return [{ coteSeul: 'gauche' }, { coteSeul: 'droite' }];
+    return [{ coteSeul: null }];
+  }
+
+  /**
+   * Ce que montre le panneau « Relief » : une seule liste en une seule carte, plus d'échange ni de
+   * rideau à centrer ; en deux cartes, les deux listes et l'échange, sans rideau à centrer.
+   */
+  function panneau(mode) {
+    const unique = mode === 'unique';
     return {
       libelleGauche: unique ? 'Couche affichée' : 'Gauche',
       listeDroite: !unique,
-      boutonsRideau: !unique,
+      echanger: !unique,
+      rideauAuCentre: mode !== 'unique' && mode !== 'double',
     };
   }
 
-  return { libelles, coteUnique, partRideau, cotesDe, cotesAffiches, panneau };
+  return { libelles, coteUnique, partRideau, cotesDe, cotesAffiches, cartes, panneau };
 })();

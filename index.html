@@ -589,6 +589,9 @@
         </div>
       </div>
     </nav>
+    <!-- Les cartes : une seule en général (scindée par le rideau, ou une seule couche), deux en mode
+         « deux cartes synchronisées » (la seconde, #vue-carte-b, créée au premier passage). -->
+    <div id="cartes" class="vue cartes">
     <div id="vue-carte" class="vue">
       <!-- Ce que le relief dit sous le curseur (mode vue). -->
       <div id="hud-vue" class="hud hud-vue" hidden></div>
@@ -609,6 +612,13 @@
             <rect x="3" y="5" width="18" height="14" rx="2" fill="currentColor" fill-opacity="0.55" stroke="currentColor" stroke-width="1.8"/>
           </svg>
         </button>
+        <button id="mode-carte-double" type="button" aria-pressed="false"
+                title="Deux cartes synchronisées" aria-label="Deux cartes synchronisées">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="2.5" y="5" width="8.5" height="14" rx="1.8" fill="currentColor" fill-opacity="0.55" stroke="currentColor" stroke-width="1.8"/>
+            <rect x="13" y="5" width="8.5" height="14" rx="1.8" fill="currentColor" fill-opacity="0.55" stroke="currentColor" stroke-width="1.8"/>
+          </svg>
+        </button>
       </div>
       <!-- Mode Profil : la bande se choisit ici, le graphique s'ouvre à la validation. -->
       <div id="fenetre-profil" class="fenetre-profil" hidden>
@@ -624,7 +634,8 @@
           <button id="profil-valider" class="primaire" type="button" disabled>Valider</button>
         </div>
       </div>
-      </div>
+    </div>
+    <div id="vue-carte-b" class="vue" hidden></div>
     </div>
     <div id="vue-2d" class="vue" hidden>
       <canvas id="canvas-2d"></canvas>
@@ -845,6 +856,7 @@
 <script src="src/carte.js"></script>
 <script src="src/choix-couches.js"></script>
 <script src="src/volets.js"></script>
+<script src="src/synchro.js"></script>
 <script src="src/mode-carte.js"></script>
 <script src="src/flux-calque.js"></script>
 <script src="src/lien.js"></script>

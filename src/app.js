@@ -255,6 +255,7 @@ let territoireVue = 'FXX';
 let surChangementTerritoire = null;
 const projVue = () => PROJ.projectionDe(territoireVue);
 let surPassageCarte = null;
+let majOutilsCarte = null;   // grise les outils quand la carte est en mode « deux cartes » ; rappelé à chaque changement d'onglet
 let majAttributVue = null;
 
 /**
@@ -2350,7 +2351,7 @@ $('exp-csv').addEventListener('click', () =>
 // ── Onglets ─────────────────────────────────────────────────────────────────
 
 const VUES = [
-  ['carte', 'vue-carte', 'onglet-carte',
+  ['carte', 'cartes', 'onglet-carte',
     'Cliquez pour choisir une dalle · vert : dalle chargée · jaune : sélection'],
   ['2d', 'vue-2d', 'onglet-2d',
     'Glisser la poignée du milieu pour comparer · glisser l’image : déplacer · molette : zoom sous le curseur'],
@@ -2394,6 +2395,7 @@ function basculerVue(quoi) {
   if (quoi === 'carte') { requestAnimationFrame(() => carte.invalider()); surPassageCarte?.(); }
   else if (quoi === '3d') { vue3d?.invalider(); surPassage3D?.(); }
   else preparer2D();
+  majOutilsCarte?.();
   majLien();   // le lien décrit l'onglet affiché
 }
 
@@ -2677,26 +2679,127 @@ if (MODE_VUE) (async () => {
   // Les contours des blocs chargés, pour voir le chargement : « &debug ».
   const calque = new URLSearchParams(location.search).has('debug') ? new CalqueFlux().addTo(carte.map) : null;
   const reliefCalque = new CalqueRelief().addTo(carte.map);
-  // Les volets : une carte, son calque de relief et les côtés qu'elle porte (voir volets.js). Un seul
-  // aujourd'hui, qui porte les deux côtés ; deux cartes synchronisées en auront deux (TODO R10). Ce qui
+  // Les volets : une carte, son calque de relief et les côtés qu'elle porte (voir volets.js). Un seul en carte
+  // scindée ou en une seule carte, deux en mode « deux cartes synchronisées » (un côté chacun). Ce qui
   // dépend de la carte d'un côté passe par `voletDe` ; le rideau (position, mode) reste au volet principal.
-  const volets = [{ carte: carte.map, calque: reliefCalque, cotes: ['gauche', 'droite'] }];
+  const voletA = { carte: carte.map, calque: reliefCalque, cotes: ['gauche', 'droite'] };
+  let voletB = null;
+  let volets = [voletA];
   const voletDe = (cote) => VOLETS.voletDe(volets, cote);
-  // Le mode d'affichage : carte scindée par le rideau, ou une seule couche en pleine page (un troisième
-  // mode, deux cartes synchronisées, viendra : TODO R10). Une seule carte montre la gauche, avec une
-  // seule liste : voir `MODE_CARTE`.
+  // Le mode d'affichage (voir `MODE_CARTE`) : carte scindée par le rideau, une seule couche en pleine page
+  // (la gauche, une seule liste), ou deux cartes synchronisées (la seconde créée au premier passage).
   $('modes-carte').hidden = false;
-  const changerMode = (unique) => {
-    reliefCalque.definirUnique(unique ? MODE_CARTE.coteUnique : null);
-    for (const [id, actif] of [['mode-carte-scinde', !unique], ['mode-carte-unique', unique]]) {
-      $(id).classList.toggle('actif', actif);
-      $(id).setAttribute('aria-pressed', String(actif));
-    }
-    majCotes();            // le panneau et les fonds de tuiles suivent les côtés affichés
-    planifierRelief(0);    // la droite se calcule de nouveau au retour en carte scindée
+  let modeCarte = 'scinde';
+  let carteB = null, liaisonCartes = null;
+  // Le repère du curseur de l'autre carte : un petit cercle (un élément du DOM, pas du canevas) posé sur la carte qu'on ne survole pas.
+  const faireRepere = (map) => {
+    let marque = null;
+    return {
+      deplacer(ll) {
+        if (marque) marque.setLatLng(ll);
+        else marque = L.marker(ll, { icon: L.divIcon({ className: 'repere-curseur', iconSize: [16, 16], iconAnchor: [8, 8] }), interactive: false, keyboard: false }).addTo(map);
+      },
+      cacher() { if (marque) { marque.remove(); marque = null; } },
+    };
   };
-  $('mode-carte-scinde').addEventListener('click', () => changerMode(false));
-  $('mode-carte-unique').addEventListener('click', () => changerMode(true));
+  let reperes = null;
+  const idsModes = { scinde: 'mode-carte-scinde', unique: 'mode-carte-unique', double: 'mode-carte-double' };
+  // Les outils (sélection, mesure, profil) sont liés à la carte principale : grisés quand la carte est en
+  // deux cartes (première version), de retour sinon.
+  const majOutils = () => {
+    const surCarte = $('panneau').dataset.vue === 'carte';
+    const double = modeCarte === 'double' && surCarte;
+    if (double && vue2d.mode !== 'deplacement') definirModeInteraction('deplacement');
+    for (const id of ['mode-selection', 'mode-mesure', 'mode-profil']) $(id).disabled = double || (id === 'mode-profil' && !surCarte);
+  };
+  majOutilsCarte = majOutils;
+  // Les crédits une seule fois : en deux cartes, le cadre de la seconde (en bas à droite de l'écran) porte ceux
+  // des deux cartes, celui de la première est masqué. Leaflet compte les doublons : « IGN » n'apparaît qu'une fois.
+  const creditsDeA = new Map();   // texte → nombre de fois où il a été ajouté au cadre de la seconde carte
+  const ajouterCredit = (e) => {
+    const t = e.layer.getAttribution?.();
+    if (!t) return;
+    carteB.attributionControl.addAttribution(t);
+    creditsDeA.set(t, (creditsDeA.get(t) || 0) + 1);
+  };
+  const retirerCredit = (e) => {
+    const t = e.layer.getAttribution?.();
+    if (!t || !creditsDeA.get(t)) return;
+    carteB.attributionControl.removeAttribution(t);
+    creditsDeA.set(t, creditsDeA.get(t) - 1);
+  };
+  const reunirCredits = (oui) => {
+    const cadreA = carte.map.attributionControl.getContainer();
+    if (oui) {
+      cadreA.style.display = 'none';
+      carte.map.eachLayer((l) => ajouterCredit({ layer: l }));
+      carte.map.on('layeradd', ajouterCredit);
+      carte.map.on('layerremove', retirerCredit);
+    } else {
+      carte.map.off('layeradd', ajouterCredit);
+      carte.map.off('layerremove', retirerCredit);
+      for (const [t, n] of creditsDeA) for (let i = 0; i < n; i++) carteB?.attributionControl.removeAttribution(t);
+      creditsDeA.clear();
+      cadreA.style.display = '';
+    }
+  };
+  const changerMode = (mode) => {
+    // Les fonds de tuiles et les images changent peut-être de calque : on repart d'une page blanche,
+    // `majCotes` les reposera dans le bon.
+    for (const c of ['gauche', 'droite']) {
+      const v = voletDe(c);
+      v.calque.definirFond(c, null);
+      v.calque.vider(c);
+      fondsPoses[c] = null;
+    }
+    modeCarte = mode;
+    if (mode === 'double') {
+      $('vue-carte-b').hidden = false;
+      $('cartes').classList.add('double');
+      if (!carteB) {
+        // Créée visible : Leaflet mesure son conteneur à l'initialisation. La photo en fond, comme la carte
+        // principale ; le relief ou un fond de tuiles se pose par-dessus, dans le calque.
+        carteB = L.map($('vue-carte-b'), { preferCanvas: true, maxZoom: CONFIG.carte.zoomMax });
+        // Une vue d'abord : un calque Leaflet n'est ajouté (`onAdd`) qu'une fois la carte prête.
+        carteB.setView(carte.map.getCenter(), carte.map.getZoom(), { animate: false });
+        carte.nouveauFond('ortho').addTo(carteB);
+        voletB = { carte: carteB, calque: new CalqueRelief().addTo(carteB), cotes: ['droite'] };
+        brancherCurseurHud(carteB, voletB);
+        reperes = new Map([[carte.map, faireRepere(carte.map)], [carteB, faireRepere(carteB)]]);
+        carteB.on('moveend', majLien);
+      }
+      carte.invalider();
+      carteB.invalidateSize();
+      voletA.cotes = ['gauche'];
+      reliefCalque.definirUnique('gauche');
+      voletB.calque.definirUnique('droite');
+      volets = [voletA, voletB];
+      liaisonCartes?.delier();
+      liaisonCartes = SYNCHRO.lier(carte.map, carteB, { reperes });
+      reunirCredits(false);   // au cas où (jamais deux fois les écouteurs)
+      reunirCredits(true);
+    } else {
+      liaisonCartes?.delier();
+      liaisonCartes = null;
+      if (carteB) reunirCredits(false);
+      for (const r of reperes?.values() || []) r.cacher();
+      $('vue-carte-b').hidden = true;
+      $('cartes').classList.remove('double');
+      voletA.cotes = ['gauche', 'droite'];
+      volets = [voletA];
+      reliefCalque.definirUnique(mode === 'unique' ? MODE_CARTE.coteUnique : null);
+      carte.invalider();
+    }
+    for (const [m, id] of Object.entries(idsModes)) {
+      $(id).classList.toggle('actif', m === mode);
+      $(id).setAttribute('aria-pressed', String(m === mode));
+    }
+    majOutils();
+    majCotes();      // le panneau et les fonds de tuiles suivent les côtés affichés
+    majVueFlux();    // la carte principale a changé de taille : la zone à charger aussi (et le relief se recalcule)
+    majLien();
+  };
+  for (const [m, id] of Object.entries(idsModes)) $(id).addEventListener('click', () => changerMode(m));
   // La position du rideau est dans le lien : le geste (et « Rideau au centre ») passent par
   // `placerRideau`, qu'on enveloppe sur cette instance.
   const placerRideauSeul = reliefCalque.placerRideau.bind(reliefCalque);
@@ -2877,7 +2980,7 @@ if (MODE_VUE) (async () => {
     // zoomer. Rien que du COPC (choix de l'utilisateur) : le MNT puis
     // l'ombrage de l'IGN y ont été essayés, puis écartés.
     const tropLarge = vueCourante && FLUX_CHOIX.surfaceKm2(vueCourante) > CONFIG.flux.surfaceMaxPointsKm2;
-    const aCalculer = MODE_CARTE.cotesAffiches(reliefCalque.estUnique()).filter((c) => estRelief(cotes[c]));
+    const aCalculer = MODE_CARTE.cotesAffiches(modeCarte).filter((c) => estRelief(cotes[c]));
     for (const c of ['gauche', 'droite']) {
       voletDe(c).calque.definirLibelle(c, tropLarge && estRelief(cotes[c]) ? 'Zoomez pour calculer le relief' : libelleCouche(cotes[c]));
     }
@@ -3016,13 +3119,14 @@ if (MODE_VUE) (async () => {
     : OMBRAGES.has(cle) ? { ombrageAzimut, ombrageHauteur } : {});
   const fondsPoses = { gauche: null, droite: null };   // la clé du fond de tuiles posé dans le volet, ou null
   const majCotes = () => {
-    const unique = reliefCalque.estUnique();
-    const cotesVus = MODE_CARTE.cotesAffiches(unique);
-    // Le panneau suit le mode : une seule liste, « Couche affichée », ni échange ni rideau à centrer.
-    const pan = MODE_CARTE.panneau(unique);
+    const cotesVus = MODE_CARTE.cotesAffiches(modeCarte);
+    // Le panneau suit le mode : une seule liste (« Couche affichée ») ou deux, avec ou sans échange et rideau à centrer.
+    const pan = MODE_CARTE.panneau(modeCarte);
     $('vue-gauche-libelle').textContent = pan.libelleGauche;
     $('vue-droite-champ').hidden = !pan.listeDroite;
-    $('vue-rangee-rideau').hidden = !pan.boutonsRideau;
+    $('vue-echanger').hidden = !pan.echanger;
+    $('vue-rideau-centre').hidden = !pan.rideauAuCentre;
+    $('vue-rangee-rideau').hidden = !pan.echanger && !pan.rideauAuCentre;
     for (const c of ['gauche', 'droite']) {
       const calque = voletDe(c).calque;
       $(`vue-${c}`).value = cotes[c];
@@ -3199,7 +3303,7 @@ if (MODE_VUE) (async () => {
     return construction;
   };
   surPassage3D = construire3D;
-  surPassageCarte = () => planifierRelief(0);
+  surPassageCarte = () => { carteB?.invalidateSize(); planifierRelief(0); };
 
   // Hauteur au-dessus du sol : venue avec le nuage. Relief : la couche du côté
   // droit du rideau (ou du gauche si la droite n'en porte pas), drapée par le
@@ -3564,7 +3668,7 @@ if (MODE_VUE) (async () => {
       hudProchain = null;
       const { x, y } = projVue().versLocal(ll.lng, ll.lat);
       // La valeur de la couche du côté survolé ; côté carte, aucune.
-      const cle = cotes[VOLETS.coteSous(volets[0], ll.px)];
+      const cle = cotes[VOLETS.coteSous(ll.volet, ll.px)];
       const p = await relief.lire(x, y, estRelief(cle) ? cle : undefined);
       if (!ll.dedans) continue;
       hud.hidden = false;
@@ -3573,12 +3677,16 @@ if (MODE_VUE) (async () => {
     hudEnCours = false;
   };
   let dedans = false;
-  carte.map.on('mousemove', (e) => {
-    dedans = true;
-    hudProchain = { lng: e.latlng.lng, lat: e.latlng.lat, px: e.containerPoint.x, get dedans() { return dedans; } };
-    if (!hudEnCours) lireHud();
-  });
-  carte.map.on('mouseout', () => { dedans = false; hud.hidden = true; });
+  // Un branchement par carte : ce que le relief dit sous le curseur, pour la couche du côté survolé.
+  const brancherCurseurHud = (map, volet) => {
+    map.on('mousemove', (e) => {
+      dedans = true;
+      hudProchain = { lng: e.latlng.lng, lat: e.latlng.lat, px: e.containerPoint.x, volet, get dedans() { return dedans; } };
+      if (!hudEnCours) lireHud();
+    });
+    map.on('mouseout', () => { dedans = false; hud.hidden = true; });
+  };
+  brancherCurseurHud(carte.map, voletA);
   majCotes();
   // Le contraste ne recalcule pas la couche (gardée dans le worker) : seule
   // l'image est refaite.
@@ -3625,7 +3733,8 @@ if (MODE_VUE) (async () => {
   const reglagesVue = () => ({
     gauche: cotes.gauche !== 'carte' ? cotes.gauche : undefined,
     droite: cotes.droite !== 'svf' ? cotes.droite : undefined,
-    rideau: Math.round(reliefCalque.partRideau() * 100) !== 50 ? reliefCalque.partRideau() * 100 : undefined,
+    rideau: modeCarte !== 'double' && Math.round(reliefCalque.partRideau() * 100) !== 50 ? reliefCalque.partRideau() * 100 : undefined,
+    cartes: modeCarte === 'double' ? 2 : undefined,
     contraste: contrasteFlux !== 1 ? contrasteFlux : undefined,
     svf: svfDirections !== CONFIG.relief.svfDirections || svfRayonM !== CONFIG.relief.svfRayonM
       ? { directions: svfDirections, rayon: svfRayonM } : undefined,
@@ -3654,6 +3763,7 @@ if (MODE_VUE) (async () => {
       if (v[c] && aOption(`vue-${c}`, v[c])) regler(`vue-${c}`, v[c], 'change');
     }
     if (v.rideau !== undefined) reliefCalque.placerRideau(v.rideau / 100);
+    if (v.cartes === 2) changerMode('double');
     if (v.contraste !== undefined) regler('vue-contraste', v.contraste, 'input');
     if (v.svf) {
       regler('vue-svf-directions', v.svf.directions, 'change');

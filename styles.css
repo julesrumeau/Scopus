@@ -102,7 +102,28 @@ html, body {
 
 .scene { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .vue { flex: 1; min-height: 0; position: relative; }
-#vue-carte { background: #0e1116; }
+#vue-carte, #vue-carte-b { background: #0e1116; }
+
+/* Les cartes : une seule en général ; deux côte à côte en mode « deux cartes synchronisées » (la
+   seconde est #vue-carte-b), empilées sur téléphone : côte à côte, chacune serait trop étroite. */
+.cartes { display: flex; flex-direction: row; }
+.cartes > .vue { flex: 1 1 0; min-width: 0; min-height: 0; position: relative; }
+.cartes.double > #vue-carte-b { border-left: 1px solid var(--bord); }
+@media (max-width: 600px) {
+  /* La feuille du panneau, repliée, se pose sur le bas de l'écran : on lui réserve sa hauteur sous les deux
+     cartes, sinon celle du bas serait en partie cachée et plus petite que celle du haut. */
+  .cartes.double { flex-direction: column; padding-bottom: var(--feuille-repliee); }
+  .cartes.double > #vue-carte-b { border-left: 0; border-top: 1px solid var(--bord); }
+}
+/* Le repère du curseur de l'autre carte : un cercle jaune, qui ne prend aucun clic. */
+.repere-curseur {
+  pointer-events: none;
+  box-sizing: border-box;
+  width: 16px; height: 16px;
+  border: 2px solid #ffd24a;
+  border-radius: 50%;
+  background: rgba(255, 210, 74, 0.25);
+}
 #canvas3d, #canvas-2d { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
 /* Mode Sélection ou Mesure : la flèche plutôt que la main, pour dire « cliquer
    un point » plutôt que « glisser pour déplacer ». Déclarée avant `:active` et
@@ -1001,6 +1022,8 @@ input[type=range]::-moz-range-thumb {
    l'étiquette de la couche affichée reste. */
 .rideau.rideau-unique { pointer-events: none; }
 .rideau-unique::before, .rideau-unique .rideau-poignee { display: none; }
+/* La droite montrée en entier (la seconde de deux cartes) : son étiquette passerait sous les boutons de zoom. */
+.rideau-unique .rideau-flux-libelle.droite { left: 56px; }
 
 /* Le bouton de mode : sous les boutons de zoom, au-dessus du rideau (700) et du HUD (760), sous
    les contrôles de Leaflet. Deux états aujourd'hui, un troisième viendra. */
