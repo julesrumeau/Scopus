@@ -157,14 +157,6 @@ function creerOutilsPoint(d) {
     return vue3d.pointDuNuage(rayon, d.classesMasquees());
   }
 
-  if (vue3d) {
-    vue3d.onSelectionPoint = (rayon) => {
-      const pt = viserPoint3D(rayon);
-      if (!pt) { statut('Aucun terrain sous ce point — visez le nuage', 'erreur'); return; }
-      afficherSelection(pt.x, pt.y, pt.sol, pt.hauteur);
-    };
-  }
-
   // ── Mesure en chaîne ──────────────────────────────────────────────────────────
   //
   // Comme l'outil « Mesurer une ligne » de QGIS : chaque clic en mode Mesure
@@ -237,13 +229,18 @@ function creerOutilsPoint(d) {
     if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); retirerDernierPointMesure(); }
   });
 
-  if (vue3d) {
-    vue3d.onPointMesure = (rayon) => {
+  /** En 3D, un clic en mode Sélection ou Mesure vise un point du nuage affiché (`viserPoint3D`). */
+  function brancher3D() {
+    if (!vue3d) return;
+    const viser = (action) => (rayon) => {
       const pt = viserPoint3D(rayon);
       if (!pt) { statut('Aucun terrain sous ce point — visez le nuage', 'erreur'); return; }
-      ajouterPointMesure(pt.x, pt.y, pt.sol, pt.hauteur);
+      action(pt);
     };
+    vue3d.onSelectionPoint = viser((pt) => afficherSelection(pt.x, pt.y, pt.sol, pt.hauteur));
+    vue3d.onPointMesure = viser((pt) => ajouterPointMesure(pt.x, pt.y, pt.sol, pt.hauteur));
   }
+  brancher3D();
 
   /** Quitte le mode Profil en passant en 3D (où il n'a pas de sens) et le reprend au retour sur la carte. */
   function changerOnglet(quoi) {
