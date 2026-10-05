@@ -527,7 +527,8 @@ partout. Les quinze curseurs de seuils sont repliés dans un `<details>`.
 Sous 900 px, le panneau se pose sur la carte **sans la cacher** (un tiroir modal
 a été essayé et rejeté). Sous 600 px : feuille tirée du bas, trois hauteurs
 (`data-feuille` : `replie`, `mi`, `plein`), sous-titre et aide masqués. De 600 à
-900 px : panneau latéral ≤ 340 px replié par une languette. `pointer: coarse` :
+900 px : panneau latéral ≤ 340 px replié par une languette, **posé sous la barre des onglets et des
+outils** (`--hauteur-barre`, un test le garde : il la recouvrait toute, jusqu'au bouton Profil). `pointer: coarse` :
 aide tactile (`AIDE_TACTILE`), bande du rideau 44 px. Échap replie. Gestes au
 vrai doigt non essayés.
 
