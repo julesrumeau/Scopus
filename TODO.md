@@ -231,7 +231,7 @@ s'écrit dans CLAUDE.md pour ne pas la rediscuter.
 | E — fonds et ombrage | R8, R9 | OSM et ombrage monochrome réglable |
 | F — comparaison | R10 | après E (plus de fonds à comparer) |
 
-### R2 — Le lien porte la bande et la vue — fusionné dans `dev` (3 octobre 2026), pas encore publié
+### R2 — Le lien porte la bande et la vue — publié le 4 octobre 2026
 
 Fait : la bande, le point sélectionné, la règle de la carte et les classes du sol (si
 différentes du défaut) sont dans le lien et se remettent à l'ouverture (CLAUDE.md, « Le
@@ -270,7 +270,7 @@ ceux que l'on mesure).
   la classe, la distance sur l'axe, la date d'acquisition.
 - Poids : jusqu'à ~80 Mo pour 1 M de points, ~500 Ko pour quelques milliers.
 
-### R6 — Point de référence — fusionné dans `dev` (3 octobre 2026), pas encore publié
+### R6 — Point de référence — publié le 4 octobre 2026
 
 Demande : dire « ce point est l'altitude 0 à partir de maintenant », comme dans
 la méthode QGIS pour les bâtiments : un sol de référence, puis plusieurs points
@@ -379,7 +379,7 @@ Regroupés par thème ; chaque demande dit qui la porte (1 = naturaliste,
 
 **Conditions données par OSM France (5 octobre 2026)** : après la mise à jour du rendu par cquest, « ça semble jouable ». Le site doit être **gratuit**, **identifiable par le Referer** (ou X-Referer), et il doit être **clair que c'est OSM ou OSM-FR, avec un lien vers le copyright**. Il faut qu'**un point soit mis à l'ordre du jour du CA** d'OSM France (à demander : formulaire de contact de openstreetmap.fr, forum, ou la personne qui répond) ; elle-même ne sera pas disponible avant la fin de la semaine suivante. Alternative signalée : des serveurs professionnels gratuits (clé ou compte, voir la liste du wiki « Raster tile providers » : Stadia, Geoapify, Lima Labs…, et sans clé OpenTopoMap). **Côté code, faisable maintenant** : une couche OSM avec `referrerPolicy` de Leaflet (`origin`), attribution visible « © OpenStreetMap contributors » avec lien vers `openstreetmap.org/copyright` ; en `file://` il n'y a pas de Referer (tuile « Referer is required »), accepté. Blocages éventuels : dépôt `openstreetmap/tile-attribution`. **Décidé (5 octobre 2026) : proposer les deux fonds dans Scopus**, en deux temps. (1) **« OpenStreetMap »** (`tile.openstreetmap.org`, rendu mondial) tout de suite : serveur de la Fondation, ouvert à tout site qui respecte sa politique (Referer, attribution, pas de téléchargement en masse), **aucune autorisation à demander**. (2) **« OpenStreetMap France »** (`tile.openstreetmap.fr/osmfr`, rendu français) **seulement après l'accord d'OSM France** : serveurs de l'association, accès limité par liste blanche de Referer. Pourquoi les deux : mêmes données, rendus différents, et pouvoir comparer les deux est utile pour voir où une contribution manque. Tant que l'accord n'est pas là, l'entrée France n'existe pas dans les listes.
 
-### R9 — Ombrage monochrome réglable, MNT et MNS ombrés (2, rejoint 1) — fait, fusionné dans `dev` (pas encore publié)
+### R9 — Ombrage monochrome réglable, MNT et MNS ombrés (2, rejoint 1) — fait, publié le 4 octobre 2026
 
 Fait : « Ombrage » (4 soleils) et « Ombrage simple » (1 soleil) reviennent dans les listes de la vue normale (l'ombrage gris en avait été retiré pour sa pâleur), et deux curseurs, **azimut** et **hauteur** du soleil, règlent ces deux couches et l'ombrage coloré (l'azimut est celui du premier soleil, les autres suivent à 90° ou 120°). Dans le lien : `soleil=azimut/hauteur`, seulement s'il diffère de 315/45. **Reste** : choisir la surface éclairée, sol (MNT) ou dessus (MNS), demandé par le retour 1 ; et regarder si le gris à quatre soleils reste trop pâle (le contraste ou un seul soleil aident).
 
@@ -408,7 +408,7 @@ demander au demandeur ce qu'il ne peut pas faire avec le rideau à 50 % — si c
 
 **Précision du demandeur (5 octobre 2026)** : pas de plein écran sans menus, seulement la suppression du rideau, par un **petit bouton discret sur la carte** avec une icône parlante, qui à terme donnerait accès aux cartes synchronisées. Trois modes : **1 carte scindée par le rideau** (l'actuel), **2 cartes synchronisées** (50 % / 50 %), **1 seule carte pleine page**. Un **sélecteur à trois états** semble bon à l'utilisateur ; le détail de l'UX est à décider plus tard. Ordre : le mode « une seule carte » d'abord (petit), les cartes synchronisées ensuite (gros chantier, voir plus haut).
 
-### R11 — Accueil : une croix pour fermer (1) — fait, fusionné dans `dev`
+### R11 — Accueil : une croix pour fermer (1) — fait, publié le 4 octobre 2026
 
 La croix est posée (bureau et téléphone vérifiés en Chromium). Reste ouvert : mémoriser la fermeture pour un habitué (décision à part).
 
@@ -417,7 +417,7 @@ croix ferme la présentation et passe en navigation (comme « J'ai déjà des
 coordonnées »). Un `location.hash` non vide saute déjà l'accueil. Garder
 l'exemple du Bois des Caures en lien discret si on le juge utile.
 
-### R12 — Interface : gagner de la place (2) — fait, fusionné dans `dev` (pas encore publié)
+### R12 — Interface : gagner de la place (2) — fait, publié le 4 octobre 2026
 
 - **Outils à côté des boutons Carte / 3D** pour gagner une ligne et agrandir la
   carte.
@@ -440,7 +440,7 @@ l'exemple du Bois des Caures en lien discret si on le juge utile.
   édition à la main : à vérifier). Passer à l'outil de déplacement devrait tout
   effacer (point sélectionné, et la règle ?). À décider : ce que « tout » comprend.
 
-### R14 — Artefacts en étoile du Sky-View Factor (2) — corrigé, fusionné dans `dev` (4 octobre 2026), pas encore publié
+### R14 — Artefacts en étoile du Sky-View Factor (2) — corrigé, publié le 4 octobre 2026
 
 Cause trouvée (4 octobre 2026) : la **complétion par les non classés** (`inclureSursol`, plafond 3 m, active par défaut sans que sa case soit visible). Une plante ou un rebord de toit (cellule sans retour sol, retour non classé au-dessus) y faisait une tour dans un sol lisse, d'où l'étoile à huit branches. Corrigé en la désactivant par défaut : les classes du sol choisies décident seules de l'altitude (CLAUDE.md, « Lecture du relief »). La personne qui parlait des directions atténuait seulement le symptôme. La case d'essai pour comparer a été retirée après comparaison (le résultat apporte plus de contraste et de détail). Reste ouvert : voir une ruine connue en « non classé » sans retour sol, pour savoir si elle se lit assez avec les non classés ajoutés aux classes du sol.
 
