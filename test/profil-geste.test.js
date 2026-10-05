@@ -152,3 +152,63 @@ test('le type d’appui est passé à la recherche du point (zone plus large au 
   g.appui(1, 1, 'mouse');
   assert.deepEqual(vus, ['touch', 'mouse']);
 });
+
+// ── Le pincement à deux doigts : zoomer et déplacer le graphique ────────────
+
+const { creerPincementProfil } = chargerScripts(['profil-geste.js']);
+
+function pincement() {
+  const appels = [];
+  const p = creerPincementProfil({
+    surZoom: (x, y, f) => appels.push(['zoom', x, y, Number(f.toFixed(4))]),
+    surDeplacer: (dx, dy) => appels.push(['vue', dx, dy]),
+  });
+  return { p, appels };
+}
+
+test('pincement : écarter les doigts zoome, autour du milieu des deux doigts', () => {
+  const { p, appels } = pincement();
+  p.debut({ x: 100, y: 100 }, { x: 200, y: 100 });
+  p.deplacement({ x: 50, y: 100 }, { x: 250, y: 100 });      // l'écart double, le milieu ne bouge pas
+  assert.deepEqual(appels, [['zoom', 150, 100, 2]]);
+});
+
+test('pincement : rapprocher les doigts dézoome', () => {
+  const { p, appels } = pincement();
+  p.debut({ x: 50, y: 100 }, { x: 250, y: 100 });
+  p.deplacement({ x: 100, y: 100 }, { x: 200, y: 100 });
+  assert.deepEqual(appels, [['zoom', 150, 100, 0.5]]);
+});
+
+test('pincement : déplacer les deux doigts ensemble déplace le graphique, sans zoomer', () => {
+  const { p, appels } = pincement();
+  p.debut({ x: 100, y: 100 }, { x: 200, y: 100 });
+  p.deplacement({ x: 130, y: 120 }, { x: 230, y: 120 });
+  assert.deepEqual(appels, [['vue', 30, 20]]);
+});
+
+test('pincement : zoomer et déplacer à la fois, et chaque mouvement part du précédent (incrémental)', () => {
+  const { p, appels } = pincement();
+  p.debut({ x: 100, y: 100 }, { x: 200, y: 100 });
+  p.deplacement({ x: 90, y: 100 }, { x: 210, y: 100 });      // ×1,2
+  p.deplacement({ x: 90, y: 100 }, { x: 210, y: 100 });      // rien de plus
+  assert.deepEqual(appels, [['zoom', 150, 100, 1.2]]);
+});
+
+test('pincement : deux doigts au même endroit ne divisent pas par zéro', () => {
+  const { p, appels } = pincement();
+  p.debut({ x: 100, y: 100 }, { x: 100, y: 100 });
+  p.deplacement({ x: 100, y: 100 }, { x: 140, y: 100 });
+  assert.ok(!appels.some((a) => a[0] === 'zoom' && !Number.isFinite(a[3])));
+});
+
+test('pincement : après la fin, plus rien ne bouge ; enCours le dit', () => {
+  const { p, appels } = pincement();
+  assert.equal(p.enCours(), false);
+  p.debut({ x: 100, y: 100 }, { x: 200, y: 100 });
+  assert.equal(p.enCours(), true);
+  p.fin();
+  assert.equal(p.enCours(), false);
+  p.deplacement({ x: 0, y: 0 }, { x: 300, y: 300 });
+  assert.deepEqual(appels, []);
+});

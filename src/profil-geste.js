@@ -65,3 +65,27 @@ function creerGesteProfil({ saisir, delaiMs, minuteur, actions, clicPx = 4, trem
 
   return { appui, deplacement, relache, annuler: finir, enCours: () => g !== null };
 }
+
+/**
+ * Le pincement à deux doigts : écarter ou rapprocher zoome autour du milieu des doigts, les déplacer ensemble
+ * déplace le graphique. Incrémental : chaque mouvement part du précédent, comme la molette. Pur : les deux
+ * positions arrivent en paramètres, le zoom et le déplacement sont des actions injectées.
+ */
+function creerPincementProfil({ surZoom, surDeplacer }) {
+  let prec = null;   // { d, cx, cy } au dernier mouvement ; null hors pincement
+
+  const mesure = (a, b) => ({ d: Math.hypot(b.x - a.x, b.y - a.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 });
+
+  function debut(a, b) { prec = mesure(a, b); }
+
+  function deplacement(a, b) {
+    if (!prec) return;
+    const m = mesure(a, b);
+    // Deux doigts au même endroit : pas d'échelle à tirer, et on ne divise pas par zéro.
+    if (prec.d >= 1 && m.d >= 1 && Math.abs(m.d - prec.d) > 1e-6) surZoom(m.cx, m.cy, m.d / prec.d);
+    if (m.cx !== prec.cx || m.cy !== prec.cy) surDeplacer(m.cx - prec.cx, m.cy - prec.cy);
+    prec = m;
+  }
+
+  return { debut, deplacement, fin() { prec = null; }, enCours: () => prec !== null };
+}

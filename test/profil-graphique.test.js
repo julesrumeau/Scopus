@@ -625,3 +625,30 @@ test('saisi et survolé : le point grossi est connu pour le dessin, et se libèr
   g.finGeste(b.x, b.y);
   assert.equal(g.saisi, -1);
 });
+
+// ── Le pincement sur le vrai graphique ───────────────────────────────────────
+
+test('pincer écarte la fenêtre : la vue zoome et le point sous le milieu des doigts reste en place', () => {
+  const { g } = graphique();
+  g.definir(donnees());
+  const sous = g.px(50, 312);
+  const avant = [g.s0, g.s1];
+  g.pincement.debut({ x: sous.x - 40, y: sous.y }, { x: sous.x + 40, y: sous.y });
+  g.pincement.deplacement({ x: sous.x - 80, y: sous.y }, { x: sous.x + 80, y: sous.y });
+  assert.ok(g.s1 - g.s0 < avant[1] - avant[0], 'la fenêtre est plus étroite');
+  const apres = g.px(50, 312);
+  assert.ok(Math.abs(apres.x - sous.x) < 1, 'le point sous les doigts n’a pas bougé');
+});
+
+test('pincer deux doigts annule la saisie d’un point en cours (on ne déplace pas un point en zoomant)', () => {
+  const { g, vus } = avecTroisPoints();
+  const b = g.px(50, 325);
+  g.debutGeste(b.x, b.y);                                // la souris saisit B
+  assert.equal(g.saisi, 1);
+  g.annulerGeste();                                      // un second doigt arrive
+  assert.equal(g.saisi, -1);
+  assert.equal(g.gesteur.enCours(), false);
+  const avant = vus.length;
+  g.deplacerGeste(b.x + 50, b.y);                        // le doigt restant ne déplace rien
+  assert.equal(vus.length, avant);
+});
