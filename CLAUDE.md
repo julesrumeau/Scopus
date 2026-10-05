@@ -400,6 +400,20 @@ défaire :
 - Piège de mesure : Chrome headless ne descend pas sous ~500 px de large ;
   vérifier une largeur de téléphone dans un **iframe**.
 
+### Les trois modes de la carte
+
+Un bouton à trois états sous le zoom (`MODE_CARTE`, `mode-carte.js`) : **carte scindée** par le rideau,
+**une seule carte** (la gauche, une seule liste « Couche affichée », la droite ni calculée ni chargée),
+**deux cartes synchronisées** (la gauche à gauche, la droite à droite ; empilées sous 600 px). Chaque carte est un
+**volet** (`VOLETS`, `volets.js`) : sa carte Leaflet, son `CalqueRelief`, ses côtés ; le calcul pose l'image de
+chaque côté dans le volet qui le porte, avec **son propre écran** (`VOLETS.ecran`). La seconde carte est un
+`L.map` simple créé au premier passage, photo en fond ; `SYNCHRO.lier` (`synchro.js`) copie le déplacement et le
+zoom dans les deux sens **avec un verrou contre l'écho**, et pose un repère (DOM, pas canevas) sur l'autre carte
+au survol. Pièges : un calque Leaflet n'est ajouté (`onAdd`) qu'**une fois la carte pourvue d'une vue** (`setView`
+avant `addTo`) ; `.scene` est une `<section>` : un `</div>` en trop y était **ignoré en silence**, mais fermait
+`#cartes` trop tôt. En deux cartes, sélection, mesure et profil sont **grisés** (liés à la carte principale) ; le lien
+porte `cartes=2` (pas `rideau`).
+
 ### Soutenir
 
 Section tout en bas du panneau (`CONFIG.soutien`, masquée si vide), bouton

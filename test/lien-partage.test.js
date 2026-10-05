@@ -307,3 +307,13 @@ test('lirePartage : rend la règle écrite, et la tient pour abîmée en bloc au
   // Sans bande ni coupe, la règle vit seule ; et abîmée, elle n'emporte rien d'autre.
   assert.equal(lu('&regle=x&sel=42.8/1.0').sel.lat, 42.8);
 });
+
+test('cartes=2 : le mode « deux cartes synchronisées » s’écrit, se relit, et un paramètre abîmé tombe', () => {
+  assert.equal(LIEN.ecrirePartage({ vue: { cartes: 2 } }), '&cartes=2');
+  assert.equal(LIEN.ecrirePartage({ vue: { cartes: undefined } }), '');
+  assert.equal(LIEN.ecrirePartage({ vue: { cartes: 1 } }), '', 'une seule carte n’est pas dans le lien');
+  assert.deepEqual(plat(LIEN.lirePartage('#map=18/42.8/1.0&cartes=2')), { vue: { cartes: 2 } });
+  for (const abime of ['cartes=1', 'cartes=3', 'cartes=deux', 'cartes=', 'cartes=2.5']) {
+    assert.equal(plat(LIEN.lirePartage('#map=18/42.8/1.0&rideau=30&' + abime)).vue.cartes, undefined, abime);
+  }
+});
