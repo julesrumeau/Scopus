@@ -1,7 +1,7 @@
-// La recherche de lieu (champ « Lieu » du panneau) : géocodeur de l'IGN, un résultat direct ou une liste à
-// choisir, puis la carte va au lieu.
+// Aller à un lieu : la recherche (champ « Lieu » du panneau : géocodeur de l'IGN, un résultat direct ou une liste à
+// choisir, puis la carte va au lieu) et « Ma position » (le GPS de l'appareil, voir `localisation.js`).
 
-function creerRechercheLieu({ $, IGN, carte, statut, alerterPanne }) {
+function creerRechercheLieu({ $, IGN, carte, statut, alerter, alerterPanne }) {
   let abandonRecherche = null;
 
   async function rechercher() {
@@ -49,4 +49,23 @@ function creerRechercheLieu({ $, IGN, carte, statut, alerterPanne }) {
     if (e.key === 'Enter') { e.preventDefault(); rechercher(); }
     if (e.key === 'Escape') $('resultats-recherche').hidden = true;
   });
+
+  /** « Ma position » : la carte se recentre sur l'appareil, avec un point bleu et, si elle est large, son incertitude. */
+  function brancherLocalisation() {
+    let repere = null;
+    const centrer = (lat, lon, zoom, precision) => {
+      repere?.remove();
+      carte.map.setView([lat, lon], zoom, { animate: false });
+      // La poignée du rideau est au centre de la carte : on décale la vue d'un dixième de sa largeur pour que le point ne tombe pas dessous.
+      carte.map.panBy([Math.round(carte.map.getSize().x * 0.1), 0], { animate: false });
+      repere = L.layerGroup().addTo(carte.map);
+      // Le volet des outils (au-dessus du relief) existe une fois la vue du relief démarrée.
+      const pane = carte.map.getPane('outilsVue') ? 'outilsVue' : 'markerPane';
+      if (precision > 15) L.circle([lat, lon], { radius: precision, pane, color: '#3b9cff', weight: 1, fillOpacity: 0.1, interactive: false }).addTo(repere);
+      L.marker([lat, lon], { pane: 'markerPane', interactive: false, keyboard: false, icon: L.divIcon({ className: 'repere-position', iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(repere);
+      statut('Votre position', '');
+    };
+    creerLocalisation({ bouton: $('btn-localiser'), geolocalisation: navigator.geolocation, centrer, dire: (t) => statut(t, 'travail'), alerter });
+  }
+  brancherLocalisation();
 }

@@ -155,7 +155,7 @@ const carte = new Carte($('vue-carte'));
 carte.map.on('moveend', majLien);
 
 // ── Recherche de lieu (recherche-lieu.js) ─────────────────────────────────
-creerRechercheLieu({ $, IGN, carte, statut, alerterPanne });
+creerRechercheLieu({ $, IGN, carte, statut, alerter, alerterPanne });
 
 // Classes masquées à l'affichage. Persiste d'un nuage à l'autre : on ne veut
 // pas rétablir la végétation à chaque dalle quand on l'a écartée une fois.
