@@ -1065,6 +1065,21 @@ input[type=range]::-moz-range-thumb {
 .modes-carte svg { width: 18px; height: 18px; display: block; }
 @media (pointer: coarse) { .modes-carte button { width: 40px; height: 40px; } .modes-carte { top: 100px; } }
 
+/* « Ma position » : sous les trois modes, du même style. */
+.localiser {
+  position: absolute; top: 182px; left: 10px; z-index: 800;
+  width: 30px; height: 30px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--fond-2); border: 1px solid var(--bord); border-radius: 6px; color: var(--texte-2);
+}
+.localiser:hover { color: var(--texte); }
+.localiser svg { width: 18px; height: 18px; display: block; }
+.localiser.en-cours { color: var(--accent); animation: localiser-bat 1s ease-in-out infinite; }
+@keyframes localiser-bat { 50% { opacity: 0.45; } }
+@media (pointer: coarse) { .localiser { width: 40px; height: 40px; top: 228px; } }
+/* Le repère de la position trouvée : un point bleu cerné de blanc. */
+.repere-position { width: 16px; height: 16px; border-radius: 50%; background: #3b9cff; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.4); }
+
 /* Les sélecteurs de couche, l'un sous l'autre avec l'intitulé à gauche : côte à côte, chacun ne
    faisait que la moitié du panneau et les libellés (« OpenStreetMap (standard) ») étaient coupés,
    dans le champ comme dans la liste ouverte, dont la largeur est celle du champ. Même hauteur

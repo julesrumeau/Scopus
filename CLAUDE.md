@@ -336,6 +336,15 @@ d'arbres et de bâtiments sans QGIS. Conception :
   `maxNativeZoom: 19`, `maxZoom: 20`, avis « zoom maximal » ; même borne pour
   `ORTHO.zoomPour`. À vérifier en temps réel, pas sous `--virtual-time-budget`.
 
+- **« Ma position »** (6 octobre 2026, `localisation.js`, pur + fabrique testés) : un bouton viseur sous les
+  trois modes de la carte ; `navigator.geolocation` (HTTPS exigé, rien n'est envoyé : la position reste dans
+  l'onglet), position précise demandée avec un délai de 15 s. La carte se recentre au zoom choisi selon la
+  précision (`LOCALISATION.zoomPour` : 18 sous 30 m, jusqu'à 12 au-delà de 3 km), avec un point bleu et, si
+  elle dépasse 15 m, son cercle d'incertitude. **La vue est décalée d'un dixième de sa largeur** : la poignée du
+  rideau est au centre de la carte et cachait le point. Refus, indisponible, délai dépassé : un message en clair
+  (`messageErreur`), jamais le texte brut du navigateur. Câblé dans `recherche-lieu.js`. Sur tablette (601–900 px)
+  le panneau ouvert couvre le bouton comme le zoom : on le replie.
+
 ## L'outre-mer
 
 Même découpage en dalles de 1 km nommées par leur coin nord-ouest, même cube

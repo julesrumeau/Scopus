@@ -384,6 +384,14 @@
           </svg>
         </button>
       </div>
+      <!-- « Ma position » : le GPS de l'appareil centre la carte (localisation.js). -->
+      <button id="btn-localiser" type="button" class="localiser" title="Ma position" aria-label="Ma position">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="12" cy="12" r="3.2" fill="currentColor"/>
+          <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
       <!-- Mode Profil : la bande se choisit ici, le graphique s'ouvre à la validation. -->
       <div id="fenetre-profil" class="fenetre-profil" hidden>
         <p class="profil-consigne" id="profil-consigne">Cliquez le premier point sur la carte.</p>
@@ -610,6 +618,7 @@
 <script src="src/accueil.js"></script>
 <script src="src/panneau-3d.js"></script>
 <script src="src/html.js"></script>
+<script src="src/localisation.js"></script>
 <script src="src/recherche-lieu.js"></script>
 <script src="src/partage.js"></script>
 <script src="src/panneau-mobile.js"></script>
