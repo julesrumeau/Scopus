@@ -13,7 +13,9 @@ Topo du 5 octobre 2026, fin de journée. `main` est au commit `4b4d7f1` ; `dev` 
 
 **En attente d'autrui ou de décision** : R8 fond OpenStreetMap France (**demande envoyée le 5 octobre**, en attente : accord du CA d'OSM France, pas avant la semaine du 12 octobre) ; R7 combler le sol (à ne pas commencer) ; #3 case « non classés » (à vérifier sur une ruine connue). Détection de structures et de sentiers (#1, #2) : code retiré (tag `archive-avant-retrait-dalle`).
 
-**Fait ce jour (5 octobre)** : fond OpenStreetMap, Réinitialiser le soleil, échelles égales du profil, listes de couches par famille, une seule carte et deux cartes synchronisées, retrait de `?dalle`, découpage d'`app.js` et de `Vue3D`, **correctif du bouton Profil** (publié), **profil qui garde son état, déplacer/retirer/pincer**, **3D à rectangle borné** (lien 3D, échelle et angles repris, nuage qui s'étoffe seul : #4 phase 1 et R13), mentions OpenStreetMap (ODbL) dans le pied de page et le README.
+**Fait les 5 et 6 octobre** : fond OpenStreetMap, Réinitialiser le soleil, échelles égales du profil, listes de couches par famille, une seule carte et deux cartes synchronisées, retrait de `?dalle`, découpage d'`app.js` et de `Vue3D`, **correctif du bouton Profil** (publié), **profil qui garde son état, déplacer/retirer/pincer**, **3D à rectangle borné** (lien 3D, échelle et angles repris, nuage qui s'étoffe seul : #4 phase 1 et R13), mentions OpenStreetMap (ODbL) dans le pied de page et le README ; **Maj + clic : mesure à angle droit** (profil et carte) ; **bouton « Ma position »** ; petits fixes (panneau sous la barre en tablette, bande oblique, graphique grisé pendant le calcul, HUD de la seconde carte). Tout est publié sur `main` (`c97145f`).
+
+**Branches** : ménage fait le 6 octobre 2026 — il ne reste que `dev` et `main` (`dev` = `main`). Les deux branches non fusionnées sont gardées par étiquettes : `archive/traces-detecteur` (12 commits d'un détecteur de tracés arrêté le 27 septembre) et `archive/plein-ecran` ; plus `archive-avant-retrait-dalle`. `git checkout archive/traces-detecteur` pour les retrouver.
 
 **À annoncer au prochain message** : voir plus bas.
 
