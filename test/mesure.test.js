@@ -193,3 +193,27 @@ test('retirerPoint : la chaîne sans ce point, sans toucher à l’originale ; u
   assert.equal(MESURE.retirerPoint(pts, 9).length, 3);
   assert.equal(MESURE.retirerPoint(pts, -1).length, 3);
 });
+
+// ── Shift + clic : le point tombe sur l'axe du point précédent (R20) ─────────
+
+test('surAxe : le curseur plus loin en largeur qu’en hauteur → horizontale (même ordonnée que le repère)', () => {
+  const r = MESURE.surAxe({ x: 100, y: 50 }, { x: 180, y: 62 });
+  assert.deepEqual({ x: r.x, y: r.y, axe: r.axe }, { x: 180, y: 50, axe: 'h' });
+});
+
+test('surAxe : le curseur plus loin en hauteur qu’en largeur → verticale (même abscisse que le repère)', () => {
+  const r = MESURE.surAxe({ x: 100, y: 50 }, { x: 108, y: 20 });
+  assert.deepEqual({ x: r.x, y: r.y, axe: r.axe }, { x: 100, y: 20, axe: 'v' });
+});
+
+test('surAxe : à égalité, l’horizontale (un choix, toujours le même)', () => {
+  assert.equal(MESURE.surAxe({ x: 0, y: 0 }, { x: 10, y: 10 }).axe, 'h');
+  assert.equal(MESURE.surAxe({ x: 0, y: 0 }, { x: -10, y: 10 }).axe, 'h');
+});
+
+test('surAxe : fonctionne dans toutes les directions, et sur le repère lui-même ne bouge pas', () => {
+  assert.deepEqual({ ...MESURE.surAxe({ x: 100, y: 50 }, { x: 40, y: 55 }) }, { x: 40, y: 50, axe: 'h' });
+  assert.deepEqual({ ...MESURE.surAxe({ x: 100, y: 50 }, { x: 96, y: 200 }) }, { x: 100, y: 200, axe: 'v' });
+  const meme = MESURE.surAxe({ x: 7, y: 9 }, { x: 7, y: 9 });
+  assert.deepEqual([meme.x, meme.y], [7, 9]);
+});

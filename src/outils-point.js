@@ -144,17 +144,9 @@ function creerOutilsPoint(d) {
     if (e.key === 'Enter') { e.preventDefault(); chercherPoint(); }
   });
 
-  // La géométrie (marche du rayon contre le MNT) vit dans `terrain.js`, pure et
-  // testée pour elle-même — ici, on ne fait que lui fournir les réglages du
-  // moment (grille affichée, exagération, altitude de référence du nuage).
-  //
-  // Deux essais, dans l'ordre : le nuage réellement affiché d'abord — un point
-  // trouvé là est exactement celui qu'on voit, jamais une moyenne de cellule
-  // (voir CLAUDE.md, « Le pointé au clic ») — puis, s'il n'y en a aucun dans le
-  // seuil (clic imprécis, ou zone du terrain sans point rendu tout près),
-  // l'enveloppe du MNT en repli plutôt que de rendre la main bredouille.
+  // En 3D le point visé est un point du nuage affiché (`TERRAIN.pointDuNuage`, voir CLAUDE.md, « Le pointé au clic ») : jamais une moyenne
+  // de cellule, et pas d'enveloppe de repli.
   function viserPoint3D(rayon) {
-    // Pas d'enveloppe de repli : le point visé est dans le nuage, ou nulle part.
     return vue3d.pointDuNuage(rayon, d.classesMasquees());
   }
 
@@ -247,6 +239,37 @@ function creerOutilsPoint(d) {
   }
   brancher3D();
 
+  /**
+   * Shift + clic en mesure : le point tombe sur la verticale ou l'horizontale (de l'écran) du point précédent. `pixel` :
+   * la position du curseur dans la carte. Rend `{ x, y, de, vers }` (le point en coordonnées locales, et les deux bouts
+   * du trait en [lat, lon]), ou `null` sans Shift, hors mode Mesure ou sans point précédent.
+   */
+  function surAxeCarte(pixel, shift) {
+    const dernier = pointsMesure.at(-1);
+    if (!shift || !dernier || modeOutil !== 'mesure') return null;
+    const g = projVue().versGeo(dernier.x, dernier.y), m = carte.map;
+    const de = m.latLngToContainerPoint([g.lat, g.lon]);
+    const v = MESURE.surAxe(de, pixel);
+    const ll = m.containerPointToLatLng([v.x, v.y]);
+    const local = projVue().versLocal(ll.lng, ll.lat);
+    return { x: local.x, y: local.y, de: [g.lat, g.lon], vers: [ll.lat, ll.lng] };
+  }
+
+  /** L'aperçu pointillé de Shift + clic : suit la souris, et Shift tenu sans bouger. */
+  function brancherAxe() {
+    let souris = null, shift = false;
+    const maj = () => {
+      const a = souris && surAxeCarte(souris, shift);
+      liaisons.carteOutils?.apercu(a ? [a.de, a.vers] : null);
+    };
+    carte.map.on('mousemove', (e) => { souris = e.containerPoint; shift = e.originalEvent.shiftKey; maj(); });
+    carte.map.on('mouseout', () => { souris = null; maj(); });
+    const touche = (e) => { if (e.key === 'Shift') { shift = e.type === 'keydown'; maj(); } };
+    window.addEventListener('keydown', touche);
+    window.addEventListener('keyup', touche);
+  }
+  brancherAxe();
+
   /** Quitte le mode Profil en passant en 3D (où il n'a pas de sens) et le reprend au retour sur la carte. */
   function changerOnglet(quoi) {
     if (quoi !== 'carte' && modeOutil === 'profil') { definirModeInteraction('deplacement', true); profilAReprendre = true; }
@@ -265,6 +288,7 @@ function creerOutilsPoint(d) {
 
   return {
     republier3D,
+    surAxeCarte,
     liaisons,
     mode: () => modeOutil,
     definirMode: definirModeInteraction,

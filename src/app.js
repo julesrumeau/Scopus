@@ -529,15 +529,15 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   };
 
   $('vue-edl').addEventListener('change', (e) => { vue3d?.definirEDL(e.target.checked); majLien(); });
-  const { traceOutils, versLatLng, selection, mesure } = creerOutilsCarte({ carte, projVue, MESURE });
-  outils.liaisons.carteOutils = { selection, mesure };
+  const { traceOutils, versLatLng, selection, mesure, apercu } = creerOutilsCarte({ carte, projVue, MESURE });
+  outils.liaisons.carteOutils = { selection, mesure, apercu };
   // Un clic (pas un glisser : Leaflet ne l'émet pas après un déplacement)
   // vise un point en mode Sélection ou Mesure, et pose un point de la bande en mode Profil.
   carte.map.on('click', async (e) => {
     const mode = outils.mode();
     if (mode === 'profil') { poserPointProfil(e.latlng); return; }
     if (mode !== 'selection' && mode !== 'mesure') return;
-    const { x, y } = projVue().versLocal(e.latlng.lng, e.latlng.lat);
+    const { x, y } = outils.surAxeCarte(e.containerPoint, e.originalEvent.shiftKey) || projVue().versLocal(e.latlng.lng, e.latlng.lat);
     const pt = await relief.lire(x, y);
     if (mode === 'selection') outils.afficherSelection(x, y, pt?.altitude ?? null, pt?.hauteur ?? 0);
     else outils.ajouterPointMesure(x, y, pt?.altitude ?? null, pt?.hauteur ?? 0);

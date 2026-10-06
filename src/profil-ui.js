@@ -7,7 +7,7 @@
 const CONSIGNES_OUTIL = {
   deplacement: 'Glissez pour déplacer le graphique, molette pour zoomer. Un clic ne pose rien.',
   reference: 'Cliquez un point du graphique : il devient le 0. Un nouveau clic le remplace.',
-  mesure: 'Cliquez des points du graphique pour mesurer, de suite.',
+  mesure: 'Cliquez des points du graphique pour mesurer, de suite. Maj + clic : à angle droit du point précédent (une hauteur au-dessus du sol).',
 };
 
 function creerProfilUI(d) {

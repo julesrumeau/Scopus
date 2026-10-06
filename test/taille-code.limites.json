@@ -44,9 +44,6 @@
     ]
   },
   "classes": {
-    "profil-graphique.js::ProfilGraphique": [
-      401
-    ],
     "vue3d.js::Vue3D": [
       646
     ]

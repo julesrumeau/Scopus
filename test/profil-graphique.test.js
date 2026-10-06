@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chargerScripts } from './charger.js';
 
-const { ProfilGraphique } = chargerScripts(['config.js', 'profil.js', 'profil-geste.js', 'profil-graphique.js']);
+const { ProfilGraphique } = chargerScripts(['config.js', 'profil.js', 'mesure.js', 'profil-geste.js', 'profil-graphique.js']);
 
 function canevasFactice() {
   const ctx = new Proxy({}, { get: () => () => {}, set: () => true });
@@ -140,7 +140,7 @@ function canevasCompte() {
 }
 
 test('plusieurs changements dans la même image ne dessinent qu’une fois', () => {
-  const page = chargerScripts(['config.js', 'profil.js', 'profil-geste.js', 'profil-graphique.js']);
+  const page = chargerScripts(['config.js', 'profil.js', 'mesure.js', 'profil-geste.js', 'profil-graphique.js']);
   const file = [];
   page.requestAnimationFrame = (f) => { file.push(f); return file.length; };
   const c = canevasCompte();
@@ -651,4 +651,93 @@ test('pincer deux doigts annule la saisie d’un point en cours (on ne déplace 
   const avant = vus.length;
   g.deplacerGeste(b.x + 50, b.y);                        // le doigt restant ne déplace rien
   assert.equal(vus.length, avant);
+});
+
+// ── Shift + clic : à angle droit du point précédent (R20) ────────────────────
+
+/** Un graphique à un point de mesure posé au sol (distance 0, altitude 300). */
+function avecUnPoint() {
+  const r = graphique();
+  r.g.definir(donnees());
+  const a = r.g.px(0, 300);
+  r.g.clic(a.x, a.y);
+  return r;
+}
+
+test('Shift + clic, curseur plutôt à droite : horizontale, même altitude que le point précédent', () => {
+  const { g, vus } = avecUnPoint();
+  g.definirDroit(true);
+  const c = g.px(60, 306);                       // plus loin en distance qu'en altitude
+  g.clic(c.x, c.y);
+  assert.equal(vus.at(-1).length, 2);
+  assert.equal(vus.at(-1)[1].z, 300, 'même altitude que A');
+  assert.ok(Math.abs(vus.at(-1)[1].s - 60) < 0.5, 'la distance suit le curseur');
+});
+
+test('Shift + clic, curseur plutôt en hauteur : verticale, même distance que le point précédent', () => {
+  const { g, vus } = avecUnPoint();
+  g.definirDroit(true);
+  const c = g.px(3, 324);
+  g.clic(c.x, c.y);
+  assert.equal(vus.at(-1)[1].s, 0, 'même distance que A');
+  assert.ok(Math.abs(vus.at(-1)[1].z - 324) < 0.5, 'l’altitude suit le curseur');
+});
+
+test('Shift + clic ne s’accroche pas au nuage : la ligne reste droite (sinon elle ne le serait plus)', () => {
+  const { g, vus } = avecUnPoint();
+  g.definirDroit(true);
+  const cime = g.px(50, 325);                    // une cime visible, très proche du curseur
+  g.clic(cime.x + 2, cime.y + 2);
+  assert.ok(vus.at(-1)[1].z === 300 || vus.at(-1)[1].s === 0, 'sur un axe du point A, pas à la cime');
+});
+
+test('sans Shift, le clic s’accroche comme avant', () => {
+  const { g, vus } = avecUnPoint();
+  const cime = g.px(50, 325);
+  g.clic(cime.x + 2, cime.y + 2);
+  assert.deepEqual(vus.at(-1)[1], { s: 50, z: 325 });
+});
+
+test('Shift + clic sur le premier point : rien à contraindre, le point se pose normalement', () => {
+  const { g, vus } = graphique();
+  g.definir(donnees());
+  g.definirDroit(true);
+  const cime = g.px(50, 325);
+  g.clic(cime.x, cime.y);
+  assert.deepEqual(vus.at(-1), [{ s: 50, z: 325 }]);
+});
+
+test('Shift ne contraint ni le point de référence ni l’outil Déplacement', () => {
+  const { g } = avecUnPoint();
+  g.definirDroit(true);
+  g.definirOutil('reference');
+  const cime = g.px(50, 325);
+  g.clic(cime.x, cime.y);
+  assert.deepEqual({ s: g.reference.s, z: g.reference.z }, { s: 50, z: 325 });
+});
+
+test('apercuDroit : de quoi dessiner la ligne pointillée, seulement Shift tenu et un point précédent', () => {
+  const { g } = avecUnPoint();
+  assert.equal(g.apercuDroit(), null, 'sans Shift');
+  g.definirDroit(true);
+  assert.equal(g.apercuDroit(), null, 'sans position du curseur');
+  const c = g.px(60, 306);
+  g.suivre(c.x, c.y);
+  const a = g.apercuDroit();
+  assert.ok(a && a.de && a.vers);
+  assert.equal(a.de.y, g.px(0, 300).y, 'part du point précédent');
+  assert.equal(a.vers.y, a.de.y, 'et tombe sur son axe horizontal');
+  const vide = graphique();
+  vide.g.definir(donnees());
+  vide.g.definirDroit(true);
+  vide.g.suivre(10, 10);
+  assert.equal(vide.g.apercuDroit(), null, 'pas de point précédent');
+});
+
+test('relâcher Shift efface l’aperçu', () => {
+  const { g } = avecUnPoint();
+  g.definirDroit(true);
+  g.suivre(200, 100);
+  g.definirDroit(false);
+  assert.equal(g.apercuDroit(), null);
 });

@@ -278,6 +278,15 @@ d'arbres et de bâtiments sans QGIS. Conception :
   doigt **abandonne** le geste du premier (saisie d'un point, clic) ; le doigt resté après le pincement ne fait
   rien. Il **n'existait pas** avant le 5 octobre (la ligne « pincement non essayé » le laissait croire) : le
   graphique n'avait que la molette et un doigt. Vérifié en tactile émulé (CDP), pas sur un vrai téléphone.
+- **Maj + clic : à angle droit** (R20, `MESURE.surAxe`, pur) : en **mesure** seulement, sur le graphique du profil
+  et sur la carte, le point se pose sur la verticale ou l'horizontale (celle où le curseur est le plus loin, à
+  égalité l'horizontale) du **point précédent** de la chaîne, dans l'espace de l'écran. Dans le profil, une
+  verticale garde la même distance (la hauteur au-dessus du sol), une horizontale la même altitude, et **le
+  point ne s'accroche pas au nuage** (la ligne ne serait plus droite). Un **aperçu pointillé** suit la souris
+  tant que Shift est tenu (`apercuDroit` sur le graphique, `apercu` sur la carte). Sans point précédent, Shift ne
+  fait rien. **Pas** de verrou à bascule, de magnétisme ni de 45° (décision : rester simple), **pas** la 3D
+  (Maj+glisser y pivote), **pas** le tactile (pas de Shift). Piège : la poignée du **rideau** (centre de la carte)
+  intercepte les clics sur ses 22 px : un test automatisé qui clique là croit à un défaut.
 - **Une seule mesure.** Le graphique alimente la chaîne de mesure de la carte
   (`MESURE.tableauHtml`, partagé) : ses points deviennent `{ x: distance sur
   l'axe, sol: altitude }`. Le clic s'accroche au point visible le plus proche
