@@ -5,25 +5,18 @@
 
 class ProfilGraphique {
   /**
-   * @param {HTMLCanvasElement} canvas
-   * @param {(points: Array<{s: number, z: number}>) => void} rappel
-   *        appelé à chaque changement de la chaîne de mesure, avec ses points
-   *        dans l'ordre du clic (vide : aucun)
-   * @param {(p: ?{s: number, z: number}) => void} [rappelReference]
-   *        appelé quand le point de référence est posé, remplacé ou effacé (`null`)
+   * @param {(points: Array<{s: number, z: number}>) => void} rappel appelé à chaque changement de la chaîne de mesure
+   * @param {(p: ?{s: number, z: number}) => void} [rappelReference] appelé quand la référence est posée, remplacée ou effacée
    */
   constructor(canvas, rappel, rappelReference = () => {}) {
     this.c = canvas;
     this.ctx = canvas.getContext('2d');
     this.rappel = rappel;
     this.rappelReference = rappelReference;
-    // L'outil décide de ce que fait un **clic** ; le glisser et la molette déplacent
-    // et zooment dans tous les outils. La mesure par défaut : c'est ce qu'on vient
-    // faire dans un profil.
+    // L'outil décide de ce que fait un **clic** (le glisser et la molette déplacent et zooment toujours) ; la mesure par défaut.
     this.outil = 'mesure';
     this.reference = null;   // { s, z } : le 0 du graphique, ou null
-    // La marge gauche porte les altitudes : zoomé à fond elles prennent une décimale (« 1514.65 m »)
-    // et débordaient à 56 px. Le double curseur du CSS (`.double-curseur`) suit la même valeur.
+    // La marge gauche porte les altitudes (« 1514.65 m » zoomé à fond) ; le double curseur du CSS (`.double-curseur`) suit la même valeur.
     this.marge = { g: 68, d: 16, h: 12, b: 34 };
     this.d = null;
     this.visibles = null;
@@ -32,10 +25,10 @@ class ProfilGraphique {
     this.lat = { min: -Infinity, max: Infinity };   // la tranche de largeur gardée
     this.mesure = [];
     this.zv = null;       // l'étendue verticale choisie en zoomant ; absente : ajustée aux points
-    // Échelles égales : autant de mètres par pixel en X qu'en Z (le défaut : mesurer sur un graphique
-    // déformé ne se lit pas). Alors l'étendue verticale se **déduit** de l'horizontale ; `zv` ne
-    // garde que son centre. Désactivées : l'ancienne vue, la hauteur ajustée aux points.
+    // Échelles égales : autant de mètres par pixel en X qu'en Z (le défaut) ; l'étendue verticale se déduit de l'horizontale, `zv` n'en garde que le centre.
     this.egales = true;
+    this.droit = false;   // Shift tenu : le prochain point se pose à angle droit du précédent
+    this.curseur = null;  // la dernière position du curseur sur le canevas (pour l'aperçu)
     this.survole = -1;    // le point de la chaîne sous la souris, ou -1 : il grossit
     this.saisi = -1;      // le point de la chaîne qu'on déplace, ou -1
     // Le geste (profil-geste.js) : saisir un point, poser un clic, glisser le graphique.
@@ -252,19 +245,34 @@ class ProfilGraphique {
     this.planifier();
   }
 
-  /**
-   * L'indice du point de la chaîne le plus proche du pixel (x, y), ou -1 s'il n'en est pas assez près :
-   * 10 px à la souris, 24 px au doigt (un doigt couvre bien plus qu'un pointeur).
-   */
-  pointMesureProche(x, y, type = 'mouse') {
-    const rayon = type === 'touch' ? CONFIG.profil.saisieTactilePx : CONFIG.profil.saisiePx;
-    let meilleur = -1, dmin = rayon * rayon;
-    this.mesure.forEach((p, i) => {
-      const q = this.px(p.s, p.z);
-      const dd = (q.x - x) ** 2 + (q.y - y) ** 2;
-      if (dd <= dmin) { dmin = dd; meilleur = i; }
-    });
-    return meilleur;
+  /** L'indice du point de la chaîne le plus proche du pixel (x, y), ou -1 : voir `pointMesureProcheProfil`. */
+  pointMesureProche(x, y, type = 'mouse') { return pointMesureProcheProfil(this, x, y, type); }
+
+  /** Shift est tenu (ou relâché) : le prochain point se pose à angle droit du précédent (mesure seulement). */
+  definirDroit(actif) {
+    if (this.droit === !!actif) return;
+    this.droit = !!actif;
+    this.planifier();
+  }
+
+  /** Le curseur est en (x, y) : retenu pour l'aperçu de la ligne à angle droit. */
+  suivre(x, y) {
+    this.curseur = { x, y };
+    if (this.droit) this.planifier();
+  }
+
+  /** Où tomberait un point posé en `c` avec Shift : `{ de, vers, point }` (pixels et point du profil), ou `null`. */
+  _surAxe(c) {
+    const dernier = this.mesure.at(-1);
+    if (!this.droit || !dernier || !c || this.outil !== 'mesure') return null;
+    const de = this.px(dernier.s, dernier.z), vers = MESURE.surAxe(de, c), e = this._echelles();
+    return { de, vers, point: { s: vers.axe === 'v' ? dernier.s : e.s(vers.x), z: vers.axe === 'h' ? dernier.z : e.z(vers.y) } };
+  }
+
+  /** La ligne pointillée du point précédent à l'endroit où le point va tomber : `{ de, vers }`, ou `null`. */
+  apercuDroit() {
+    const a = this._surAxe(this.curseur);
+    return a && { de: a.de, vers: a.vers };
   }
 
   /** Le point `i` est celui qu'on déplace (il grossit), ou -1 : plus aucun. */
@@ -318,22 +326,8 @@ class ProfilGraphique {
     return { x: e.x(s), y: e.y(z) };
   }
 
-  /** Le point (s, z) où tombe le pixel (x, y) : celui du profil le plus proche s'il est à moins de 14 px, sinon la position du curseur. */
-  _accrocher(x, y) {
-    const d = this.d;
-    const e = this._echelles();
-    let meilleur = -1, dmin = 14 * 14;
-    for (const c of this._classes()) {
-      for (let k = this.debut[c]; k < this.debut[c + 1]; k++) {
-        const i = this.ordre[k];
-        if (!this._dedans(i)) continue;
-        const dx = e.x(d.s[i]) - x, dy = e.y(d.z[i]) - y;
-        const q = dx * dx + dy * dy;
-        if (q < dmin) { dmin = q; meilleur = i; }
-      }
-    }
-    return meilleur >= 0 ? { s: d.s[meilleur], z: d.z[meilleur] } : { s: e.s(x), z: e.z(y) };
-  }
+  /** Le point (s, z) où tombe le pixel : voir `accrocherProfil`. */
+  _accrocher(x, y) { return accrocherProfil(this, x, y); }
 
   /**
    * Un clic au pixel (x, y) du canevas : il s'accroche au point visible le plus
@@ -343,7 +337,8 @@ class ProfilGraphique {
    */
   clic(x, y) {
     if (!this.d || this.outil === 'deplacement') return;
-    const p = this._accrocher(x, y);
+    // Shift tenu : à angle droit du point précédent, sans accrochage au nuage (la ligne resterait de travers).
+    const p = this._surAxe({ x, y })?.point ?? this._accrocher(x, y);
     if (this.outil === 'reference') {
       // Un seul point à la fois : le clic suivant remplace le précédent.
       this.reference = p;
@@ -400,6 +395,8 @@ class ProfilGraphique {
       }
     }
     if (this.reference) dessinerReferenceProfil(ctx, e, m, this.reference);
+    const apercu = this.apercuDroit();
+    if (apercu) dessinerApercuDroitProfil(ctx, apercu);
     dessinerChaineProfil(ctx, this.mesure.map((p) => ({ x: e.x(p.s), y: e.y(p.z) })), this.saisi >= 0 ? this.saisi : this.survole, this.saisi >= 0);
     ctx.restore();
   }
@@ -520,6 +517,46 @@ function dessinerChaineProfil(ctx, pts, actif, saisi) {
   });
 }
 
+/** Le point (s, z) où tombe le pixel (x, y) : celui du profil le plus proche s'il est à moins de 14 px, sinon la position du curseur. */
+function accrocherProfil(g, x, y) {
+  const d = g.d;
+  const e = g._echelles();
+  let meilleur = -1, dmin = 14 * 14;
+  for (const c of g._classes()) {
+    for (let k = g.debut[c]; k < g.debut[c + 1]; k++) {
+      const i = g.ordre[k];
+      if (!g._dedans(i)) continue;
+      const dx = e.x(d.s[i]) - x, dy = e.y(d.z[i]) - y;
+      const q = dx * dx + dy * dy;
+      if (q < dmin) { dmin = q; meilleur = i; }
+    }
+  }
+  return meilleur >= 0 ? { s: d.s[meilleur], z: d.z[meilleur] } : { s: e.s(x), z: e.z(y) };
+}
+
+/** L'indice du point de la chaîne le plus proche du pixel (x, y), ou -1 : 10 px à la souris, 24 px au doigt. */
+function pointMesureProcheProfil(g, x, y, type) {
+  const rayon = type === 'touch' ? CONFIG.profil.saisieTactilePx : CONFIG.profil.saisiePx;
+  let meilleur = -1, dmin = rayon * rayon;
+  g.mesure.forEach((p, i) => {
+    const q = g.px(p.s, p.z);
+    const dd = (q.x - x) ** 2 + (q.y - y) ** 2;
+    if (dd <= dmin) { dmin = dd; meilleur = i; }
+  });
+  return meilleur;
+}
+
+/** L'aperçu de Shift + clic : un trait pointillé du point précédent à l'endroit où le point va tomber, et un petit anneau. */
+function dessinerApercuDroitProfil(ctx, { de, vers }) {
+  ctx.save();
+  ctx.setLineDash([5, 4]);
+  ctx.strokeStyle = 'rgba(255,210,74,0.9)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(de.x, de.y); ctx.lineTo(vers.x, vers.y); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath(); ctx.arc(vers.x, vers.y, 4, 0, 2 * Math.PI); ctx.stroke();
+  ctx.restore();
+}
+
 /** Les gestes sur le canevas : appui, déplacement, relâchement (clic ou glisser selon qu'on a bougé), molette. */
 function brancherGestesProfil(g, canvas) {
   const pos = (e) => {
@@ -542,6 +579,8 @@ function brancherGestesProfil(g, canvas) {
   });
   canvas.addEventListener('pointermove', (e) => {
     const p = pos(e);
+    g.suivre(p.x, p.y);
+    g.definirDroit(e.shiftKey);
     if (doigts.has(e.pointerId)) doigts.set(e.pointerId, p);
     if (g.pincement.enCours()) { if (doigts.size === 2) g.pincement.deplacement(...deuxDoigts()); return; }
     if (g.gesteur.enCours()) g.deplacerGeste(p.x, p.y);
@@ -549,6 +588,7 @@ function brancherGestesProfil(g, canvas) {
   });
   const lever = (e) => {
     const p = pos(e);
+    g.droit = e.shiftKey;   // l'état au moment du clic, pas celui du dernier mouvement
     const pince = g.pincement.enCours();
     doigts.delete(e.pointerId);
     // Le doigt resté après un pincement ne doit ni poser un point ni déplacer : il n'a plus de geste.
@@ -564,6 +604,10 @@ function brancherGestesProfil(g, canvas) {
   canvas.addEventListener('pointerleave', () => { if (!g.gesteur.enCours()) g.survoler(-1e6, -1e6); });
   // Un appui long (la saisie d'un point au doigt) ne doit pas ouvrir le menu du navigateur.
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  // Shift tenu sans bouger la souris : l'aperçu apparaît (seulement si le graphique est à l'écran).
+  const majShift = (e) => { if (e.key === 'Shift' && canvas.offsetParent !== null) g.definirDroit(e.type === 'keydown'); };
+  globalThis.addEventListener?.('keydown', majShift);   // absent dans les tests
+  globalThis.addEventListener?.('keyup', majShift);
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const p = pos(e);

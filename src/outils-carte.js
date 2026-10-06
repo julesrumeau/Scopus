@@ -11,7 +11,7 @@ function creerOutilsCarte({ carte, projVue, MESURE }) {
   // vérifier.
   const traceOutils = L.svg({ pane: 'outilsVue' });
   const versLatLng = (x, y) => { const w = projVue().versGeo(x, y); return [w.lat, w.lon]; };
-  let coucheSelection = null, coucheMesure = null;
+  let coucheSelection = null, coucheMesure = null, apercuDroit = null;
   const outils = {
     selection(p) {
       coucheSelection?.remove();
@@ -19,6 +19,11 @@ function creerOutilsCarte({ carte, projVue, MESURE }) {
         pane: 'outilsVue', renderer: traceOutils, radius: 7, color: '#fff', weight: 2, fillColor: '#ffd24a', fillOpacity: 1,
         className: 'marqueur-selection', interactive: false,
       }).addTo(carte.map) : null;
+    },
+    /** Shift + clic : le trait pointillé du point précédent à l'endroit où le point va tomber (`[de, vers]` en [lat, lon]) ; `null` l'efface. */
+    apercu(lls) {
+      apercuDroit?.remove();
+      apercuDroit = lls ? L.polyline(lls, { pane: 'outilsVue', renderer: traceOutils, color: '#ffd24a', weight: 1.5, dashArray: '5 5', className: 'apercu-droit', interactive: false }).addTo(carte.map) : null;
     },
     mesure(points) {
       coucheMesure?.remove();

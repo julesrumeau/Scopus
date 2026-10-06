@@ -136,4 +136,17 @@ function retirerPoint(points, i) {
   return i >= 0 && i < points.length ? points.filter((_, k) => k !== i) : points.slice();
 }
 
-const MESURE = { sommet, distances, segments, totaux, pente, tableauHtml, retirerPoint };
+/**
+ * Shift + clic : le point tombe sur l'axe, vertical ou horizontal, du repère (le point précédent de la chaîne).
+ * Dans l'espace de l'écran (pixels), là où la personne voit la ligne : l'axe retenu est celui où le curseur est le plus
+ * éloigné du repère, et l'autre coordonnée reste celle du repère. À égalité, l'horizontale.
+ * @returns {{x: number, y: number, axe: 'h' | 'v'}}
+ */
+function surAxe(repere, curseur) {
+  const horizontal = Math.abs(curseur.x - repere.x) >= Math.abs(curseur.y - repere.y);
+  return horizontal
+    ? { x: curseur.x, y: repere.y, axe: 'h' }
+    : { x: repere.x, y: curseur.y, axe: 'v' };
+}
+
+const MESURE = { surAxe, sommet, distances, segments, totaux, pente, tableauHtml, retirerPoint };
