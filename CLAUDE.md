@@ -742,6 +742,16 @@ validé contre acorn : 888 fonctions et classes, aucun écart) : une fonction ti
 doit être inscrite (`node test/taille-code.js --ecrire`) — le test échoue si la limite est restée plus lâche que le
 code. Le plan de découpage est dans `TODO.md`, « Dette de structure ».
 
+**Durée de `npm test`** (7 octobre 2026, 8 cœurs, 592 tests) : **15 à 16 s** de bout en bout (54 s de processeur : les fichiers
+tournent en parallèle). Le plus long, `vue-relief.test.js` (12,8 s seul), fixe à peu près la durée totale ; viennent ensuite
+`flux`, `relief`, `relief-travailleur` et `vue-relief-gpu` (4 à 5 s chacun). Les autres tiennent sous la seconde.
+
+**Test de fumée** (`npm run fumee`, `tools/fumee.js`, hors de `npm test`) : ouvre le vrai site dans Chromium et déroule accueil,
+exemple, boutons, mesure (tableau, export, glisser d'un point), profil (coupe, curseur jaune, export GeoJSON) et erreurs de console ;
+une dizaine de secondes, réseau IGN requis. Il accepte une adresse (`node tools/fumee.js https://julesrumeau.github.io/Scopus/`)
+pour contrôler le site publié. Dépendance **hors du dépôt** : `npm i --no-save playwright-core` et un Chromium (`CHROME`).
+Vérifié en cassant exprès un bouton (il échoue sur `#mode-profil`). À lancer avant chaque publication sur `main`.
+
 `.tmp/` (non versionné) : harnais à reconstruire au besoin — `pipeline.mjs`
 (pipeline hors navigateur sur données réelles), `selftest.html`, `run-browser.js`
 (Chrome headless, verdict par POST), `app2d.html` (parcours complet dans un
