@@ -332,6 +332,11 @@ d'arbres et de bâtiments sans QGIS. Conception :
   chaque point, retiré des blocs : inutile, la plage suffit au tag OSM (un
   contributeur l'a confirmé). Sans
   date publiée : « — », jamais une date inventée.
+  **Format du service changé (octobre 2026)** : la couche `IGNF_LIDAR-HD_METADONNEE:metadata` n'a plus de champ `metadata` en
+  JSON, les champs (`date_debut_acquisition`, `date_fin_acquisition`, `nombre_points`…) sont des **propriétés directes**, et les
+  dates portent un **Z final** (`2025-02-01Z`). Scopus lisait l'ancien format : « non publiée » partout (signalé sur le forum). Les
+  deux formats sont lus (`champ()` dans `ign.js`), le Z est accepté (`formaterAcquisition`). **Le test de fumée ne le voit pas** :
+  contrôler à la main ce que renvoie le WFS (`node` + `fetch`) quand une donnée IGN disparaît.
 
 ## La carte
 
