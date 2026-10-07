@@ -11,7 +11,7 @@ const CONSIGNES_OUTIL = {
 };
 
 function creerProfilUI(d) {
-  const { $, carte, traceOutils, versLatLng, projVue, majLien, relief, flux, classesMasquees,
+  const { $, exportMesure, carte, traceOutils, versLatLng, projVue, majLien, relief, flux, classesMasquees,
     milliers, NOMS_CLASSES } = d;
 
   // ── Le profil : choisir la bande ── deux points A et B (coordonnées locales de la vue) et une largeur, dessinés
@@ -192,7 +192,9 @@ function creerProfilUI(d) {
   profil.outil = 'mesure';
 
   function majOutilsProfil() {
-    for (const b of document.querySelectorAll('#dlg-profil [data-outil]')) {
+    exportMesure.lier('profil-mesure-exporter', () => PROFIL.pointsLocaux(profil.A, profil.B, graphique ? graphique.mesure : [], profil.ecart));
+
+  for (const b of document.querySelectorAll('#dlg-profil [data-outil]')) {
       const actif = b.dataset.outil === profil.outil;
       b.classList.toggle('actif', actif);
       b.setAttribute('aria-pressed', String(actif));

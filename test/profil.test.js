@@ -195,3 +195,12 @@ test('ecartDepuisCurseur / curseurDepuisEcart : le curseur jaune suit l’échel
   assert.equal(P.ecartBorne(-8, 10), -5);
   assert.equal(P.ecartBorne(2, 10), 2);
 });
+
+test('pointsLocaux : la chaîne du profil en points de la mesure, sur l’axe décalé de d, avec l’altitude lue au graphique', () => {
+  const { PROFIL } = chargerScripts(['config.js', 'profil.js']);
+  const A = [0, 0], B = [100, 0];
+  const pts = PROFIL.pointsLocaux(A, B, [{ s: 10, z: 300.5 }, { s: 40, z: 312 }], 2);
+  assert.equal(JSON.stringify(pts), JSON.stringify([{ x: 10, y: 2, sol: 300.5, hauteur: 0 }, { x: 40, y: 2, sol: 312, hauteur: 0 }]));
+  assert.equal(JSON.stringify(PROFIL.pointsLocaux(A, B, [], 0)), '[]');
+  assert.equal(JSON.stringify(PROFIL.pointsLocaux(A, A, [{ s: 1, z: 1 }], 0)), '[]', 'axe nul : aucune position');
+});

@@ -321,7 +321,7 @@ d'arbres et de bâtiments sans QGIS. Conception :
   `<label>` : elle deviendrait le contrôle du label.
   **Son texte est à réviser** si un sol comblé (TODO R7) arrive.
 - Pas de hauteur automatique (la valeur d'une cime et du sol se lit sur le
-  graphique), pas de profil en 3D, pas d'export.
+  graphique), pas de profil en 3D, pas d'export du nuage (la mesure s'exporte, voir plus bas).
 - **La date d'acquisition se lit dans « Point sélectionné »**, pas dans le
   profil : on y sélectionne le point (l'arbre), et la fiche donne ses
   coordonnées, ses boutons « ouvrir ailleurs » et la **plage de vol de la dalle
@@ -436,8 +436,9 @@ l'ellipsoïde) elle diffère de ~50 m en France. **Piège (7 octobre 2026)** : u
 sans étiquette s'écrit donc auto-fermé (`<node ... />`, comme JOSM), de même un `<trkpt ... />` ; un test l'impose.
 Contrôles faits : GPX valide au schéma officiel 1.1, GeoJSON valide à la RFC 7946 (`check-geojson`), `.osm` lu par
 `osm2geojson-lite` et `osmtogeojson`. Vérifié par les analyseurs JSON et XML de Python sur des fichiers
-téléchargés du navigateur ; **ouverture dans JOSM non essayée** (pas de JOSM ici). Le profil n'a **pas** d'export : un
-point `(s, z)` n'a pas de position précise dans la largeur de la bande (voir TODO, R18).
+téléchargés du navigateur ; **ouverture dans JOSM non essayée** (pas de JOSM ici). **La mesure du profil s'exporte avec la même fenêtre** (`creerExportMesure(...).lier(idBouton, points)`, une fenêtre et plusieurs
+boutons) : `PROFIL.pointsLocaux` donne les points sur l'axe décalé de l'écart du curseur jaune, l'altitude est celle lue au
+graphique (jamais de sursol). Le profil lui-même (nuage de la coupe) n'a pas d'export.
 
 ## Rendu à la demande
 
