@@ -225,7 +225,7 @@ function expliquer(e) {
   }
   if (/HTTP 429/.test(m)) {
     return 'L’IGN limite le nombre de requêtes et vient de refuser les nôtres. '
-      + 'Attendez une minute avant de relancer — une résolution plus grossière en demande moins.';
+      + 'Attendez une minute avant de relancer : une résolution plus grossière en demande moins.';
   }
   if (/HTTP 5\d\d/.test(m)) {
     return 'Le service de l’IGN est en difficulté (erreur serveur). '
@@ -239,7 +239,7 @@ function expliquer(e) {
       + 'Rien à faire de votre côté : vous pouvez réessayer d’ici quelques minutes.';
   }
   if (/Failed to fetch|NetworkError|network error|Load failed/i.test(m)) {
-    return 'La connexion à data.geopf.fr a échoué. Vérifiez votre réseau — '
+    return 'La connexion à data.geopf.fr a échoué. Vérifiez votre réseau : '
       + 'un bloqueur de contenu ou un VPN peut aussi couper l’accès.';
   }
   return m;

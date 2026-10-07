@@ -15,6 +15,11 @@ la photo aérienne : cabanes, ruines, sentiers, terrasses s'y lisent à l'œil.
 
 Aucune détection automatique : l'œil lit le relief (voir « Détection retirée »).
 
+**Convention d'écriture** : **pas de tiret cadratin** (le long tiret) dans ce qui est écrit pour la personne : texte de
+l'interface, messages d'erreur, aide, README, messages de commit, réponses. Le remplacer par deux-points, virgule,
+point ou parenthèses. Une valeur inconnue s'écrit « n/d » (jamais un tiret seul). Un test garde `index.html` ; les chaînes des scripts
+suivent la règle par relecture. Les anciens commentaires de code en contiennent encore : on ne les réécrit pas en bloc.
+
 ---
 
 ## Contraintes structurantes

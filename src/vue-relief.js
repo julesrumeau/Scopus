@@ -454,7 +454,7 @@ function fabriqueVueRelief() {
       const larg = PROFIL.largeurValide(largeur);
       const emprise = PROFIL.emprise(a, b, larg);
       const dedans = [...blocs].filter(([cle, bl]) => (!actifs || actifs.has(cle)) && VUE_GRILLE.coupe(bl.emprise, { emprise }));
-      if (!dedans.length) return { raison: 'Aucun point chargé ici — zoomez sur la zone.' };
+      if (!dedans.length) return { raison: 'Aucun point chargé ici : zoomez sur la zone.' };
       const ax0 = Math.round(a[0] * 100), ay0 = Math.round(a[1] * 100);
       const longCm = ax.longueur * 100, demiCm = larg * 50;
       // Sur une oblique, s et l'écart latéral ne sont pas exacts en flottant : un point pile sur le bord tombe à ~1e-13 cm
@@ -479,7 +479,7 @@ function fabriqueVueRelief() {
       };
       let total = 0;
       pourChaque(() => { total++; });
-      if (!total) return { raison: 'Aucun point dans la bande — zoomez, ou élargissez-la.' };
+      if (!total) return { raison: 'Aucun point dans la bande : zoomez, ou élargissez-la.' };
       const taux = Math.min(1, budget / total);
       const cap = Math.min(total, Math.ceil(budget * 1.05) + 1000);
       const S = new Float32Array(cap), Z = new Float32Array(cap), D = new Float32Array(cap), C = new Uint8Array(cap);

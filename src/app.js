@@ -89,7 +89,7 @@ try {
   $('onglet-3d').title = 'Cet appareil ou ce navigateur ne fournit pas WebGL2';
   $('sans-webgl').hidden = false;
   $('sans-webgl-detail').textContent = e.message;
-  statut('Nuage 3D indisponible — la carte et la vue 2D fonctionnent', 'erreur');
+  statut('Nuage 3D indisponible : la carte fonctionne', 'erreur');
 }
 
 // ── Le curseur ──────────────────────────────────────────────────────────────

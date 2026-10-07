@@ -8,7 +8,7 @@ function creerCatalogueVue({ RELIEF, FONDS_OSM, protocole }) {
   const OMBRAGE_RGB = 'ombrage-rgb';
   const couches = [
     ...RELIEF.COUCHES.map((c) => ({ cle: c.cle, libelle: c.libelle, aide: c.aide })),
-    { cle: OMBRAGE_RGB, libelle: 'Ombrage coloré (3 soleils)', aide: 'Trois soleils à 120°, un par canal — l’orientation d’un mur ou d’un talus se lit en teinte, là où « Ombrage » l’aplatit dans une moyenne grise.' },
+    { cle: OMBRAGE_RGB, libelle: 'Ombrage coloré (3 soleils)', aide: 'Trois soleils à 120°, un par canal : l’orientation d’un mur ou d’un talus se lit en teinte, là où « Ombrage » l’aplatit dans une moyenne grise.' },
   ];
   // Ce qui n'est pas du relief : la carte telle qu'affichée, et les fonds posés dans le côté même — la carte
   // n'a qu'un fond à la fois, et ainsi un côté peut montrer la photo et l'autre le plan.

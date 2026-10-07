@@ -109,11 +109,11 @@ function tableauHtml(points) {
   const segs = segments(points);
   if (!segs.length) return '';
   const lettre = (i) => (i < 26 ? String.fromCharCode(65 + i) : String(i + 1));
-  const m = (v) => (v == null ? '—' : `${v.toFixed(1)} m`);
-  const signe = (v) => (v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(1)} m`);
+  const m = (v) => (v == null ? 'n/d' : `${v.toFixed(1)} m`);
+  const signe = (v) => (v == null ? 'n/d' : `${v >= 0 ? '+' : ''}${v.toFixed(1)} m`);
   const penteTexte = (sg) => {
     const p = pente(sg.horizontale, sg.denivele);
-    return p == null ? '—' : `${p >= 0 ? '+' : ''}${p.toFixed(1)} %`;
+    return p == null ? 'n/d' : `${p >= 0 ? '+' : ''}${p.toFixed(1)} %`;
   };
   const { totaleHorizontale, totale3D } = totaux(segs);
   const rangees = segs.map((s, i) => `<tr>

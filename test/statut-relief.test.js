@@ -40,14 +40,14 @@ test('aucune couche de relief affichée', () => {
 
 test('des dalles en échec : le nombre (au pluriel s’il le faut), la raison, et le genre « erreur »', () => {
   const un = dire({ e: { echecs: 1, erreur: 'réseau' } });
-  assert.equal(un.texte, '1 dalle en échec, réessai en cours — réseau');
+  assert.equal(un.texte, '1 dalle en échec, réessai en cours : réseau');
   assert.equal(un.genre, 'erreur');
-  assert.equal(dire({ e: { echecs: 2, erreur: 'x' } }).texte, '2 dalles en échec, réessai en cours — x');
+  assert.equal(dire({ e: { echecs: 2, erreur: 'x' } }).texte, '2 dalles en échec, réessai en cours : x');
 });
 
 test('une erreur du calcul du relief passe avant « à jour », et le genre est « erreur »', () => {
   const r = dire({ erreurRelief: 'boom' });
-  assert.equal(r.texte, 'Le relief n’a pas pu être calculé — boom');
+  assert.equal(r.texte, 'Le relief n’a pas pu être calculé : boom');
   assert.equal(r.genre, 'erreur');
 });
 
@@ -62,7 +62,7 @@ test('diagnostic : le détail chiffré', () => {
 
 test('diagnostic, trop large : la surface et le seuil', () => {
   const r = dire({ diagnostic: true, texteRelief: '', e: { tropLarge: true, surfaceKm2: 120.4 } });
-  assert.equal(r.texte, 'Flux : 120 km² affichés, trop pour les points (seuil 60 km²) — zoomez');
+  assert.equal(r.texte, 'Flux : 120 km² affichés, trop pour les points (seuil 60 km²) : zoomez');
 });
 
 test('la ligne d’état du panneau : blocs attendus, au pluriel s’il le faut ; vide si trop large', () => {

@@ -408,6 +408,13 @@ button:disabled { opacity: 0.42; cursor: not-allowed; }
 
 .rangee { display: flex; gap: 8px; margin-top: 8px; }
 .rangee .primaire { flex: 1; }
+/* Les actions de la mesure (carte et profil) : compactes, sur une ligne si elles tiennent, à la ligne sinon, jamais étirées. */
+#mesure-actions, #profil-mesure-actions { flex-wrap: wrap; }
+#mesure-actions button, #profil-mesure-actions button { flex: none; padding: 5px 10px; font-size: 12.5px; }
+/* Les fenêtres d'export : des boutons de taille normale, à droite, pas un bouton sur toute la largeur. */
+#dlg-export .rangee, #dlg-export-mesure .rangee { justify-content: flex-end; margin-top: 14px; }
+#dlg-export .rangee .primaire, #dlg-export-mesure .rangee .primaire { flex: none; width: auto; padding: 7px 18px; }
+#dlg-export .rangee button, #dlg-export-mesure .rangee button { font-size: 13px; padding-top: 7px; padding-bottom: 7px; }
 .exports button { flex: 1; padding: 7px; font-size: 12.5px; }
 
 .champ { display: block; margin-bottom: 11px; font-size: 12.5px; }
