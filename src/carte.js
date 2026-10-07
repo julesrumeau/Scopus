@@ -126,7 +126,7 @@ class Carte {
     this._avisZoom = L.control({ position: 'bottomleft' });
     this._avisZoom.onAdd = () => {
       const d = L.DomUtil.create('div', 'avis-zoom');
-      d.textContent = `Zoom maximal — les images de l'IGN s'arrêtent au niveau `
+      d.textContent = `Zoom maximal : les images de l'IGN s'arrêtent au niveau `
         + `${CONFIG.carte.zoomTuilesMax} : la vue est agrandie, pas plus détaillée.`;
       return d;
     };

@@ -161,3 +161,10 @@ test('à 601–900 px, le panneau latéral commence sous la barre des onglets et
   assert.match(top, /calc\(46px \+ var\(--hauteur-barre\)\)/, `top = ${top}`);
   assert.match(css, /--hauteur-barre:\s*46px/, 'la hauteur de la barre est une variable');
 });
+
+test('le texte visible d’index.html ne contient aucun tiret cadratin (convention de l’interface)', () => {
+  // Hors commentaires HTML : seul ce que la personne lit compte. Les messages des scripts suivent la même règle (revue à la main).
+  const html = readFileSync(fileURLToPath(new URL('index.html', RACINE)), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+  const lignes = html.split('\n').filter((l) => l.includes('—')).map((l) => l.trim().slice(0, 80));
+  assert.deepEqual(lignes, []);
+});

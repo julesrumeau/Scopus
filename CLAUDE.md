@@ -15,6 +15,11 @@ la photo aérienne : cabanes, ruines, sentiers, terrasses s'y lisent à l'œil.
 
 Aucune détection automatique : l'œil lit le relief (voir « Détection retirée »).
 
+**Convention d'écriture** : **pas de tiret cadratin** (le long tiret) dans ce qui est écrit pour la personne : texte de
+l'interface, messages d'erreur, aide, README, messages de commit, réponses. Le remplacer par deux-points, virgule,
+point ou parenthèses. Une valeur inconnue s'écrit « n/d » (jamais un tiret seul). Un test garde `index.html` ; les chaînes des scripts
+suivent la règle par relecture. Les anciens commentaires de code en contiennent encore : on ne les réécrit pas en bloc.
+
 ---
 
 ## Contraintes structurantes
@@ -406,6 +411,25 @@ ou une altitude inconnue ; pas de pente totale (même raison que le dénivelé).
 Cinq colonnes ne tiennent pas dans 340 px sans resserrer les cellules (requête
 de conteneur CSS sur `.mesure-scroll`). `definirMesure` des
 deux vues prend un tableau. Pas de lettres sur les marqueurs (atlas de glyphes disproportionné).
+
+### Export de la mesure de la carte
+
+Bouton « Exporter… » sous le tableau (`export-mesure.js` pur et testé, `export-mesure-ui.js` la fenêtre) : **GeoJSON**
+(par défaut), **GPX** ou **OSM XML**, avec une case **« Avec l'altitude du sol », décochée par défaut** (par défaut : seulement
+longitude et latitude). Le GeoJSON porte une `LineString` et un `Point` par sommet nommé A, B, C… (`[lon, lat]`, ordre
+de la RFC 7946) ; le GPX un `trk` d'un `trkseg` ; le `.osm` un nœud par sommet à **identifiant négatif** (objets nouveaux)
+et un way, `upload='false'`, **sans aucun nom ni étiquette inventée** (un `name=A` polluerait OpenStreetMap). Avec la
+case cochée : `ele` = le **sol** (jamais le sommet), et `height` / une propriété quand un sursol est mesuré. **Une altitude
+n'est jamais écrite à moitié** : si un point n'en a pas, la case est grisée et le dit, comme `totale3D`. Coordonnées au
+centimètre (7 décimales), fichier `scopus-mesure-AAAA-MM-JJ.<ext>`. **Réserve** (dite dans la fenêtre) : l'altitude est
+celle du LiDAR HD (NGF, niveau de la mer) : bonne pour `ele` d'OSM et le GPX ; au sens strict du GeoJSON (hauteur sur
+l'ellipsoïde) elle diffère de ~50 m en France. **Piège (7 octobre 2026)** : uMap lit le `.osm` avec `osm2geojson` (et non `osmtogeojson`), dont l'analyseur ne tire
+**rien** d'un nœud vide à balise fermante (`<node ...></node>`, message « No data has been found for import ») ; un nœud
+sans étiquette s'écrit donc auto-fermé (`<node ... />`, comme JOSM), de même un `<trkpt ... />` ; un test l'impose.
+Contrôles faits : GPX valide au schéma officiel 1.1, GeoJSON valide à la RFC 7946 (`check-geojson`), `.osm` lu par
+`osm2geojson-lite` et `osmtogeojson`. Vérifié par les analyseurs JSON et XML de Python sur des fichiers
+téléchargés du navigateur ; **ouverture dans JOSM non essayée** (pas de JOSM ici). Le profil n'a **pas** d'export : un
+point `(s, z)` n'a pas de position précise dans la largeur de la bande (voir TODO, R18).
 
 ## Rendu à la demande
 

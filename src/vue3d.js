@@ -39,7 +39,7 @@ class Vue3D {
       depthStencil: false,
       powerPreference: 'high-performance',
     });
-    if (!gl) throw new Error("WebGL2 indisponible — Scopus a besoin d'un navigateur récent.");
+    if (!gl) throw new Error("WebGL2 indisponible : Scopus a besoin d'un navigateur récent.");
     this.gl = gl;
 
     this.progPoints = GL.program(gl, SHADERS.pointsVS, SHADERS.pointsFS);

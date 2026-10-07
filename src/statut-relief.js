@@ -18,8 +18,8 @@ const STATUT_RELIEF = (() => {
     const genre = e.echecs || erreurRelief ? 'erreur' : e.attente ? 'travail' : undefined;
     if (!diagnostic) {
       const texte = sansLidar || (e.tropLarge && reliefAffiche ? 'Zoomez pour calculer le relief'
-        : e.echecs ? `${pluriel(e.echecs, 'dalle')} en échec, réessai en cours — ${e.erreur}`
-          : erreurRelief ? `Le relief n’a pas pu être calculé — ${erreurRelief}`
+        : e.echecs ? `${pluriel(e.echecs, 'dalle')} en échec, réessai en cours : ${e.erreur}`
+          : erreurRelief ? `Le relief n’a pas pu être calculé : ${erreurRelief}`
             : !reliefAffiche ? 'Aucune couche de relief affichée'
               : e.attente && lenteIGN ? 'Chargement ralenti'
               : e.attente ? 'Relief en cours d’affinage…'
@@ -27,10 +27,10 @@ const STATUT_RELIEF = (() => {
       return { texte, genre };
     }
     const flux = e.tropLarge
-      ? `Flux : ${e.surfaceKm2.toFixed(0)} km² affichés, trop pour les points (seuil ${surfaceMaxKm2} km²) — zoomez`
+      ? `Flux : ${e.surfaceKm2.toFixed(0)} km² affichés, trop pour les points (seuil ${surfaceMaxKm2} km²) : zoomez`
       : `Flux : ${e.surfaceKm2.toFixed(1)} km² · ${e.dallesOuvertes} dalles · ${e.charges} blocs · ${milliers(e.points)} points`
         + (e.attente ? ` · ${e.attente} en attente` : '')
-        + (e.echecs ? ` · ${pluriel(e.echecs, 'dalle')} en échec, réessai en cours — ${e.erreur}` : '');
+        + (e.echecs ? ` · ${pluriel(e.echecs, 'dalle')} en échec, réessai en cours : ${e.erreur}` : '');
     return {
       texte: sansLidar ? `Flux : ${sansLidar}` : flux + (texteRelief ? ` · ${texteRelief}` : ''),
       genre: e.echecs ? 'erreur' : e.attente ? 'travail' : undefined,

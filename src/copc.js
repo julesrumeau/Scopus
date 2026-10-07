@@ -34,7 +34,7 @@ async function lireEntete(url, signal) {
   const versionMajeure = dv.getUint8(24);
   const versionMineure = dv.getUint8(25);
   if (versionMajeure !== 1 || versionMineure < 4) {
-    throw new Error(`LAS ${versionMajeure}.${versionMineure} non géré — COPC impose LAS 1.4`);
+    throw new Error(`LAS ${versionMajeure}.${versionMineure} non géré : COPC impose LAS 1.4`);
   }
 
   const tailleEntete = dv.getUint16(94, true);
@@ -89,7 +89,7 @@ async function lireEntete(url, signal) {
     p = q + longueur;
   }
 
-  if (!info) throw new Error("VLR « copc info » introuvable — le fichier n'est pas un COPC");
+  if (!info) throw new Error("VLR « copc info » introuvable : le fichier n'est pas un COPC");
   entete.copc = info;
   return entete;
 }
@@ -319,7 +319,7 @@ function situerParTableDesBlocs(octets, dv, finRecherche, lu) {
  */
 function lireEnteteLot(octets) {
   if (String.fromCharCode(octets[0], octets[1], octets[2], octets[3]) !== 'LASF') {
-    throw new Error("En-tête LAS absent — le fichier n'est pas un LAS/LAZ");
+    throw new Error("En-tête LAS absent : le fichier n'est pas un LAS/LAZ");
   }
   const dv = new DataView(octets.buffer, octets.byteOffset, octets.byteLength);
   return {

@@ -63,7 +63,7 @@ function creerProfilUI(d) {
     // La part « glissez A ou B » est masquée sur écran bas (`.profil-conseil`) : la fenêtre n'y tient qu'en une ligne.
     $('profil-consigne').innerHTML = !profil.A ? 'Cliquez le premier point sur la carte.'
       : !profil.B ? 'Cliquez le second point.'
-      : v.ok ? `Axe de ${Math.round(PROFIL.axe(profil.A, profil.B).longueur)} m<span class="profil-conseil"> — glissez A ou B pour l’ajuster.</span>`
+      : v.ok ? `Axe de ${Math.round(PROFIL.axe(profil.A, profil.B).longueur)} m<span class="profil-conseil"> Glissez A ou B pour l’ajuster.</span>`
       : v.raison;
     $('profil-valider').disabled = !(v && v.ok);
     $('profil-effacer').disabled = !profil.A;
@@ -164,7 +164,7 @@ function creerProfilUI(d) {
     $('profil-mesure-detail').hidden = !chaine.length;
     $('profil-mesure-actions').hidden = !chaine.length;
     $('profil-mesure-detail').innerHTML = chaine.length < 2
-      ? '<p class="vide">Point A posé — cliquez un second point pour mesurer.</p>'
+      ? '<p class="vide">Point A posé. Cliquez un second point pour mesurer.</p>'
       : MESURE.tableauHtml(chaine);
   }
 
@@ -221,7 +221,7 @@ function creerProfilUI(d) {
     const avis = [];
     if (r.plafonne) avis.push('échantillon : plafond de points atteint');
     if (r.longueur > CONFIG.profil.longueurAvertM) avis.push('bande longue : la densité dépend du zoom');
-    if (densite < CONFIG.profil.densiteMinPtsM2) avis.push('peu de points — zoomez sur la zone puis revalidez');
+    if (densite < CONFIG.profil.densiteMinPtsM2) avis.push('peu de points : zoomez sur la zone puis revalidez');
     return `${milliers(r.n)} points · ${Math.round(r.longueur)} m × ${r.largeur} m · ≈ ${densite.toFixed(1)} pt/m²`
       + (avis.length ? ` · ${avis.join(' · ')}` : '');
   }
@@ -246,7 +246,7 @@ function creerProfilUI(d) {
       r = await relief.profil(profil.A, profil.B, profil.largeur, CONFIG.profil.budgetPoints, [...flux.voulues()]);
     } catch (err) {
       console.error(err);
-      if (num === profil.numero) $('profil-etat').textContent = `Le profil n’a pas pu être calculé — ${err.message}`;
+      if (num === profil.numero) $('profil-etat').textContent = `Le profil n’a pas pu être calculé : ${err.message}`;
       return;
     }
     if (num !== profil.numero) return;   // un calcul plus récent a pris la suite

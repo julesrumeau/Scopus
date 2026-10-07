@@ -120,10 +120,10 @@ test('tableauHtml — sous deux points, rien à tabuler', () => {
   assert.equal(MESURE.tableauHtml([{ x: 0, y: 0, sol: 1 }]), '');
 });
 
-test('tableauHtml — une altitude inconnue s’écrit « — », jamais un nombre inventé', () => {
+test('tableauHtml — une altitude inconnue s’écrit « n/d », jamais un nombre inventé', () => {
   const h = MESURE.tableauHtml([{ x: 0, y: 0, sol: null }, { x: 3, y: 4, sol: 10 }]);
   assert.match(h, /5\.0 m/);
-  assert.match(h, /—/);
+  assert.match(h, /n\/d/);
 });
 
 // ── La pente d'un segment (R1) ───────────────────────────────────────────────
@@ -168,10 +168,10 @@ test('tableauHtml — une colonne « Pente » en pourcentage, signée', () => {
   assert.ok(h.indexOf('Dénivelé') < h.indexOf('Pente') && h.indexOf('Pente') < h.indexOf('<th>3D</th>'));
 });
 
-test('tableauHtml — une pente impossible s’écrit « — » dans sa cellule', () => {
+test('tableauHtml — une pente impossible s’écrit « n/d » dans sa cellule', () => {
   // Deux points au même endroit, à deux altitudes : horizontale nulle.
   const h = MESURE.tableauHtml([{ x: 0, y: 0, sol: 100, hauteur: 0 }, { x: 0, y: 0, sol: 110, hauteur: 0 }]);
-  assert.match(h, /<td>\+10\.0 m<\/td>\s*<td>—<\/td>/);
+  assert.match(h, /<td>\+10\.0 m<\/td>\s*<td>n\/d<\/td>/);
 });
 
 test('tableauHtml — chaque segment a sa croix : elle retire le point d’arrivée (B, C…), son indice dans la chaîne', () => {

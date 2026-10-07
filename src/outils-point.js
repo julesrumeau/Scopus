@@ -66,11 +66,11 @@ function creerOutilsPoint(d) {
       const dl = liaisons.dalleAuPoint(x, y);
       const date = dl && IGN.formaterAcquisition(dl.dateDebutAcquisition, dl.dateAcquisition);
       const code = /_(\d{4}_\d{4})_/.exec(dl?.nom || '')?.[1];
-      acquisition = (date || '—') + (code ? `\ndalle ${code}` : '');
+      acquisition = (date || 'non publiée') + (code ? `\ndalle ${code}` : '');
     }
     $('detail-selection').innerHTML = ligneDetail('Longitude', `${lon.toFixed(6)}°`)
       + ligneDetail('Latitude', `${lat.toFixed(6)}°`)
-      + ligneDetail('Altitude', sommetPoint == null ? '—' : `${sommetPoint.toFixed(1)} m`)
+      + ligneDetail('Altitude', sommetPoint == null ? 'inconnue' : `${sommetPoint.toFixed(1)} m`)
       + (hauteur > 0.05 ? ligneDetail('Hauteur au-dessus du sol', `+${hauteur.toFixed(2)} m`) : '')
       + (acquisition != null ? ligneDetail('Acquisition', acquisition) : '');
     $('selection-liens').hidden = false;
@@ -123,7 +123,7 @@ function creerOutilsPoint(d) {
     if (!texte) return;
 
     const p = PROJ.depuisTexte(texte);
-    if (!p) { alerter('Coordonnées non reconnues — attendu « latitude, longitude ».'); return; }
+    if (!p) { alerter('Coordonnées non reconnues : attendu « latitude, longitude ».'); return; }
     const terr = PROJ.territoireAuPoint(p.lon, p.lat);
     if (!terr) {
       alerter('Ces coordonnées sont hors des territoires couverts par le LiDAR HD.');
@@ -177,7 +177,7 @@ function creerOutilsPoint(d) {
     $('mesure-actions').hidden = false;
 
     if (pointsMesure.length < 2) {
-      $('detail-mesure').innerHTML = '<p class="vide">Point A posé — cliquez un second point pour mesurer.</p>';
+      $('detail-mesure').innerHTML = '<p class="vide">Point A posé. Cliquez un second point pour mesurer.</p>';
       $('detail-mesure').hidden = false;
       return;
     }
@@ -231,13 +231,14 @@ function creerOutilsPoint(d) {
     if (!vue3d) return;
     const viser = (action) => (rayon) => {
       const pt = viserPoint3D(rayon);
-      if (!pt) { statut('Aucun terrain sous ce point — visez le nuage', 'erreur'); return; }
+      if (!pt) { statut('Aucun terrain sous ce point : visez le nuage', 'erreur'); return; }
       action(pt);
     };
     vue3d.onSelectionPoint = viser((pt) => afficherSelection(pt.x, pt.y, pt.sol, pt.hauteur));
     vue3d.onPointMesure = viser((pt) => ajouterPointMesure(pt.x, pt.y, pt.sol, pt.hauteur));
   }
   brancher3D();
+  creerExportMesure({ $, points: () => pointsMesure, projVue, telecharger: SORTIE.telecharger });
 
   /**
    * Shift + clic en mesure : le point tombe sur la verticale ou l'horizontale (de l'écran) du point précédent. `pixel` :

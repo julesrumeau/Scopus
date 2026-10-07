@@ -796,7 +796,7 @@ const COUCHES = [
     cle: 'microrelief',
     ancrage: 'centre',
     libelle: 'Micro-relief',
-    aide: 'MNT moins MNT lissé. Efface le versant, garde ce qui dépasse ou creuse — talus, terrasses, chemins creux.',
+    aide: 'MNT moins MNT lissé. Efface le versant, garde ce qui dépasse ou creuse : talus, terrasses, chemins creux.',
     calculer: (t, p) => microRelief(t, p.rayonMicroReliefM, p),
     etendue: (v) => { const e = dispersion(v) * 3; return [-e, e]; },
     palette: 'divergent',

@@ -67,7 +67,7 @@ function creerNuage3D(d) {
       await majAttributNuage();
     } catch (err) {
       console.error(err);
-      avis3D(`Le nuage 3D n’a pas pu être construit — ${err.message}`);
+      avis3D(`Le nuage 3D n’a pas pu être construit : ${err.message}`);
     }
   }
 

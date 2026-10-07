@@ -32,7 +32,7 @@ function creerRechercheLieu({ $, IGN, carte, statut, alerter, alerterPanne }) {
         liste.appendChild(li);
       }
       liste.hidden = false;
-      statut(`${lieux.length} lieux — choisissez`);
+      statut(`${lieux.length} lieux : choisissez`);
     } catch (e) {
       if (e.name !== 'AbortError') alerterPanne('Recherche', e);
     }
