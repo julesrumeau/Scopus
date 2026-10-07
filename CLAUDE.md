@@ -420,6 +420,13 @@ Cinq colonnes ne tiennent pas dans 340 px sans resserrer les cellules (requête
 de conteneur CSS sur `.mesure-scroll`). `definirMesure` des
 deux vues prend un tableau. Pas de lettres sur les marqueurs (atlas de glyphes disproportionné).
 
+**Déplacer un point de la mesure sur la carte** (7 octobre 2026) : chaque point est un `L.marker` à icône `divIcon` glissable
+(`creerOutilsCarte`, `poserMarqueur`), saisi **seulement en mode Mesure** (classe `mode-mesure` sur `#vue-carte`, `pointer-events`
+coupé sinon : en Déplacement on fait glisser la carte). Pendant le glissé, `trace()` redessine le trait et les distances sans
+refaire les marqueurs (`MESURE.deplacerPoint` : altitude inconnue, « n/d » au tableau) ; au lâcher, l'altitude se **relit** dans la
+vue calculée (`MESURE.poserLecture`, ignorée si le point a été retiré entre-temps). Pas de Maj ni d'accrochage au glissé ; la chaîne du
+profil dessinée sur la carte n'est pas déplaçable.
+
 ### Export de la mesure de la carte
 
 Bouton « Exporter… » sous le tableau (`export-mesure.js` pur et testé, `export-mesure-ui.js` la fenêtre) : **GeoJSON**

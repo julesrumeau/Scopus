@@ -136,6 +136,16 @@ function retirerPoint(points, i) {
   return i >= 0 && i < points.length ? points.filter((_, k) => k !== i) : points.slice();
 }
 
+/** La chaîne dont le point `i` est déplacé en (x, y) : son altitude n'est plus connue (elle se relit à l'arrivée, `poserLecture`). */
+function deplacerPoint(points, i, x, y) {
+  return points.map((p, k) => (k === i ? { x, y, sol: null, hauteur: 0 } : p));
+}
+
+/** La chaîne dont le point `p` (le même objet) reçoit l'altitude `lu` ({ altitude, hauteur }, ou `null`) ; telle quelle si `p` n'y est plus. */
+function poserLecture(points, p, lu) {
+  return points.map((q) => (q === p ? { x: p.x, y: p.y, sol: lu?.altitude ?? null, hauteur: lu?.hauteur ?? 0 } : q));
+}
+
 /**
  * Shift + clic : le point tombe sur l'axe, vertical ou horizontal, du repère (le point précédent de la chaîne).
  * Dans l'espace de l'écran (pixels), là où la personne voit la ligne : l'axe retenu est celui où le curseur est le plus
@@ -149,4 +159,4 @@ function surAxe(repere, curseur) {
     : { x: repere.x, y: curseur.y, axe: 'v' };
 }
 
-const MESURE = { surAxe, sommet, distances, segments, totaux, pente, tableauHtml, retirerPoint };
+const MESURE = { surAxe, sommet, distances, segments, totaux, pente, tableauHtml, retirerPoint, deplacerPoint, poserLecture };

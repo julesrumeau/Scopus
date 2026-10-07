@@ -37,6 +37,7 @@ function creerOutilsPoint(d) {
     // comme en mesure.
     $('canvas3d').classList.toggle('mode-vise', mode !== 'deplacement');
     $('vue-carte').classList.toggle('mode-vise', mode !== 'deplacement');
+    $('vue-carte').classList.toggle('mode-mesure', mode === 'mesure');   // les points de la mesure ne se saisissent qu'ici
   }
   for (const m of ['deplacement', 'selection', 'mesure', 'profil']) $(`mode-${m}`).addEventListener('click', () => definirModeInteraction(m));
 
@@ -150,10 +151,8 @@ function creerOutilsPoint(d) {
     return vue3d.pointDuNuage(rayon, d.classesMasquees());
   }
 
-  // ── Mesure en chaîne : comme l'outil de mesure de QGIS, chaque clic ajoute un point (A, B, C…) ; un segment par
-  // ligne du tableau, le total en pied : l'horizontale et la 3D, **jamais le dénivelé** (signé et sommé, il ne dit que
-  // l'écart net). Retirer le dernier point (Retour arrière, Suppr), ou n'importe lequel (la croix du tableau) ;
-  // Effacer repart de zéro. Rien n'est enregistré comme objet : une lecture à l'écran, donc rien à « terminer ».
+  // ── Mesure en chaîne : chaque clic ajoute un point, un segment par ligne du tableau, total en pied (horizontale et 3D,
+  // **jamais le dénivelé** : signé et sommé, il ne dit que l'écart net). Rien n'est enregistré : une lecture à l'écran. ──
 
   let pointsMesure = [];   // [{ x, y, sol, hauteur }, ...] Lambert-93 absolu, dans l'ordre du clic
 
@@ -166,7 +165,10 @@ function creerOutilsPoint(d) {
     majLien();   // la règle est dans le lien
     vue3d?.definirMesure(pointsMesure.map(versVue3D));
     liaisons.carteOutils?.mesure(pointsMesure);
+    afficherTableau();
+  }
 
+  function afficherTableau() {
     if (!pointsMesure.length) {
       $('mesure-vide').hidden = false;
       $('detail-mesure').hidden = true;
@@ -175,16 +177,22 @@ function creerOutilsPoint(d) {
     }
     $('mesure-vide').hidden = true;
     $('mesure-actions').hidden = false;
-
-    if (pointsMesure.length < 2) {
-      $('detail-mesure').innerHTML = '<p class="vide">Point A posé. Cliquez un second point pour mesurer.</p>';
-      $('detail-mesure').hidden = false;
-      return;
-    }
-
     // Le même tableau que dans la modale du profil : un seul outil de mesure.
-    $('detail-mesure').innerHTML = MESURE.tableauHtml(pointsMesure);
+    $('detail-mesure').innerHTML = pointsMesure.length < 2
+      ? '<p class="vide">Point A posé. Cliquez un second point pour mesurer.</p>'
+      : MESURE.tableauHtml(pointsMesure);
     $('detail-mesure').hidden = false;
+  }
+
+  /** Un point glissé sur la carte : le trait et le tableau suivent (altitude inconnue) ; au lâcher, elle se relit dans la vue (`relief.lire`). */
+  async function deplacerPointMesure(i, lat, lng, fin) {
+    const q = projVue().versLocal(lng, lat);
+    pointsMesure = MESURE.deplacerPoint(pointsMesure, i, q.x, q.y);
+    if (!fin) { liaisons.carteOutils?.trace(pointsMesure); afficherTableau(); return; }
+    const p = pointsMesure[i];
+    const lu = liaisons.lireVue ? await liaisons.lireVue(q.x, q.y) : null;
+    pointsMesure = MESURE.poserLecture(pointsMesure, p, lu);
+    afficherMesure();
   }
 
   function ajouterPointMesure(x, y, sol, hauteur = 0) {
@@ -217,9 +225,7 @@ function creerOutilsPoint(d) {
   $('btn-mesure-effacer').addEventListener('click', effacerMesure);
   $('btn-mesure-annuler').addEventListener('click', retirerDernierPointMesure);
 
-  // Retour arrière / Suppr retire le dernier point posé, comme dans QGIS — mais
-  // seulement en mode Mesure et hors saisie, sinon la touche reprendrait son
-  // rôle habituel (revenir en arrière dans un champ de texte).
+  // Retour arrière / Suppr retire le dernier point posé, en mode Mesure et hors saisie seulement (sinon la touche garde son rôle).
   window.addEventListener('keydown', (e) => {
     if (modeOutil !== 'mesure' || !pointsMesure.length) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -299,5 +305,6 @@ function creerOutilsPoint(d) {
     pointsMesure: () => pointsMesure,
     definirMesure(pts) { pointsMesure = pts; afficherMesure(); },
     ajouterPointMesure,
+    deplacerPointMesure,
   };
 }

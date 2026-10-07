@@ -217,3 +217,23 @@ test('surAxe : fonctionne dans toutes les directions, et sur le repère lui-mêm
   const meme = MESURE.surAxe({ x: 7, y: 9 }, { x: 7, y: 9 });
   assert.deepEqual([meme.x, meme.y], [7, 9]);
 });
+
+test('deplacerPoint : le point i prend sa nouvelle position et perd son altitude (elle se relit à l’arrivée), les autres ne bougent pas', () => {
+  const pts = [{ x: 1, y: 2, sol: 100, hauteur: 3 }, { x: 5, y: 6, sol: 110, hauteur: 0 }, { x: 9, y: 9, sol: 90, hauteur: 1 }];
+  const r = MESURE.deplacerPoint(pts, 1, 7, 8);
+  assert.equal(JSON.stringify(r[1]), JSON.stringify({ x: 7, y: 8, sol: null, hauteur: 0 }));
+  assert.equal(r[0], pts[0]);
+  assert.equal(r[2], pts[2]);
+  assert.equal(pts[1].x, 5, 'l’original n’est pas touché');
+  assert.equal(r.length, 3);
+  assert.equal(MESURE.deplacerPoint(pts, 7, 0, 0).length, 3, 'un indice hors chaîne la rend telle quelle');
+});
+
+test('poserLecture : l’altitude relue est posée sur le point déplacé, sauf s’il a été retiré ou déplacé entre-temps', () => {
+  const [a, b] = [{ x: 1, y: 1, sol: 5, hauteur: 0 }, { x: 2, y: 2, sol: null, hauteur: 0 }];
+  const r = MESURE.poserLecture([a, b], b, { altitude: 312.5, hauteur: 4 });
+  assert.equal(JSON.stringify(r[1]), JSON.stringify({ x: 2, y: 2, sol: 312.5, hauteur: 4 }));
+  assert.equal(r[0], a);
+  assert.equal(MESURE.poserLecture([a, b], b, null)[1].sol, null, 'pas de donnée là : l’altitude reste inconnue');
+  assert.equal(JSON.stringify(MESURE.poserLecture([a], b, { altitude: 1, hauteur: 0 })), JSON.stringify([a]), 'le point n’y est plus : rien ne change');
+});
