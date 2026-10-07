@@ -13,10 +13,28 @@ function fabriqueProfil() {
     return { longueur, ux: dx / longueur, uy: dy / longueur, nx: -dy / longueur, ny: dx / longueur };
   }
 
-  /** La position (coordonnées locales) du point à la distance `s` de A le long de l'axe A→B ; `null` si A = B. */
-  function pointSurAxe(a, b, s) {
+  /**
+   * La position (coordonnées locales) du point à la distance `s` de A le long de l'axe A→B, décalé de `d` mètres
+   * vers la gauche de l'axe (vu de A vers B) : `A + u·s + n·d`. Sans `d`, sur l'axe. `null` si A = B.
+   */
+  function pointSurAxe(a, b, s, d = 0) {
     const ax = axe(a, b);
-    return ax ? [a[0] + ax.ux * s, a[1] + ax.uy * s] : null;
+    return ax ? [a[0] + ax.ux * s + ax.nx * d, a[1] + ax.uy * s + ax.ny * d] : null;
+  }
+
+  /** L'écart latéral (m, + à gauche) que désigne le curseur jaune (0 à 1000, comme le double curseur : 0 = gauche). */
+  function ecartDepuisCurseur(v, largeur) {
+    return largeur / 2 - (largeur * v) / 1000;
+  }
+
+  /** La position du curseur jaune (0 à 1000) pour un écart en mètres, ramené dans la bande. */
+  function curseurDepuisEcart(d, largeur) {
+    return Math.round(Math.min(1000, Math.max(0, ((largeur / 2 - d) / largeur) * 1000)));
+  }
+
+  /** Un écart latéral ramené dans la bande (une largeur réduite ne le laisse pas dehors). */
+  function ecartBorne(d, largeur) {
+    return Math.min(largeur / 2, Math.max(-largeur / 2, d));
   }
 
   /** Une largeur utilisable : jamais nulle, négative ni infinie, même saisie à la main. */
@@ -142,6 +160,6 @@ function fabriqueProfil() {
     return { s0: sc - (mpp * W) / 2, s1: sc + (mpp * W) / 2, z0: zc - (mpp * H) / 2, z1: zc + (mpp * H) / 2 };
   }
 
-  return { axe, pointSurAxe, largeurValide, largeurDepuisCurseur, curseurDepuisLargeur, pointSuivant, verdict, coins, emprise, graduations, etendueZ, etendueEgale, cadrageEgal };
+  return { axe, pointSurAxe, ecartDepuisCurseur, curseurDepuisEcart, ecartBorne, largeurValide, largeurDepuisCurseur, curseurDepuisLargeur, pointSuivant, verdict, coins, emprise, graduations, etendueZ, etendueEgale, cadrageEgal };
 }
 const PROFIL = fabriqueProfil();

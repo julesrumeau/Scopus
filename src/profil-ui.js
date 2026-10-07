@@ -21,6 +21,7 @@ function creerProfilUI(d) {
     donnees: null,          // le dernier profil calculé
     masquees: null,         // classes décochées dans la modale : celles de la légende 3D à la première ouverture, puis le choix de la personne
     numero: 0,              // un calcul plus récent invalide les réponses en retard
+    ecart: 0,               // la position de la mesure dans la bande (m, + à gauche de A→B), curseur jaune ; rien n'est recalculé
     ligneChangee: true,     // A ou B a bougé depuis le dernier calcul : la chaîne, la référence, la tranche et le zoom ne valent plus
     largeurCalculee: null,  // la largeur du dernier calcul : une autre largeur remet la tranche et le zoom, pas la chaîne
   };
@@ -76,6 +77,7 @@ function creerProfilUI(d) {
   /** A ou B vient de bouger (ou la bande est effacée) : ce qui s'y rapportait dans la coupe s'efface avec. */
   function nouvelleLigne() {
     profil.ligneChangee = true;
+    poserEcart(0);
     graphique?.reinitialiser();
   }
 
@@ -154,12 +156,29 @@ function creerProfilUI(d) {
     $('profil-tranche').textContent = `Partie de la bande gardée : de ${cote(max, demi)} à ${cote(min, -demi)}`;
   }
 
+  /** L'écart de la chaîne, le curseur jaune qui le montre, et son texte ; la chaîne se redessine sur la carte. */
+  function poserEcart(d) {
+    profil.ecart = PROFIL.ecartBorne(d, profil.largeur);
+    $('profil-pos').value = PROFIL.curseurDepuisEcart(profil.ecart, profil.largeur);
+    const e = profil.ecart;
+    $('profil-position').textContent = 'Position de la mesure dans la bande : ' + (Math.abs(e) < 0.005 ? 'sur l’axe' : e > 0 ? `${e.toFixed(1)} m à gauche de l’axe` : `${(-e).toFixed(1)} m à droite de l’axe`);
+    if (graphique) dessinerChaine(graphique.mesure, graphique.reference);
+  }
+
+  /** Le curseur jaune n'existe que s'il y a quelque chose à placer : un point de mesure ou la référence. */
+  function majCurseurPosition() {
+    const present = !!(graphique && (graphique.mesure.length || graphique.reference));
+    $('profil-pos').hidden = !present;
+    $('profil-position-ligne').hidden = !present;
+  }
+
   /** La chaîne de mesure du graphique, au même tableau que la carte (`MESURE.tableauHtml`). */
   function afficherMesureProfil(pts) {
     // Le graphique en (distance le long de l'axe, altitude) devient des points de la mesure :
     // l'horizontale est alors l'écart de distance, le dénivelé celui d'altitude.
     const chaine = pts.map((p) => ({ x: p.s, y: 0, sol: p.z, hauteur: 0 }));
     dessinerChaine(pts, graphique?.reference);
+    majCurseurPosition();
     $('profil-mesure-vide').hidden = chaine.length > 0;
     $('profil-mesure-detail').hidden = !chaine.length;
     $('profil-mesure-actions').hidden = !chaine.length;
@@ -188,6 +207,7 @@ function creerProfilUI(d) {
     $('profil-reference-ligne').hidden = !p;
     if (p) $('profil-reference-etat').textContent = `Référence : ${p.z.toFixed(1)} m`;
     dessinerChaine(graphique ? graphique.mesure : [], p);
+    majCurseurPosition();
   }
 
   /**
@@ -199,7 +219,7 @@ function creerProfilUI(d) {
     chaineGroupe?.remove();
     chaineGroupe = null;
     if (!profil.A || !profil.B || (!pts.length && !reference)) return;
-    const ll = (q) => { const m = PROFIL.pointSurAxe(profil.A, profil.B, q.s); return m && versLatLng(m[0], m[1]); };
+    const ll = (q) => { const m = PROFIL.pointSurAxe(profil.A, profil.B, q.s, profil.ecart); return m && versLatLng(m[0], m[1]); };
     chaineGroupe = L.layerGroup().addTo(carte.map);
     const lls = pts.map(ll).filter(Boolean);
     const style = { pane: 'outilsVue', renderer: traceOutils, interactive: false };
@@ -256,6 +276,7 @@ function creerProfilUI(d) {
     const garder = !profil.ligneChangee && profil.largeurCalculee === profil.largeur;
     profil.ligneChangee = false;
     profil.largeurCalculee = profil.largeur;
+    poserEcart(profil.ecart);   // une largeur réduite ramène l'écart dans la bande
     if (!garder) { $('profil-d0').value = 0; $('profil-d1').value = 1000; }
     if (r.vide) {
       profil.donnees = null;
@@ -314,6 +335,7 @@ function creerProfilUI(d) {
       graphique.definirVisibles(visiblesProfil());
       majLien();
     });
+    $('profil-pos').addEventListener('input', (e) => poserEcart(PROFIL.ecartDepuisCurseur(Number(e.target.value), profil.largeur)));
     // Les deux curseurs de la tranche ne se croisent pas : au moins 1 % d'écart.
     for (const id of ['profil-d0', 'profil-d1']) {
       $(id).addEventListener('input', () => {

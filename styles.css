@@ -1540,3 +1540,7 @@ dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
   pointer-events: auto; width: 16px; height: 22px; border-radius: 4px; cursor: ew-resize;
   background: var(--accent); border: 2px solid #fff; box-sizing: border-box;
 }
+
+/* Le curseur jaune : la position de la mesure dans la largeur de la bande (un seul pouce, même échelle). */
+.double-curseur input.curseur-position[type="range"]::-webkit-slider-thumb { background: #ffd24a; width: 12px; }
+.double-curseur input.curseur-position[type="range"]::-moz-range-thumb { background: #ffd24a; width: 12px; }

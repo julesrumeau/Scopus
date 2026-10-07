@@ -292,6 +292,14 @@ d'arbres et de bâtiments sans QGIS. Conception :
   fait rien. **Pas** de verrou à bascule, de magnétisme ni de 45° (décision : rester simple), **pas** la 3D
   (Maj+glisser y pivote), **pas** le tactile (pas de Shift). Piège : la poignée du **rideau** (centre de la carte)
   intercepte les clics sur ses 22 px : un test automatisé qui clique là croit à un défaut.
+- **Position de la mesure dans la bande** (7 octobre 2026, `profil.ecart`, `PROFIL.pointSurAxe(a, b, s, d)`) : un point du
+  profil est `(s, z)` et sa position exacte est `A + u·s + n·d`, `d` étant **un seul écart latéral (m, + à gauche de A→B)
+  pour toute la chaîne et la référence** : une ligne parallèle à l'axe. Un **troisième curseur, jaune**, sur le double curseur
+  (même échelle : 0 = gauche, 1000 = droite, `ecartDepuisCurseur`/`curseurDepuisEcart`) le règle ; il n'existe que s'il y a
+  un point de mesure ou la référence (`majCurseurPosition`). Il ne recalcule rien : la chaîne se redessine sur la carte
+  (`dessinerChaine`). Une autre largeur ramène `d` dans la bande (`ecartBorne`), déplacer A ou B le remet à 0. Il n'est pas
+  dans le lien. **Pas de lien avec la tranche** : il peut sortir de la partie gardée. Les trois pouces se superposent : le
+  jaune, dernier dans le DOM, passe au-dessus s'ils coïncident. Fondement des futurs exports du profil (R18, point 3).
 - **Une seule mesure.** Le graphique alimente la chaîne de mesure de la carte
   (`MESURE.tableauHtml`, partagé) : ses points deviennent `{ x: distance sur
   l'axe, sol: altitude }`. Le clic s'accroche au point visible le plus proche
