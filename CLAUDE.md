@@ -423,7 +423,11 @@ case cochée : `ele` = le **sol** (jamais le sommet), et `height` / une proprié
 n'est jamais écrite à moitié** : si un point n'en a pas, la case est grisée et le dit, comme `totale3D`. Coordonnées au
 centimètre (7 décimales), fichier `scopus-mesure-AAAA-MM-JJ.<ext>`. **Réserve** (dite dans la fenêtre) : l'altitude est
 celle du LiDAR HD (NGF, niveau de la mer) : bonne pour `ele` d'OSM et le GPX ; au sens strict du GeoJSON (hauteur sur
-l'ellipsoïde) elle diffère de ~50 m en France. Vérifié par les analyseurs JSON et XML de Python sur des fichiers
+l'ellipsoïde) elle diffère de ~50 m en France. **Piège (7 octobre 2026)** : uMap lit le `.osm` avec `osm2geojson` (et non `osmtogeojson`), dont l'analyseur ne tire
+**rien** d'un nœud vide à balise fermante (`<node ...></node>`, message « No data has been found for import ») ; un nœud
+sans étiquette s'écrit donc auto-fermé (`<node ... />`, comme JOSM), de même un `<trkpt ... />` ; un test l'impose.
+Contrôles faits : GPX valide au schéma officiel 1.1, GeoJSON valide à la RFC 7946 (`check-geojson`), `.osm` lu par
+`osm2geojson-lite` et `osmtogeojson`. Vérifié par les analyseurs JSON et XML de Python sur des fichiers
 téléchargés du navigateur ; **ouverture dans JOSM non essayée** (pas de JOSM ici). Le profil n'a **pas** d'export : un
 point `(s, z)` n'a pas de position précise dans la largeur de la bande (voir TODO, R18).
 

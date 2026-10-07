@@ -151,3 +151,22 @@ test('resumer : une altitude manquante est dite en clair, jamais devinée', () =
   assert.match(r.raisonAltitude, /altitude|inconnue/i);
   assert.equal(EXPORT_MESURE.resumer([A, B]).raisonAltitude, '');
 });
+
+// ── Les lecteurs légers (uMap lit le .osm avec osm2geojson) n'aiment pas un élément vide à balise fermante ──
+
+test('OSM : un nœud sans étiquette s’écrit auto-fermé (<node ... />), jamais <node ...></node> que uMap ne sait pas lire', () => {
+  const x = EXPORT_MESURE.versOSM([A, B, C], { altitude: false });
+  assert.match(x, /<node id='-1' visible='true' lat='49\.2154' lon='5\.4352'\/>/);
+  assert.ok(!/><\/node>/.test(x), 'aucun nœud vide à balise fermante');
+});
+
+test('OSM : un nœud avec étiquettes garde ses enfants et sa balise fermante', () => {
+  const x = EXPORT_MESURE.versOSM([A, B], { altitude: true });
+  assert.match(x, /<node id='-1' visible='true' lat='49\.2154' lon='5\.4352'><tag k='ele' v='381\.64'\/><\/node>/);
+});
+
+test('GPX : un point sans altitude s’écrit aussi auto-fermé (<trkpt ... />)', () => {
+  const x = EXPORT_MESURE.versGPX([A, B], { altitude: false });
+  assert.match(x, /<trkpt lat="49\.2154" lon="5\.4352"\/>/);
+  assert.ok(!/><\/trkpt>/.test(x));
+});

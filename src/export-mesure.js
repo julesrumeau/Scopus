@@ -38,7 +38,8 @@ const EXPORT_MESURE = (() => {
 
   function versGPX(points, options) {
     const alt = avecAltitude(points, options);
-    const pts = points.map((p) => `      <trkpt lat="${coord(p.lat)}" lon="${coord(p.lon)}">${alt ? `<ele>${metres(p.sol)}</ele>` : ''}</trkpt>`).join('\n');
+    // Un élément vide s'écrit auto-fermé : certains lecteurs légers ne lisent pas `<trkpt ...></trkpt>`.
+    const pts = points.map((p) => `      <trkpt lat="${coord(p.lat)}" lon="${coord(p.lon)}"${alt ? `><ele>${metres(p.sol)}</ele></trkpt>` : '/>'}`).join('\n');
     return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Scopus" xmlns="http://www.topografix.com/GPX/1/1">\n`
       + `  <trk>\n    <name>Mesure Scopus</name>\n    <trkseg>\n${pts}\n    </trkseg>\n  </trk>\n</gpx>\n`;
   }
@@ -48,7 +49,9 @@ const EXPORT_MESURE = (() => {
     // Pas de nom ni d'étiquette inventée : un `name=A` ou un tag douteux pollue OpenStreetMap si on envoie par erreur.
     const noeuds = points.map((p, i) => {
       const tags = alt ? `<tag k='ele' v='${metres(p.sol)}'/>${sursol(p) !== null ? `<tag k='height' v='${sursol(p)}'/>` : ''}` : '';
-      return `  <node id='${-(i + 1)}' visible='true' lat='${coord(p.lat)}' lon='${coord(p.lon)}'>${tags}</node>`;
+      // Sans étiquette : auto-fermé (`<node ... />`, comme JOSM). uMap lit le .osm avec osm2geojson, dont l'analyseur
+      // ne tire rien d'un `<node ...></node>` (« No data has been found for import »).
+      return `  <node id='${-(i + 1)}' visible='true' lat='${coord(p.lat)}' lon='${coord(p.lon)}'${tags ? `>${tags}</node>` : '/>'}`;
     }).join('\n');
     const chemin = points.length >= 2
       ? `\n  <way id='${-(points.length + 1)}' visible='true'>\n${points.map((_, i) => `    <nd ref='${-(i + 1)}'/>`).join('\n')}\n  </way>`
