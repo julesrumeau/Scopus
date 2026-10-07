@@ -409,18 +409,18 @@ function ombrage(t, azimut = 315, hauteur = 45, grads = null) {
 }
 
 /**
- * Ombrage multidirectionnel : la moyenne de quatre soleils à 90° l'un de
- * l'autre.
+ * Ombrage multidirectionnel : la moyenne de quatre soleils **dans un même quadrant**, à 45° les uns des autres
+ * (225°, 270°, 315°, 360° par défaut, comme GDAL et l'USGS).
  *
- * Un ombrage unique est aveugle aux formes parallèles à ses rayons : un muret
- * orienté dans l'axe du soleil ne projette aucune ombre et disparaît. Combiner
- * quatre directions supprime ce biais d'orientation, au prix d'un rendu plus
- * plat — c'est le compromis retenu partout, de l'USGS au RVT.
+ * Un ombrage unique est aveugle aux formes parallèles à ses rayons : un muret orienté dans l'axe du soleil ne
+ * projette aucune ombre et disparaît. Quatre lumières voisines couvrent ce biais en gardant un côté éclairé.
+ * **Pas quatre soleils opposés** (0°, 90°, 180°, 270°) : leurs parts directionnelles s'annulent exactement, il reste
+ * sin(hauteur) × cos(pente), une carte de pente sans orientation (un versant nord et un versant sud y sont identiques).
  */
 function ombrageMulti(t, options = {}) {
   const p = { ...CONFIG.relief, ...options };
   const { azimut, hauteur } = soleilDe(p);
-  const azimuts = [0, 90, 180, 270].map((d) => (azimut + d) % 360);
+  const azimuts = [-90, -45, 0, 45].map((d) => (azimut + d + 360) % 360);
   const gpu = viaGPU(p) ? surGPU(GPU_RELIEF.ombrages(t, azimuts.map((az) => [az, hauteur]))) : surGPU(null);
   if (gpu) {
     // Même somme puis même division que ci-dessous, dans le même ordre.
@@ -464,8 +464,8 @@ function soleilEstParDefaut(azimut, hauteur) {
 }
 
 /**
- * Le soleil réglé par l'utilisateur : `ombrageAzimut` est celui du **premier**
- * soleil, les autres le suivent à pas égaux (90° pour quatre, 120° pour trois).
+ * Le soleil réglé par l'utilisateur : `ombrageAzimut` est celui du soleil central de l'ombrage à quatre (les autres
+ * à -90°, -45° et +45°), du **premier** de l'ombrage coloré (les autres à pas égaux de 120°).
  * Les défauts reprennent les valeurs d'avant les curseurs (315°, 45°) : un
  * lien ou une habitude d'avant ne change pas d'image.
  */
@@ -758,7 +758,7 @@ const COUCHES = [
     cle: 'ombrage',
     ancrage: 'centre',
     libelle: 'Ombrage (4 soleils)',
-    aide: 'Quatre soleils combinés, à 90° l’un de l’autre. La lecture la plus familière du terrain ; l’azimut et la hauteur se règlent.',
+    aide: 'Quatre lumières voisines, du côté nord-ouest, combinées : un muret n’y disparaît pas, et le relief garde un côté éclairé. L’azimut et la hauteur se règlent.',
     calculer: (t, p) => ombrageMulti(t, p),
     etendue: () => [0, 1],
     palette: 'gris',

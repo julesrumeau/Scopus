@@ -530,21 +530,29 @@ test('une couche se calcule par sa clé et s’étale sur un intervalle utile', 
   }
 });
 
-test('ombrage réglable — les défauts redonnent exactement les soleils d’avant les curseurs', () => {
+test('ombrage multidirectionnel — par défaut quatre soleils dans le quadrant nord-ouest (225°, 270°, 315°, 360°), comme GDAL', () => {
   const { RELIEF } = charger();
   const t = terrain(40, 40, 1, (x, y) => -0.3 * x + 0.1 * y);
-  // Quatre soleils à 315°, 45°, 135°, 225° : la moyenne des quatre ombrage() à 45°.
   const multi = RELIEF.ombrageMulti(t, { gpu: false });
-  const attendu = [315, 45, 135, 225].map((az) => au(t, RELIEF.ombrage(t, az, 45), 20, 20));
+  const attendu = [225, 270, 315, 0].map((az) => au(t, RELIEF.ombrage(t, az, 45), 20, 20));
   const moyenne = attendu.reduce((s, v) => s + v, 0) / 4;
   assert.ok(Math.abs(au(t, multi, 20, 20) - moyenne) < 1e-6);
 });
 
-test('ombrage réglable — l’azimut tourne les quatre soleils ensemble, la hauteur les lève tous', () => {
+test('ombrage multidirectionnel — il garde une direction : deux versants opposés ne se ressemblent plus (quatre soleils opposés les rendaient identiques)', () => {
+  const { RELIEF } = charger();
+  for (const [versantA, versantB] of [[(x) => -0.36 * x, (x) => 0.36 * x], [(x, y) => -0.36 * y, (x, y) => 0.36 * y]]) {
+    const a = au(terrain(40, 40, 1, versantA), RELIEF.ombrageMulti(terrain(40, 40, 1, versantA), { gpu: false }), 20, 20);
+    const b = au(terrain(40, 40, 1, versantB), RELIEF.ombrageMulti(terrain(40, 40, 1, versantB), { gpu: false }), 20, 20);
+    assert.ok(Math.abs(a - b) > 0.1, `versants opposés trop proches : ${a.toFixed(3)} et ${b.toFixed(3)}`);
+  }
+});
+
+test('ombrage multidirectionnel — l’azimut déplace le quadrant, la hauteur lève tous les soleils', () => {
   const { RELIEF } = charger();
   const t = terrain(40, 40, 1, (x, y) => -0.3 * x + 0.1 * y);
   const m = RELIEF.ombrageMulti(t, { gpu: false, ombrageAzimut: 30, ombrageHauteur: 20 });
-  const attendu = [30, 120, 210, 300].map((az) => au(t, RELIEF.ombrage(t, az, 20), 20, 20));
+  const attendu = [300, 345, 30, 75].map((az) => au(t, RELIEF.ombrage(t, az, 20), 20, 20));
   assert.ok(Math.abs(au(t, m, 20, 20) - attendu.reduce((s, v) => s + v, 0) / 4) < 1e-6);
 });
 
