@@ -7,7 +7,7 @@ Topo du 5 octobre 2026, fin de journée. `main` est au commit `4b4d7f1` ; `dev` 
 2. **R20, mesure à angle droit** (6 octobre) : tracer des lignes **verticales ou horizontales** avec la mesure (Shift + clic, convention des logiciels de dessin), surtout dans le **profil** pour lire une hauteur au-dessus du sol ; peut servir sur la carte et en 3D. Fait (6 octobre) : Shift + clic, 0° / 90°, mesure de la carte et du profil, aperçu pointillé (voir la section R20 et CLAUDE.md).
 3. ~~**R21 et R22**~~ **fermés le 7 octobre 2026** : « Ma position » est publié (lecture GPS de R22) ; MapSwap marche depuis Scopus (R21, OpenSwitchMaps écartée).
 4. **Petits fixes** (#6) : *faits le 5 octobre sur `fix/petits-fixes`* — panneau latéral sous la barre (601–900 px), point pile sur le bord d'une bande oblique, garde sans A/B, graphique grisé pendant « Calcul… », HUD dans la carte survolée. *Reste* : les deux côtés du rideau sur deux surfaces (demander les deux côtés dans un seul message au worker : changement de protocole, transitoire et sans conséquence visible, à ne faire qu'avec une raison).
-5. **R15b / R15c, ombrage** : *multidirectionnel « cramé » corrigé le 7 octobre sur `feat/ombrage-quadrant` (4 azimuts dans un quadrant, voir CLAUDE.md)*. Reste « trop lissé » face à l'IGN : à mesurer (même lieu, même zoom), et peut-être la pondération de Mark et la hauteur 30°.
+5. ~~**R15, ombrage**~~ : multidirectionnel corrigé le 7 octobre (4 azimuts dans un quadrant) ; « trop lissé » (R15c) **abandonné** (décision du 7 octobre : le rendu est jugé amélioré, on attend le retour de la personne).
 6. **À vérifier sur de vrais appareils** (aucun accès ici) : appui long et pincement du profil, poignées A/B au doigt, icônes sur Safari iOS (R19), lien 3D sur téléphone.
 7. **R19** : *test de fumée fait le 7 octobre (`npm run fumee`, voir CLAUDE.md)*. Reste : fichiers servis sans version (`max-age=600`), à décider.
 
@@ -49,7 +49,7 @@ Publié sur le site mais **pas encore annoncé** sur le forum (liste tenue à jo
 - **Bouton « une seule carte »** sous le zoom, avec une seule liste de couches (R10, le naturaliste : suppression du rideau, premier des trois modes prévus).
 - **Listes de couches rangées par famille**, l'une sous l'autre (R17, remarque de l'utilisateur lui-même).
 
-*À dire aussi, en attente :* OSM France a répondu que le fond « OpenStreetMap France » est jouable (point à l'ordre du jour du CA, pas avant la fin de la semaine du 12 octobre) ; le multidirectionnel « cramé » et l'ombrage « trop lissé » sont à l'étude (R15b, R15c).
+*À dire aussi, en attente :* OSM France a répondu que le fond « OpenStreetMap France » est jouable (point à l'ordre du jour du CA, pas avant la fin de la semaine du 12 octobre) .
 
 ### #1 — Rallumer la détection, ou renoncer *(prioritaire)*
 
