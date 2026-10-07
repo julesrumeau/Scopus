@@ -622,6 +622,12 @@ ouverture de Yokoyama 1998), **vérifiés contre des surfaces à réponse connue
 - **Deux familles de couches** : classé 1/6, un tas de pierres est retiré du MNT
   et comblé (visible en « hauteur » seulement) ; classé 2, il *est* le terrain
   (visible au micro-relief).
+- **Ombrage à 4 soleils** (`ombrageMulti`, 7 octobre 2026, retour « trop cramé ») : **quatre azimuts dans un même quadrant**
+  (225°, 270°, 315°, 360° par défaut, soit `azimut + [-90, -45, 0, +45]`), comme GDAL et l'USGS. Avant : quatre soleils
+  **opposés** (0°, 90°, 180°, 270°) qui s'annulaient exactement : il restait `sin(hauteur) × cos(pente)`, une carte de pente
+  sans orientation (versants nord et sud identiques ; sur un plan de 30°, 0,61 partout contre 0,26 à 0,97 avec un soleil).
+  Mesuré à Saint-Julien-en-Genevois (frontière suisse) : le détail revient à côté de l'ombrage simple. L'azimut agit désormais.
+  Non fait : la pondération selon l'orientation de Mark 1992 (formule non vérifiée), la hauteur à 30° de GDAL.
 - **Ombrage coloré** (`ombrageRGB`) : trois soleils à 120° (315°, 75°, 195°) sur
   RGB. **Hors de `RELIEF.COUCHES`** (ne suit pas le contrat de
   `RELIEF.calculer`) ; traité comme la photo (`OMBRAGE_RGB`, `{ type: 'photo', rgba }`).
