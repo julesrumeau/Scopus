@@ -52,3 +52,37 @@ test('dalles : la plage d’acquisition (début et fin) vient des métadonnées 
   assert.equal(liste[1].dateDebutAcquisition, null);   // métadonnée absente : null, pas une date inventée
   assert.equal(liste[1].dateAcquisition, null);
 });
+
+// Le format réel du service depuis octobre 2026 (relevé sur data.geopf.fr) : plus de champ `metadata` en JSON, les
+// champs sont directement des propriétés de la dalle, et les dates portent un Z final (« 2025-02-01Z »).
+
+test('formaterAcquisition : une date de l’IGN avec le Z final (2025-02-01Z) se lit comme les autres', () => {
+  const f = (d, e) => IGN.formaterAcquisition(d, e);
+  assert.equal(f('2025-02-01Z', '2025-02-01Z'), '1er février 2025');
+  assert.equal(f('2022-07-12Z', '2022-07-13Z'), '12–13 juillet 2022');
+  assert.equal(f('2022-07-12T00:00:00Z', null), '12 juillet 2022');   // et une heure éventuelle
+});
+
+test('dalles : les dates d’acquisition et le reste se lisent aussi en propriétés directes (sans champ metadata)', async () => {
+  ctx.RESEAU = {
+    recuperer: async () => ({
+      features: [{
+        id: 'v', geometry: null,
+        properties: {
+          url_npl: 'https://ign/LHD_FXX_0877_6905_PTS_LAMB93_IGN69.copc.laz',
+          date_debut_acquisition: '2025-02-01Z', date_fin_acquisition: '2025-02-01Z', nombre_points: 7, systeme_altimetrique: 'IGN69',
+        },
+      }, {
+        id: 'w', geometry: null,
+        properties: { url_npl: 'https://ign/LHD_FXX_0878_6905_PTS_LAMB93_IGN69.copc.laz' },
+      }],
+    }),
+  };
+  const liste = await IGN.dalles(49.2, 5.4, 49.3, 5.5);
+  assert.equal(liste[0].dateDebutAcquisition, '2025-02-01Z');
+  assert.equal(liste[0].dateAcquisition, '2025-02-01Z');
+  assert.equal(liste[0].nbPoints, 7);
+  assert.equal(liste[0].systemeAltimetrique, 'IGN69');
+  assert.equal(IGN.formaterAcquisition(liste[0].dateDebutAcquisition, liste[0].dateAcquisition), '1er février 2025');
+  assert.equal(liste[1].dateDebutAcquisition, null);   // sans date publiée : null, jamais inventée
+});

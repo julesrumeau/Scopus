@@ -48,8 +48,11 @@ async function dalles(sud, ouest, nord, est, signal) {
 
   return (rep.features || []).map((f) => {
     const p = f.properties;
-    let meta = {};
-    try { meta = JSON.parse(p.metadata || '{}'); } catch { /* métadonnée absente ou malformée : sans conséquence */ }
+    // Depuis octobre 2026 le service publie les champs directement (plus de `metadata` en JSON) ; l'ancien format
+    // reste lu en secours. Les dates portent un Z final (« 2025-02-01Z »), que `formaterAcquisition` accepte.
+    let ancien = {};
+    try { ancien = JSON.parse(p.metadata || '{}'); } catch { /* métadonnée absente ou malformée : sans conséquence */ }
+    const champ = (k) => p[k] ?? ancien[k];
 
     // Plus de champ `name` sur cette couche (voir CONFIG.ign.coucheDalles) :
     // le nom de fichier vient de `url_npl`, et porte toujours les coordonnées
@@ -68,12 +71,12 @@ async function dalles(sud, ouest, nord, est, signal) {
       url: p.url_npl,
       emprise,
       anneau: anneauExterieur(f.geometry),
-      nbPoints: meta.nombre_points ?? null,
+      nbPoints: champ('nombre_points') ?? null,
       // La plage de vol de la dalle : un à quelques jours, pas un instant. Deux
       // dalles voisines peuvent avoir des plages différentes.
-      dateDebutAcquisition: meta.date_debut_acquisition ?? null,
-      dateAcquisition: meta.date_fin_acquisition ?? null,
-      systemeAltimetrique: meta.systeme_altimetrique ?? null,
+      dateDebutAcquisition: champ('date_debut_acquisition') ?? null,
+      dateAcquisition: champ('date_fin_acquisition') ?? null,
+      systemeAltimetrique: champ('systeme_altimetrique') ?? null,
     };
   }).filter((d) => d.url && d.emprise);
 }
@@ -168,14 +171,14 @@ const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet
 
 /**
  * La plage d'acquisition d'une dalle en français, depuis les deux dates
- * `AAAA-MM-JJ` de l'IGN : « 13 juillet 2022 », « 12–13 juillet 2022 »,
+ * `AAAA-MM-JJ` de l'IGN (avec ou sans Z final) : « 13 juillet 2022 », « 12–13 juillet 2022 »,
  * « 28 juin – 2 juillet 2022 ». Un bout manquant garde l'autre ; sans date
  * lisible, `null` — jamais une date inventée. Des bornes inversées sont
  * remises dans l'ordre.
  */
 function formaterAcquisition(debut, fin) {
   const lire = (t) => {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t || '');
+    const m = /^(\d{4})-(\d{2})-(\d{2})(?:T[\d:.]*)?Z?$/.exec(t || '');
     if (!m) return null;
     const a = +m[1], mo = +m[2], j = +m[3];
     return mo >= 1 && mo <= 12 && j >= 1 && j <= 31 ? { a, mo, j, brut: t } : null;
