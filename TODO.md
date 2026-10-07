@@ -1,23 +1,18 @@
 # Scopus — Reste à faire
 
-Topo du 5 octobre 2026, fin de journée. `main` est au commit `4b4d7f1` ; `dev` a quelques commits d'avance (pincement du profil, 3D à rectangle borné). Le détail de chaque point est plus bas ; les numéros `#N` sont les anciennes tâches, `R1…R19` les retours reçus du forum OSM-FR (depuis le 1er octobre).
+Topo du 7 octobre 2026, fin de journée. **`main` = `dev` (`cf3e827`)**, tout est publié et le test de fumée passe sur le site en ligne. Le détail de chaque point est plus bas ; les numéros `#N` sont les anciennes tâches, `R1…R22` les retours reçus du forum OSM-FR.
 
 **Ce qui reste, dans l'ordre proposé**
-1. **R18, profil** (le plus récent, une vraie personne attend) : *fait* — points gardés et montrés sur la carte, déplacer et retirer (souris et appui long), croix du tableau, pincement à deux doigts. *Fait le 7 octobre* : points de la **mesure de la carte** déplaçables au glisser (souris et doigt, mode Mesure) ; export des deux mesures ; curseur jaune. *Reste* : déplacer sur la carte la chaîne du **profil** (le long de l'axe, à décider) ; l'**insertion** entre deux points (question à poser à la personne) ; l'import d'un way OSM et la polyligne (gros chantier, à décider).
-2. **R20, mesure à angle droit** (6 octobre) : tracer des lignes **verticales ou horizontales** avec la mesure (Shift + clic, convention des logiciels de dessin), surtout dans le **profil** pour lire une hauteur au-dessus du sol ; peut servir sur la carte et en 3D. Fait (6 octobre) : Shift + clic, 0° / 90°, mesure de la carte et du profil, aperçu pointillé (voir la section R20 et CLAUDE.md).
-3. ~~**R21 et R22**~~ **fermés le 7 octobre 2026** : « Ma position » est publié (lecture GPS de R22) ; MapSwap marche depuis Scopus (R21, OpenSwitchMaps écartée).
-4. **Petits fixes** (#6) : *faits le 5 octobre sur `fix/petits-fixes`* — panneau latéral sous la barre (601–900 px), point pile sur le bord d'une bande oblique, garde sans A/B, graphique grisé pendant « Calcul… », HUD dans la carte survolée. *Reste* : les deux côtés du rideau sur deux surfaces (demander les deux côtés dans un seul message au worker : changement de protocole, transitoire et sans conséquence visible, à ne faire qu'avec une raison).
-5. ~~**R15, ombrage**~~ : multidirectionnel corrigé le 7 octobre (4 azimuts dans un quadrant) ; « trop lissé » (R15c) **abandonné** (décision du 7 octobre : le rendu est jugé amélioré, on attend le retour de la personne).
-6. **À vérifier sur de vrais appareils** (aucun accès ici) : appui long et pincement du profil, poignées A/B au doigt, icônes sur Safari iOS (R19), lien 3D sur téléphone.
-7. **R19** : *test de fumée fait le 7 octobre (`npm run fumee`, voir CLAUDE.md)*. Reste : fichiers servis sans version (`max-age=600`), à décider.
+1. **R18, profil** : *reste* l'**insertion** d'un point entre deux points d'une mesure (mise de côté, question posée sur le forum : comment la voudraient-ils ?) et le déplacement sur la carte de la **chaîne du profil** (le long de l'axe, à décider). Polyligne et import d'un way OSM : gros chantier, seulement avec un vrai besoin.
+2. **R19, ce qui reste** : fichiers servis sans version (`max-age=600` sur GitHub Pages : une page neuve peut mêler d'anciens fichiers pendant dix minutes). Piste : `tools/estamper.js` (`?v=<empreinte>` sur chaque fichier local) et un test qui échoue si l'empreinte n'est plus la bonne. **Icônes invisibles sur Safari iOS** : question posée sur le forum (lesquelles, quelle version d'iOS), non reproductible ici.
+3. **À essayer sur de vrais appareils** (aucun accès ici) : appui long, pincement et poignées A/B du profil, glisser des points de mesure au doigt, lien 3D sur téléphone, icônes sur Safari iOS. **JOSM** : ouverture du `.osm` de l'export (il marche dans uMap).
+4. **Dette de structure** (voir plus bas) : pas urgent.
 
-**En attente d'autrui ou de décision** : R8 fond OpenStreetMap France (**demande envoyée le 5 octobre**, en attente : accord du CA d'OSM France, pas avant la semaine du 12 octobre) ; R7 combler le sol (à ne pas commencer) ; #3 case « non classés » (à vérifier sur une ruine connue). Détection de structures et de sentiers (#1, #2) : code retiré (tag `archive-avant-retrait-dalle`).
+**En attente d'autrui ou de décision** : **R8 fond OpenStreetMap France** (demande envoyée le 5 octobre, accord du CA d'OSM France, pas avant la semaine du 12 octobre ; si accepté : licence, mentions, activer la couche) ; R7 combler le sol (à ne pas commencer) ; #3 case « non classés » (à vérifier sur une ruine connue). Détection de structures et de sentiers (#1, #2) : code retiré (tag `archive-avant-retrait-dalle`). R15c « trop lissé » : abandonné (le rendu est jugé amélioré, on attend le retour de la personne).
 
-**Fait les 5 et 6 octobre** : fond OpenStreetMap, Réinitialiser le soleil, échelles égales du profil, listes de couches par famille, une seule carte et deux cartes synchronisées, retrait de `?dalle`, découpage d'`app.js` et de `Vue3D`, **correctif du bouton Profil** (publié), **profil qui garde son état, déplacer/retirer/pincer**, **3D à rectangle borné** (lien 3D, échelle et angles repris, nuage qui s'étoffe seul : #4 phase 1 et R13), mentions OpenStreetMap (ODbL) dans le pied de page et le README ; **Maj + clic : mesure à angle droit** (profil et carte) ; **bouton « Ma position »** ; petits fixes (panneau sous la barre en tablette, bande oblique, graphique grisé pendant le calcul, HUD de la seconde carte). Tout est publié sur `main` (`c97145f`).
+**Fait les 5, 6 et 7 octobre (tout publié sur `main`, annoncé sur le forum le 7)** : fond OpenStreetMap standard, listes de couches par famille, une seule carte et deux cartes synchronisées, Réinitialiser le soleil, échelles égales du profil, profil qui garde son état (déplacer, retirer, pincer), 3D à rectangle borné et lien 3D, Maj + clic à angle droit, bouton « Ma position », export de la mesure (carte et profil) en GeoJSON, GPX et OSM XML, curseur jaune (position de la mesure dans la bande), points de la mesure déplaçables sur la carte, ombrage à 4 soleils corrigé (quadrant), test de fumée (`npm run fumee`), retrait de `?dalle` et découpage d'`app.js`, plus de tiret cadratin dans l'interface. R21 et R22 fermés.
 
-**Branches** : ménage fait le 6 octobre 2026 — il ne reste que `dev` et `main` (`dev` = `main`). Les deux branches non fusionnées sont gardées par étiquettes : `archive/traces-detecteur` (12 commits d'un détecteur de tracés arrêté le 27 septembre) et `archive/plein-ecran` ; plus `archive-avant-retrait-dalle`. `git checkout archive/traces-detecteur` pour les retrouver.
-
-**À annoncer au prochain message** : voir plus bas.
+**Branches** : il ne reste que `dev` et `main`. Les anciennes sont gardées par étiquettes : `archive/traces-detecteur`, `archive/plein-ecran`, `archive-avant-retrait-dalle`.
 
 ## Dette de structure : audit SOLID (5 octobre 2026)
 
@@ -36,20 +31,8 @@ Mesuré, pas ressenti (mesureur `test/taille-code.js`, validé contre acorn). Ga
 
 ## À annoncer au prochain message
 
-Publié sur le site mais **pas encore annoncé** sur le forum (liste tenue à jour à chaque publication ; une fois le message envoyé, la vider). Annoncer par lots, quand il y a quelque chose que quelqu'un a demandé.
+*(Liste vidée le 7 octobre 2026 : le message d'annonce est parti.)* Y ajouter ce qui sera publié ensuite, par lots, quand quelqu'un l'a demandé. Rien en attente pour l'instant.
 
-*Fait sur `dev`, pas encore publié :* **le zoom à deux doigts sur le profil** (il n'existait pas, signalé par la personne qui teste) ; **la 3D à rectangle borné** : un lien 3D ouvre la 3D (zoom, orientation, inclinaison repris), la bascule garde la même zone et la même échelle, le nuage s'étoffe tout seul (R13).
-
-*Publié le 5 octobre, pas encore annoncé :* **le mode « deux cartes synchronisées »** (R10, le naturaliste) ; **le profil garde ses points** (chaîne, référence, outil, classes) et les montre sur la carte, **déplacer et retirer un point** de la mesure (souris, appui long au doigt, croix du tableau) (R18, la personne des mesures de pente) ; le bouton Profil qui avait disparu, corrigé.
-
-*Publié le 5 octobre 2026 :*
-- **Bouton « Réinitialiser le soleil »** pour l'ombrage (R15, demande du naturaliste).
-- **Échelles égales du profil** : une case « Échelles égales », cochée par défaut, même échelle en distance et en altitude (R16, un utilisateur).
-- **Fond « OpenStreetMap (standard) »** dans les listes du rideau (R8, demandé par les deux).
-- **Bouton « une seule carte »** sous le zoom, avec une seule liste de couches (R10, le naturaliste : suppression du rideau, premier des trois modes prévus).
-- **Listes de couches rangées par famille**, l'une sous l'autre (R17, remarque de l'utilisateur lui-même).
-
-*À dire aussi, en attente :* OSM France a répondu que le fond « OpenStreetMap France » est jouable (point à l'ordre du jour du CA, pas avant la fin de la semaine du 12 octobre) .
 
 ### #1 — Rallumer la détection, ou renoncer *(prioritaire)*
 
