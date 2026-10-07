@@ -1066,6 +1066,7 @@ input[type=range]::-moz-range-thumb {
 @media (pointer: coarse) { .modes-carte button { width: 40px; height: 40px; } .modes-carte { top: 100px; } }
 
 /* « Ma position » : sous les trois modes, du même style. */
+.case.grisee { opacity: 0.5; }
 .localiser {
   position: absolute; top: 182px; left: 10px; z-index: 800;
   width: 30px; height: 30px; padding: 0;

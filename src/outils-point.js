@@ -238,6 +238,7 @@ function creerOutilsPoint(d) {
     vue3d.onPointMesure = viser((pt) => ajouterPointMesure(pt.x, pt.y, pt.sol, pt.hauteur));
   }
   brancher3D();
+  creerExportMesure({ $, points: () => pointsMesure, projVue, telecharger: SORTIE.telecharger });
 
   /**
    * Shift + clic en mesure : le point tombe sur la verticale ou l'horizontale (de l'écran) du point précédent. `pixel` :

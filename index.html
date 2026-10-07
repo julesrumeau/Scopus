@@ -253,6 +253,7 @@
       <div class="rangee" id="mesure-actions" hidden>
         <button id="btn-mesure-annuler" class="secondaire">Annuler le dernier point</button>
         <button id="btn-mesure-effacer" class="secondaire">Effacer</button>
+        <button id="btn-mesure-exporter" class="secondaire" title="Enregistrer la mesure : GeoJSON, GPX ou OSM">Exporter…</button>
       </div>
     </section>
 
@@ -449,6 +450,36 @@
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/lazperf/lazperf-embarque.js"></script>
 
+<dialog id="dlg-export-mesure" class="fenetre" aria-labelledby="dlg-export-mesure-titre">
+  <h2 id="dlg-export-mesure-titre">Exporter la mesure</h2>
+  <p class="vide" id="exm-resume">—</p>
+  <label class="case choix-format">
+    <input type="radio" name="fmt-exm" value="geojson" checked>
+    <span><b>GeoJSON</b> — un tracé et ses points.
+      <small>Pour QGIS, uMap, JOSM (avec son module), geojson.io.</small></span>
+  </label>
+  <label class="case choix-format">
+    <input type="radio" name="fmt-exm" value="gpx">
+    <span><b>GPX</b> — un tracé de points.
+      <small>Pour un téléphone, un GPS, QGIS, uMap.</small></span>
+  </label>
+  <label class="case choix-format">
+    <input type="radio" name="fmt-exm" value="osm">
+    <span><b>OSM</b> (<code>.osm</code>) — des nœuds et un chemin, à ouvrir dans JOSM.
+      <small>Des objets nouveaux, non envoyés à OpenStreetMap par le fichier.</small></span>
+  </label>
+  <label class="case choix-format" id="exm-case-altitude">
+    <input type="checkbox" id="exm-altitude">
+    <span>Avec l’altitude du sol
+      <small>Altitude du LiDAR HD, au niveau de la mer (NGF). Dans OSM : <code>ele</code> ; une hauteur mesurée : <code>height</code>.</small></span>
+  </label>
+  <p class="vide" id="exm-altitude-raison" hidden></p>
+  <div class="rangee">
+    <button id="exm-fermer" class="secondaire" type="button">Fermer</button>
+    <button id="exm-telecharger" class="primaire" type="button">Télécharger</button>
+  </div>
+</dialog>
+
 <dialog id="dlg-export" class="fenetre" aria-labelledby="dlg-export-titre">
   <h2 id="dlg-export-titre">Exporter les points</h2>
   <p class="vide">Les points affichés en 3D, en coordonnées locales (mètres). Choisissez un format.</p>
@@ -619,6 +650,8 @@
 <script src="src/panneau-3d.js"></script>
 <script src="src/html.js"></script>
 <script src="src/localisation.js"></script>
+<script src="src/export-mesure.js"></script>
+<script src="src/export-mesure-ui.js"></script>
 <script src="src/recherche-lieu.js"></script>
 <script src="src/partage.js"></script>
 <script src="src/panneau-mobile.js"></script>

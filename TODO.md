@@ -547,7 +547,7 @@ Demande : une intégration à **OpenSwitchMaps** (extension de *tankaru*, MIT : 
 
 Le message dit seulement : « Et aussi peut-être un bouton localisation ? » (juste après OpenSwitchMaps). **Deux lectures** : **A**, la géolocalisation (« Ma position » : le GPS de l'appareil centre la carte — `navigator.geolocation`, HTTPS exigé, rien d'envoyé, refus et délai à gérer) ; **B**, lié à l'idée précédente : ouvrir l'endroit affiché dans un autre outil, ce que « Point sélectionné » (Google Maps, OpenStreetMap) et « Partager → Ouvrir dans OpenStreetMap » font déjà. **Question à poser à la personne** : « Tu penses à un bouton "Ma position" qui centre la carte sur ton GPS, ou à ouvrir l'endroit affiché dans un autre outil ? » Si c'est A : petit (une heure), utile sur le terrain, dans le panneau Lieu et/ou sous le zoom. Si c'est B : déjà couvert, on ferme (et R21 élargit les destinations).
 
-### Export de la mesure de la carte (suite de R18 n°3) — proposition du 7 octobre 2026, à valider
+### Export de la mesure de la carte (suite de R18 n°3) — fait sur `feat/export-mesure` (7 octobre 2026) : GeoJSON, GPX, OSM ; l'ouverture dans JOSM reste à essayer
 
 Ce qui bloquait l'export du **profil**, c'était la position d'un point `(s, z)` dans la largeur de la bande. La **mesure de la carte** n'a pas ce défaut : chaque point a une position **exacte** (cliquée, ou posée à angle droit avec Maj) et, en plus, une altitude du sol et une hauteur.
 
