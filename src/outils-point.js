@@ -7,7 +7,7 @@
 // dans le démarrage) arrive dans `liaisons`, posé ensuite par l'appelant.
 
 function creerOutilsPoint(d) {
-  const { $, vue3d, MESURE, IGN, PROJ, carte, projVue, majLien, statut, alerter, ligneDetail,
+  const { $, vue3d, exportMesure, MESURE, IGN, PROJ, carte, projVue, majLien, statut, alerter, ligneDetail,
     territoire, surChangementTerritoire } = d;
   /** Ce que le démarrage pose plus tard : `carteOutils` (marqueurs), `lireVue(x, y)`, `dalleAuPoint(x, y)`. */
   const liaisons = { carteOutils: null, lireVue: null, dalleAuPoint: null };
@@ -238,7 +238,7 @@ function creerOutilsPoint(d) {
     vue3d.onPointMesure = viser((pt) => ajouterPointMesure(pt.x, pt.y, pt.sol, pt.hauteur));
   }
   brancher3D();
-  creerExportMesure({ $, points: () => pointsMesure, projVue, telecharger: SORTIE.telecharger });
+  exportMesure.lier('btn-mesure-exporter', () => pointsMesure);
 
   /**
    * Shift + clic en mesure : le point tombe sur la verticale ou l'horizontale (de l'écran) du point précédent. `pixel` :

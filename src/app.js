@@ -162,13 +162,13 @@ creerRechercheLieu({ $, IGN, carte, statut, alerter, alerterPanne });
 const classesMasquees = new Set();
 
 // ── Les outils du clic : déplacement, sélection, mesure (outils-point.js) ────────
+const exportMesure = creerExportMesure({ $, projVue: () => projVue(), telecharger: SORTIE.telecharger });
 const outils = creerOutilsPoint({
-  $, vue3d, MESURE, IGN, PROJ, carte, projVue: () => projVue(), majLien: () => majLien(), statut, alerter,
+  $, vue3d, exportMesure, MESURE, IGN, PROJ, carte, projVue: () => projVue(), majLien: () => majLien(), statut, alerter,
   classesMasquees: () => classesMasquees, ligneDetail,
   territoire: { lire: () => territoireVue, ecrire: (code) => { territoireVue = code; } },
   surChangementTerritoire: () => surChangementTerritoire?.(),
 });
-
 
 const NOMS_CLASSES = {
   1: 'non classé', 2: 'sol', 3: 'végét. basse', 4: 'végét. moyenne',
@@ -544,7 +544,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   });
 
   // ── Le profil : la bande sur la carte, puis la coupe dans la modale (profil-ui.js) ──
-  const profilUI = creerProfilUI({ $, carte, traceOutils, versLatLng, projVue, majLien, relief, flux, classesMasquees, milliers, NOMS_CLASSES });
+  const profilUI = creerProfilUI({ $, exportMesure, carte, traceOutils, versLatLng, projVue, majLien, relief, flux, classesMasquees, milliers, NOMS_CLASSES });
   const profil = profilUI.etat;
   const { poserPoint: poserPointProfil, effacer: effacerProfil, dessiner: dessinerProfil, majFenetre: majFenetreProfil } = profilUI;
   surChangementTerritoire = effacerProfil;

@@ -569,8 +569,10 @@
   <div class="double-curseur" aria-label="Tranche de la largeur de la bande">
     <input type="range" id="profil-d0" min="0" max="1000" value="0" aria-label="Limite côté gauche de l’axe">
     <input type="range" id="profil-d1" min="0" max="1000" value="1000" aria-label="Limite côté droit de l’axe">
+    <input type="range" id="profil-pos" class="curseur-position" min="0" max="1000" value="500" hidden aria-label="Position de la mesure dans la largeur de la bande">
   </div>
   <div class="vide profil-tranche"><span id="profil-tranche"></span> <button type="button" class="aide-info ouvre" data-aide="aide-tranche" title="Cliquez pour voir l’explication" aria-label="Partie de la bande gardée : cliquez pour voir l’explication">?</button></div>
+  <div class="vide profil-tranche" id="profil-position-ligne" hidden><span id="profil-position"></span> <button type="button" class="aide-info ouvre" data-aide="aide-position" title="Cliquez pour voir l’explication" aria-label="Position de la mesure : cliquez pour voir l’explication">?</button></div>
   <div id="profil-classes" class="legende"></div>
   <div class="profil-mesure">
     <p class="vide" id="profil-mesure-vide">Outil Mesure : cliquez des points du graphique, de suite : chaque segment s’ajoute au tableau, comme l’outil de mesure de la carte (le clic s’accroche au point le plus proche).</p>
@@ -578,6 +580,7 @@
     <div class="rangee" id="profil-mesure-actions" hidden>
       <button id="profil-mesure-annuler" class="secondaire" type="button">Annuler le dernier point</button>
       <button id="profil-mesure-effacer" class="secondaire" type="button">Effacer</button>
+      <button id="profil-mesure-exporter" class="secondaire" type="button" title="Enregistrer la mesure : GeoJSON, GPX ou OSM">Exporter…</button>
     </div>
   </div>
 </dialog>
@@ -599,7 +602,9 @@
   <p>Les cases sous le graphique cachent ou montrent chaque type de point (sol, végétation, bâtiment…). Décochez la végétation pour ne voir que le sol et ce qui est construit.</p>
   <h3 id="aide-tranche">5. Garder une partie de la bande</h3>
   <p>Les deux curseurs sous le graphique ne gardent qu’une <b>tranche de la bande, dans sa largeur</b>, de la gauche à la droite de la ligne, vue de A vers B. Aux deux extrémités, on voit tout. En les rapprochant, on ne garde que le centre, ou qu’un côté, par exemple pour écarter un voisin gênant. Rien n’est recalculé.</p>
-  <h3 id="aide-outils">6. Les outils : mesure, référence, déplacement</h3>
+  <h3 id="aide-position">6. Placer la mesure dans la bande</h3>
+  <p>Dès qu’un point de mesure (ou la référence) est posé, un <b>troisième curseur, jaune</b>, apparaît sur la même échelle que les deux autres. Il dit où la mesure se trouve <b>dans la largeur de la bande</b>, de la gauche à la droite de la ligne vue de A vers B. Au milieu, la mesure est sur l’axe A→B ; en le déplaçant, toute la chaîne glisse parallèlement à l’axe, sur le graphique comme sur la carte. Un seul réglage pour tous les points : la mesure reste une ligne droite le long de l’axe. Chaque point a donc une position exacte : sa distance le long de l’axe, et cet écart de côté. Rien n’est recalculé, et le curseur revient au milieu quand on déplace A ou B.</p>
+  <h3 id="aide-outils">7. Les outils : mesure, référence, déplacement</h3>
   <p>La barre au-dessus du graphique choisit ce que fait un <b>clic</b>. Glisser et molette déplacent et zooment avec tous les outils ; « Vue entière » revient au départ.</p>
   <p><b>Mesure</b> (la règle, choisie au départ) : cliquez des points sur le graphique, de suite : le clic s’accroche au point le plus proche. Le tableau donne, pour chaque segment, la distance horizontale, le dénivelé, la pente (en %) et la distance en 3D. « Annuler le dernier point » et « Effacer » corrigent.</p>
   <p><b>Point de référence</b> (la croix) : cliquez un point, il devient le <b>0</b>, en altitude comme en distance. Les graduations se lisent alors depuis lui : positives en haut et à droite, négatives en bas et à gauche. Un nouveau clic le déplace, « Effacer la référence » le retire, et fermer le profil l’efface aussi. Attention : c’est une constante, elle vaut sur un sol plat ou pour un seul bâtiment, pas sur une pente.</p>

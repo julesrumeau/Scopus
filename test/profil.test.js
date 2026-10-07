@@ -167,3 +167,40 @@ test('pointSurAxe : la position sur la carte d’un point du graphique (distance
   eq(ctx.PROFIL.pointSurAxe(A, B, 50), 40, 60);
   assert.equal(ctx.PROFIL.pointSurAxe(A, A, 5), null, 'axe nul : pas de position');
 });
+
+test('pointSurAxe : avec un écart latéral d, le point est à d mètres à gauche de l’axe (n = gauche de A→B)', () => {
+  const ctx = chargerScripts(['config.js', 'profil.js']);
+  const eq = (p, x, y) => assert.ok(Math.abs(p[0] - x) < 1e-9 && Math.abs(p[1] - y) < 1e-9, `${p} au lieu de ${[x, y]}`);
+  const A = [0, 0], B = [100, 0];                   // axe vers l'est : la gauche est le nord (+y)
+  eq(ctx.PROFIL.pointSurAxe(A, B, 30, 5), 30, 5);
+  eq(ctx.PROFIL.pointSurAxe(A, B, 30, -2), 30, -2);
+  eq(ctx.PROFIL.pointSurAxe(A, B, 30, 0), 30, 0);
+  eq(ctx.PROFIL.pointSurAxe(A, B, 30), 30, 0);      // sans d : sur l'axe, comme avant
+  const C = [0, 0], D = [0, 100];                   // axe vers le nord : la gauche est l'ouest (-x)
+  eq(ctx.PROFIL.pointSurAxe(C, D, 10, 3), -3, 10);
+});
+
+test('ecartDepuisCurseur / curseurDepuisEcart : le curseur jaune suit l’échelle du double curseur (1000 = droite, 0 = gauche)', () => {
+  const ctx = chargerScripts(['config.js', 'profil.js']);
+  const P = ctx.PROFIL;
+  assert.equal(P.ecartDepuisCurseur(500, 20), 0);
+  assert.equal(P.ecartDepuisCurseur(0, 20), 10);        // tout à gauche : +demi-largeur
+  assert.equal(P.ecartDepuisCurseur(1000, 20), -10);
+  assert.equal(P.curseurDepuisEcart(0, 20), 500);
+  assert.equal(P.curseurDepuisEcart(10, 20), 0);
+  assert.equal(P.curseurDepuisEcart(-10, 20), 1000);
+  assert.equal(P.curseurDepuisEcart(99, 20), 0, 'hors bande : ramené au bord');
+  assert.equal(P.curseurDepuisEcart(-99, 20), 1000);
+  assert.equal(P.ecartBorne(8, 10), 5, 'après une largeur réduite à 10 m, 8 m ressort de la bande');
+  assert.equal(P.ecartBorne(-8, 10), -5);
+  assert.equal(P.ecartBorne(2, 10), 2);
+});
+
+test('pointsLocaux : la chaîne du profil en points de la mesure, sur l’axe décalé de d, avec l’altitude lue au graphique', () => {
+  const { PROFIL } = chargerScripts(['config.js', 'profil.js']);
+  const A = [0, 0], B = [100, 0];
+  const pts = PROFIL.pointsLocaux(A, B, [{ s: 10, z: 300.5 }, { s: 40, z: 312 }], 2);
+  assert.equal(JSON.stringify(pts), JSON.stringify([{ x: 10, y: 2, sol: 300.5, hauteur: 0 }, { x: 40, y: 2, sol: 312, hauteur: 0 }]));
+  assert.equal(JSON.stringify(PROFIL.pointsLocaux(A, B, [], 0)), '[]');
+  assert.equal(JSON.stringify(PROFIL.pointsLocaux(A, A, [{ s: 1, z: 1 }], 0)), '[]', 'axe nul : aucune position');
+});
