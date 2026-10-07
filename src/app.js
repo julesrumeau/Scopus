@@ -529,8 +529,8 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   };
 
   $('vue-edl').addEventListener('change', (e) => { vue3d?.definirEDL(e.target.checked); majLien(); });
-  const { traceOutils, versLatLng, selection, mesure, apercu } = creerOutilsCarte({ carte, projVue, MESURE });
-  outils.liaisons.carteOutils = { selection, mesure, apercu };
+  const { traceOutils, versLatLng, selection, mesure, trace, apercu } = creerOutilsCarte({ carte, projVue, MESURE, deplacerPoint: (i, lat, lng, fin) => outils.deplacerPointMesure(i, lat, lng, fin) });
+  outils.liaisons.carteOutils = { selection, mesure, trace, apercu };
   // Un clic (pas un glisser : Leaflet ne l'émet pas après un déplacement)
   // vise un point en mode Sélection ou Mesure, et pose un point de la bande en mode Profil.
   carte.map.on('click', async (e) => {

@@ -1544,3 +1544,10 @@ dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
 /* Le curseur jaune : la position de la mesure dans la largeur de la bande (un seul pouce, même échelle). */
 .double-curseur input.curseur-position[type="range"]::-webkit-slider-thumb { background: #ffd24a; width: 12px; }
 .double-curseur input.curseur-position[type="range"]::-moz-range-thumb { background: #ffd24a; width: 12px; }
+
+/* Les points de la mesure sur la carte : un rond jaune, à saisir seulement en mode Mesure. */
+.point-mesure { background: none; border: 0; pointer-events: none; }
+.mode-mesure .point-mesure { pointer-events: auto; cursor: grab; }
+.mode-mesure .point-mesure:active { cursor: grabbing; }
+.point-mesure i { display: block; width: 10px; height: 10px; margin: 6px; box-sizing: border-box; border-radius: 50%; background: #ffd24a; border: 1.5px solid #fff; transition: transform 0.1s; }
+.mode-mesure .point-mesure:hover i { transform: scale(1.5); }
