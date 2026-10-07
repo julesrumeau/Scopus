@@ -9,7 +9,7 @@ Topo du 5 octobre 2026, fin de journée. `main` est au commit `4b4d7f1` ; `dev` 
 4. **Petits fixes** (#6) : *faits le 5 octobre sur `fix/petits-fixes`* — panneau latéral sous la barre (601–900 px), point pile sur le bord d'une bande oblique, garde sans A/B, graphique grisé pendant « Calcul… », HUD dans la carte survolée. *Reste* : les deux côtés du rideau sur deux surfaces (demander les deux côtés dans un seul message au worker : changement de protocole, transitoire et sans conséquence visible, à ne faire qu'avec une raison).
 5. **R15b / R15c, ombrage** (multidirectionnel « cramé », « trop lissé » face à l'IGN) : à mesurer avant d'agir.
 6. **À vérifier sur de vrais appareils** (aucun accès ici) : appui long et pincement du profil, poignées A/B au doigt, icônes sur Safari iOS (R19), lien 3D sur téléphone.
-7. **R19, pas urgent** : fichiers servis sans version (`max-age=600`), test de fumée versionné (`tools/fumee.js`). Le dernier incident (la page figée après « Voir un exemple », attrapée à la main) en rappelle l'intérêt.
+7. **R19** : *test de fumée fait le 7 octobre (`npm run fumee`, voir CLAUDE.md)*. Reste : fichiers servis sans version (`max-age=600`), à décider.
 
 **En attente d'autrui ou de décision** : R8 fond OpenStreetMap France (**demande envoyée le 5 octobre**, en attente : accord du CA d'OSM France, pas avant la semaine du 12 octobre) ; R7 combler le sol (à ne pas commencer) ; #3 case « non classés » (à vérifier sur une ruine connue). Détection de structures et de sentiers (#1, #2) : code retiré (tag `archive-avant-retrait-dalle`).
 
