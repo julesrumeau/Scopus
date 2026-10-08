@@ -580,3 +580,15 @@ test('terrain de la vue : par défaut aucun flou (l’ombrage doit rester net, l
   assert.equal(VUE_RELIEF.reglagesDefaut(0.25).rayonLissage, 0);
   assert.equal(VUE_RELIEF.reglagesDefaut(1).rayonLissage, 0);
 });
+
+test('bascule d’essai du flou du terrain : reglages({ lissageM }) change la surface, 0 redonne celle par défaut', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  const defaut = Float32Array.from(m.surface(geo).mnt);
+  m.reglages({ lissageM: 1 });
+  const flou = Float32Array.from(m.surface(geo).mnt);
+  assert.ok(defaut.some((v, i) => Math.abs(v - flou[i]) > 1e-4), 'un flou de 1 m doit changer le terrain');
+  m.reglages({ lissageM: 0 });
+  const retour = m.surface(geo).mnt;
+  for (let i = 0; i < defaut.length; i++) assert.ok(Math.abs(retour[i] - defaut[i]) < 1e-6);
+});
