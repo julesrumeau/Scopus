@@ -105,13 +105,8 @@ function fabriqueVueRelief() {
     // (non classés, bâti, plafond de hauteur) ne touchent que la surface, et se
     // rejouent sur la grille gardée sans reranger un seul point.
     let versionSurface = 0;
-    function reglagesDe(pasM) {   // défauts sous les réglages courants (flou d'essai en mètres compris)
-      const r = { ...reglagesDefaut(pasM), ...reglagesCourants };
-      if (Number.isFinite(r.lissageM)) r.rayonLissage = VUE_GRILLE.rayon(r.lissageM, pasM);
-      return r;
-    }
     function reglages(r) {
-      if ('classesSol' in r || 'lissageM' in r) versionReglages++;
+      if ('classesSol' in r) versionReglages++;
       reglagesCourants = { ...reglagesCourants, ...r };
       versionSurface++;
       version++;
@@ -130,7 +125,7 @@ function fabriqueVueRelief() {
      * - sinon : seuls les blocs actifs arrivés depuis sont rangés.
      */
     function surfaceCPUIncrementale(geo, actifs) {
-      const r = reglagesDe(geo.pas);
+      const r = { ...reglagesDefaut(geo.pas), ...reglagesCourants };
       const estActif = (cle) => !actifs || actifs.has(cle);
       const coupe = (b) => VUE_GRILLE.coupe(b.emprise, geo);
       const memeForme = grille && grille.geo.pasCm === geo.pasCm && grille.geo.W === geo.W && grille.geo.H === geo.H
@@ -226,7 +221,7 @@ function fabriqueVueRelief() {
           // Un mètre de marge de part et d'autre : la profondeur de la carte
           // graphique est bornée à [0, 1], un point à la limite serait écrêté.
           const zRefCm = zmin - 100, spanCm = zmax - zRefCm + 100;
-          const r = reglagesDe(geo.pas);
+          const r = { ...reglagesDefaut(geo.pas), ...reglagesCourants };
           t = GPU_RELIEF.surfaceVue(geo, choisis.map(([cle, b]) => ({ cle, origineCm: b.origineCm })), zRefCm, spanCm, r);
         }
       }

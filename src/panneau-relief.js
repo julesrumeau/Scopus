@@ -116,11 +116,6 @@ function creerPanneauRelief(d) {
     planifierRelief(0);
     majLien();   // le contraste est dans le lien
   });
-  // ESSAI TEMPORAIRE : l'ancien flou du terrain (0,5 m) rendu optionnel pour comparer ; pas dans le lien.
-  $('vue-lissage-terrain').addEventListener('change', (e) => {
-    relief.reglages({ lissageM: e.target.checked ? 0.5 : 0 });
-    planifierRelief(0);
-  });
   // Les classes du sol s'appliquent tout de suite : les points sont dans le
   // worker, il n'y a rien à retélécharger — contrairement à l'ancien parcours
   // par dalle, qui ne gardait que ses grilles.
