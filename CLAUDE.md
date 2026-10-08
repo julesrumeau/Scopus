@@ -633,6 +633,12 @@ ouverture de Yokoyama 1998), **vérifiés contre des surfaces à réponse connue
   sans orientation (versants nord et sud identiques ; sur un plan de 30°, 0,61 partout contre 0,26 à 0,97 avec un soleil).
   Mesuré à Saint-Julien-en-Genevois (frontière suisse) : le détail revient à côté de l'ombrage simple. L'azimut agit désormais.
   Non fait : la pondération selon l'orientation de Mark 1992 (formule non vérifiée), la hauteur à 30° de GDAL.
+- **Pas de flou du terrain pour l'ombrage** (8 octobre 2026, retour « filtre flou face à l'IGN ») : `CONFIG.flux.lissageM` est à **0**.
+  Le flou en boîte du MNT avant la pente (`flouBoite`, hérité de la détection) valait 3 × 3 cases au zoom 18 et plus, il ramollissait
+  les arêtes ; le retirer rend l'ombrage net (comparé à l'IGN à Saint-Julien). **SVF et ouvertures gardent leur flou**
+  (`CONFIG.flux.lissageHorizonM` 0,5 m, `surfaceHorizons` dans `relief.js`) : sans lui le balayage d'horizons amplifie les cases isolées
+  (grain, facettes, constaté). « Lisser l'affichage » (interpolation à la peinture) est un autre réglage, inchangé. Reste non
+  mesuré : le minimum des points sol par case et le comblement adoucissent encore un peu ; l'IGN interpole en triangles (TIN).
 - **Ombrage coloré** (`ombrageRGB`) : trois soleils à 120° (315°, 75°, 195°) sur
   RGB. **Hors de `RELIEF.COUCHES`** (ne suit pas le contrat de
   `RELIEF.calculer`) ; traité comme la photo (`OMBRAGE_RGB`, `{ type: 'photo', rgba }`).

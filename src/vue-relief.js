@@ -251,7 +251,7 @@ function fabriqueVueRelief() {
     // `reglagesCouche` : ceux du panneau propres à une couche (directions et
     // rayon du Sky-View Factor…), par-dessus CONFIG.relief.
     function calculerCouche(t, cle, reglagesCouche) {
-      const p = { ...calculCouches, ...reglagesCouche };
+      const p = { lissageHorizonM: CONFIG.flux.lissageHorizonM, ...calculCouches, ...reglagesCouche };
       if (cle === 'ombrage-rgb') {
         const rgba = RELIEF.ombrageRGB(t, p);
         return { cle, rgba, moteur: RELIEF.moteur() };

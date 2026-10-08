@@ -723,13 +723,23 @@ function balayerHorizons(t, options = {}) {
 }
 
 /** Part de la voûte céleste visible depuis chaque cellule, dans [0, 1]. */
+const surfaceHorizons = (() => {   // surface de SVF et ouvertures : le MNT flouté de `lissageHorizonM` (l'ombrage lit le brut)
+  const gardees = new WeakMap();   // par terrain : le mémo du balayage et la texture GPU la reconnaissent
+  return (t, p) => {
+    const r = Math.max(0, Math.round((p.lissageHorizonM || 0) / t.pas)), g = gardees.get(t);
+    if (!r) return t;
+    if (!g || g.r !== r) gardees.set(t, { r, floue: { ...t, mnt: flouBoite(t.mnt, t.W, t.H, r) } });
+    return gardees.get(t).floue;
+  };
+})();
 function svf(t, options = {}) {
-  return balayerHorizons(t, options).svf;
+  const p = { ...CONFIG.relief, ...options };
+  return balayerHorizons(surfaceHorizons(t, p), options).svf;
 }
 
 /** Ouverture de Yokoyama, en degrés. 90° sur tout plan, quelle que soit sa pente. */
 function ouverture(t, options = {}, signe = 'positive') {
-  const r = balayerHorizons(t, options);
+  const r = balayerHorizons(surfaceHorizons(t, { ...CONFIG.relief, ...options }), options);
   return signe === 'negative' ? r.ouvertureNegative : r.ouverturePositive;
 }
 

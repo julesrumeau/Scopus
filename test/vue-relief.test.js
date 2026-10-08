@@ -574,3 +574,9 @@ test('profil : bande oblique 5-12-13, les points pile sur ses bords sont gardés
   assert.ok(attendu > 1000, `${attendu} points attendus`);
   assert.equal(r.n, attendu);
 });
+
+test('terrain de la vue : par défaut aucun flou (l’ombrage doit rester net, le flou en boîte ramollissait les arêtes)', () => {
+  assert.equal(VUE_RELIEF.reglagesDefaut(0.5).rayonLissage, 0);
+  assert.equal(VUE_RELIEF.reglagesDefaut(0.25).rayonLissage, 0);
+  assert.equal(VUE_RELIEF.reglagesDefaut(1).rayonLissage, 0);
+});
