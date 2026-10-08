@@ -177,10 +177,16 @@ const CONFIG = {
     // environ un point sol par case sur un sol à 25 %.
     pointsParCase: 4,
     // Réglages du terrain exprimés en mètres, pour garder leur sens quel que
-    // soit le pas de la grille de la vue : 3 m de comblement et 50 cm de
-    // lissage valent les 12 passes et 2 cellules de la grille de 25 cm.
+    // soit le pas de la grille de la vue : 3 m de comblement valent les 12 passes
+    // de la grille de 25 cm. Le lissage (flou en boîte du MNT avant la pente) est
+    // à 0 : il datait de la détection, où le bruit de pente gênait ; sur l'ombrage
+    // affiché il ramollissait les arêtes (retour du 8 octobre : « filtre flou »
+    // face à l'IGN), surtout au zoom maximal où il valait 3 × 3 cases.
     comblementM: 3,
-    lissageM: 0.5,
+    lissageM: 0,
+    // Flou en boîte (m) du terrain pour SVF et ouvertures seulement : le balayage d'horizons amplifie le bruit d'une
+    // case isolée (grain, facettes), contrairement à l'ombrage, qui lit le terrain brut.
+    lissageHorizonM: 0.5,
     // Côté maximal de la grille de la vue, en cases. Au-delà, le pas est
     // relevé : 4096 tient dans toute carte graphique WebGL2 et reste sous le
     // plafond de cellules du processeur.
@@ -419,6 +425,9 @@ const CONFIG = {
     // Soleil des ombrages : azimut (degrés depuis le nord, sens horaire) du premier
     // soleil, les autres le suivent à pas égaux ; hauteur au-dessus de l'horizon.
     // 315° et 45° sont les valeurs de toujours (convention des hillshades).
+    // Flou en boîte (m) du terrain avant le balayage d'horizons (SVF, ouvertures) ; 0 pour qui appelle `RELIEF`
+    // directement, la vue pose `flux.lissageHorizonM`.
+    lissageHorizonM: 0,
     ombrageAzimut: 315,
     ombrageHauteur: 45,
     // Calcul des couches coûteuses (SVF, ouvertures, ombrages, micro-relief)

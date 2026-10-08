@@ -605,3 +605,21 @@ test('soleilEstParDefaut — suit la configuration, pas un 315/45 codé en dur',
   assert.equal(RELIEF.soleilEstParDefaut(200, 20), true);
   assert.equal(RELIEF.soleilEstParDefaut(315, 45), false);
 });
+
+test('SVF et ouvertures : le flou du terrain leur reste propre (lissageHorizonM), l’ombrage n’en a plus', () => {
+  const { RELIEF } = charger();
+  // Un terrain bruité : le balayage d'horizons y amplifie les cases isolées, d'où un flou en boîte avant lui.
+  const t = terrain(48, 48, 0.5, (x, y) => 0.05 * x + 0.12 * Math.sin(x * 9) * Math.cos(y * 7));
+  const base = { gpu: false, svfDirections: 8, svfRayonM: 3 };
+  const flou = { ...t, mnt: RELIEF.flouBoite(t.mnt, t.W, t.H, 1) };   // 0,5 m à 0,5 m par case : une case de chaque côté
+  const attendu = RELIEF.svf(flou, { ...base, lissageHorizonM: 0 });
+  const obtenu = RELIEF.svf(t, { ...base, lissageHorizonM: 0.5 });
+  for (let i = 0; i < t.N; i++) assert.ok(Math.abs(obtenu[i] - attendu[i]) < 1e-6, `case ${i}`);
+  // Sans ce réglage, le terrain brut est balayé tel quel (et diffère du flouté).
+  const brut = RELIEF.svf(t, { ...base, lissageHorizonM: 0 });
+  assert.ok(brut.some((v, i) => Math.abs(v - attendu[i]) > 1e-3), 'le flou doit changer le SVF d’un terrain bruité');
+  // L'ombrage, lui, lit le terrain brut quel que soit ce réglage.
+  const o0 = RELIEF.ombrageSimple(t, { gpu: false, lissageHorizonM: 0 });
+  const o1 = RELIEF.ombrageSimple(t, { gpu: false, lissageHorizonM: 5 });
+  for (let i = 0; i < t.N; i++) assert.equal(o0[i], o1[i]);
+});
