@@ -127,7 +127,7 @@
   </ul>
   <div class="note">Si l'écran affiche « Zoomez pour calculer le relief », la zone est trop vaste : rien n'est demandé au-delà d'environ 60 km² à l'écran. Rapprochez-vous. Le zoom s'arrête au niveau 19, plafond des fonds de l'IGN.</div>
   <h3>Où ça marche</h3>
-  <p>Partout où l'IGN a publié du LiDAR HD : la métropole, la Réunion et les Antilles. À la dernière vérification (fin septembre 2026), la Martinique, Mayotte et la Guyane n'avaient pas de dalle publiée : l'outil le dit par « Pas de LiDAR HD ici ».</p>
+  <p>Partout où l'IGN a publié du LiDAR HD : la métropole, la Réunion et la Guadeloupe. À la dernière vérification (fin septembre 2026), la Martinique, Mayotte et la Guyane n'avaient pas de dalle publiée : l'outil le dit par « Pas de LiDAR HD ici ».</p>
 </section>
 
 <section id="relief">
@@ -212,7 +212,7 @@
     <li>Le <b>curseur jaune</b> (qui apparaît dès qu'il y a une mesure) place la mesure dans la largeur de la bande. La ligne reste parallèle à l'axe.</li>
     <li>Les cases de classes montrent ou cachent le sol, la végétation, les bâtiments. <b>Échelles égales</b> garde les mêmes mètres par pixel en largeur et en hauteur.</li>
   </ul>
-  <div class="note attention">Les points mesurés sont dessinés sur la carte, à leur distance sur l'axe. La mesure est une ligne droite : elle vaut sur un sol plat ou pour un seul bâtiment, pas le long d'une pente.</div>
+  <div class="note attention">Les points mesurés et le point de référence sont dessinés sur la carte, à leur distance sur l'axe. Le point de référence est une valeur unique : il convient sur un sol plat ou pour un seul bâtiment, pas le long d'une pente.</div>
 </section>
 
 <section id="3d">
@@ -254,12 +254,12 @@
 
 <section id="donnees">
   <h2>Comprendre les données</h2>
-  <p>Scopus lit les nuages de points du LiDAR HD directement sur les serveurs de l'IGN, par morceaux, et calcule tout dans votre onglet. Il n'invente aucun point : ce que vous voyez est ce que l'IGN publie.</p>
+  <p>Scopus lit les nuages de points du LiDAR HD directement sur les serveurs de l'IGN, par morceaux, et calcule tout dans votre onglet. Il ne fabrique aucun point : le relief est calculé à partir de ce que l'IGN publie (seuls les petits trous du sol sont comblés pour le calcul, voir plus bas).</p>
   <h3>Les classes</h3>
   <p>Chaque point est étiqueté par l'IGN : sol, végétation basse, moyenne ou haute, bâtiment, eau, pont, sursol pérenne, points virtuels, divers ou non classé. Ce classement est <b>automatique</b>, fait par une intelligence artificielle, et il se trompe parfois.</p>
   <figure>
-    <img src="docs/aide/eau.jpg" alt="Un terrain de sport à Labège classé « eau » (en bleu) dans le nuage de points." loading="lazy">
-    <figcaption>À Labège, un terrain de sport est classé « eau » (en bleu) : une surface plate et lisse ressemble à de l'eau pour l'algorithme. Les points restent bons, seule l'étiquette est fausse.</figcaption>
+    <img src="docs/aide/eau.jpg" alt="Une grande surface plate à Labège, probablement un terrain de sport, classée « eau » (en bleu) dans le nuage de points." loading="lazy">
+    <figcaption>À Labège, une grande surface plate (probablement un terrain de sport) est classée « eau » (en bleu) : une surface lisse ressemble à de l'eau pour l'algorithme. Les points restent bons, seule l'étiquette est probablement fausse.</figcaption>
   </figure>
   <h3>L'eau</h3>
   <p>Les LiDAR de cartographie utilisent un laser infrarouge que l'eau absorbe et reflète : il y a très peu de points sur les plans d'eau, surtout calmes. L'IGN ajoute parfois des points virtuels sur les grands cours d'eau.</p>
@@ -293,9 +293,9 @@
     <dt>Le relief est moins net que celui de l'IGN.</dt>
     <dd>Les deux ne se calculent pas pareil : l'IGN interpole le sol en triangles, Scopus range les points dans des cases d'au moins 50 cm. Un rendu net demande aussi de zoomer au niveau 18 ou plus.</dd>
     <dt>Pourquoi Scopus ne trouve-t-il pas les ruines tout seul ?</dt>
-    <dd>Une détection automatique a existé, puis a été retirée : jamais confrontée à une structure réelle connue, elle n'était pas fiable. L'outil préfère montrer le relief honnêtement, et laisser l'œil décider.</dd>
+    <dd>Une détection automatique a existé, puis a été retirée : elle n'avait jamais été confrontée à une structure réelle connue, donc rien ne prouvait qu'elle soit fiable. L'outil préfère montrer le relief tel quel, et laisser l'œil décider.</dd>
     <dt>Ça marche sur téléphone ?</dt>
-    <dd>Oui : le panneau devient une feuille tirée du bas, la carte reste utilisable au-dessus. Les gestes au doigt du profil (appui long, pincement) ont été testés en émulation, pas encore sur tous les appareils : dites-moi ce qui ne va pas.</dd>
+    <dd>Oui : le panneau devient une feuille tirée du bas, la carte reste utilisable au-dessus. Les gestes au doigt du profil (appui long, pincement) ont été testés en émulation, pas encore sur de vrais téléphones : dites-moi ce qui ne va pas.</dd>
     <dt>Peut-on l'utiliser hors connexion ?</dt>
     <dd>Vous pouvez ouvrir le fichier <code>index.html</code> sur votre disque, sans serveur. Mais les données viennent d'internet : sans réseau, il n'y a rien à afficher.</dd>
   </dl>
