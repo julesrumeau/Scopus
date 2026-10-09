@@ -102,6 +102,16 @@ async function verifier(nom, fn) {
     for (const id of ['mode-deplacement', 'mode-selection', 'mode-mesure', 'mode-profil', 'mode-carte-double', 'btn-localiser', 'onglet-carte', 'onglet-3d']) await exiger(id);
   });
 
+  await verifier('le lien « Aide » est dans la barre, et la page d’aide tient sur un téléphone', async () => {
+    if (!(await page.locator('.lien-aide').isVisible())) throw new Error('le lien « Aide » n’est pas visible');
+    const tel = await (await nav.newContext({ viewport: { width: 390, height: 800 } })).newPage();
+    await tel.goto(new URL('aide.html', cible).href);
+    await tel.waitForSelector('main h1', { timeout: 20000 });
+    const debord = await tel.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (debord > 0) throw new Error(`la page d’aide déborde de ${debord} px sur 390 px de large`);
+    await tel.close();
+  });
+
   await verifier('la mesure : deux points, un tableau, l’export s’ouvre', async () => {
     await page.click('#mode-mesure');
     await page.mouse.click(520, 520);

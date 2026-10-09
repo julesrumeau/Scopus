@@ -514,6 +514,19 @@ porte `cartes=2` (pas `rideau`).
 son poids. L'image vient de la vidéo de présentation (relief révélé à Verdun). **Les réseaux gardent l'aperçu en cache** : après un
 changement d'image, il faut parfois forcer leur rafraîchissement (outils de débogage de Facebook, LinkedIn).
 
+### La page d'aide
+
+`aide.html` (**page séparée**, vouvoiement, une seule feuille de style en ligne, aucun script externe) : un lien discret « Aide » à
+droite de la barre du haut de l'outil (`.lien-aide`, nouvel onglet). Sommaire à gauche (en haut, en puces, sur téléphone), onze sections
+(démarrer, relief, comparer, mesurer, profil, 3D, exporter, données, questions fréquentes, vie privée, soutenir), ancres partageables
+(`aide.html#profil`). **Le don n'est pas en haut** : un lien discret au sommaire et un encadré à la fin (décision du 9 octobre 2026 : on
+donne après avoir été aidé). Les questions fréquentes viennent des retours du forum (date en période, eau, classification, netteté, cache).
+Images dans `docs/aide/*.jpg`, **générées** par `tools/captures-aide.js` depuis le vrai site (même dépendance hors dépôt que le test de
+fumée ; une vingtaine de minutes, le réseau de l'IGN est lent) : à relancer quand l'interface change (`node tools/captures-aide.js profil`
+pour une seule). `test/aide.test.js` garde la page (images présentes, légères et décrites, ancres, liens locaux, aucun tiret cadratin, don
+aux adresses de la configuration, lien depuis la barre) ; le test de fumée vérifie le lien et l'absence de débordement à 390 px.
+**Texte à relire quand une fonction change** : il décrit l'outil tel qu'il est le 9 octobre 2026.
+
 ### Soutenir
 
 Section tout en bas du panneau (`CONFIG.soutien`, masquée si vide), bouton
