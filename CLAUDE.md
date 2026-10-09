@@ -507,6 +507,13 @@ avant `addTo`) ; `.scene` est une `<section>` : un `</div>` en trop y était **i
 `#cartes` trop tôt. En deux cartes, sélection, mesure et profil sont **grisés** (liés à la carte principale) ; le lien
 porte `cartes=2` (pas `rideau`).
 
+### Aperçu de lien
+
+`index.html` porte des balises **Open Graph et Twitter** (titre, description, image `docs/apercu.jpg` de 1200 x 630, adresse
+**absolue** : les réseaux ne résolvent pas un chemin relatif). Un test (`sources.test.js`) vérifie les balises, l'adresse de l'image et
+son poids. L'image vient de la vidéo de présentation (relief révélé à Verdun). **Les réseaux gardent l'aperçu en cache** : après un
+changement d'image, il faut parfois forcer leur rafraîchissement (outils de débogage de Facebook, LinkedIn).
+
 ### Soutenir
 
 Section tout en bas du panneau (`CONFIG.soutien`, masquée si vide), bouton
