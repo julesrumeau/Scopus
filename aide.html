@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aide - Scopus</title>
+<meta name="description" content="Mode d'emploi de Scopus : lire le relief du LiDAR HD de l'IGN, comparer, mesurer, couper le terrain, passer en 3D, exporter, et comprendre les données.">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:site_name" content="Scopus">
+<meta property="og:title" content="Aide de Scopus : lire le relief du LiDAR HD">
+<meta property="og:description" content="Comparer, mesurer, couper le terrain, passer en 3D, exporter, et comprendre les données du LiDAR HD de l'IGN.">
+<meta property="og:url" content="https://julesrumeau.github.io/Scopus/aide.html">
+<meta property="og:image" content="https://julesrumeau.github.io/Scopus/docs/apercu.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --fond: #0b0e13; --fond-2: #12161e; --fond-3: #1a202b; --bord: #262d3a;
+    --texte: #dbe1ea; --texte-2: #8b95a6; --accent: #5ec8f0; --or: #ffd24a; --alerte: #ff6b52;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--fond); color: var(--texte); font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); }
+  a:hover { text-decoration: none; }
+  code, kbd { font: 0.88em ui-monospace, Menlo, Consolas, monospace; background: var(--fond-3); border: 1px solid var(--bord); border-radius: 4px; padding: 1px 5px; }
+  kbd { border-bottom-width: 2px; }
+
+  .haut { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 14px; padding: 10px 20px; background: var(--fond-2); border-bottom: 1px solid var(--bord); }
+  .haut .marque { font-size: 17px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); text-decoration: none; }
+  .haut .titre { color: var(--texte-2); font-size: 14px; }
+  .haut .retour { margin-left: auto; padding: 7px 14px; border-radius: 8px; background: var(--accent); color: #06202b; font-weight: 600; text-decoration: none; font-size: 14px; }
+
+  .mise { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 28px 20px 80px; }
+  nav.sommaire { position: sticky; top: 76px; align-self: start; max-height: calc(100vh - 100px); overflow: auto; font-size: 14.5px; }
+  nav.sommaire ol { list-style: none; margin: 0; padding: 0; }
+  nav.sommaire li { margin: 0; }
+  nav.sommaire a { display: block; padding: 5px 10px; border-left: 2px solid var(--bord); color: var(--texte-2); text-decoration: none; }
+  nav.sommaire a:hover, nav.sommaire a.actif { color: var(--texte); border-left-color: var(--accent); }
+  nav.sommaire .soutenir a { margin-top: 12px; font-size: 13px; opacity: 0.8; }
+
+  main section { padding-bottom: 12px; margin-bottom: 34px; border-bottom: 1px solid var(--bord); scroll-margin-top: 80px; }
+  main section:last-of-type { border-bottom: 0; }
+  h1 { margin: 0 0 8px; font-size: 34px; letter-spacing: -0.02em; line-height: 1.2; }
+  h2 { margin: 0 0 12px; font-size: 25px; letter-spacing: -0.01em; }
+  h3 { margin: 26px 0 6px; font-size: 17px; color: var(--accent); }
+  p { margin: 0 0 12px; }
+  ul, ol.pas { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 5px; }
+  .intro { font-size: 18px; color: var(--texte-2); margin-bottom: 26px; }
+  figure { margin: 18px 0 22px; }
+  figure img { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--bord); background: var(--fond-2); }
+  figcaption { margin-top: 7px; font-size: 13.5px; color: var(--texte-2); }
+  .grille-couches { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin: 18px 0 22px; }
+  .grille-couches figure { margin: 0; }
+  .note { padding: 12px 14px; margin: 14px 0; background: var(--fond-2); border: 1px solid var(--bord); border-left: 3px solid var(--accent); border-radius: 8px; font-size: 15px; }
+  .note.attention { border-left-color: var(--or); }
+  dl.faq { margin: 0; }
+  dl.faq dt { margin-top: 18px; font-weight: 600; }
+  dl.faq dd { margin: 4px 0 0; color: var(--texte); }
+  table.couches { width: 100%; border-collapse: collapse; margin: 12px 0 18px; font-size: 15px; }
+  table.couches th, table.couches td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--bord); }
+  table.couches th { width: 30%; font-weight: 600; white-space: nowrap; }
+  .soutien { padding: 20px; margin-top: 12px; background: var(--fond-2); border: 1px solid var(--bord); border-radius: 12px; }
+  .soutien p { margin-bottom: 14px; }
+  .soutien .boutons { display: flex; flex-wrap: wrap; gap: 10px; }
+  .bouton { display: inline-block; padding: 9px 16px; border-radius: 8px; background: var(--fond-3); border: 1px solid var(--bord); color: var(--texte); text-decoration: none; font-size: 15px; }
+  .bouton:hover { border-color: var(--accent); }
+  footer { color: var(--texte-2); font-size: 13.5px; margin-top: 30px; }
+
+  @media (max-width: 860px) {
+    .mise { grid-template-columns: 1fr; gap: 10px; padding-top: 16px; }
+    nav.sommaire { position: static; max-height: none; border: 1px solid var(--bord); border-radius: 10px; padding: 8px; }
+    nav.sommaire ol { display: flex; flex-wrap: wrap; gap: 2px 4px; }
+    nav.sommaire a { border-left: 0; border-radius: 6px; background: var(--fond-2); }
+    .grille-couches { grid-template-columns: 1fr; }
+    h1 { font-size: 28px; }
+    /* Le tableau des couches devient une liste : un nom, puis sa phrase. */
+    table.couches, table.couches tbody, table.couches tr, table.couches th, table.couches td { display: block; width: 100%; }
+    table.couches th { white-space: normal; padding: 10px 0 0; border-bottom: 0; }
+    table.couches td { padding: 2px 0 10px; }
+    p, li, dd, figcaption { overflow-wrap: anywhere; }
+  }
+</style>
+</head>
+<body>
+<header class="haut">
+  <a class="marque" href="index.html">Scopus</a>
+  <span class="titre">Aide</span>
+  <a class="retour" href="index.html">Ouvrir l'outil</a>
+</header>
+
+<div class="mise">
+<nav class="sommaire" aria-label="Sommaire">
+  <ol>
+    <li><a href="#demarrer">Démarrer</a></li>
+    <li><a href="#relief">Lire le relief</a></li>
+    <li><a href="#comparer">Comparer</a></li>
+    <li><a href="#mesurer">Mesurer</a></li>
+    <li><a href="#profil">Le profil</a></li>
+    <li><a href="#3d">La 3D</a></li>
+    <li><a href="#exporter">Exporter et partager</a></li>
+    <li><a href="#donnees">Comprendre les données</a></li>
+    <li><a href="#faq">Questions fréquentes</a></li>
+    <li><a href="#vie-privee">Vie privée et crédits</a></li>
+    <li class="soutenir"><a href="#soutenir">Soutenir Scopus</a></li>
+  </ol>
+</nav>
+
+<main>
+<h1>Mode d'emploi de Scopus</h1>
+<p class="intro">Scopus calcule, dans votre navigateur, le relief que la végétation cache, à partir du LiDAR HD de l'IGN. Rien à installer, pas de compte. Cette page explique chaque fonction, avec des images prises dans l'outil.</p>
+
+<section id="demarrer">
+  <h2>Démarrer</h2>
+  <p>Ouvrez l'outil et cliquez sur <b>Voir un exemple</b> : il vous place sur un fort de Verdun que la forêt cache sur la photo aérienne, et que le relief révèle avec ses cratères.</p>
+  <figure>
+    <img src="docs/aide/comparer.jpg" alt="L'outil au fort de Verdun : photo aérienne à gauche, relief à droite, rideau au milieu." loading="lazy">
+    <figcaption>La photo aérienne d'un côté, le relief de l'autre : le rideau se glisse pour comparer.</figcaption>
+  </figure>
+  <h3>Aller quelque part</h3>
+  <ul>
+    <li>Tapez une commune, un lieu-dit ou des coordonnées (<code>42.74, 1.68</code>) dans le champ <b>Lieu</b>.</li>
+    <li>Le bouton viseur <b>Ma position</b>, sous les boutons de la carte, centre la carte sur votre appareil. Votre position reste dans votre navigateur.</li>
+    <li>Déplacez la carte et zoomez : le relief de ce qui est à l'écran se calcule tout seul, des points les plus grossiers aux plus fins.</li>
+  </ul>
+  <div class="note">Si l'écran affiche « Zoomez pour calculer le relief », la zone est trop vaste : rien n'est demandé au-delà d'environ 60 km² à l'écran. Rapprochez-vous. Le zoom s'arrête au niveau 19, plafond des fonds de l'IGN.</div>
+  <h3>Où ça marche</h3>
+  <p>Partout où l'IGN a publié du LiDAR HD : la métropole, la Réunion et les Antilles. À la dernière vérification (fin septembre 2026), la Martinique, Mayotte et la Guyane n'avaient pas de dalle publiée : l'outil le dit par « Pas de LiDAR HD ici ».</p>
+</section>
+
+<section id="relief">
+  <h2>Lire le relief</h2>
+  <p>Chaque côté du rideau peut afficher une couche différente. Les listes <b>Gauche</b> et <b>Droite</b> les rangent par famille.</p>
+  <table class="couches">
+    <tr><th>Photo aérienne, Plan IGN, OpenStreetMap</th><td>Les fonds de carte, pour comparer le relief avec ce que l'on voit.</td></tr>
+    <tr><th>Ombrage à 4 soleils</th><td>Quatre lumières voisines, du côté nord-ouest, combinées : un muret n'y disparaît pas et le relief garde un côté éclairé. L'azimut et la hauteur du soleil se règlent.</td></tr>
+    <tr><th>Ombrage simple (1 soleil)</th><td>Un seul soleil, plus contrasté. Un muret parallèle aux rayons disparaît : tournez l'azimut pour le retrouver.</td></tr>
+    <tr><th>Ombrage coloré</th><td>Trois soleils à 120°, un par couleur : l'orientation d'une pente ou d'un mur se lit à sa teinte.</td></tr>
+    <tr><th>Sky-View Factor</th><td>La part de ciel visible depuis chaque point. Sans direction d'éclairage, il se lit de la même façon sur un versant et sur le plat.</td></tr>
+    <tr><th>Ouverture positive</th><td>Sombre là où le ciel se referme : intérieurs de cabane, fossés, chemins creux.</td></tr>
+    <tr><th>Ouverture négative</th><td>Sombre sur ce qui domine : murs, crêtes, talus.</td></tr>
+    <tr><th>Micro-relief</th><td>Le terrain moins sa version lissée : il efface le versant et garde ce qui dépasse ou creuse (talus, terrasses, chemins creux).</td></tr>
+    <tr><th>Hauteur des structures, Trous dans le sol</th><td>Ce qui se dresse au-dessus du sol, et les cases sans retour au sol. Des couches de lecture avancée.</td></tr>
+    <tr><th>MNT ombré, MNS ombré (IGN)</th><td>Les estompages calculés par l'IGN, à éclairage fixe. Ils servent de repère pour comparer avec ceux de Scopus.</td></tr>
+  </table>
+  <div class="grille-couches">
+    <figure><img src="docs/aide/couche-ombrage.jpg" alt="Ombrage à 4 soleils du fort de Verdun." loading="lazy"><figcaption>Ombrage à 4 soleils</figcaption></figure>
+    <figure><img src="docs/aide/couche-svf.jpg" alt="Sky-View Factor du fort de Verdun." loading="lazy"><figcaption>Sky-View Factor</figcaption></figure>
+    <figure><img src="docs/aide/couche-ouverture.jpg" alt="Ouverture négative du fort de Verdun." loading="lazy"><figcaption>Ouverture négative</figcaption></figure>
+    <figure><img src="docs/aide/couche-microrelief.jpg" alt="Micro-relief du fort de Verdun." loading="lazy"><figcaption>Micro-relief</figcaption></figure>
+  </div>
+  <h3>Les réglages</h3>
+  <ul>
+    <li><b>Azimut et hauteur du soleil</b> : d'où vient la lumière (315° est le nord-ouest, l'usage des cartes) et à quelle hauteur. Une lumière basse (15 à 25°) fait ressortir les moindres reliefs. <b>Réinitialiser le soleil</b> revient aux valeurs de départ.</li>
+    <li><b>Contraste</b> : étire l'image sans recalculer.</li>
+    <li><b>Directions balayées</b> et <b>Rayon balayé</b> : pour le Sky-View Factor et les ouvertures.</li>
+    <li><b>Lisser l'affichage</b> : adoucit l'image entre les cases quand on zoome, sans changer le calcul.</li>
+    <li><b>Classes du sol</b> : quels points comptent comme du terrain (sol et eau par défaut).</li>
+  </ul>
+</section>
+
+<section id="comparer">
+  <h2>Comparer</h2>
+  <ul>
+    <li><b>Le rideau</b> : glissez sa poignée, au centre de la carte. <b>Rideau au centre</b> le remet au milieu, <b>Échanger</b> inverse les côtés.</li>
+    <li><b>Trois modes</b>, boutons sous le zoom : la carte scindée par le rideau, une seule carte en pleine page, ou deux cartes synchronisées côte à côte (empilées sur téléphone).</li>
+  </ul>
+  <figure>
+    <img src="docs/aide/deux-cartes.jpg" alt="Deux cartes synchronisées : la photo aérienne et le Sky-View Factor côte à côte." loading="lazy">
+    <figcaption>Deux cartes synchronisées : on déplace l'une, l'autre suit. Un repère montre sur l'autre carte l'endroit survolé.</figcaption>
+  </figure>
+  <p>En deux cartes, la sélection, la mesure et le profil sont grisés : ils travaillent sur la carte principale.</p>
+</section>
+
+<section id="mesurer">
+  <h2>Mesurer</h2>
+  <p>Passez en mode <b>Mesure</b> (la règle, dans la barre du haut), puis cliquez des points de suite.</p>
+  <figure>
+    <img src="docs/aide/mesure.jpg" alt="Une mesure en chaîne sur le relief, avec le tableau des segments dans le panneau." loading="lazy">
+    <figcaption>Chaque segment s'ajoute au tableau : distance horizontale, dénivelé, pente et distance en 3D.</figcaption>
+  </figure>
+  <ul>
+    <li>Le tableau donne, par segment, la <b>distance horizontale</b>, le <b>dénivelé</b>, la <b>pente</b> (en pourcentage, comme l'étiquette <code>incline=15%</code> d'OpenStreetMap) et la <b>distance en 3D</b>. Le total ne porte que sur les distances : un dénivelé additionné ne dirait que l'écart net.</li>
+    <li><kbd>Maj</kbd> + clic pose le point à angle droit du précédent (verticale ou horizontale à l'écran), avec un trait pointillé d'aperçu.</li>
+    <li>En mode Mesure, <b>glissez un point</b> pour le déplacer. Sa distance se met à jour pendant le glissé, son altitude est relue au lâcher.</li>
+    <li>La croix du tableau retire le point d'arrivée d'un segment. <kbd>Retour arrière</kbd> ou <kbd>Suppr</kbd> retire le dernier point, <b>Effacer</b> recommence.</li>
+    <li>Une valeur inconnue s'écrit « n/d » : il n'y a pas d'altitude connue à cet endroit.</li>
+  </ul>
+  <p>Le mode <b>Sélection</b> donne l'altitude d'un point cliqué, sa date d'acquisition (voir plus bas) et des liens pour l'ouvrir dans d'autres cartes.</p>
+</section>
+
+<section id="profil">
+  <h2>Le profil</h2>
+  <p>Le profil coupe le terrain à la verticale le long d'une ligne : il montre les points du nuage vus de côté, pour mesurer la hauteur d'un arbre, d'un mur ou d'un bâtiment.</p>
+  <ol class="pas">
+    <li>Passez en mode <b>Profil</b> (à côté de la règle), puis cliquez deux points, A et B. Vous pouvez les déplacer.</li>
+    <li>Réglez la <b>largeur de la bande</b> (de 0,5 à 100 m). Plus elle est étroite, plus la coupe est fine.</li>
+    <li>Zoomez sur la carte avant de valider : plus on est près, plus le LiDAR chargé est détaillé. Attendez quelques secondes que les points arrivent, puis cliquez <b>Valider</b>.</li>
+  </ol>
+  <figure>
+    <img src="docs/aide/profil.jpg" alt="Le graphique du profil : des arbres et le sol vus de côté, avec une mesure verticale de 18 mètres sur le plus grand arbre." loading="lazy">
+    <figcaption>Une mesure du sol à la cime d'un arbre : 18,0 m.</figcaption>
+  </figure>
+  <h3>Dans le graphique</h3>
+  <ul>
+    <li><b>Mesure</b> (par défaut) : cliquez des points, le clic s'accroche au point visible le plus proche. Avec <kbd>Maj</kbd>, le point se pose à angle droit : une verticale donne la hauteur au-dessus du sol.</li>
+    <li><b>Point de référence</b> : il devient le zéro, en altitude comme en distance.</li>
+    <li><b>Déplacement</b> : un clic ne pose rien. La molette zoome, le glisser déplace, et à deux doigts on pince pour zoomer.</li>
+    <li>Le <b>double curseur</b> garde une tranche de la largeur de la bande, par exemple pour écarter un voisin gênant.</li>
+    <li>Le <b>curseur jaune</b> (qui apparaît dès qu'il y a une mesure) place la mesure dans la largeur de la bande. La ligne reste parallèle à l'axe.</li>
+    <li>Les cases de classes montrent ou cachent le sol, la végétation, les bâtiments. <b>Échelles égales</b> garde les mêmes mètres par pixel en largeur et en hauteur.</li>
+  </ul>
+  <div class="note attention">Les points mesurés sont dessinés sur la carte, à leur distance sur l'axe. La mesure est une ligne droite : elle vaut sur un sol plat ou pour un seul bâtiment, pas le long d'une pente.</div>
+</section>
+
+<section id="3d">
+  <h2>La 3D</h2>
+  <p>L'onglet <b>3D</b> montre en nuage de points ce que la carte affichait, sans rien télécharger de plus.</p>
+  <figure>
+    <img src="docs/aide/3d.jpg" alt="Le nuage de points en 3D : la forêt en vert, le sol en brun, et le fort de Verdun." loading="lazy">
+    <figcaption>Classification : végétation en vert, sol en brun. Le fort apparaît à découvert sous les arbres.</figcaption>
+  </figure>
+  <ul>
+    <li><b>Naviguer</b> : glisser déplace, la molette zoome sous le curseur, <kbd>Maj</kbd> + glisser pivote, le double-clic recentre. Le « N » de la boussole regarde vers le nord.</li>
+    <li><b>Colorer</b> : par classe (sol, végétation, bâtiment, eau…), par hauteur au-dessus du sol, par relief ou par altitude.</li>
+    <li><b>Classes affichées</b> : cochez ou décochez chaque classe pour ne voir que le sol, ou que les bâtiments.</li>
+    <li><b>Ombrage de profondeur</b> : fait ressortir les murets et les talus.</li>
+    <li><b>Mesurer et sélectionner</b> fonctionnent aussi dans la 3D : le clic vise un point du nuage.</li>
+    <li><b>Exporter les points</b> : en LAS (tous les points) ou en PLY (les classes cochées), en coordonnées locales.</li>
+  </ul>
+  <p>Le nombre de points affichés est plafonné (5 millions, 2 millions sur mobile). Le nuage s'étoffe tout seul tant que des points arrivent.</p>
+</section>
+
+<section id="exporter">
+  <h2>Exporter et partager</h2>
+  <h3>Exporter une mesure</h3>
+  <p>Le bouton <b>Exporter…</b> sous le tableau de la mesure (sur la carte comme dans le profil) enregistre la ligne et ses points.</p>
+  <figure>
+    <img src="docs/aide/export.jpg" alt="La fenêtre d'export de la mesure : GeoJSON, GPX ou OSM XML, et la case de l'altitude du sol." loading="lazy">
+    <figcaption>Trois formats, et l'altitude du sol en option.</figcaption>
+  </figure>
+  <ul>
+    <li><b>GeoJSON</b> : une ligne et un point par sommet (A, B, C…).</li>
+    <li><b>GPX</b> : un tracé, pour un téléphone, un GPS ou QGIS.</li>
+    <li><b>OSM XML</b> : des nœuds et un chemin à identifiants négatifs (des objets nouveaux), à ouvrir dans JOSM. Il ne porte aucune étiquette inventée, et ne s'envoie nulle part.</li>
+    <li>La case <b>Avec l'altitude du sol</b> est décochée par défaut : sans elle, le fichier ne contient que longitude et latitude.</li>
+  </ul>
+  <div class="note attention">L'altitude est celle du LiDAR HD, au niveau de la mer (NGF). Elle convient à une étiquette <code>ele</code> d'OpenStreetMap ou à un GPX, mais au sens strict du GeoJSON (hauteur sur l'ellipsoïde) elle diffère d'une cinquantaine de mètres en France.</div>
+  <h3>Partager une vue</h3>
+  <p>Le bouton <b>Partager</b> copie un lien qui contient la vue, les couches de chaque côté, la position du rideau, le point sélectionné, la mesure, la bande du profil et l'onglet 3D. Celui qui l'ouvre retrouve la même chose. <b>Ouvrir dans OpenStreetMap</b> ne garde que la vue. Le lien s'ouvre tel quel dans osm.org, iD ou JOSM.</p>
+</section>
+
+<section id="donnees">
+  <h2>Comprendre les données</h2>
+  <p>Scopus lit les nuages de points du LiDAR HD directement sur les serveurs de l'IGN, par morceaux, et calcule tout dans votre onglet. Il n'invente aucun point : ce que vous voyez est ce que l'IGN publie.</p>
+  <h3>Les classes</h3>
+  <p>Chaque point est étiqueté par l'IGN : sol, végétation basse, moyenne ou haute, bâtiment, eau, pont, sursol pérenne, points virtuels, divers ou non classé. Ce classement est <b>automatique</b>, fait par une intelligence artificielle, et il se trompe parfois.</p>
+  <figure>
+    <img src="docs/aide/eau.jpg" alt="Un terrain de sport à Labège classé « eau » (en bleu) dans le nuage de points." loading="lazy">
+    <figcaption>À Labège, un terrain de sport est classé « eau » (en bleu) : une surface plate et lisse ressemble à de l'eau pour l'algorithme. Les points restent bons, seule l'étiquette est fausse.</figcaption>
+  </figure>
+  <h3>L'eau</h3>
+  <p>Les LiDAR de cartographie utilisent un laser infrarouge que l'eau absorbe et reflète : il y a très peu de points sur les plans d'eau, surtout calmes. L'IGN ajoute parfois des points virtuels sur les grands cours d'eau.</p>
+  <h3>La date d'acquisition</h3>
+  <p>Dans <b>Point sélectionné</b>, la ligne « Acquisition » donne la plage de vol de la dalle qui contient le point.</p>
+  <figure>
+    <img src="docs/aide/date.jpg" alt="Le détail d'un point sélectionné : longitude, latitude, altitude et date d'acquisition de la dalle." loading="lazy">
+    <figcaption>Le détail d'un point sélectionné, avec la date d'acquisition de sa dalle.</figcaption>
+  </figure>
+  <p>C'est la période de la mission de vol qui a couvert la zone, telle que l'IGN la publie : elle va d'un jour à plusieurs mois, voire plus d'un an, selon les chantiers. Le jour exact de chaque point n'est pas dans les données de Scopus. Sans date publiée, l'outil écrit « non publiée » : il n'invente jamais de date.</p>
+  <h3>Ce que le LiDAR ne voit pas</h3>
+  <p>Sous un bâtiment, sous un pont ou sous un couvert très dense, il peut manquer des points de sol. Scopus comble les petits trous (jusqu'à 3 m) pour le calcul, mais n'invente pas le terrain au-delà.</p>
+  <div class="note">Scopus ne détecte rien tout seul : il calcule le relief, et c'est votre œil qui y lit une cabane, une ruine, un sentier ou une terrasse, comme le fait la prospection LiDAR depuis toujours.</div>
+</section>
+
+<section id="faq">
+  <h2>Questions fréquentes</h2>
+  <dl class="faq">
+    <dt>La carte reste vide, ou affiche « Zoomez pour calculer le relief ».</dt>
+    <dd>La zone à l'écran est trop grande (plus d'environ 60 km²). Zoomez. Si c'est en dehors des dalles publiées (par exemple la Martinique, Mayotte ou la Guyane), l'outil dit « Pas de LiDAR HD ici ».</dd>
+    <dt>L'outil dit « Chargement ralenti ».</dt>
+    <dd>Les serveurs de l'IGN répondent lentement. Scopus réessaie tout seul : attendez quelques instants, le relief s'affine à mesure que les points arrivent.</dd>
+    <dt>Un bouton ou un élément manque juste après une mise à jour.</dt>
+    <dd>Le navigateur garde les fichiers quelques minutes. Rechargez sans cache : <kbd>Ctrl</kbd> + <kbd>Maj</kbd> + <kbd>R</kbd>.</dd>
+    <dt>Pourquoi la date d'acquisition est-elle une période ?</dt>
+    <dd>Parce que l'IGN publie la période de la mission de vol pour chaque dalle, pas un jour par point. Voir « Comprendre les données ».</dd>
+    <dt>Pourquoi y a-t-il si peu de points sur un étang ?</dt>
+    <dd>Le laser infrarouge est absorbé et reflété par l'eau. C'est normal, et sans lien avec la météo.</dd>
+    <dt>Une zone est classée « eau » alors que c'est un terrain.</dt>
+    <dd>Le classement de l'IGN est automatique et se trompe parfois, surtout sur les grandes surfaces lisses. Les points sont bons, seule l'étiquette est fausse.</dd>
+    <dt>Le relief est moins net que celui de l'IGN.</dt>
+    <dd>Les deux ne se calculent pas pareil : l'IGN interpole le sol en triangles, Scopus range les points dans des cases d'au moins 50 cm. Un rendu net demande aussi de zoomer au niveau 18 ou plus.</dd>
+    <dt>Pourquoi Scopus ne trouve-t-il pas les ruines tout seul ?</dt>
+    <dd>Une détection automatique a existé, puis a été retirée : jamais confrontée à une structure réelle connue, elle n'était pas fiable. L'outil préfère montrer le relief honnêtement, et laisser l'œil décider.</dd>
+    <dt>Ça marche sur téléphone ?</dt>
+    <dd>Oui : le panneau devient une feuille tirée du bas, la carte reste utilisable au-dessus. Les gestes au doigt du profil (appui long, pincement) ont été testés en émulation, pas encore sur tous les appareils : dites-moi ce qui ne va pas.</dd>
+    <dt>Peut-on l'utiliser hors connexion ?</dt>
+    <dd>Vous pouvez ouvrir le fichier <code>index.html</code> sur votre disque, sans serveur. Mais les données viennent d'internet : sans réseau, il n'y a rien à afficher.</dd>
+  </dl>
+</section>
+
+<section id="vie-privee">
+  <h2>Vie privée et crédits</h2>
+  <ul>
+    <li><b>Pas de compte, pas de serveur.</b> Les points viennent directement de l'IGN, les calculs se font dans votre navigateur. Aucune donnée LiDAR ni aucun résultat ne quitte l'onglet.</li>
+    <li><b>Un compteur de visites</b> (GoatCounter), sans cookie, compte les visites de façon anonyme.</li>
+    <li><b>Le cache</b> : pour aller plus vite à la visite suivante, votre navigateur garde les points lus. Il reste chez vous.</li>
+    <li><b>Un lien partagé</b> contient le lieu que vous regardez : c'est vous qui décidez de le donner.</li>
+  </ul>
+  <p>Données <b>LiDAR HD © IGN</b>, licence ouverte Etalab. Fond « OpenStreetMap (standard) » : données © les contributeurs d'<a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> (ODbL). Le code est sous licence MIT ; Leaflet et laz-perf gardent leurs licences.</p>
+  <p>Un retour, un bug ? <a href="mailto:jules.rumeau1@gmail.com">jules.rumeau1@gmail.com</a>, ou le forum d'OpenStreetMap France.</p>
+</section>
+
+<section id="soutenir">
+  <h2>Soutenir Scopus</h2>
+  <div class="soutien">
+    <p>Scopus est gratuit, sans pub ni compte, et le restera. S'il vous sert, un don aide à le faire vivre. Rien n'est réservé aux donateurs.</p>
+    <div class="boutons">
+      <a class="bouton" href="https://ko-fi.com/julesrumeau" rel="noopener">Offrir un café sur Ko-fi</a>
+      <a class="bouton" href="https://liberapay.com/julesrumeau/donate" rel="noopener">Un soutien régulier sur Liberapay</a>
+    </div>
+  </div>
+</section>
+
+<footer>Scopus, outil libre d'exploration du LiDAR HD de l'IGN. <a href="index.html">Retour à l'outil</a></footer>
+</main>
+</div>
+
+<script>
+  // Le sommaire met en avant la section lue. Sans script, la page reste entièrement lisible.
+  (function () {
+    var liens = document.querySelectorAll('nav.sommaire a[href^="#"]');
+    if (!('IntersectionObserver' in window) || !liens.length) return;
+    var parId = {};
+    liens.forEach(function (a) { parId[a.getAttribute('href').slice(1)] = a; });
+    var obs = new IntersectionObserver(function (entrees) {
+      entrees.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        liens.forEach(function (a) { a.classList.remove('actif'); });
+        if (parId[e.target.id]) parId[e.target.id].classList.add('actif');
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { obs.observe(s); });
+  })();
+</script>
+</body>
+</html>
