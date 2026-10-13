@@ -357,6 +357,22 @@ Demande LouisXIV (forum OSM-FR) : le temps GPS d'un point, à la seconde, et les
   la valeur utilisateur (affichée brute, « valeur brute »).
 - Champs lus : intensité, retour (n sur N), angle de scan (× 0,006°), sens, bord, canal, ligne de vol, classe, drapeaux, position.
 
+## Export STL (impression 3D)
+
+Bouton « Exporter en STL… » du panneau Relief (`export-stl-ui.js` la fenêtre `#dlg-stl`, `stl.js` pur et testé). **Une surface,
+pas un nuage** : une altitude par case de la dernière vue calculée (`VUE_RELIEF.grilleStl`, rognée à la zone affichée,
+message `grilleStl` du worker). Un solide à une altitude par case n'a pas de vide sous les feuilles : il est **fermé par
+construction** (dessus à deux triangles par case, quatre murs, dessous en éventail depuis un sommet central : aucune arête en T).
+Un test vérifie que chaque arête orientée est parcourue une fois dans chaque sens, et le volume d'une plaque ; un vrai fichier
+(Verdun, 465 318 triangles) a été contrôlé de même en Python.
+
+- **Sol ou sommet** : le sol (défaut, MNT comblé) montre le relief caché ; le sommet y ajoute `hauteur` (arbres, toits en masse pleine).
+- **Cases sans donnée** (NaN) : comblées par la moyenne des voisines (`STL.combler`), sinon le solide aurait des trous.
+- **Taille** : au plus `CONFIG.stl.maxCotes` (600) cases par côté, moyenne par blocs au-delà (`STL.reduire`) ; le poids est annoncé
+  avant (`STL.resume`, `STL.dimensions`). STL **binaire**, en millimètres (échelle fixée par la largeur voulue de la maquette), parties
+  de 65 536 triangles. **L'exagération verticale ne touche pas l'épaisseur de la base.**
+- **Non essayé** dans un logiciel de découpe (PrusaSlicer, Cura) : seulement les contrôles du maillage.
+
 ## La carte
 
 - **La grille des dalles est calculée, pas téléchargée** : une dalle est

@@ -22,7 +22,7 @@ function creerExportStlUI({ $, relief, rectVue, telecharger, STL, CONFIG }) {
     const d = STL.dimensions(grille.W, grille.H, CONFIG.stl.maxCotes);
     $('stl-resume').textContent = STL.resume({ W: d.W, H: d.H, pas: grille.pas * d.facteur, largeurMm: reglages().largeurMm }).texte;
     const trous = grille.z.reduce((n, v) => n + (Number.isNaN(v) ? 1 : 0), 0);
-    if (trous) { avis.hidden = false; avis.textContent = `${trous} cases sans donnée (eau, zone vide) seront comblées par leurs voisines.`; }
+    if (trous) { avis.hidden = false; avis.textContent = `${trous} ${trous > 1 ? 'cases sans donnée seront comblées' : 'case sans donnée sera comblée'} par leurs voisines (eau, zone vide).`; }
   }
 
   async function lireGrille() {

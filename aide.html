@@ -248,6 +248,9 @@
     <li>La case <b>Avec l'altitude du sol</b> est décochée par défaut : sans elle, le fichier ne contient que longitude et latitude.</li>
   </ul>
   <div class="note attention">L'altitude est celle du LiDAR HD, au niveau de la mer (NGF). Elle convient à une étiquette <code>ele</code> d'OpenStreetMap ou à un GPX, mais au sens strict du GeoJSON (hauteur sur l'ellipsoïde) elle diffère d'une cinquantaine de mètres en France.</div>
+  <h3>Imprimer le relief en 3D (STL)</h3>
+  <p>Dans le panneau <b>Relief</b>, <b>Exporter en STL</b> transforme la zone affichée en un solide fermé : le relief dessus, quatre murs et un dessous plat, sans trou, prêt pour un logiciel de découpe d'imprimante 3D. Choisissez <b>le sol</b> (sans arbres ni bâtiments, pour le relief caché sous la forêt) ou <b>le sommet</b> (la forêt devient une masse pleine, sans détail de feuilles). Réglez la largeur de la maquette en millimètres, l'exagération verticale (un relief réel est très plat à l'échelle d'une maquette) et l'épaisseur de la base. Les cases sans donnée, par exemple sur l'eau, sont comblées par leurs voisines. Le fichier est fabriqué dans votre navigateur.</p>
+
   <h3>Partager une vue</h3>
   <p>Le bouton <b>Partager</b> copie un lien qui contient la vue, les couches de chaque côté, la position du rideau, le point sélectionné, la mesure, la bande du profil et l'onglet 3D. Celui qui l'ouvre retrouve la même chose. <b>Ouvrir dans OpenStreetMap</b> ne garde que la vue. Le lien s'ouvre tel quel dans osm.org, iD ou JOSM.</p>
 </section>
