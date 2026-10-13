@@ -98,7 +98,10 @@ class Grappe {
       // monopoliserait le fil et figerait l'interface du début à la fin.
       return new Promise((ok, ko) => setTimeout(() => {
         try {
-          ok(DECODEUR.decoderBloc(this.lazPerfLocal, new Uint8Array(charge.octets), charge));
+          const octets = new Uint8Array(charge.octets);
+          ok(charge.type === 'point'
+            ? { enregistrement: DECODEUR.lirePointDuBloc(this.lazPerfLocal, octets, charge, charge.indice) }
+            : DECODEUR.decoderBloc(this.lazPerfLocal, octets, charge));
         } catch (e) { ko(e); }
       }, 0));
     }

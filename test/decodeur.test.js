@@ -58,3 +58,32 @@ test('sans entiers : la sortie d’avant, en mètres relatifs à l’origine', (
   assert.equal(r.xc, undefined);
   assert.ok(Math.abs(r.x[0] - (877000.25 - 877500)) < 1e-3);
 });
+
+// ── Un seul point, avec tous ses champs (la fenêtre « Détails du point ») ──────────────────────────────────────────
+
+test('lirePointDuBloc : l’enregistrement complet du point demandé, copié (les autres points sont sautés)', () => {
+  const lp = fauxLazPerf(POINTS);
+  const r = DECODEUR.lirePointDuBloc(lp, new Uint8Array(10), charge(undefined), 1);
+  assert.equal(r.length, 30, 'un enregistrement entier : longueur du point');
+  const v = new DataView(r.buffer, r.byteOffset, r.byteLength);
+  assert.equal(v.getInt32(0, true), 87_799_999);   // le deuxième point (indice 1), pas le premier
+  assert.equal(v.getInt32(4, true), 690_399_999);
+  assert.equal(v.getUint8(16), 5);
+  // Une copie : le tas WASM sert ensuite à autre chose.
+  lp.HEAPU8.fill(0);
+  assert.equal(new DataView(r.buffer, r.byteOffset, r.byteLength).getInt32(0, true), 87_799_999);
+});
+
+test('lirePointDuBloc : le premier et le dernier point, et un indice hors du bloc qui échoue clairement', () => {
+  const c = charge(undefined);
+  assert.equal(new DataView(DECODEUR.lirePointDuBloc(fauxLazPerf(POINTS), new Uint8Array(10), c, 0).buffer).getInt32(0, true), 87_700_025);
+  assert.equal(new DataView(DECODEUR.lirePointDuBloc(fauxLazPerf(POINTS), new Uint8Array(10), c, 2).buffer).getInt32(0, true), 87_750_000);
+  assert.throws(() => DECODEUR.lirePointDuBloc(fauxLazPerf(POINTS), new Uint8Array(10), c, 3), /hors du bloc/);
+  assert.throws(() => DECODEUR.lirePointDuBloc(fauxLazPerf(POINTS), new Uint8Array(10), c, -1), /hors du bloc/);
+});
+
+test('le worker de décompression embarque lirePointDuBloc et répond au message « point »', () => {
+  const source = DECODEUR.sourceWorker('/* laz-perf */');
+  assert.match(source, /function lirePointDuBloc\(/);
+  assert.match(source, /msg\.type === 'point'/);
+});

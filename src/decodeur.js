@@ -118,6 +118,35 @@ function decoderBloc(lazPerf, octets, p) {
 }
 
 /**
+ * L'enregistrement complet d'**un** point d'un bloc (tous ses champs : temps GPS, intensité, retour, angle…), pour la fenêtre
+ * « Détails du point ». Le décodeur avance point par point : on saute ceux d'avant, et le résultat est une **copie**, le tas
+ * WASM servant ensuite à autre chose. Sérialisée dans le worker comme `decoderBloc` : elle ne ferme sur rien.
+ *
+ * @param {object} lazPerf module laz-perf initialisé
+ * @param {Uint8Array} octets le bloc **entier** (toutes les couches : un bloc réduit n'a plus ces champs)
+ * @param {object} p { nbPoints, formatPoint, longueurPoint }
+ * @param {number} indice rang du point dans le bloc
+ * @returns {Uint8Array} `longueurPoint` octets
+ */
+function lirePointDuBloc(lazPerf, octets, p, indice) {
+  const { nbPoints, formatPoint, longueurPoint } = p;
+  if (!(indice >= 0 && indice < nbPoints)) throw new Error(`Point ${indice} hors du bloc (${nbPoints} points)`);
+  const src = lazPerf._malloc(octets.byteLength);
+  lazPerf.HEAPU8.set(octets, src);
+  const dst = lazPerf._malloc(longueurPoint);
+  const decodeur = new lazPerf.ChunkDecoder();
+  decodeur.open(formatPoint, longueurPoint, src);
+  try {
+    for (let i = 0; i <= indice; i++) decodeur.getPoint(dst);
+    return new Uint8Array(lazPerf.HEAPU8.buffer, dst, longueurPoint).slice();
+  } finally {
+    decodeur.delete();
+    lazPerf._free(src);
+    lazPerf._free(dst);
+  }
+}
+
+/**
  * Corps du Worker. Sérialisée puis exécutée dans le blob — ne ferme sur rien,
  * `decoderBloc` lui étant concaténée séparément.
  */
@@ -141,6 +170,16 @@ function corpsDecodeur() {
       return;
     }
 
+    if (msg.type === 'point') {
+      try {
+        const enregistrement = lirePointDuBloc(lazPerf, new Uint8Array(msg.octets), msg, msg.indice);
+        self.postMessage({ type: 'point', id: msg.id, enregistrement }, [enregistrement.buffer]);
+      } catch (e) {
+        self.postMessage({ type: 'erreur', id: msg.id, message: (e && e.message) || String(e) });
+      }
+      return;
+    }
+
     if (msg.type !== 'decoder') return;
 
     try {
@@ -155,6 +194,7 @@ function corpsDecodeur() {
 
 const DECODEUR = {
   decoderBloc,
+  lirePointDuBloc,
 
   /**
    * Source complet et autonome d'un worker de décompression.
@@ -166,6 +206,6 @@ const DECODEUR = {
     // du worker. Entre parenthèses ce serait une expression de fonction nommée,
     // dont le nom n'est visible que depuis son propre corps — `corpsDecodeur`
     // ne la trouverait pas.
-    return `${lazPerfJs}\n${decoderBloc}\n;(${corpsDecodeur})();\n`;
+    return `${lazPerfJs}\n${decoderBloc}\n${lirePointDuBloc}\n;(${corpsDecodeur})();\n`;
   },
 };
