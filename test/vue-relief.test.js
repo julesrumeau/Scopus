@@ -580,3 +580,44 @@ test('terrain de la vue : par défaut aucun flou (l’ombrage doit rester net, l
   assert.equal(VUE_RELIEF.reglagesDefaut(0.25).rayonLissage, 0);
   assert.equal(VUE_RELIEF.reglagesDefaut(1).rayonLissage, 0);
 });
+
+// ── Le point chargé le plus proche d'un endroit (la fenêtre « Détails du point ») ────────────────────────────────
+
+test('pointProche : le point du bloc le plus proche en 3D, avec son rang et sa clé de bloc', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  const b = bloc('a', 1000, 2000);   // plan à 300 m + bosse, un point tous les 25 cm, classe sol
+  m.ajouter(b);
+  // x = 1000 m + 10,00 m, y = 2000 m + 20,00 m : sur un point de la grille (xc 1000 cm, yc 2000 cm).
+  const p = m.pointProche(1010, 2020, null);
+  assert.equal(p.cle, 'a');
+  const pts = b.points;
+  assert.equal(pts.xc[p.indice], 1000); assert.equal(pts.yc[p.indice], 2000);
+  assert.equal(p.distanceCm, 0);
+  assert.equal(p.nbPoints, pts.nbPoints);
+  assert.equal(p.classe, 2);
+});
+
+test('pointProche : l’altitude demandée départage deux points à la même place', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  const xc = new Int32Array([500, 500]), yc = new Int32Array([500, 500]), zc = new Int32Array([30000, 31200]), cls = new Uint8Array([2, 5]);
+  m.ajouter({ cle: 'b', emprise: { xmin: 1000, ymin: 2000, xmax: 1060, ymax: 2060 }, origineCm: [100000, 200000, 0],
+    nbPoints: 2, zminCm: 30000, zmaxCm: 31200, points: { nbPoints: 2, xc, yc, zc, cls }, classes: new Set([2, 5]) });
+  assert.equal(m.pointProche(1005, 2005, 300).classe, 2);     // au sol
+  assert.equal(m.pointProche(1005, 2005, 312).classe, 5);     // au sommet de la végétation
+  assert.equal(m.pointProche(1005, 2005, null).classe, 2, 'sans altitude : le plus bas, le sol');
+});
+
+test('pointProche : rien dans le rayon, rien de chargé, ou hors de tout bloc : null', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  assert.equal(m.pointProche(1010, 2020, 300), null, 'aucun bloc');
+  m.ajouter(bloc('a', 1000, 2000));
+  assert.equal(m.pointProche(5000, 5000, 300), null, 'hors de tout bloc');
+  assert.equal(m.pointProche(1010.1, 2020.1, 300, 0.05), null, 'au-delà du rayon (5 cm) : le point le plus proche est à plus de 10 cm');
+});
+
+test('pointProche : un bloc retiré n’est plus proposé', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  m.retirer('a');
+  assert.equal(m.pointProche(1010, 2020, 300), null);
+});

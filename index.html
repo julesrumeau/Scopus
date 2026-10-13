@@ -250,6 +250,9 @@
         <button id="lien-gmaps" class="secondaire">Google Maps</button>
         <button id="lien-osm" class="secondaire">OpenStreetMap</button>
       </div>
+      <div class="rangee" id="selection-details" hidden>
+        <button id="btn-details-point" class="secondaire">Détails du point</button>
+      </div>
       <div class="rangee" id="selection-effacer" hidden>
         <button id="btn-effacer-selection" class="secondaire">Effacer le point</button>
       </div>
@@ -465,6 +468,16 @@
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/lazperf/lazperf-embarque.js"></script>
 
+<dialog id="dlg-details-point" class="fenetre" aria-labelledby="dlg-details-point-titre">
+  <h2 id="dlg-details-point-titre">Détails du point</h2>
+  <p class="vide" id="details-contexte"></p>
+  <p class="vide" id="details-etat" hidden></p>
+  <div class="details-defile"><table class="tableau-details" id="details-tableau"><tbody></tbody></table></div>
+  <div class="rangee">
+    <button id="details-fermer" class="secondaire" type="button">Fermer</button>
+  </div>
+</dialog>
+
 <dialog id="dlg-export-mesure" class="fenetre" aria-labelledby="dlg-export-mesure-titre">
   <h2 id="dlg-export-mesure-titre">Exporter la mesure</h2>
   <p class="vide" id="exm-resume"></p>
@@ -670,12 +683,14 @@
 <script src="src/panneau-3d.js"></script>
 <script src="src/html.js"></script>
 <script src="src/localisation.js"></script>
+<script src="src/attributs-point.js"></script>
 <script src="src/export-mesure.js"></script>
 <script src="src/export-mesure-ui.js"></script>
 <script src="src/recherche-lieu.js"></script>
 <script src="src/partage.js"></script>
 <script src="src/panneau-mobile.js"></script>
 <script src="src/nuage-3d.js"></script>
+<script src="src/details-point.js"></script>
 <script src="src/outils-point.js"></script>
 <script src="src/catalogue-vue.js"></script>
 <script src="src/calcul-relief.js"></script>

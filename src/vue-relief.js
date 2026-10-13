@@ -15,6 +15,29 @@
 // Une fonction nommée plutôt qu'une expression appelée sur place : son texte
 // part tel quel dans le worker du relief (relief-travailleur.js).
 function fabriqueVueRelief() {
+  /**
+   * Le point chargé le plus proche de (x, y) en mètres, à `rayonM` près (en 3D si l'altitude `z` est donnée : le sol ou la cime
+   * se choisissent par elle ; sans elle, à égalité en plan, le plus bas). Rend sa place (`cle` du bloc, `indice` dans le bloc),
+   * la classe et la position en centimètres absolus, ou `null`. Comparaisons en centimètres entiers, comme le profil.
+   */
+  function plusProchePoint(blocs, x, y, z, rayonM = 2) {
+    const cx = Math.round(x * 100), cy = Math.round(y * 100), cz = z == null ? null : Math.round(z * 100), r2 = (rayonM * 100) ** 2;
+    let meilleur = null, dmin = Infinity, zmin = Infinity;
+    for (const [cle, bl] of blocs) {
+      const e = bl.emprise;
+      if (x + rayonM < e.xmin || x - rayonM > e.xmax || y + rayonM < e.ymin || y - rayonM > e.ymax) continue;
+      const p = bl.points, [ox, oy, oz] = bl.origineCm;
+      for (let i = 0; i < bl.nbPoints; i++) {
+        const dx = p.xc[i] + ox - cx, dy = p.yc[i] + oy - cy, zi = p.zc[i] + oz;
+        const d = dx * dx + dy * dy + (cz === null ? 0 : (zi - cz) ** 2);
+        if (d > r2 || d > dmin || (d === dmin && zi >= zmin)) continue;
+        dmin = d; zmin = zi;
+        meilleur = { cle, indice: i, distanceCm: Math.sqrt(d), nbPoints: bl.nbPoints, classe: p.cls[i], xCm: p.xc[i] + ox, yCm: p.yc[i] + oy, zCm: zi };
+      }
+    }
+    return meilleur;
+  }
+
   /** Réglages de la surface pour un pas donné, depuis la configuration. */
   function reglagesDefaut(pasM) {
     return {
@@ -522,7 +545,7 @@ function fabriqueVueRelief() {
     }
 
     return {
-      ajouter, retirer, reglages, surface, calculer, statistiques, classes, lire, nuage3d, drape3d, profil,
+      ajouter, retirer, reglages, surface, calculer, statistiques, classes, lire, nuage3d, drape3d, profil, pointProche: (x, y, z, r) => plusProchePoint(blocs, x, y, z, r),
       taille: () => blocs.size,
       moteur: gpu ? 'gpu' : 'cpu',
       coteMax: gpu ? Math.min(CONFIG.flux.coteMaxGrille, GPU_RELIEF.coteMax()) : CONFIG.flux.coteMaxGrille,

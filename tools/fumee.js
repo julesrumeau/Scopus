@@ -112,6 +112,19 @@ async function verifier(nom, fn) {
     await tel.close();
   });
 
+  await verifier('« Détails du point » : la date et l’heure du point cliqué', async () => {
+    await page.click('#mode-selection');
+    await page.mouse.click(520, 520);
+    await page.waitForSelector('#btn-details-point', { state: 'visible', timeout: 90000 });
+    await page.click('#btn-details-point');
+    await page.waitForFunction(() => document.querySelectorAll('#details-tableau td').length > 0 || /impossible|Aucun|plus chargé/.test(document.getElementById('details-etat').textContent), null, { timeout: 90000 });
+    const date = await page.evaluate(() => document.querySelector('#details-tableau td:nth-child(2)')?.textContent || document.getElementById('details-etat').textContent);
+    if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}$/.test(date)) throw new Error(`pas de date lisible : ${date}`);
+    await page.click('#details-fermer');
+    await page.click('#btn-effacer-selection');
+    sansErreur();
+  });
+
   await verifier('la mesure : deux points, un tableau, l’export s’ouvre', async () => {
     await page.click('#mode-mesure');
     await page.mouse.click(520, 520);
