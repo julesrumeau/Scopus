@@ -70,16 +70,6 @@ test('maillage : le dessous est plat, à l’épaisseur demandée sous le point 
   assert.ok(Math.abs(zmax - (118 - 100 + 3)) < 1e-4, `sommet ${zmax}`);
 });
 
-test('maillage : l’exagération verticale ne multiplie que le relief, pas l’épaisseur de la base', () => {
-  const z = grille(4, 4, (i) => 100 + i * 2);   // de 100 à 106
-  const un = STL.maillage({ z, W: 4, H: 4, pas: 1, epaisseurM: 3, exageration: 1 });
-  const trois = STL.maillage({ z, W: 4, H: 4, pas: 1, epaisseurM: 3, exageration: 3 });
-  const haut = (m) => { let h = -Infinity; for (let k = 2; k < m.sommets.length; k += 3) h = Math.max(h, m.sommets[k]); return h; };
-  assert.ok(Math.abs(haut(un) - (6 + 3)) < 1e-4);
-  assert.ok(Math.abs(haut(trois) - (18 + 3)) < 1e-4);
-  assert.equal(ferme(trois), '');
-});
-
 test('combler : une case sans donnée est remplie par ses voisines, rien ne reste en NaN', () => {
   const z = grille(5, 5, (i, j) => 10 + i);
   z[2 * 5 + 2] = NaN; z[2 * 5 + 3] = NaN; z[0] = NaN;
@@ -148,7 +138,7 @@ test('echelleDepuisLargeur : la largeur de la maquette en mm fixe l’échelle',
 });
 
 test('résumé : tailles et poids annoncés avant le téléchargement, en français, sans tiret cadratin', () => {
-  const s = STL.resume({ W: 600, H: 400, pas: 0.5, largeurMm: 150, exageration: 2, epaisseurMm: 3 });
+  const s = STL.resume({ W: 600, H: 400, pas: 0.5, largeurMm: 150 });
   assert.equal(s.triangles, STL.compter(600, 400).triangles);
   assert.ok(s.octets > 84);
   assert.ok(!/—/.test(JSON.stringify(s)));
@@ -159,7 +149,7 @@ test('preparer : réduit, comble, et annonce ; construire donne un STL fermé à
   const W = 40, H = 30;
   const z = grille(W, H, (i, j) => 300 + i * 0.5 + j * 0.2);
   z[5 * W + 5] = NaN; z[6 * W + 5] = NaN;
-  const p = STL.preparer({ z, W, H, pas: 0.5 }, { largeurMm: 100, exageration: 2, epaisseurMm: 3, maxCotes: 20 });
+  const p = STL.preparer({ z, W, H, pas: 0.5 }, { largeurMm: 100, epaisseurMm: 3, maxCotes: 20 });
   assert.ok(p.W <= 20 && p.H <= 20, `${p.W} x ${p.H}`);
   assert.ok(p.remplies >= 0);
   assert.ok(p.z.every((v) => Number.isFinite(v)));
@@ -176,11 +166,5 @@ test('preparer : réduit, comble, et annonce ; construire donne un STL fermé à
 });
 
 test('preparer : une grille de moins de deux cases par côté est refusée en clair', () => {
-  assert.throws(() => STL.preparer({ z: new Float32Array(1), W: 1, H: 1, pas: 1 }, { largeurMm: 100, exageration: 1, epaisseurMm: 3, maxCotes: 500 }), /trop petite/);
-});
-
-test('dimensions : les mêmes tailles que reduire(), sans copie', () => {
-  const r = STL.reduire(grille(10, 6, () => 1), 10, 6, 1, 5);
-  const d = STL.dimensions(10, 6, 5);
-  assert.equal(d.W, r.W); assert.equal(d.H, r.H); assert.equal(d.facteur, r.facteur);
+  assert.throws(() => STL.preparer({ z: new Float32Array(1), W: 1, H: 1, pas: 1 }, { largeurMm: 100, epaisseurMm: 3, maxCotes: 500 }), /trop petite/);
 });

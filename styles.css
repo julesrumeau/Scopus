@@ -1574,7 +1574,5 @@ dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
 #dlg-details-point .rangee { justify-content: flex-end; margin-top: 14px; }
 #dlg-details-point .rangee button { flex: none; width: auto; font-size: 13px; padding: 7px 18px; }
 
-#dlg-stl .rangee { justify-content: flex-end; margin-top: 14px; }
-#dlg-stl .rangee .primaire { flex: none; width: auto; padding: 7px 18px; }
-#dlg-stl .rangee button { font-size: 13px; padding-top: 7px; padding-bottom: 7px; }
-#dlg-stl input[type="number"] { width: 90px; background: var(--fond); color: var(--texte); border: 1px solid var(--bord); border-radius: 6px; padding: 5px 8px; }
+#dlg-export select, #dlg-export input[type="number"] { width: 90px; background: var(--fond); color: var(--texte); border: 1px solid var(--bord); border-radius: 6px; padding: 5px 8px; }
+#dlg-export select { width: 180px; }

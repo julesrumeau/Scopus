@@ -125,6 +125,14 @@ async function verifier(nom, fn) {
     sansErreur();
   });
 
+  await verifier('« Exporter… » : le STL annonce sa taille, les classes se cochent', async () => {
+    await page.click('#exp-ouvrir-carte');
+    await page.waitForFunction(() => /triangles/.test(document.getElementById('exp-info').textContent), null, { timeout: 90000 });
+    if (!(await page.locator('#exp-stl-classes input').count())) throw new Error('aucune classe à cocher');
+    await page.click('#exp-fermer');
+    sansErreur();
+  });
+
   await verifier('la mesure : deux points, un tableau, l’export s’ouvre', async () => {
     await page.click('#mode-mesure');
     await page.mouse.click(520, 520);

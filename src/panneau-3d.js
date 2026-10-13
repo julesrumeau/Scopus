@@ -6,6 +6,8 @@ function creerPanneau3D(d) {
   const { $, vue3d, etat, CONFIG, SORTIE, classesMasquees, NOMS_CLASSES, milliers, octets, majLien, DIAGNOSTIC } = d;
   /** Posé plus tard par le bloc du relief : recharge la couleur par point (hauteur, relief drapé). */
   const liaisons = { majAttributVue: null };
+  /** La partie STL de la fenêtre d'export : remplie par `creerExportStlUI` quand le relief existe. */
+  const exportStl = {};
 
 
   $('coloration').addEventListener('click', async (e) => {
@@ -87,7 +89,7 @@ function creerPanneau3D(d) {
 
   function majExportPoints() {
     $('export-points').hidden = !etat.nuage;
-    if (!etat.nuage && $('dlg-export').open) $('dlg-export').close();
+    if ($('dlg-export').open) majFenetreExport();
   }
 
   function formatExport() {
@@ -97,9 +99,12 @@ function creerPanneau3D(d) {
   function majFenetreExport() {
     const format = formatExport();
     $('exp-classes').hidden = format !== 'ply';
-    const r = SORTIE.resumerExport(etat.nuage, format, exportExclues);
+    $('exp-stl').hidden = format !== 'stl';
+    const r = format === 'stl' ? exportStl.annoncer()
+      : etat.nuage ? SORTIE.resumerExport(etat.nuage, format, exportExclues)
+        : { actif: false, message: 'Choisissez un format.' };
     $('exp-telecharger').disabled = !r.actif;
-    $('exp-info').textContent = r.actif ? `${milliers(r.n)} points, ~${octets(r.octets)}.` : r.message;
+    $('exp-info').textContent = format === 'stl' || !r.actif ? r.message : `${milliers(r.n)} points, ~${octets(r.octets)}.`;
   }
 
   function listerClassesExport() {
@@ -112,14 +117,19 @@ function creerPanneau3D(d) {
     }).join('');
   }
 
-  $('exp-ouvrir').addEventListener('click', () => {
-    if (!etat.nuage) return;
+  /** Une seule fenêtre, depuis la carte ou la 3D : LAS et PLY ont besoin du nuage 3D, pas le STL (la surface vient des blocs chargés). */
+  function ouvrirExport() {
     exportExclues.clear();          // toutes les classes cochées, à chaque ouverture
     for (const r of document.querySelectorAll('input[name="fmt-export"]')) r.checked = false;
-    listerClassesExport();
+    for (const r of document.querySelectorAll('input[name="fmt-export"]:not([value="stl"])')) r.disabled = !etat.nuage;
+    if (etat.nuage) listerClassesExport(); else document.querySelector('input[name="fmt-export"][value="stl"]').checked = true;
+    exportStl.ouvrir();
+    exportStl.surChangement = majFenetreExport;
     majFenetreExport();
     $('dlg-export').showModal();
-  });
+  }
+  $('exp-ouvrir').addEventListener('click', ouvrirExport);
+  $('exp-ouvrir-carte').addEventListener('click', ouvrirExport);
   $('exp-fermer').addEventListener('click', () => $('dlg-export').close());
   $('dlg-export').addEventListener('change', (e) => {
     const c = e.target.closest('input[data-cls]');
@@ -129,11 +139,18 @@ function creerPanneau3D(d) {
     }
     majFenetreExport();
   });
-  $('exp-telecharger').addEventListener('click', () => {
+  $('exp-telecharger').addEventListener('click', async () => {
     const format = formatExport();
-    if (!etat.nuage || !format) return;
-    const f = SORTIE.exporterPoints(etat.nuage, format, exportExclues);
-    SORTIE.telecharger(f.nom, new Blob(f.parties), 'application/octet-stream');
+    if (!format) return;
+    if (format === 'stl') {
+      $('exp-telecharger').disabled = true;
+      $('exp-info').textContent = 'Fabrication du maillage…';
+      try { await exportStl.telecharger(); } catch (e) { $('exp-info').textContent = e.message; return; }
+    } else {
+      if (!etat.nuage) return;
+      const f = SORTIE.exporterPoints(etat.nuage, format, exportExclues);
+      SORTIE.telecharger(f.nom, new Blob(f.parties), 'application/octet-stream');
+    }
     $('dlg-export').close();
   });
 
@@ -158,5 +175,5 @@ function creerPanneau3D(d) {
           + ` (${Math.round((100 * vue3d.dernierMouvement.dessines) / vue3d.dernierMouvement.total)} %)` : '');
   }
 
-  return { majLegende, majHUD, majAttributNuage, liaisons };
+  return { majLegende, majHUD, majAttributNuage, liaisons, exportStl };
 }

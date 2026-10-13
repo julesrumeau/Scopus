@@ -71,10 +71,10 @@ const STL = (() => {
 
   /**
    * Le solide fermé. `z` : altitudes (m) sans NaN, `W × H` cases de côté `pas` (m). `epaisseurM` : épaisseur de la base
-   * sous le point le plus bas ; `exageration` multiplie le seul relief, pas la base.
+   * sous le point le plus bas.
    * @returns `{ sommets: Float32Array (x y z), triangles: Uint32Array (3 indices chacun), nbTriangles }`
    */
-  function maillage({ z, W, H, pas, epaisseurM, exageration = 1 }) {
+  function maillage({ z, W, H, pas, epaisseurM }) {
     let zmin = Infinity;
     for (let i = 0; i < z.length; i++) if (z[i] < zmin) zmin = z[i];
     const nHaut = W * H;
@@ -89,7 +89,7 @@ const STL = (() => {
     for (let j = 0; j < H; j++) {
       for (let i = 0; i < W; i++) {
         const k = j * W + i;
-        sommets[3 * k] = i * pas; sommets[3 * k + 1] = j * pas; sommets[3 * k + 2] = (z[k] - zmin) * exageration + epaisseurM;
+        sommets[3 * k] = i * pas; sommets[3 * k + 1] = j * pas; sommets[3 * k + 2] = z[k] - zmin + epaisseurM;
       }
     }
     perimetre.forEach((k, r) => {
@@ -175,28 +175,22 @@ const STL = (() => {
     };
   }
 
-  /** Les dimensions que `reduire` donnerait, sans rien copier : pour annoncer le poids avant de calculer. */
-  function dimensions(W, H, max) {
-    const f = Math.max(1, Math.ceil(Math.max(W, H) / max));
-    return { W: Math.ceil(W / f), H: Math.ceil(H / f), facteur: f };
-  }
-
   /**
-   * De la grille de la vue aux données prêtes à écrire : réduite sous `maxCotes`, comblée, maillée à l'échelle de la maquette
+   * De la grille des classes choisies aux données prêtes à écrire : réduite sous `maxCotes` (déjà le cas en pratique), comblée, maillée à l'échelle de la maquette
    * (la largeur voulue en mm fixe l'échelle ; l'épaisseur de la base est en mm de maquette). `maillage` est en mètres de terrain,
    * `echelle` les convertit à l'écriture.
    */
-  function preparer(grille, { largeurMm, exageration, epaisseurMm, maxCotes }) {
+  function preparer(grille, { largeurMm, epaisseurMm, maxCotes }) {
     if (grille.W < 2 || grille.H < 2) throw new Error('Zone trop petite pour une maquette : zoomez moins.');
     const r = reduire(grille.z, grille.W, grille.H, grille.pas, maxCotes);
     const c = combler(r.z, r.W, r.H);
     const echelle = echelleDepuisLargeur((r.W - 1) * r.pas, largeurMm);
-    const maille = maillage({ z: c.z, W: r.W, H: r.H, pas: r.pas, epaisseurM: epaisseurMm / echelle, exageration });
+    const maille = maillage({ z: c.z, W: r.W, H: r.H, pas: r.pas, epaisseurM: epaisseurMm / echelle });
     return { z: c.z, W: r.W, H: r.H, pas: r.pas, remplies: c.remplies, echelle, maillage: maille, resume: resume({ W: r.W, H: r.H, pas: r.pas, largeurMm }) };
   }
 
   /** Le fichier : `{ parties, octets }` pour un Blob. */
   const construire = (p) => ecrire(p.maillage, { echelle: p.echelle });
 
-  return { compter, combler, reduire, maillage, ecrire, echelleDepuisLargeur, resume, dimensions, preparer, construire };
+  return { compter, combler, reduire, maillage, ecrire, echelleDepuisLargeur, resume, preparer, construire };
 })();

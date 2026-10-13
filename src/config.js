@@ -352,9 +352,9 @@ const CONFIG = {
 
   // ── Export STL de la surface (impression 3D) ──────────────────────────────
   stl: {
-    maxCotes: 600,       // cases par côté au plus : au-delà, moyenne par blocs (600 × 600 ≈ 72 Mo de fichier)
+    pasMinM: 0.5,        // pas de la grille par défaut : la qualité se choisit dans la fenêtre (25 cm à 2 m)
+    maxCotes: 1000,      // cases par côté au plus : au-delà, le pas s'élargit (1000 × 1000 ≈ 100 Mo de fichier)
     largeurMm: 150,      // largeur de la maquette imprimée
-    exageration: 2,      // relief multiplié, la base non : un relief réel est très plat à l'échelle d'une maquette
     epaisseurMm: 3,      // base pleine sous le point le plus bas
   },
 
