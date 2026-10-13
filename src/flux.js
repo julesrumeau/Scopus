@@ -17,6 +17,20 @@ const FLUX = (() => {
   const contient = (a, b) => a.xmin <= b.xmin && a.xmax >= b.xmax && a.ymin <= b.ymin && a.ymax >= b.ymax;
   const centreDist = (e, v) => Math.hypot((e.xmin + e.xmax - v.xmin - v.xmax) / 2, (e.ymin + e.ymax - v.ymin - v.ymax) / 2);
 
+  /**
+   * Où est le bloc `cle` dans son fichier, et de quoi le décoder en entier (toutes les couches) : pour lire les champs d'un point
+   * que la vue ne garde pas. `null` si le bloc n'est pas chargé (ou plus : la vue l'a lâché).
+   */
+  function descripteurDeBloc(blocs, dalles, cle) {
+    const b = blocs.get(cle), d = b?.bloc && dalles.get(b.url);
+    if (b?.etat !== 'charge' || !d?.entete) return null;
+    const n = b.bloc.noeud;
+    return {
+      cle, url: b.url, offset: n.offset, taille: n.taille, nbPoints: n.nbPoints, niveau: b.niveau, nomDalle: d.dalle.nom || '',
+      formatPoint: d.entete.formatPoint, longueurPoint: d.entete.longueurPoint, echelle: d.entete.echelle, decalage: d.entete.decalage,
+    };
+  }
+
   function creer(deps) {
     const config = deps.config || CONFIG.flux;
     const dalles = new Map();   // url → { dalle, etat, ctrl, index, fin, debutFin, entete }
@@ -449,7 +463,7 @@ const FLUX = (() => {
       return null;
     }
 
-    return { majVue, attendreCalme, arreter, dalleAu, voulues: () => new Set(voulues), _deps: deps };
+    return { majVue, attendreCalme, arreter, dalleAu, descripteurBloc: (cle) => descripteurDeBloc(blocs, dalles, cle), voulues: () => new Set(voulues), _deps: deps };
   }
 
   return { creer };

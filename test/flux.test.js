@@ -440,3 +440,32 @@ test('dalleAu : la dalle qui contient un point, parmi celles que la vue a trouv�
   assert.equal(flux.dalleAu(-5, 500), null);          // hors des dalles connues
   assert.equal(flux.dalleAu(3000, 500), null);        // bord est exclu
 });
+
+// ── Où est un bloc chargé, et comment le décoder en entier (la fenêtre « Détails du point ») ─────────────────────
+
+test('descripteurBloc : la place du bloc dans le fichier et de quoi le décoder, pour un bloc chargé', async () => {
+  const { flux, blocs } = monter();
+  await flux.majVue(VUE);
+  await flux.attendreCalme();
+  const b = blocs[0];
+  const d = flux.descripteurBloc(b.cle);
+  assert.equal(d.cle, b.cle);
+  assert.equal(d.url, b.url);
+  assert.ok(Number.isInteger(d.offset) && d.offset >= 0);
+  assert.ok(Number.isInteger(d.taille) && d.taille > 0);
+  assert.equal(d.nbPoints, b.points.nbPoints);
+  assert.equal(d.niveau, b.niveau);
+  assert.equal(d.formatPoint, 6);
+  assert.equal(d.longueurPoint, 30);
+  assert.equal(JSON.stringify(d.echelle), JSON.stringify([0.01, 0.01, 0.01]));
+  assert.equal(JSON.stringify(d.decalage), JSON.stringify([0, 0, 0]));
+  assert.match(d.nomDalle, /^\d+_\d+$/);
+});
+
+test('descripteurBloc : une clé inconnue ne donne rien', async () => {
+  const { flux } = monter();
+  assert.equal(flux.descripteurBloc('n’importe quoi'), null);
+  await flux.majVue(VUE);
+  await flux.attendreCalme();
+  assert.equal(flux.descripteurBloc('n’importe quoi'), null);
+});
