@@ -97,6 +97,8 @@ function corpsTravailleurRelief() {
         const r = moteur.profil(m.a, m.b, m.largeur, m.budget, m.actifs ? new Set(m.actifs) : undefined);
         if (r.raison) { self.postMessage({ type: 'profil', id: m.id, vide: true, raison: r.raison }); return; }
         self.postMessage({ type: 'profil', id: m.id, ...r }, [r.s.buffer, r.z.buffer, r.d.buffer, r.cls.buffer]);
+      } else if (m.type === 'pointProche') {
+        self.postMessage({ type: 'pointProche', id: m.id, point: moteur.pointProche(m.x, m.y, m.z, m.rayonM) });
       } else if (m.type === 'drape3d') {
         const valeurs = moteur.drape3d(m.cle, m.reglagesCouche, m.min, m.max);
         self.postMessage({ type: 'drape3d', id: m.id, valeurs }, valeurs ? [valeurs.buffer] : []);
@@ -176,6 +178,7 @@ const RELIEF_TRAVAILLEUR = (() => {
     nuage3d: (m) => (m.vide ? { vide: true, raison: m.raison } : m),
     profil: (m) => (m.vide ? { vide: true, raison: m.raison } : m),
     drape3d: (m) => m.valeurs,
+    pointProche: (m) => m.point,
     defaut: (m) => (m.vide ? null : m),
   };
 
@@ -242,6 +245,8 @@ const RELIEF_TRAVAILLEUR = (() => {
       nuage3d: (emprise, budget, actifs) => demander({ type: 'nuage3d', emprise, budget, actifs }),
       /** Les points de la bande A→B ; `{ vide, raison }` sinon. */
       profil: (a, b, largeur, budget, actifs) => demander({ type: 'profil', a, b, largeur, budget, actifs }),
+      /** Le point chargé le plus proche d'un endroit (mètres), avec sa place dans son bloc ; `null` sans rien dans le rayon. */
+      pointProche: (x, y, z, rayonM) => demander({ type: 'pointProche', x, y, z, rayonM }),
       /** Altitude, hauteur et valeur de la couche en un point Lambert-93 de la dernière vue calculée. */
       lire: (x, y, couche) => demander({ type: 'lire', x, y, couche }),
       /** L'image reprojetée de la couche, `null` sans bloc dans la vue. */
@@ -264,6 +269,7 @@ const RELIEF_TRAVAILLEUR = (() => {
       reglages: (r) => moteur.reglages(r),
       calculer: async (geo, couche) => moteur.calculer(geo, couche),
       lire: async (x, y, couche) => moteur.lire(x, y, couche),
+      pointProche: async (x, y, z, rayonM) => moteur.pointProche(x, y, z, rayonM),
       drape3d: async (cle, reglagesCouche, min, max) => moteur.drape3d(cle, reglagesCouche, min, max),
       nuage3d: async (emprise, budget, actifs) => {
         const r = moteur.nuage3d(emprise, budget, actifs ? new Set(actifs) : undefined);

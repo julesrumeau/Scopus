@@ -281,3 +281,33 @@ test('le worker rend le profil de la bande, comme le moteur', () => {
   assert.equal(r.z[5], attendu.z[5]);
   assert.equal(r.longueur, 30);
 });
+
+test('le worker rend le point chargé le plus proche, comme le moteur ; rien sans bloc', () => {
+  const ctx = chargerScripts(FICHIERS);
+  const w = travailleur(ctx.RELIEF_TRAVAILLEUR.source());
+  w.envoyer({ type: 'demarrer' });
+  w.envoyer({ type: 'pointProche', id: 1, x: 1010, y: 2020, z: null, rayonM: 2 });
+  assert.equal(w.recus.at(-1).type, 'pointProche');
+  assert.equal(w.recus.at(-1).point, null);
+  w.envoyer({ type: 'ajouter', bloc: bloc('a', 1000, 2000) });
+  w.envoyer({ type: 'pointProche', id: 2, x: 1010, y: 2020, z: null, rayonM: 2 });
+  const r = w.recus.at(-1);
+  const ref = ctx.VUE_RELIEF.creer({ moteur: 'cpu' });
+  ref.ajouter(bloc('a', 1000, 2000));
+  const attendu = ref.pointProche(1010, 2020, null, 2);
+  assert.ok(attendu && r.point, 'un point est trouvé');
+  assert.equal(r.point.cle, 'a');
+  assert.equal(r.point.indice, attendu.indice);
+  assert.equal(r.point.xCm, attendu.xCm);
+  assert.equal(r.id, 2);
+});
+
+test('sur le fil principal, le point chargé le plus proche', async () => {
+  const ctx = chargerScripts(FICHIERS);
+  const m = ctx.RELIEF_TRAVAILLEUR.surFilPrincipal({ moteur: 'cpu' });
+  assert.equal(await m.pointProche(1010, 2020, null, 2), null);
+  m.ajouter(bloc('a', 1000, 2000));
+  const p = await m.pointProche(1010, 2020, null, 2);
+  assert.equal(p.cle, 'a');
+  assert.equal(p.distanceCm, 0);
+});
