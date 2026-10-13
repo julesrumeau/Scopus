@@ -621,3 +621,43 @@ test('pointProche : un bloc retiré n’est plus proposé', () => {
   m.retirer('a');
   assert.equal(m.pointProche(1010, 2020, 300), null);
 });
+
+// ── La grille d'altitudes de la vue calculée, pour l'export STL ───────────────────────────────────────────────────
+
+test('grilleStl : rien de calculé : null', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  assert.equal(m.grilleStl({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, false), null);
+});
+
+test('grilleStl : le rectangle demandé, les altitudes absolues du sol, NaN sans donnée', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  const c = m.calculer(geo, 'svf');
+  const g = m.grilleStl({ xmin: 1010, xmax: 1030, ymin: 2010, ymax: 2030 }, false);
+  assert.ok(g.W >= 40 && g.W <= 42, `W ${g.W}`);   // 20 m à 0,5 m, une case de plus aux bords
+  assert.equal(g.pas, geo.pas);
+  assert.equal(g.z.length, g.W * g.H);
+  const i0 = Math.floor((1010 - geo.emprise.xmin) / geo.pas), j0 = Math.floor((2010 - geo.emprise.ymin) / geo.pas);
+  assert.ok(Math.abs(g.z[0] - (c.t.mnt[j0 * geo.W + i0] + c.t.origine[2])) < 1e-4);
+  assert.ok(g.z[0] > 300 && g.z[0] < 305);
+  assert.equal(g.sommet, false);
+});
+
+test('grilleStl : le sommet ajoute la hauteur de ce qui dépasse du sol', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  const c = m.calculer(geo, 'svf');
+  c.t.hauteur[(Math.floor((2020 - geo.emprise.ymin) / geo.pas)) * geo.W + Math.floor((1020 - geo.emprise.xmin) / geo.pas)] = 7;
+  const rect = { xmin: 1010, xmax: 1030, ymin: 2010, ymax: 2030 };
+  const sol = m.grilleStl(rect, false), top = m.grilleStl(rect, true);
+  let ecart = 0; for (let k = 0; k < sol.z.length; k++) ecart = Math.max(ecart, top.z[k] - sol.z[k]);
+  assert.ok(Math.abs(ecart - 7) < 1e-4, `écart ${ecart}`);
+  assert.equal(top.sommet, true);
+});
+
+test('grilleStl : un rectangle hors de la vue calculée donne null', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  m.calculer(geo, 'svf');
+  assert.equal(m.grilleStl({ xmin: 5000, xmax: 5100, ymin: 5000, ymax: 5100 }, false), null);
+});

@@ -311,3 +311,30 @@ test('sur le fil principal, le point chargé le plus proche', async () => {
   assert.equal(p.cle, 'a');
   assert.equal(p.distanceCm, 0);
 });
+
+test('le worker rend la grille d’altitudes de la vue calculée, comme le moteur', () => {
+  const ctx = chargerScripts(FICHIERS);
+  const w = travailleur(ctx.RELIEF_TRAVAILLEUR.source());
+  w.envoyer({ type: 'demarrer' });
+  const rect = { xmin: 1010, xmax: 1030, ymin: 2010, ymax: 2030 };
+  w.envoyer({ type: 'grilleStl', id: 1, rect, sommet: false });
+  assert.equal(w.recus.at(-1).type, 'grilleStl');
+  assert.equal(w.recus.at(-1).grille, null);
+  const geo = ctx.VUE_GRILLE.definir({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 0.5, 0, 4096);
+  w.envoyer({ type: 'ajouter', bloc: bloc('a', 1000, 2000) });
+  w.envoyer({ type: 'calculer', id: 2, geo, couche: 'svf' });
+  w.envoyer({ type: 'grilleStl', id: 3, rect, sommet: false });
+  const r = w.recus.at(-1);
+  assert.ok(r.grille && r.grille.W > 30 && r.grille.z.length === r.grille.W * r.grille.H);
+  assert.equal(r.id, 3);
+});
+
+test('sur le fil principal, la grille d’altitudes', async () => {
+  const ctx = chargerScripts(FICHIERS);
+  const m = ctx.RELIEF_TRAVAILLEUR.surFilPrincipal({ moteur: 'cpu' });
+  const geo = ctx.VUE_GRILLE.definir({ xmin: 1000, xmax: 1040, ymin: 2000, ymax: 2040 }, 0.5, 0, 4096);
+  m.ajouter(bloc('a', 1000, 2000));
+  await m.calculer(geo, 'svf');
+  const g = await m.grilleStl({ xmin: 1010, xmax: 1030, ymin: 2010, ymax: 2030 }, false);
+  assert.ok(g.W > 30 && g.z[0] > 300);
+});
