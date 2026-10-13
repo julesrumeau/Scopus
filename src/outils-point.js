@@ -76,6 +76,7 @@ function creerOutilsPoint(d) {
       + (acquisition != null ? ligneDetail('Acquisition', acquisition) : '');
     $('selection-liens').hidden = false;
     $('selection-effacer').hidden = false;
+    $('selection-details').hidden = false;
 
     // Même point sur la carte et en 3D : passer de l'une à l'autre retrouve le marqueur au même endroit.
     vue3d?.definirPointSelectionne({ x, y, altitude: sommetPoint });
@@ -89,6 +90,7 @@ function creerOutilsPoint(d) {
     $('detail-selection').hidden = true;
     $('selection-liens').hidden = true;
     $('selection-effacer').hidden = true;
+    $('selection-details').hidden = true;
     vue3d?.definirPointSelectionne(null);
     liaisons.carteOutils?.selection(null);
     majLien();

@@ -1563,3 +1563,13 @@ dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
 .mode-mesure .point-mesure:active { cursor: grabbing; }
 .point-mesure i { display: block; width: 10px; height: 10px; margin: 6px; box-sizing: border-box; border-radius: 50%; background: #ffd24a; border: 1.5px solid #fff; transition: transform 0.1s; }
 .mode-mesure .point-mesure:hover i { transform: scale(1.5); }
+
+/* Détails du point : un tableau à deux colonnes, rangé par groupes. */
+#dlg-details-point { width: min(520px, calc(100% - 32px)); }
+#dlg-details-point .details-defile { max-height: 55vh; overflow-y: auto; }
+.tableau-details { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tableau-details th { text-align: left; padding: 10px 0 3px; color: var(--texte-2); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.tableau-details td { padding: 3px 0; vertical-align: top; border-bottom: 1px solid var(--bord); }
+.tableau-details td:first-child { color: var(--texte-2); padding-right: 12px; width: 45%; }
+#dlg-details-point .rangee { justify-content: flex-end; margin-top: 14px; }
+#dlg-details-point .rangee button { flex: none; width: auto; font-size: 13px; padding: 7px 18px; }
