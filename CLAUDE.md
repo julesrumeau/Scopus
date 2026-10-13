@@ -338,6 +338,25 @@ d'arbres et de bâtiments sans QGIS. Conception :
   deux formats sont lus (`champ()` dans `ign.js`), le Z est accepté (`formaterAcquisition`). **Le test de fumée ne le voit pas** :
   contrôler à la main ce que renvoie le WFS (`node` + `fetch`) quand une donnée IGN disparaît.
 
+## Détails du point
+
+Demande LouisXIV (forum OSM-FR) : le temps GPS d'un point, à la seconde, et les autres attributs d'une table QGIS. Bouton
+« Détails du point » sous « Point sélectionné » (`details-point.js`), fenêtre `#dlg-details-point`.
+
+- **À la demande, un seul bloc** : le point visé (`sommet` de la sélection : le sol au clic en 2D, le point visé en 3D) est
+  cherché dans les blocs gardés (`VUE_RELIEF.pointProche`, centimètres entiers, rayon 2 m, via le worker : message
+  `pointProche`). On rend sa clé de bloc et son rang. `flux.descripteurBloc` donne la place du bloc dans le fichier ; **le bloc
+  entier** (pas réduit : il a toutes ses couches) est demandé une fois (25 Ko à 1,2 Mo), décodé par `DECODEUR.lirePointDuBloc`
+  (message `point` du worker de décompression, repli sur le fil principal) qui saute les points d'avant. **Rien n'est gardé** : la
+  vue reste à 13 octets par point.
+- **Le temps GPS de l'IGN est « ajusté »** (standard moins 1 milliard de secondes) alors que l'en-tête dit le contraire (bit 0
+  de l'encodage global à 0) : `ATTRIBUTS_POINT.tempsGpsVersUtc` décide **sur la valeur** (< 604 800 s : temps de semaine, pas de
+  date ; < 1e9 : ajusté ; au-delà : standard) et retranche les secondes intercalaires (18 depuis 2017). Vérifié sur trois dalles
+  contre les plages du WFS (Verdun 1er février 2025, Ariège 12 juillet 2022, Aude 5 juillet 2021), et dans le vrai navigateur.
+  **Non vérifié** : le sens exact de `dtm_marker` / `dsm_marker` (points à 46 octets, affichés « Utilisé pour le MNT / MNS ») et de
+  la valeur utilisateur (affichée brute, « valeur brute »).
+- Champs lus : intensité, retour (n sur N), angle de scan (× 0,006°), sens, bord, canal, ligne de vol, classe, drapeaux, position.
+
 ## La carte
 
 - **La grille des dalles est calculée, pas téléchargée** : une dalle est
