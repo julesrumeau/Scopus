@@ -35,6 +35,7 @@ function creerDetailsPointUI({ $, outils, flux, relief, ATTRIBUTS_POINT, NOMS_CL
     descripteurBloc: (cle) => flux.descripteurBloc(cle),
     recuperer, decoder, ATTRIBUTS_POINT, nomsClasses: NOMS_CLASSES,
   });
+  outils.liaisons.dalleAuPoint = (x, y) => flux.dalleAu(x, y);   // « Point sélectionné » lit la plage de vol de la dalle du point
   const dlg = $('dlg-details-point');
   let numero = 0;   // une réponse tardive d'une demande précédente ne s'affiche pas
 

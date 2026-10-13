@@ -175,5 +175,28 @@ const STL = (() => {
     };
   }
 
-  return { compter, combler, reduire, maillage, ecrire, echelleDepuisLargeur, resume };
+  /** Les dimensions que `reduire` donnerait, sans rien copier : pour annoncer le poids avant de calculer. */
+  function dimensions(W, H, max) {
+    const f = Math.max(1, Math.ceil(Math.max(W, H) / max));
+    return { W: Math.ceil(W / f), H: Math.ceil(H / f), facteur: f };
+  }
+
+  /**
+   * De la grille de la vue aux données prêtes à écrire : réduite sous `maxCotes`, comblée, maillée à l'échelle de la maquette
+   * (la largeur voulue en mm fixe l'échelle ; l'épaisseur de la base est en mm de maquette). `maillage` est en mètres de terrain,
+   * `echelle` les convertit à l'écriture.
+   */
+  function preparer(grille, { largeurMm, exageration, epaisseurMm, maxCotes }) {
+    if (grille.W < 2 || grille.H < 2) throw new Error('Zone trop petite pour une maquette : zoomez moins.');
+    const r = reduire(grille.z, grille.W, grille.H, grille.pas, maxCotes);
+    const c = combler(r.z, r.W, r.H);
+    const echelle = echelleDepuisLargeur((r.W - 1) * r.pas, largeurMm);
+    const maille = maillage({ z: c.z, W: r.W, H: r.H, pas: r.pas, epaisseurM: epaisseurMm / echelle, exageration });
+    return { z: c.z, W: r.W, H: r.H, pas: r.pas, remplies: c.remplies, echelle, maillage: maille, resume: resume({ W: r.W, H: r.H, pas: r.pas, largeurMm }) };
+  }
+
+  /** Le fichier : `{ parties, octets }` pour un Blob. */
+  const construire = (p) => ecrire(p.maillage, { echelle: p.echelle });
+
+  return { compter, combler, reduire, maillage, ecrire, echelleDepuisLargeur, resume, dimensions, preparer, construire };
 })();

@@ -185,6 +185,9 @@
         <span>Lisser l'affichage <small>(interpolation entre cases, visible en zoomant)</small></span>
       </label>
       <div class="champ"><span>Classes du sol</span><div id="vue-classes-sol" class="classes-sol"></div></div>
+      <div class="rangee">
+        <button type="button" id="stl-ouvrir" class="secondaire" title="La surface affichée en maquette 3D, à imprimer">Exporter en STL…</button>
+      </div>
       <p class="note" id="vue-etat"></p>
     </section>
 
@@ -478,6 +481,33 @@
   </div>
 </dialog>
 
+<dialog id="dlg-stl" class="fenetre" aria-labelledby="dlg-stl-titre">
+  <h2 id="dlg-stl-titre">Exporter en STL</h2>
+  <p class="vide">La surface de la zone affichée, en solide fermé à imprimer en 3D : le relief dessus, quatre murs, un dessous plat.</p>
+  <label class="case choix-format">
+    <input type="radio" name="stl-surface" value="sol" checked>
+    <span><b>Le sol</b> : sans arbres ni bâtiments.
+      <small>Pour imprimer le relief caché sous la végétation.</small></span>
+  </label>
+  <label class="case choix-format">
+    <input type="radio" name="stl-surface" value="sommet">
+    <span><b>Le sommet</b> : arbres et toits compris.
+      <small>La forêt devient une masse pleine, sans détail de feuilles.</small></span>
+  </label>
+  <label class="champ"><span>Largeur de la maquette (mm)</span>
+    <input type="number" id="stl-largeur" min="20" max="400" step="10" value="150"></label>
+  <label class="champ"><span>Exagération verticale</span>
+    <input type="number" id="stl-exageration" min="1" max="10" step="0.5" value="2"></label>
+  <label class="champ"><span>Épaisseur de la base (mm)</span>
+    <input type="number" id="stl-epaisseur" min="1" max="20" step="1" value="3"></label>
+  <p class="vide" id="stl-resume"></p>
+  <p class="vide" id="stl-avis" hidden></p>
+  <div class="rangee">
+    <button id="stl-fermer" class="secondaire" type="button">Fermer</button>
+    <button id="stl-telecharger" class="primaire" type="button">Télécharger</button>
+  </div>
+</dialog>
+
 <dialog id="dlg-export-mesure" class="fenetre" aria-labelledby="dlg-export-mesure-titre">
   <h2 id="dlg-export-mesure-titre">Exporter la mesure</h2>
   <p class="vide" id="exm-resume"></p>
@@ -664,6 +694,7 @@
 <script src="src/las.js"></script>
 <script src="src/ply.js"></script>
 <script src="src/stl.js"></script>
+<script src="src/export-stl-ui.js"></script>
 <script src="src/gl.js"></script>
 <script src="src/shaders.js"></script>
 <script src="src/gpu-relief.js"></script>

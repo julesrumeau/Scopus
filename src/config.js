@@ -350,6 +350,14 @@ const CONFIG = {
     couleurClasseDefaut: '#9aa4b2',
   },
 
+  // ── Export STL de la surface (impression 3D) ──────────────────────────────
+  stl: {
+    maxCotes: 600,       // cases par côté au plus : au-delà, moyenne par blocs (600 × 600 ≈ 72 Mo de fichier)
+    largeurMm: 150,      // largeur de la maquette imprimée
+    exageration: 2,      // relief multiplié, la base non : un relief réel est très plat à l'échelle d'une maquette
+    epaisseurMm: 3,      // base pleine sous le point le plus bas
+  },
+
   // ── Profil topographique ──────────────────────────────────────────────────
   profil: {
     // Largeur de la bande autour de l'axe, en mètres. Une cime d'arbre ne se

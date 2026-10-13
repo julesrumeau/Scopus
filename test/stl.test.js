@@ -154,3 +154,33 @@ test('résumé : tailles et poids annoncés avant le téléchargement, en franç
   assert.ok(!/—/.test(JSON.stringify(s)));
   assert.match(s.texte, /Mo|Ko/);
 });
+
+test('preparer : réduit, comble, et annonce ; construire donne un STL fermé à l’échelle de la maquette', () => {
+  const W = 40, H = 30;
+  const z = grille(W, H, (i, j) => 300 + i * 0.5 + j * 0.2);
+  z[5 * W + 5] = NaN; z[6 * W + 5] = NaN;
+  const p = STL.preparer({ z, W, H, pas: 0.5 }, { largeurMm: 100, exageration: 2, epaisseurMm: 3, maxCotes: 20 });
+  assert.ok(p.W <= 20 && p.H <= 20, `${p.W} x ${p.H}`);
+  assert.ok(p.remplies >= 0);
+  assert.ok(p.z.every((v) => Number.isFinite(v)));
+  assert.match(p.resume.texte, /triangles/);
+  const s = STL.construire(p);
+  assert.equal(s.octets, 84 + 50 * STL.compter(p.W, p.H).triangles);
+  // La maquette fait la largeur demandée : x maximal = 100 mm.
+  const tout = new Uint8Array(s.octets); let o = 0; for (const q of s.parties) { tout.set(q, o); o += q.byteLength; }
+  const v = new DataView(tout.buffer);
+  let xmax = -Infinity, zmax = -Infinity;
+  for (let t = 0; t < p.maillage.nbTriangles; t++) for (let k = 0; k < 3; k++) { xmax = Math.max(xmax, v.getFloat32(84 + 50 * t + 12 + 12 * k, true)); zmax = Math.max(zmax, v.getFloat32(84 + 50 * t + 20 + 12 * k, true)); }
+  assert.ok(Math.abs(xmax - 100) < 1e-2, `largeur ${xmax}`);
+  assert.ok(zmax > 3, `hauteur ${zmax}`);
+});
+
+test('preparer : une grille de moins de deux cases par côté est refusée en clair', () => {
+  assert.throws(() => STL.preparer({ z: new Float32Array(1), W: 1, H: 1, pas: 1 }, { largeurMm: 100, exageration: 1, epaisseurMm: 3, maxCotes: 500 }), /trop petite/);
+});
+
+test('dimensions : les mêmes tailles que reduire(), sans copie', () => {
+  const r = STL.reduire(grille(10, 6, () => 1), 10, 6, 1, 5);
+  const d = STL.dimensions(10, 6, 5);
+  assert.equal(d.W, r.W); assert.equal(d.H, r.H); assert.equal(d.facteur, r.facteur);
+});
