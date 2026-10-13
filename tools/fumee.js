@@ -125,6 +125,18 @@ async function verifier(nom, fn) {
     sansErreur();
   });
 
+  await verifier('« Exporter… » : le STL annonce sa taille, les classes se cochent', async () => {
+    await page.click('#onglet-3d');
+    await page.waitForSelector('#export-points:not([hidden])', { timeout: 120000 });
+    await page.click('#exp-ouvrir');
+    await page.click('input[name="fmt-export"][value="stl"]');
+    await page.waitForFunction(() => /triangles/.test(document.getElementById('exp-info').textContent), null, { timeout: 90000 });
+    if (!(await page.locator('#exp-stl-classes input').count())) throw new Error('aucune classe à cocher');
+    await page.click('#exp-fermer');
+    await page.click('#onglet-carte');
+    sansErreur();
+  });
+
   await verifier('la mesure : deux points, un tableau, l’export s’ouvre', async () => {
     await page.click('#mode-mesure');
     await page.mouse.click(520, 520);

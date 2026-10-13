@@ -350,6 +350,14 @@ const CONFIG = {
     couleurClasseDefaut: '#9aa4b2',
   },
 
+  // ── Export STL de la surface (impression 3D) ──────────────────────────────
+  stl: {
+    pasMinM: 0.5,        // pas de la grille par défaut : la qualité se choisit dans la fenêtre (25 cm à 2 m)
+    maxCotes: 1000,      // cases par côté au plus : au-delà, le pas s'élargit (1000 × 1000 ≈ 100 Mo de fichier)
+    largeurMm: 150,      // largeur de la maquette imprimée
+    epaisseurMm: 3,      // base pleine sous le point le plus bas
+  },
+
   // ── Profil topographique ──────────────────────────────────────────────────
   profil: {
     // Largeur de la bande autour de l'axe, en mètres. Une cime d'arbre ne se

@@ -16,6 +16,39 @@
 // part tel quel dans le worker du relief (relief-travailleur.js).
 function fabriqueVueRelief() {
   /**
+   * Les altitudes des classes cochées sur le rectangle `rect` (Lambert-93, mètres), pour l'export STL : la plus haute de chaque
+   * case, `NaN` sans point (à combler ensuite). Le pas est d'au moins `pasMinM` et assez grand pour tenir en `maxCotes` cases par
+   * côté ; la grille est en centimètres entiers, à partir du coin du rectangle. `null` sans bloc dans le rectangle.
+   */
+  function grilleDesClasses(blocs, rect, classes, pasMinM, maxCotes) {
+    const xmin = Math.round(rect.xmin * 100), ymin = Math.round(rect.ymin * 100);
+    const largeur = Math.round(rect.xmax * 100) - xmin, hauteur = Math.round(rect.ymax * 100) - ymin;
+    const pasCm = Math.max(Math.round(pasMinM * 100), Math.ceil(Math.max(largeur, hauteur) / maxCotes));
+    const x0 = xmin, y0 = ymin;   // pas d'alignement sur le pas : rien d'autre ne partage cette grille
+    const W = Math.max(1, Math.ceil(largeur / pasCm)), H = Math.max(1, Math.ceil(hauteur / pasCm));
+    const choisie = new Uint8Array(256);
+    for (const c of classes) choisie[c] = 1;
+    const z = new Float32Array(W * H).fill(NaN);
+    const presentes = new Map();
+    let vus = 0;
+    for (const bl of blocs.values()) {
+      const e = bl.emprise;
+      if (e.xmax <= rect.xmin || e.xmin >= rect.xmax || e.ymax <= rect.ymin || e.ymin >= rect.ymax) continue;
+      vus++;
+      const p = bl.points, [ox, oy, oz] = bl.origineCm;
+      for (let i = 0; i < bl.nbPoints; i++) {
+        const cx = Math.floor((p.xc[i] + ox - x0) / pasCm), cy = Math.floor((p.yc[i] + oy - y0) / pasCm);
+        if (cx < 0 || cy < 0 || cx >= W || cy >= H) continue;
+        presentes.set(p.cls[i], (presentes.get(p.cls[i]) || 0) + 1);
+        if (!choisie[p.cls[i]]) continue;
+        const v = (p.zc[i] + oz) / 100, k = cy * W + cx;
+        if (!(z[k] >= v)) z[k] = v;
+      }
+    }
+    return vus ? { z, W, H, pas: pasCm / 100, classes: [...presentes].sort((a, b) => a[0] - b[0]) } : null;
+  }
+
+  /**
    * Le point chargé le plus proche de (x, y) en mètres, à `rayonM` près (en 3D si l'altitude `z` est donnée : le sol ou la cime
    * se choisissent par elle ; sans elle, à égalité en plan, le plus bas). Rend sa place (`cle` du bloc, `indice` dans le bloc),
    * la classe et la position en centimètres absolus, ou `null`. Comparaisons en centimètres entiers, comme le profil.
@@ -545,7 +578,7 @@ function fabriqueVueRelief() {
     }
 
     return {
-      ajouter, retirer, reglages, surface, calculer, statistiques, classes, lire, nuage3d, drape3d, profil, pointProche: (x, y, z, r) => plusProchePoint(blocs, x, y, z, r),
+      ajouter, retirer, reglages, surface, calculer, statistiques, classes, lire, nuage3d, drape3d, profil, grilleStl: (rect, classes, pasMinM, maxCotes) => grilleDesClasses(blocs, rect, classes, pasMinM, maxCotes), pointProche: (x, y, z, r) => plusProchePoint(blocs, x, y, z, r),
       taille: () => blocs.size,
       moteur: gpu ? 'gpu' : 'cpu',
       coteMax: gpu ? Math.min(CONFIG.flux.coteMaxGrille, GPU_RELIEF.coteMax()) : CONFIG.flux.coteMaxGrille,

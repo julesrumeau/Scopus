@@ -621,3 +621,63 @@ test('pointProche : un bloc retiré n’est plus proposé', () => {
   m.retirer('a');
   assert.equal(m.pointProche(1010, 2020, 300), null);
 });
+
+// ── La grille d'altitudes des classes choisies, pour l'export STL ─────────────────────────────────────────────────
+
+const RECT = { xmin: 1010, xmax: 1030, ymin: 2010, ymax: 2030 };
+
+test('grilleStl : rien de chargé : null', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  assert.equal(m.grilleStl(RECT, [2], 0.5, 600), null);
+});
+
+test('grilleStl : la plus haute altitude des classes cochées par case, sur le rectangle demandé', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));   // plan à 300 m qui monte de 5 cm par mètre, tout en classe 2
+  const g = m.grilleStl(RECT, [2], 0.5, 600);
+  assert.equal(g.W, 40); assert.equal(g.H, 40);
+  assert.equal(g.pas, 0.5);
+  assert.equal(g.z.length, 1600);
+  // la case (0, 0) : x entre 10 et 10,5 m du coin de la dalle, le plan y vaut 300 + 0,05 x (de 300,50 à 300,525)
+  assert.ok(g.z[0] > 300.45 && g.z[0] < 300.6, `${g.z[0]}`);
+  assert.ok(g.z[39] > g.z[0], 'le plan monte vers l’est');
+  assert.ok(g.z.every((v) => Number.isFinite(v)));
+});
+
+test('grilleStl : une classe décochée n’y est pas, une classe cochée peut la relever', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  const b = bloc('a', 1000, 2000);
+  const p = b.points;
+  // un point de classe 5, 7 m au-dessus du plan, dans la case de (1020,2020) : xc = yc = 2000 cm
+  const k = (2000 / 25) * (60 * 100 / 25) + 2000 / 25;
+  p.cls[k] = 5; p.zc[k] += 700;
+  m.ajouter(b);
+  const sol = m.grilleStl(RECT, [2], 0.5, 600), tout = m.grilleStl(RECT, [2, 5], 0.5, 600);
+  let ecart = 0; for (let q = 0; q < sol.z.length; q++) ecart = Math.max(ecart, tout.z[q] - sol.z[q]);
+  assert.ok(ecart > 6.5 && ecart < 7.1, `écart ${ecart}`);
+  assert.ok(sol.z.every((v) => Number.isFinite(v)));
+});
+
+test('grilleStl : sans point des classes cochées dans une case : NaN (à combler plus tard)', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  const g = m.grilleStl(RECT, [9], 0.5, 600);
+  assert.ok(g.z.every((v) => Number.isNaN(v)));
+});
+
+test('grilleStl : le plafond de cases par côté élargit le pas, jamais sous le pas minimal', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  const grand = m.grilleStl({ xmin: 1000, xmax: 1060, ymin: 2000, ymax: 2060 }, [2], 0.5, 40);
+  assert.ok(grand.W <= 40 && grand.H <= 40, `${grand.W}`);
+  assert.ok(grand.pas >= 1.5);
+  const fin = m.grilleStl(RECT, [2], 0.25, 600);
+  assert.equal(fin.pas, 0.25);
+});
+
+test('grilleStl : les classes présentes accompagnent la grille ; un rectangle hors des blocs donne null', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(bloc('a', 1000, 2000));
+  assert.equal(m.grilleStl(RECT, [2], 0.5, 600).classes.map(([c]) => c).join(','), '2');
+  assert.equal(m.grilleStl({ xmin: 5000, xmax: 5100, ymin: 5000, ymax: 5100 }, [2], 0.5, 600), null);
+});

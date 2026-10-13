@@ -227,7 +227,7 @@
       <div id="legende" class="legende"></div>
       <div id="export-points" hidden>
         <div class="rangee exports">
-          <button id="exp-ouvrir" class="secondaire">Exporter les points…</button>
+          <button id="exp-ouvrir" class="secondaire">Exporter…</button>
         </div>
       </div>
     </section>
@@ -509,8 +509,8 @@
 </dialog>
 
 <dialog id="dlg-export" class="fenetre" aria-labelledby="dlg-export-titre">
-  <h2 id="dlg-export-titre">Exporter les points</h2>
-  <p class="vide">Les points affichés en 3D, en coordonnées locales (mètres). Choisissez un format.</p>
+  <h2 id="dlg-export-titre">Exporter</h2>
+  <p class="vide">Choisissez un format. LAS et PLY : les points affichés en 3D, en coordonnées locales (mètres). STL : la surface de la zone affichée.</p>
   <label class="case choix-format">
     <input type="radio" name="fmt-export" value="las">
     <span><b>LAS</b> : tous les points, avec leur classe dans le fichier.
@@ -525,6 +525,27 @@
     <p class="vide">Choisissez les classes à mettre dans le fichier : il ne contiendra
       que celles qui sont cochées. FreeCAD ne lit pas la classe des points.</p>
     <div id="exp-liste-classes" class="legende"></div>
+  </div>
+  <label class="case choix-format">
+    <input type="radio" name="fmt-export" value="stl">
+    <span><b>STL</b> : un solide fermé à imprimer en 3D.
+      <small>Pour PrusaSlicer, Cura, Blender, FreeCAD.</small></span>
+  </label>
+  <div id="exp-stl" hidden>
+    <p class="vide">Cochez les classes qui forment la surface (la plus haute de chaque case) : le sol seul donne le relief caché sous
+      la forêt, avec la végétation la forêt devient une masse pleine. Les cases sans point sont comblées par leurs voisines.</p>
+    <div id="exp-stl-classes" class="legende"></div>
+    <label class="champ"><span>Qualité (taille des cases)</span>
+      <select id="stl-pas">
+        <option value="0.25">Très fine : 25 cm</option>
+        <option value="0.5" selected>Fine : 50 cm</option>
+        <option value="1">Moyenne : 1 m</option>
+        <option value="2">Légère : 2 m</option>
+      </select></label>
+    <label class="champ"><span>Largeur de la maquette (mm)</span>
+      <input type="number" id="stl-largeur" min="20" max="400" step="10" value="150"></label>
+    <label class="champ"><span>Épaisseur de la base (mm)</span>
+      <input type="number" id="stl-epaisseur" min="1" max="20" step="1" value="3"></label>
   </div>
   <p class="vide" id="exp-info">Choisissez un format.</p>
   <div class="rangee">
@@ -663,6 +684,8 @@
 <script src="src/sortie.js"></script>
 <script src="src/las.js"></script>
 <script src="src/ply.js"></script>
+<script src="src/stl.js"></script>
+<script src="src/export-stl-ui.js"></script>
 <script src="src/gl.js"></script>
 <script src="src/shaders.js"></script>
 <script src="src/gpu-relief.js"></script>

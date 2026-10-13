@@ -454,7 +454,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
     for (const n of ['ajouter', 'retirer', 'reglages', 'image']) relief[n] = mesurer(`worker du relief : ${n} (envoi)`, relief[n]);
   }
   const flux = FLUX.creer(depsFlux);
-  outils.liaisons.dalleAuPoint = (x, y) => flux.dalleAu(x, y); creerDetailsPointUI({ $, outils, flux, relief: () => relief, ATTRIBUTS_POINT, NOMS_CLASSES, recuperer: RESEAU.recuperer, decoder: NUAGE.decoder });
+  creerDetailsPointUI({ $, outils, flux, relief: () => relief, ATTRIBUTS_POINT, NOMS_CLASSES, recuperer: RESEAU.recuperer, decoder: NUAGE.decoder }); creerExportStlUI({ api: panneau3D.exportStl, $, relief: () => relief, rectVue: () => vueCourante, telecharger: SORTIE.telecharger, STL, CONFIG, NOMS_CLASSES });
   if (chronometrer) for (const n of ['majVue']) flux[n] = mesurer(`flux : ${n}`, flux[n]);
 
   const majVueFlux = (fixe = null) => {
