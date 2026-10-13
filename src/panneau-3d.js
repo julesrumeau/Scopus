@@ -117,7 +117,7 @@ function creerPanneau3D(d) {
     }).join('');
   }
 
-  /** Une seule fenêtre, depuis la carte ou la 3D : LAS et PLY ont besoin du nuage 3D, pas le STL (la surface vient des blocs chargés). */
+  /** La fenêtre d'export, ouverte depuis la 3D : LAS et PLY lisent le nuage 3D, le STL la surface des blocs chargés. */
   function ouvrirExport() {
     exportExclues.clear();          // toutes les classes cochées, à chaque ouverture
     for (const r of document.querySelectorAll('input[name="fmt-export"]')) r.checked = false;
@@ -129,7 +129,6 @@ function creerPanneau3D(d) {
     $('dlg-export').showModal();
   }
   $('exp-ouvrir').addEventListener('click', ouvrirExport);
-  $('exp-ouvrir-carte').addEventListener('click', ouvrirExport);
   $('exp-fermer').addEventListener('click', () => $('dlg-export').close());
   $('dlg-export').addEventListener('change', (e) => {
     const c = e.target.closest('input[data-cls]');

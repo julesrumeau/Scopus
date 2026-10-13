@@ -359,8 +359,8 @@ Demande LouisXIV (forum OSM-FR) : le temps GPS d'un point, à la seconde, et les
 
 ## Export STL (impression 3D)
 
-Un format de plus de **la fenêtre d'export** (`#dlg-export`, `panneau-3d.js`, qui sert aussi LAS et PLY ; ouverte depuis le panneau
-Relief ou la 3D, LAS et PLY grisés sans nuage 3D). La partie STL est `export-stl-ui.js` (`stl.js` pur et testé). **Une surface,
+Un format de plus de **la fenêtre d'export** (`#dlg-export`, `panneau-3d.js`, qui sert aussi LAS et PLY ; ouverte depuis la 3D seulement, pas de bouton
+sur la carte : décision de l'utilisateur). La partie STL est `export-stl-ui.js` (`stl.js` pur et testé). **Une surface,
 pas un nuage** : la plus haute altitude des points des **classes cochées** dans chaque case de la zone affichée (liste à cocher
 comme le PLY, sol par défaut ; `VUE_RELIEF.grilleStl`, message `grilleStl` du worker, centimètres entiers). Un solide à une altitude
 par case n'a pas de vide sous les feuilles : il est **fermé par construction** (dessus à deux triangles par case, quatre murs,
