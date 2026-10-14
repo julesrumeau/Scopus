@@ -9,6 +9,7 @@ const CHOIX_COUCHES = (() => {
   /** Les familles, dans l'ordre de la liste, chacune avec ses clés dans leur ordre d'affichage. */
   const FAMILLES = [
     { titre: 'Fonds de carte', cles: ['carte', 'plan', 'osm'] },
+    { titre: 'Géologie', cles: ['geologie', 'geologie-scan'] },
     { titre: 'Relief : lumière et ombres', cles: ['ombrage', 'ombrage-simple', 'ombrage-rgb'] },
     { titre: 'Relief : formes du terrain', cles: ['svf', 'ouverture-pos', 'ouverture-neg', 'microrelief'] },
     { titre: 'Relief : mesures du sol', cles: ['hauteur', 'trou'] },
