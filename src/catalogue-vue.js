@@ -2,7 +2,7 @@
 // l'ombrage coloré) ou un fond de carte (la photo de la carte Leaflet, le plan IGN, les estompages IGN,
 // OpenStreetMap, les cartes géologiques du BRGM). Des définitions, sans état : le panneau et le calcul les lisent.
 
-function creerCatalogueVue({ RELIEF, FONDS_OSM, FONDS_GEOLOGIE, protocole }) {
+function creerCatalogueVue({ RELIEF, FONDS_OSM, FONDS_GEOLOGIE, protocole, zoom = () => null }) {
   // L'ombrage coloré ne suit pas le contrat de `RELIEF.calculer` (palette + étalement) : il rend directement
   // des couleurs.
   const OMBRAGE_RGB = 'ombrage-rgb';
@@ -21,7 +21,7 @@ function creerCatalogueVue({ RELIEF, FONDS_OSM, FONDS_GEOLOGIE, protocole }) {
   // Les fonds de tuiles posés dans le volet de leur côté, avec leurs réglages propres : l'estompage de l'IGN
   // n'est servi que jusqu'au niveau 18, au-delà la tuile est agrandie.
   const tuiles = { plan: {}, 'mnt-ign': { maxNativeZoom: 18 }, 'mns-ign': { maxNativeZoom: 18 }, [FONDS_OSM.standard.cle]: {},
-    ...Object.fromEntries(Object.values(FONDS_GEOLOGIE.parCle).map((f) => [f.cle, { maxNativeZoom: f.options.maxNativeZoom }])) };
+    ...Object.fromEntries(Object.values(FONDS_GEOLOGIE.parCle).map((f) => [f.cle, { minZoom: f.options.minZoom, maxNativeZoom: f.options.maxNativeZoom }])) };
   const aides = {
     [FONDS_OSM.standard.cle]: FONDS_OSM.standard.aide(protocole),
     ...Object.fromEntries(Object.values(FONDS_GEOLOGIE.parCle).map((f) => [f.cle, f.aide])),
@@ -29,6 +29,11 @@ function creerCatalogueVue({ RELIEF, FONDS_OSM, FONDS_GEOLOGIE, protocole }) {
     'mns-ign': 'Estompage du MNS LiDAR HD (le dessus : cimes, toits), calculé par l’IGN : éclairage fixe, pas de réglage du soleil. Servi jusqu’au zoom 18.',
   };
   const estRelief = (cle) => !(cle in fonds);
-  const libelleCouche = (cle) => fonds[cle] || couches.find((c) => c.cle === cle).libelle;
+  // Une carte géologique ne dessine rien sous son zoom minimal : le libellé du côté le dit, comme « Zoomez pour calculer le relief ».
+  const libelleCouche = (cle) => {
+    const geo = FONDS_GEOLOGIE.parCle[cle], z = zoom();
+    if (geo && z !== null && z < geo.zoomMin) return `Zoomez pour voir la carte géologique (zoom ${geo.zoomMin} minimum)`;
+    return fonds[cle] || couches.find((c) => c.cle === cle).libelle;
+  };
   return { OMBRAGE_RGB, couches, fonds, tuiles, aides, estRelief, libelleCouche };
 }

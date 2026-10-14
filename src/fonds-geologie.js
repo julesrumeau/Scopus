@@ -2,7 +2,9 @@
 // service (`geoservices.brgm.fr/geologie`, `Access-Control-Allow-Origin: *`, « no conditions apply » dans ses capacités,
 // mesuré le 14 octobre 2026) : la carte **harmonisée** au 1/50 000 (aplats de couleur sans texte, continue d'une feuille à
 // l'autre) et la carte **scannée** d'origine (codes des formations, topographie imprimée, feuille par feuille). Le BRGM est cité
-// dans l'attribution. Au-delà du zoom 17, une carte au 1/50 000 ne dit rien de plus fin : la tuile est agrandie.
+// dans l'attribution. **Le service ne dessine qu'aux zooms 12 à 16** (mesuré le 14 octobre 2026, tuiles de 256 px sur six lieux : à
+// 11 et en dessous, à 17 et au-delà, des tuiles blanches ; l'échelle des couches est bornée côté serveur) : sous le 12 on ne demande
+// rien et le rideau dit de zoomer, au-dessus du 16 la tuile du 16 est agrandie.
 // Il n'y a pas de légende dans Scopus : celle des feuilles est sur infoterre.brgm.fr (dit dans l'aide).
 
 const FONDS_GEOLOGIE = (() => {
@@ -12,10 +14,13 @@ const FONDS_GEOLOGIE = (() => {
     format: 'image/png',
     options: {
       attribution: '&copy; <a href="https://www.brgm.fr">BRGM</a>, carte géologique de la France',
-      maxNativeZoom: 17,
+      minZoom: 12,
+      maxNativeZoom: 16,
     },
+    zoomMin: 12,
+    zoomMax: 16,
   };
-  const fin = ' Légende des formations : infoterre.brgm.fr. Ne dit rien sous le zoom 17 de plus que ce que montre la carte au 1/50 000.';
+  const fin = ' Apparaît à partir du zoom 12 (plus loin, le service ne dessine rien) ; légende des formations : infoterre.brgm.fr.';
   const harmonisee = {
     ...commun,
     cle: 'geologie',

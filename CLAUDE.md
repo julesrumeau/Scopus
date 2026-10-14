@@ -550,8 +550,7 @@ capacités, **mesuré** ; licence détaillée non lue, d'où l'attribution « ©
 **harmonisée** au 1/50 000 (aplats de couleur, sans texte, continue, pas de mer) ; **`geologie-scan`** = `SCAN_D_GEOL50`, les feuilles
 **scannées** (codes des formations, topographie imprimée, la mer, feuille par feuille : la plus riche pour un géologue). Ce sont des
 fonds de tuiles comme le Plan IGN : une entrée du catalogue (`creerCatalogueVue`), une famille « Géologie » (`choix-couches.js`), un
-`L.tileLayer.wms` (`carte.nouveauFond`, sans réessai : ce n'est pas l'IGN). `maxNativeZoom: 17` : une carte au 1/50 000 ne dit rien de
-plus fin. Les clés passent dans le lien (`&gauche=geologie`). **Pas de légende dans Scopus** (celle des feuilles est sur
+`L.tileLayer.wms` (`carte.nouveauFond`, sans réessai : ce n'est pas l'IGN). **Le service ne dessine qu'aux zooms 12 à 16** (mesuré sur six lieux, tuiles de 256 px : blanches à 11 et en dessous, à 17 et au-delà ; la couche harmonisée dessine aussi quelque chose à 10 et en dessous, ignoré) : `minZoom: 12` (aucune requête dessous, le libellé du côté dit « Zoomez pour voir la carte géologique (zoom 12 minimum) », `libelleCouche` du catalogue, avec un `zoom` injecté) et `maxNativeZoom: 16` (au-delà, la tuile du 16 est agrandie, floue mais jamais blanche). Piège : un `maxNativeZoom: 17` posé d'abord sur la foi d'« une carte au 1/50 000 ne dit rien de plus fin » donnait du blanc à 17, 18 et 19. Les clés passent dans le lien (`&gauche=geologie`). **Pas de légende dans Scopus** (celle des feuilles est sur
 infoterre.brgm.fr, dit dans l'aide). Non fait : la formation au clic (GetFeatureInfo, la couche est interrogeable), une opacité,
 `SCAN_F_GEOL250`. Couverture : la métropole ; les DROM ont d'autres couches (`GEOL_REU_50K`…), non branchées.
 

@@ -30,7 +30,8 @@ test('l’attribution cite le BRGM, avec un lien, et les options bornent le zoom
   for (const f of Object.values(FONDS_GEOLOGIE.parCle)) {
     assert.match(f.options.attribution, /BRGM/);
     assert.match(f.options.attribution, /href="https:\/\//);
-    assert.equal(f.options.maxNativeZoom, 17, 'une carte au 1/50 000 ne dit rien de plus fin');
+    assert.equal(f.options.maxNativeZoom, 16, 'le service rend des tuiles vides au zoom 17 et au-delà : on agrandit celles du 16');
+    assert.equal(f.options.minZoom, 12, 'le service rend des tuiles vides sous le zoom 12');
   }
 });
 
@@ -43,4 +44,12 @@ test('l’aide dit ce que c’est, d’où ça vient et ce que ça ne dit pas, s
   }
   assert.match(FONDS_GEOLOGIE.parCle.geologie.aide, /couleurs/i);
   assert.match(FONDS_GEOLOGIE.parCle['geologie-scan'].aide, /codes|scann/i);
+});
+
+test('les zooms où le service dessine : 12 à 16, mesurés le 14 octobre 2026 sur six lieux', () => {
+  for (const f of Object.values(FONDS_GEOLOGIE.parCle)) assert.equal(`${f.zoomMin}-${f.zoomMax}`, '12-16');
+});
+
+test('l’aide dit à partir de quel zoom la carte apparaît', () => {
+  for (const f of Object.values(FONDS_GEOLOGIE.parCle)) assert.match(f.aide, /zoom 12/);
 });

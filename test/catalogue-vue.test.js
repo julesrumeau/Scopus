@@ -59,7 +59,25 @@ test('les cartes géologiques du BRGM sont des fonds de tuiles : libellé, régl
   for (const cle of ['geologie', 'geologie-scan']) {
     assert.equal(cat.estRelief(cle), false, cle);
     assert.equal(cat.libelleCouche(cle), FONDS_GEOLOGIE.parCle[cle].libelle);
-    assert.equal(cat.tuiles[cle].maxNativeZoom, 17);
+    assert.equal(cat.tuiles[cle].maxNativeZoom, 16);
+    assert.equal(cat.tuiles[cle].minZoom, 12);
     assert.match(cat.aides[cle], /BRGM/);
   }
+});
+
+test('libelleCouche : sous le zoom 12 une carte géologique dit de zoomer, comme le relief trop large', () => {
+  let zoom = 10;
+  const c = creerCatalogueVue({ RELIEF, FONDS_OSM, FONDS_GEOLOGIE, protocole: 'https:', zoom: () => zoom });
+  for (const cle of ['geologie', 'geologie-scan']) {
+    assert.match(c.libelleCouche(cle), /^Zoomez pour voir la carte géologique/);
+    assert.match(c.libelleCouche(cle), /12/);
+  }
+  zoom = 12;
+  assert.equal(c.libelleCouche('geologie'), FONDS_GEOLOGIE.parCle.geologie.libelle);
+  zoom = 18;
+  assert.equal(c.libelleCouche('geologie-scan'), FONDS_GEOLOGIE.parCle['geologie-scan'].libelle, 'au-delà du 16 la tuile est agrandie : rien à dire');
+  assert.equal(c.libelleCouche('plan'), 'Plan IGN', 'les autres fonds ne dépendent pas du zoom');
+  zoom = 3;
+  assert.equal(c.libelleCouche('plan'), 'Plan IGN');
+  assert.equal(c.libelleCouche('svf'), RELIEF.COUCHES.find((x) => x.cle === 'svf').libelle);
 });

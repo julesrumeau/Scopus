@@ -364,7 +364,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   const cotes = reglages.cotes;
   // Ce que peut porter un côté du rideau : une couche de relief ou un fond de carte (catalogue-vue.js).
   const { OMBRAGE_RGB, couches: COUCHES_VUE, fonds: FONDS_VUE, tuiles: TUILES_VUE, aides: AIDES_FONDS, estRelief, libelleCouche } =
-    creerCatalogueVue({ RELIEF, FONDS_OSM, FONDS_GEOLOGIE, protocole: location.protocol });
+    creerCatalogueVue({ RELIEF, FONDS_OSM, FONDS_GEOLOGIE, protocole: location.protocol, zoom: () => carte.map?.getZoom() ?? null });
   // Les listes Gauche / Droite choisissent le fond de chaque côté : le
   // sélecteur de fond de Leaflet ferait doublon. La carte garde la photo.
   carte.controleFonds.remove();
