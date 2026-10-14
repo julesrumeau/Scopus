@@ -80,6 +80,9 @@ class Carte {
       // réessai sur erreur : insister sur un serveur qui refuse ne ferait qu'aggraver le blocage.
       const osm = FONDS_OSM.parCle[cle];
       if (osm) return L.tileLayer(osm.url, { ...tuiles, ...osm.options, ...options });
+      // Une carte géologique du BRGM : un service WMS (`fonds-geologie.js`), son attribution, pas de réessai (pas l'IGN).
+      const geo = FONDS_GEOLOGIE.parCle[cle];
+      if (geo) return L.tileLayer.wms(geo.url, { ...tuiles, ...geo.options, ...options, layers: geo.couche, version: geo.version, format: geo.format });
       const couche = L.tileLayer(IGN.gabaritWMTS(cle), { ...tuiles, ...options });
       reessayer(couche);
       return couche;

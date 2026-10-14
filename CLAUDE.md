@@ -542,6 +542,18 @@ avant `addTo`) ; `.scene` est une `<section>` : un `</div>` en trop y était **i
 `#cartes` trop tôt. En deux cartes, sélection, mesure et profil sont **grisés** (liés à la carte principale) ; le lien
 porte `cartes=2` (pas `rideau`).
 
+### Cartes géologiques du BRGM (fonds de côté)
+
+Demande d'un géologue (14 octobre 2026) : comparer le relief à la carte géologique. `fonds-geologie.js` (définitions pures, testées) :
+deux couches WMS du service `geoservices.brgm.fr/geologie` (`Access-Control-Allow-Origin: *`, « no conditions apply » dans ses
+capacités, **mesuré** ; licence détaillée non lue, d'où l'attribution « © BRGM » avec lien) : **`geologie`** = `SCAN_H_GEOL50`, la carte
+**harmonisée** au 1/50 000 (aplats de couleur, sans texte, continue, pas de mer) ; **`geologie-scan`** = `SCAN_D_GEOL50`, les feuilles
+**scannées** (codes des formations, topographie imprimée, la mer, feuille par feuille : la plus riche pour un géologue). Ce sont des
+fonds de tuiles comme le Plan IGN : une entrée du catalogue (`creerCatalogueVue`), une famille « Géologie » (`choix-couches.js`), un
+`L.tileLayer.wms` (`carte.nouveauFond`, sans réessai : ce n'est pas l'IGN). **Le service ne dessine qu'aux zooms 12 à 16** (mesuré sur six lieux, tuiles de 256 px : blanches à 11 et en dessous, à 17 et au-delà ; la couche harmonisée dessine aussi quelque chose à 10 et en dessous, ignoré) : `minZoom: 12` (aucune requête dessous, le libellé du côté dit « Zoomez pour voir la carte géologique (zoom 12 minimum) », `libelleCouche` du catalogue, avec un `zoom` injecté) et `maxNativeZoom: 16` (au-delà, la tuile du 16 est agrandie, floue mais jamais blanche). Piège : un `maxNativeZoom: 17` posé d'abord sur la foi d'« une carte au 1/50 000 ne dit rien de plus fin » donnait du blanc à 17, 18 et 19. Les clés passent dans le lien (`&gauche=geologie`). **Pas de légende dans Scopus** (celle des feuilles est sur
+infoterre.brgm.fr, dit dans l'aide). **Pas de légende ni de formation au clic, mesuré le 14 octobre** (un lien « Légende et notices : InfoTerre (BRGM) » sous la liste des couches, `#vue-lien`, tant qu'un côté visible porte une carte géologique ; `lien` dans `fonds-geologie.js`, `liens` du catalogue) : `GetLegendGraphic` de la couche harmonisée ne rend qu'un symbole « Couverture des cartes harmonisées » (242 × 25 px), la scannée n'en déclare aucun (la légende est dans la marge des feuilles) ; `GetFeatureInfo` répond `LayerNotQueryable` pour les deux (la scannée se déclare pourtant interrogeable). Une formation au clic passerait par un autre service du BRGM (données vectorielles, non essayé). Non fait : une superposition à opacité réglable de la géologie sur le relief (aujourd'hui le rideau seulement),
+`SCAN_F_GEOL250`. Couverture : la métropole ; les DROM ont d'autres couches (`GEOL_REU_50K`…), non branchées.
+
 ### Aperçu de lien
 
 `index.html` porte des balises **Open Graph et Twitter** (titre, description, image `docs/apercu.jpg` de 1200 x 630, adresse

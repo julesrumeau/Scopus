@@ -57,3 +57,9 @@ test('une famille sans couche n’apparaît pas', () => {
   assert.ok(!g.some((x) => x.titre === 'Relief de l’IGN'));
   assert.ok(!g.some((x) => x.titre === 'Autres'), 'et pas de groupe « Autres » vide');
 });
+
+test('les cartes géologiques ont leur famille, entre les fonds de carte et le relief', () => {
+  const g = CHOIX_COUCHES.groupes([{ cle: 'carte' }, { cle: 'geologie' }, { cle: 'geologie-scan' }, { cle: 'svf' }]);
+  assert.equal(g.map((x) => x.titre).join(' | '), 'Fonds de carte | Géologie | Relief : formes du terrain');
+  assert.equal(g[1].couches.map((c) => c.cle).join(','), 'geologie,geologie-scan');
+});

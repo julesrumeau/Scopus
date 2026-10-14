@@ -4,9 +4,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chargerScripts } from './charger.js';
 
-const ctx = chargerScripts(['config.js', 'relief.js', 'fonds-osm.js', 'catalogue-vue.js']);
-const { RELIEF, FONDS_OSM, creerCatalogueVue } = ctx;
-const cat = creerCatalogueVue({ RELIEF, FONDS_OSM, protocole: 'https:' });
+const ctx = chargerScripts(['config.js', 'relief.js', 'fonds-osm.js', 'fonds-geologie.js', 'catalogue-vue.js']);
+const { RELIEF, FONDS_OSM, FONDS_GEOLOGIE, creerCatalogueVue } = ctx;
+const cat = creerCatalogueVue({ RELIEF, FONDS_OSM, FONDS_GEOLOGIE, protocole: 'https:' });
 
 test('chaque couche de RELIEF.COUCHES est au catalogue, avec son libellé et son aide', () => {
   for (const c of RELIEF.COUCHES) {
@@ -50,7 +50,39 @@ test('chaque fond de tuiles a une aide, sauf la photo et le plan', () => {
 });
 
 test('en file://, l’aide d’OpenStreetMap dit pourquoi la carte reste grise', () => {
-  const local = creerCatalogueVue({ RELIEF, FONDS_OSM, protocole: 'file:' });
+  const local = creerCatalogueVue({ RELIEF, FONDS_OSM, FONDS_GEOLOGIE, protocole: 'file:' });
   assert.match(local.aides.osm, /Referer/);
   assert.doesNotMatch(cat.aides.osm, /Referer/);
+});
+
+test('les cartes géologiques du BRGM sont des fonds de tuiles : libellé, réglages de zoom et aide', () => {
+  for (const cle of ['geologie', 'geologie-scan']) {
+    assert.equal(cat.estRelief(cle), false, cle);
+    assert.equal(cat.libelleCouche(cle), FONDS_GEOLOGIE.parCle[cle].libelle);
+    assert.equal(cat.tuiles[cle].maxNativeZoom, 16);
+    assert.equal(cat.tuiles[cle].minZoom, 12);
+    assert.match(cat.aides[cle], /BRGM/);
+  }
+});
+
+test('libelleCouche : sous le zoom 12 une carte géologique dit de zoomer, comme le relief trop large', () => {
+  let zoom = 10;
+  const c = creerCatalogueVue({ RELIEF, FONDS_OSM, FONDS_GEOLOGIE, protocole: 'https:', zoom: () => zoom });
+  for (const cle of ['geologie', 'geologie-scan']) {
+    assert.match(c.libelleCouche(cle), /^Zoomez pour voir la carte géologique/);
+    assert.match(c.libelleCouche(cle), /12/);
+  }
+  zoom = 12;
+  assert.equal(c.libelleCouche('geologie'), FONDS_GEOLOGIE.parCle.geologie.libelle);
+  zoom = 18;
+  assert.equal(c.libelleCouche('geologie-scan'), FONDS_GEOLOGIE.parCle['geologie-scan'].libelle, 'au-delà du 16 la tuile est agrandie : rien à dire');
+  assert.equal(c.libelleCouche('plan'), 'Plan IGN', 'les autres fonds ne dépendent pas du zoom');
+  zoom = 3;
+  assert.equal(c.libelleCouche('plan'), 'Plan IGN');
+  assert.equal(c.libelleCouche('svf'), RELIEF.COUCHES.find((x) => x.cle === 'svf').libelle);
+});
+
+test('liens : une carte géologique a son lien de légende, les autres fonds et le relief n’en ont pas', () => {
+  for (const cle of ['geologie', 'geologie-scan']) assert.equal(cat.liens[cle].url, FONDS_GEOLOGIE.parCle[cle].lien.url);
+  for (const cle of ['carte', 'plan', 'osm', 'svf', 'mnt-ign']) assert.equal(cat.liens[cle], undefined, cle);
 });

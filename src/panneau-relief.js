@@ -5,7 +5,7 @@
 
 function creerPanneauRelief(d) {
   const { $, carte, reglages, vueCartes, voletDe, reliefCalque, relief, vue3d, MODE_CARTE, CHOIX_COUCHES, RELIEF, CONFIG,
-    FONDS_VUE, COUCHES_VUE, TUILES_VUE, AIDES_FONDS, OMBRAGE_RGB, estRelief, libelleCouche, classesMasquees,
+    FONDS_VUE, COUCHES_VUE, TUILES_VUE, AIDES_FONDS, LIENS_FONDS, OMBRAGE_RGB, estRelief, libelleCouche, classesMasquees,
     planifierRelief, majStatut, majLien, majLegende, budget3D, surMobile } = d;
   const { cotes } = reglages;
 
@@ -47,6 +47,10 @@ function creerPanneauRelief(d) {
     const fondAide = [...cotesVus].reverse().map((c) => cotes[c]).find((k) => AIDES_FONDS[k]);
     $('vue-aide').textContent = estRelief(cle) ? COUCHES_VUE.find((x) => x.cle === cle).aide
       : fondAide ? AIDES_FONDS[fondAide] : 'Choisissez une couche de relief d’un côté du rideau.';
+    // Le lien d'un fond (la légende d'une carte géologique) tant qu'un côté visible le porte.
+    const lien = cotesVus.map((c) => LIENS_FONDS[cotes[c]]).find(Boolean);
+    $('vue-lien').hidden = !lien;
+    if (lien) { $('vue-lien-a').href = lien.url; $('vue-lien-a').textContent = lien.libelle; }
     $('vue-svf-reglages').hidden = !cotesVus.some((c) => BALAYAGE.has(cotes[c]));
     $('vue-ombrage-reglages').hidden = !cotesVus.some((c) => OMBRAGES.has(cotes[c]));
     majLien();   // les couches de chaque côté sont dans le lien
