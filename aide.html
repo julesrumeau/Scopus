@@ -135,6 +135,7 @@
   <p>Chaque côté du rideau peut afficher une couche différente. Les listes <b>Gauche</b> et <b>Droite</b> les rangent par famille.</p>
   <table class="couches">
     <tr><th>Photo aérienne, Plan IGN, OpenStreetMap</th><td>Les fonds de carte, pour comparer le relief avec ce que l'on voit.</td></tr>
+    <tr><th>Géologie 1/50 000, Géologie scannée (BRGM)</th><td>Les cartes géologiques du BRGM, à comparer au relief (voir « Comparer »).</td></tr>
     <tr><th>Ombrage à 4 soleils</th><td>Quatre lumières voisines, du côté nord-ouest, combinées : un muret n'y disparaît pas et le relief garde un côté éclairé. L'azimut et la hauteur du soleil se règlent.</td></tr>
     <tr><th>Ombrage simple (1 soleil)</th><td>Un seul soleil, plus contrasté. Un muret parallèle aux rayons disparaît : tournez l'azimut pour le retrouver.</td></tr>
     <tr><th>Ombrage coloré</th><td>Trois soleils à 120°, un par couleur : l'orientation d'une pente ou d'un mur se lit à sa teinte.</td></tr>
@@ -189,7 +190,7 @@
     <li>La croix du tableau retire le point d'arrivée d'un segment. <kbd>Retour arrière</kbd> ou <kbd>Suppr</kbd> retire le dernier point, <b>Effacer</b> recommence.</li>
     <li>Une valeur inconnue s'écrit « n/d » : il n'y a pas d'altitude connue à cet endroit.</li>
   </ul>
-  <p>Le mode <b>Sélection</b> donne l'altitude d'un point cliqué, sa date d'acquisition (voir plus bas) et des liens pour l'ouvrir dans d'autres cartes.</p>
+  <p>Le mode <b>Sélection</b> donne l'altitude d'un point cliqué, sa date d'acquisition et le détail du point (voir « Comprendre les données »), et des liens pour l'ouvrir dans d'autres cartes.</p>
 </section>
 
 <section id="profil">
@@ -229,7 +230,7 @@
     <li><b>Classes affichées</b> : cochez ou décochez chaque classe pour ne voir que le sol, ou que les bâtiments.</li>
     <li><b>Ombrage de profondeur</b> : fait ressortir les murets et les talus.</li>
     <li><b>Mesurer et sélectionner</b> fonctionnent aussi dans la 3D : le clic vise un point du nuage.</li>
-    <li><b>Exporter les points</b> : en LAS (tous les points) ou en PLY (les classes cochées), en coordonnées locales.</li>
+    <li><b>Exporter</b> : en LAS (tous les points) ou en PLY (les classes cochées), en coordonnées locales ; ou en STL, une surface à imprimer en 3D (voir « Exporter et partager »).</li>
   </ul>
   <p>Le nombre de points affichés est plafonné (5 millions, 2 millions sur mobile). Le nuage s'étoffe tout seul tant que des points arrivent.</p>
 </section>
@@ -266,7 +267,7 @@
     <figcaption>À Labège, une grande surface plate (probablement un terrain de sport) est classée « eau » (en bleu) : une surface lisse ressemble à de l'eau pour l'algorithme. Les points restent bons, seule l'étiquette est probablement fausse.</figcaption>
   </figure>
   <h3>L'eau</h3>
-  <p>Les LiDAR de cartographie utilisent un laser infrarouge que l'eau absorbe et reflète : il y a très peu de points sur les plans d'eau, surtout calmes. L'IGN ajoute parfois des points virtuels sur les grands cours d'eau.</p>
+  <p>Les LiDAR de cartographie utilisent un laser infrarouge que l'eau absorbe et reflète : il y a très peu de points sur les plans d'eau, surtout calmes. L'IGN ajoute parfois des points virtuels sur les grands cours d'eau. Sur le littoral, une roche recouverte par la mer au moment du vol n'est pas mesurée : un platier n'est connu que là où il était découvert, ce qui dépend de la marée de ce jour-là.</p>
   <h3>La date d'acquisition</h3>
   <p>Dans <b>Point sélectionné</b>, la ligne « Acquisition » donne la plage de vol de la dalle qui contient le point.</p>
   <p>Pour le jour et l'heure exacts du point, au millième de seconde, ainsi que l'intensité, le numéro de retour, l'angle de scan et la ligne de vol, cliquez sur <b>Détails du point</b> : Scopus télécharge alors le seul bloc qui contient ce point (quelques centaines de kilo-octets au plus). La date est donnée en UTC.</p>
@@ -274,7 +275,7 @@
     <img src="docs/aide/date.jpg" alt="Le détail d'un point sélectionné : longitude, latitude, altitude et date d'acquisition de la dalle." loading="lazy">
     <figcaption>Le détail d'un point sélectionné, avec la date d'acquisition de sa dalle.</figcaption>
   </figure>
-  <p>C'est la période de la mission de vol qui a couvert la zone, telle que l'IGN la publie : elle va d'un jour à plusieurs mois, voire plus d'un an, selon les chantiers. Le jour exact de chaque point n'est pas dans les données de Scopus. Sans date publiée, l'outil écrit « non publiée » : il n'invente jamais de date.</p>
+  <p>C'est la période de la mission de vol qui a couvert la zone, telle que l'IGN la publie : elle va d'un jour à plusieurs mois, voire plus d'un an, selon les chantiers. Le jour et l'heure exacts d'un point, eux, se lisent dans « Détails du point » (ci-dessus). Sans date publiée, l'outil écrit « non publiée » : il n'invente jamais de date.</p>
   <h3>Ce que le LiDAR ne voit pas</h3>
   <p>Sous un bâtiment, sous un pont ou sous un couvert très dense, il peut manquer des points de sol. Scopus comble les petits trous (jusqu'à 3 m) pour le calcul, mais n'invente pas le terrain au-delà.</p>
   <div class="note">Scopus ne détecte rien tout seul : il calcule le relief, et c'est votre œil qui y lit une cabane, une ruine, un sentier ou une terrasse, comme le fait la prospection LiDAR depuis toujours.</div>

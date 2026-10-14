@@ -328,8 +328,8 @@ d'arbres et de bâtiments sans QGIS. Conception :
   qui le contient** (`flux.dalleAu`, `IGN.formaterAcquisition`). Le WFS
   publie `date_debut_acquisition` / `date_fin_acquisition` par dalle : une plage
   de un à trois jours, **différente d'une dalle voisine à l'autre** (vu en
-  Ariège : 12–13, 12–14 juillet 2022). Le jour exact exigerait le temps GPS de
-  chaque point, retiré des blocs : inutile, la plage suffit au tag OSM (un
+  Ariège : 12–13, 12–14 juillet 2022). Le jour exact est le temps GPS de chaque
+  point, retiré des blocs : il se lit à la demande par « Détails du point » (voir plus bas) ; la plage suffit au tag OSM (un
   contributeur l'a confirmé). Sans
   date publiée : « — », jamais une date inventée.
   **Format du service changé (octobre 2026)** : la couche `IGNF_LIDAR-HD_METADONNEE:metadata` n'a plus de champ `metadata` en

@@ -17,18 +17,21 @@ métropole comme à la Réunion et en Guadeloupe.
 - **Voir sous les arbres.** Le relief de ce qui est à l'écran se calcule dans
   votre navigateur : ombrage, ombrage à 4 soleils, micro-relief, Sky-View
   Factor, ouvertures. Un **rideau** compare la photo aérienne, le plan IGN et
-  chaque couche ; un mode **deux cartes synchronisées** les met côte à côte.
+  chaque couche ; un mode **deux cartes synchronisées** les met côte à côte. Les
+  **cartes géologiques du BRGM** (1/50 000) se comparent au relief de la même façon.
 - **Mesurer.** Une mesure en chaîne donne distances, dénivelés et pentes ; Maj
   + clic pose un point à angle droit. Les points se déplacent au glisser.
 - **Couper le terrain.** Le **profil** trace une bande entre deux points et
   montre la coupe verticale du nuage : hauteur d'un arbre, d'un mur, d'une
   marche, avec une mesure sur le graphique.
 - **Passer en 3D.** Le nuage de points de la vue, avec ses classes (sol,
-  végétation, bâtiment, eau…), exportable en LAS ou PLY.
+  végétation, bâtiment, eau…), exportable en LAS ou PLY. Un **export STL**
+  transforme la zone affichée en solide fermé à imprimer en 3D.
 - **Exporter.** La mesure de la carte et celle du profil s'enregistrent en
   **GeoJSON, GPX ou OSM XML**, avec l'altitude du sol en option.
 - **Connaître la date du vol.** « Point sélectionné » donne la plage
-  d'acquisition de la dalle, telle que l'IGN la publie.
+  d'acquisition de la dalle, telle que l'IGN la publie, et « Détails du point »
+  le jour et l'heure exacts (UTC), l'intensité, le retour et l'angle de scan.
 - **Partager.** Le lien porte la vue, la mesure, le profil et les réglages, au
   format d'OpenStreetMap (`#map=zoom/lat/lon`) : il s'ouvre tel quel dans
   osm.org, iD ou JOSM.
