@@ -28,6 +28,8 @@ function creerCatalogueVue({ RELIEF, FONDS_OSM, FONDS_GEOLOGIE, protocole, zoom 
     'mnt-ign': 'Estompage du MNT LiDAR HD (le sol nu), calculé par l’IGN : éclairage fixe, pas de réglage du soleil. Servi jusqu’au zoom 18.',
     'mns-ign': 'Estompage du MNS LiDAR HD (le dessus : cimes, toits), calculé par l’IGN : éclairage fixe, pas de réglage du soleil. Servi jusqu’au zoom 18.',
   };
+  // Un lien sous la liste quand un côté porte ce fond (la légende, que le service ne fournit pas).
+  const liens = Object.fromEntries(Object.values(FONDS_GEOLOGIE.parCle).map((f) => [f.cle, f.lien]));
   const estRelief = (cle) => !(cle in fonds);
   // Une carte géologique ne dessine rien sous son zoom minimal : le libellé du côté le dit, comme « Zoomez pour calculer le relief ».
   const libelleCouche = (cle) => {
@@ -35,5 +37,5 @@ function creerCatalogueVue({ RELIEF, FONDS_OSM, FONDS_GEOLOGIE, protocole, zoom 
     if (geo && z !== null && z < geo.zoomMin) return `Zoomez pour voir la carte géologique (zoom ${geo.zoomMin} minimum)`;
     return fonds[cle] || couches.find((c) => c.cle === cle).libelle;
   };
-  return { OMBRAGE_RGB, couches, fonds, tuiles, aides, estRelief, libelleCouche };
+  return { OMBRAGE_RGB, couches, fonds, tuiles, aides, liens, estRelief, libelleCouche };
 }

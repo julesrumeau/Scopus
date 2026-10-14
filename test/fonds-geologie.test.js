@@ -53,3 +53,12 @@ test('les zooms où le service dessine : 12 à 16, mesurés le 14 octobre 2026 s
 test('l’aide dit à partir de quel zoom la carte apparaît', () => {
   for (const f of Object.values(FONDS_GEOLOGIE.parCle)) assert.match(f.aide, /zoom 12/);
 });
+
+test('un lien vers InfoTerre pour la légende et les notices, que le service ne fournit pas', () => {
+  for (const f of Object.values(FONDS_GEOLOGIE.parCle)) {
+    assert.equal(f.lien.url, 'https://infoterre.brgm.fr/page/cartes-geologiques');
+    assert.match(f.lien.libelle, /légende/i);
+    assert.match(f.lien.libelle, /InfoTerre/);
+    assert.ok(!/—/.test(f.lien.libelle));
+  }
+});

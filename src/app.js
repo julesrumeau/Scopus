@@ -363,7 +363,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   };
   const cotes = reglages.cotes;
   // Ce que peut porter un côté du rideau : une couche de relief ou un fond de carte (catalogue-vue.js).
-  const { OMBRAGE_RGB, couches: COUCHES_VUE, fonds: FONDS_VUE, tuiles: TUILES_VUE, aides: AIDES_FONDS, estRelief, libelleCouche } =
+  const { OMBRAGE_RGB, couches: COUCHES_VUE, fonds: FONDS_VUE, tuiles: TUILES_VUE, aides: AIDES_FONDS, liens: LIENS_FONDS, estRelief, libelleCouche } =
     creerCatalogueVue({ RELIEF, FONDS_OSM, FONDS_GEOLOGIE, protocole: location.protocol, zoom: () => carte.map?.getZoom() ?? null });
   // Les listes Gauche / Droite choisissent le fond de chaque côté : le
   // sélecteur de fond de Leaflet ferait doublon. La carte garde la photo.
@@ -485,7 +485,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
   // Le panneau du relief (listes de couches, réglages, lien) : voir panneau-relief.js.
   const panneau = creerPanneauRelief({
     $, carte, reglages, vueCartes, voletDe, reliefCalque, relief, vue3d, MODE_CARTE, CHOIX_COUCHES, RELIEF, CONFIG,
-    FONDS_VUE, COUCHES_VUE, TUILES_VUE, AIDES_FONDS, OMBRAGE_RGB, estRelief, libelleCouche, classesMasquees,
+    FONDS_VUE, COUCHES_VUE, TUILES_VUE, AIDES_FONDS, LIENS_FONDS, OMBRAGE_RGB, estRelief, libelleCouche, classesMasquees,
     planifierRelief, majStatut, majLien, majLegende, budget3D: () => nuage3D.budget(), surMobile,
   });
   const { majCotes, reglagesDe } = panneau;

@@ -19,8 +19,10 @@ const FONDS_GEOLOGIE = (() => {
     },
     zoomMin: 12,
     zoomMax: 16,
+    // Ni légende ni formation au clic sur le WMS (mesuré) : la page des cartes géologiques d'InfoTerre mène aux notices et aux légendes.
+    lien: { url: 'https://infoterre.brgm.fr/page/cartes-geologiques', libelle: 'Légende et notices : InfoTerre (BRGM)' },
   };
-  const fin = ' Apparaît à partir du zoom 12 (plus loin, le service ne dessine rien) ; légende des formations : infoterre.brgm.fr.';
+  const fin = ' Apparaît à partir du zoom 12 (plus loin, le service ne dessine rien).';
   const harmonisee = {
     ...commun,
     cle: 'geologie',

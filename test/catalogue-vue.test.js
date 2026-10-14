@@ -81,3 +81,8 @@ test('libelleCouche : sous le zoom 12 une carte géologique dit de zoomer, comme
   assert.equal(c.libelleCouche('plan'), 'Plan IGN');
   assert.equal(c.libelleCouche('svf'), RELIEF.COUCHES.find((x) => x.cle === 'svf').libelle);
 });
+
+test('liens : une carte géologique a son lien de légende, les autres fonds et le relief n’en ont pas', () => {
+  for (const cle of ['geologie', 'geologie-scan']) assert.equal(cat.liens[cle].url, FONDS_GEOLOGIE.parCle[cle].lien.url);
+  for (const cle of ['carte', 'plan', 'osm', 'svf', 'mnt-ign']) assert.equal(cat.liens[cle], undefined, cle);
+});
