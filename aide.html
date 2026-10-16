@@ -190,6 +190,7 @@
     <li>La croix du tableau retire le point d'arrivée d'un segment. <kbd>Retour arrière</kbd> ou <kbd>Suppr</kbd> retire le dernier point, <b>Effacer</b> recommence.</li>
     <li>Une valeur inconnue s'écrit « n/d » : il n'y a pas d'altitude connue à cet endroit.</li>
   </ul>
+  <div class="note attention"><b>Pour la hauteur d'un bâtiment, d'un mur ou d'un arbre, ne mesurez pas sur la carte.</b> Sur la carte, un clic lit l'altitude du <b>sol</b> à cet endroit (le sol reconstitué sous le toit), pas celle du toit : le dénivelé ne donnerait que la pente du terrain. Utilisez le <a href="#hauteur">profil</a> ou la <a href="#3d">3D</a>, qui mesurent sur les points du nuage.</div>
   <p>Le mode <b>Sélection</b> donne l'altitude d'un point cliqué, sa date d'acquisition et le détail du point (voir « Comprendre les données »), et des liens pour l'ouvrir dans d'autres cartes.</p>
 </section>
 
@@ -205,6 +206,16 @@
     <img src="docs/aide/profil.jpg" alt="Le graphique du profil : des arbres et le sol vus de côté, avec une mesure verticale de 18 mètres sur le plus grand arbre." loading="lazy">
     <figcaption>Une mesure du sol à la cime d'un arbre : 18,0 m.</figcaption>
   </figure>
+  <h3 id="hauteur">Mesurer une hauteur (bâtiment, mur, arbre)</h3>
+  <p>Dans le graphique, cliquez d'abord un point en <b>bas</b> (le sol au pied du bâtiment), puis un point en <b>haut</b> (le bord ou le faîte du toit). Chaque clic s'accroche au point du nuage le plus proche, et le tableau sous le graphique donne pour ce segment :</p>
+  <ul>
+    <li>la <b>distance horizontale</b> entre les deux clics ;</li>
+    <li>le <b>dénivelé</b> : la <b>différence d'altitude</b>, c'est-à-dire la hauteur que vous cherchez ;</li>
+    <li>la <b>pente</b>, et la <b>distance en 3D</b> (la ligne droite entre les deux points).</li>
+  </ul>
+  <p><b>Les deux points n'ont pas besoin d'être à la verticale l'un de l'autre.</b> Si vous cliquez le haut un peu à côté du bas, la distance horizontale n'est pas nulle, mais <b>le dénivelé reste la hauteur</b> : lisez cette colonne, pas la distance en 3D, qui mélange la hauteur et le décalage. Par exemple, pour un faîte à 8,8 m de côté et 10,3 m plus haut, le tableau affiche 8,8 m d'horizontale, 10,3 m de dénivelé (en valeur absolue) et 13,6 m en 3D : la hauteur est 10,3 m.</p>
+  <p>Le <b>signe</b> du dénivelé dépend de l'ordre de vos clics : du haut vers le bas, il est négatif, du bas vers le haut, positif. La hauteur est sa valeur absolue.</p>
+  <p>Pour avoir la hauteur directement, tenez <kbd>Maj</kbd> en cliquant le second point : il se pose exactement à la verticale du premier, à l'altitude où se trouve votre curseur (si votre curseur est plus loin à l'horizontale qu'à la verticale, c'est une horizontale qui se pose). Un trait pointillé montre où ira le point, et il ne s'accroche pas au nuage. Sans <kbd>Maj</kbd>, le dénivelé suffit.</p>
   <h3>Dans le graphique</h3>
   <ul>
     <li><b>Mesure</b> (par défaut) : cliquez des points, le clic s'accroche au point visible le plus proche. Avec <kbd>Maj</kbd>, le point se pose à angle droit : une verticale donne la hauteur au-dessus du sol.</li>
@@ -229,7 +240,7 @@
     <li><b>Colorer</b> : par classe (sol, végétation, bâtiment, eau…), par hauteur au-dessus du sol, par relief ou par altitude.</li>
     <li><b>Classes affichées</b> : cochez ou décochez chaque classe pour ne voir que le sol, ou que les bâtiments.</li>
     <li><b>Ombrage de profondeur</b> : fait ressortir les murets et les talus.</li>
-    <li><b>Mesurer et sélectionner</b> fonctionnent aussi dans la 3D : le clic vise un point du nuage.</li>
+    <li><b>Mesurer et sélectionner</b> fonctionnent aussi dans la 3D : le clic vise un point du nuage, donc un toit si vous cliquez un toit. Le <b>dénivelé</b> du tableau donne la hauteur entre deux points, même s'ils ne sont pas à la verticale (voir « Mesurer une hauteur » dans le profil).</li>
     <li><b>Exporter</b> : en LAS (tous les points) ou en PLY (les classes cochées), en coordonnées locales ; ou en STL, une surface à imprimer en 3D (voir « Exporter et partager »).</li>
   </ul>
   <p>Le nombre de points affichés est plafonné (5 millions, 2 millions sur mobile). Le nuage s'étoffe tout seul tant que des points arrivent.</p>
@@ -290,6 +301,8 @@
     <dd>Les serveurs de l'IGN répondent lentement. Scopus réessaie tout seul : attendez quelques instants, le relief s'affine à mesure que les points arrivent.</dd>
     <dt>Un bouton ou un élément manque juste après une mise à jour.</dt>
     <dd>Le navigateur garde les fichiers quelques minutes. Rechargez sans cache : <kbd>Ctrl</kbd> + <kbd>Maj</kbd> + <kbd>R</kbd>.</dd>
+    <dt>Je n'arrive pas à mesurer la hauteur d'un bâtiment : mes deux points ne sont pas à la verticale.</dt>
+    <dd>Ce n'est pas nécessaire. Mesurez dans le <a href="#hauteur">profil</a> (ou en 3D), pas sur la carte, puis lisez la colonne <b>Dénivelé</b> du tableau : c'est la différence d'altitude entre vos deux points, quel que soit leur décalage. La distance en 3D, elle, inclut le décalage. Sur la carte, un clic lit le sol, pas le toit : le dénivelé n'y donne pas la hauteur d'un bâtiment.</dd>
     <dt>Pourquoi la date d'acquisition est-elle une période ?</dt>
     <dd>Parce que l'IGN publie la période de la mission de vol pour chaque dalle, pas un jour par point. Voir « Comprendre les données ».</dd>
     <dt>Pourquoi y a-t-il si peu de points sur un étang ?</dt>
