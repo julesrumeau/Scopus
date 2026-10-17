@@ -561,6 +561,16 @@ infoterre.brgm.fr, dit dans l'aide). **Pas de légende ni de formation au clic, 
 son poids. L'image vient de la vidéo de présentation (relief révélé à Verdun). **Les réseaux gardent l'aperçu en cache** : après un
 changement d'image, il faut parfois forcer leur rafraîchissement (outils de débogage de Facebook, LinkedIn).
 
+### Référencement
+
+**Le nom « Scopus » est aussi celui de la base bibliographique d'Elsevier**, qui occupe les résultats pour ce mot : le titre et la
+description disent donc toujours « LiDAR HD » (et l'IGN). `index.html` porte un titre, une description (70 à 170 caractères), une
+adresse **canonique** absolue et un JSON-LD `WebApplication` ; `aide.html` son titre et sa canonique ; `sitemap.xml` liste les deux pages
+(`test/seo.test.js` garde le tout). **Pas de `robots.txt`** : un site GitHub Pages de projet vit sous `/Scopus/`, or un `robots.txt` n'est
+lu qu'à la racine du domaine (`julesrumeau.github.io/robots.txt`, qui n'est pas à nous) ; le sitemap se déclare dans la Search Console
+(propriété par préfixe d'URL `https://julesrumeau.github.io/Scopus/`). **La propriété est vérifiée par fichier** : `google985ec9392858662e.html` à la racine
+(son contenu est `google-site-verification: <son nom>`, test dans `seo.test.js`) : ne pas le supprimer, Google revérifie de temps en temps. Non fait : un nom de domaine propre.
+
 ### La page d'aide
 
 `aide.html` (**page séparée**, vouvoiement, une seule feuille de style en ligne, aucun script externe) : un lien discret « Aide » à
