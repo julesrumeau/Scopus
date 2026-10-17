@@ -71,3 +71,9 @@ test('sitemap.xml : les deux pages publiques, en adresses absolues, vers des fic
 test('pas de robots.txt inutile à la racine du dépôt', () => {
   assert.ok(!existsSync(new URL('../robots.txt', import.meta.url)));
 });
+
+test('le fichier de vérification de la Search Console est à la racine, avec le contenu que Google attend', () => {
+  const nom = 'google985ec9392858662e.html';
+  assert.ok(existsSync(new URL(`../${nom}`, import.meta.url)), `${nom} manque : Google ne pourra pas vérifier la propriété`);
+  assert.equal(lire(nom).trim(), `google-site-verification: ${nom}`);
+});

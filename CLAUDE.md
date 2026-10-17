@@ -568,8 +568,8 @@ description disent donc toujours « LiDAR HD » (et l'IGN). `index.html` porte u
 adresse **canonique** absolue et un JSON-LD `WebApplication` ; `aide.html` son titre et sa canonique ; `sitemap.xml` liste les deux pages
 (`test/seo.test.js` garde le tout). **Pas de `robots.txt`** : un site GitHub Pages de projet vit sous `/Scopus/`, or un `robots.txt` n'est
 lu qu'à la racine du domaine (`julesrumeau.github.io/robots.txt`, qui n'est pas à nous) ; le sitemap se déclare dans la Search Console
-(propriété par préfixe d'URL `https://julesrumeau.github.io/Scopus/`). **La balise de vérification de la Search Console reste à poser**
-(`<meta name="google-site-verification" ...>` dans `index.html`, une fois le code obtenu). Non fait : un nom de domaine propre.
+(propriété par préfixe d'URL `https://julesrumeau.github.io/Scopus/`). **La propriété est vérifiée par fichier** : `google985ec9392858662e.html` à la racine
+(son contenu est `google-site-verification: <son nom>`, test dans `seo.test.js`) : ne pas le supprimer, Google revérifie de temps en temps. Non fait : un nom de domaine propre.
 
 ### La page d'aide
 
