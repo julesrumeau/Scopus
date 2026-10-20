@@ -77,3 +77,23 @@ test('le fichier de vérification de la Search Console est à la racine, avec le
   assert.ok(existsSync(new URL(`../${nom}`, import.meta.url)), `${nom} manque : Google ne pourra pas vérifier la propriété`);
   assert.equal(lire(nom).trim(), `google-site-verification: ${nom}`);
 });
+
+test('une vraie icône à une adresse de fichier (Google ignore une icône en data:), sur les deux pages', () => {
+  for (const [nom, html] of [['index', index], ['aide', aide]]) {
+    assert.match(html, /<link rel="icon" href="favicon\.svg" type="image\/svg\+xml">/, `${nom} : icône SVG`);
+    assert.match(html, /<link rel="icon" href="favicon-48\.png" sizes="48x48" type="image\/png">/, `${nom} : icône PNG`);
+  }
+  assert.ok(lire('favicon.svg').startsWith('<svg'));
+  const png = readFileSync(new URL('../favicon-48.png', import.meta.url));
+  assert.equal(png.readUInt32BE(16), 48, 'largeur 48');
+  assert.equal(png.readUInt32BE(20), 48, 'hauteur 48');
+});
+
+test('aucune image d’aperçu : ni balise, ni fichier', () => {
+  assert.ok(!/(og|twitter):image/.test(index + aide));
+  assert.ok(!existsSync(new URL('../docs/apercu.jpg', import.meta.url)));
+});
+
+test('le texte d’avertissement de l’accueil n’est pas repris comme extrait par Google', () => {
+  assert.match(index, /<p class="accueil-limites" data-nosnippet>/);
+});

@@ -19,24 +19,20 @@
   "isAccessibleForFree": true
 }
 </script>
-<!-- Aperçu quand le lien est partagé (forums, réseaux, messageries) : image, titre, phrase. Les adresses sont absolues,
-     les réseaux ne résolvent pas un chemin relatif. -->
+<!-- Aperçu quand le lien est partagé (forums, réseaux, messageries) : titre et phrase, sans image. Adresses absolues. -->
 <meta property="og:type" content="website">
 <meta property="og:locale" content="fr_FR">
 <meta property="og:site_name" content="Scopus">
 <meta property="og:title" content="Scopus : le relief caché sous la forêt">
 <meta property="og:description" content="Explorer le LiDAR HD de l'IGN dans le navigateur : cabanes, ruines, sentiers, terrasses : tout ce que la végétation cache, partout en France.">
 <meta property="og:url" content="https://julesrumeau.github.io/Scopus/">
-<meta property="og:image" content="https://julesrumeau.github.io/Scopus/docs/apercu.jpg">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Un fort et ses cratères révélés sous la forêt de Verdun par le relief LiDAR HD, à côté de la photo aérienne.">
-<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Scopus : le relief caché sous la forêt">
 <meta name="twitter:description" content="Explorer le LiDAR HD de l'IGN dans le navigateur : cabanes, ruines, sentiers, terrasses : tout ce que la végétation cache, partout en France.">
-<meta name="twitter:image" content="https://julesrumeau.github.io/Scopus/docs/apercu.jpg">
 <!-- Favicon en SVG data: — aucun fichier, aucune dépendance, marche en file://.
      Une crête (le relief qu'on lit) et un point (ce qu'on y trouve). -->
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-48.png" sizes="48x48" type="image/png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e13'/%3E%3Cpath d='M4 23 L12 10 L17 16 L22 8 L28 23 Z' fill='none' stroke='%235ec8f0' stroke-width='2.4' stroke-linejoin='round' stroke-linecap='round'/%3E%3Ccircle cx='22' cy='8' r='2.2' fill='%234ade80'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="styles.css">
@@ -84,7 +80,7 @@
     <!-- Ce que l'outil ne fait pas encore. Ce n'est pas de la modestie : sans elle,
          qui arrive en attendant une détection automatique se dit que l'outil est cassé
          quand il ne voit rien s'afficher tout seul. -->
-    <p class="accueil-limites">Aucune détection automatique pour l'instant, et pas
+    <p class="accueil-limites" data-nosnippet>Aucune détection automatique pour l'instant, et pas
       d'intelligence artificielle : l'outil calcule le relief depuis le LiDAR, à vous
       de repérer ce qui vous intéresse, comme le fait la prospection LiDAR depuis
       toujours.</p>
