@@ -169,18 +169,13 @@ test('le texte visible d’index.html ne contient aucun tiret cadratin (conventi
   assert.deepEqual(lignes, []);
 });
 
-test('aperçu de lien : balises Open Graph et Twitter complètes, et l’image annoncée existe dans le dépôt', () => {
+test('aperçu de lien : balises Open Graph et Twitter sans image (décision : pas d’aperçu illustré)', () => {
   const html = readFileSync(fileURLToPath(new URL('index.html', RACINE)), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
   const meta = (cle) => (html.match(new RegExp(`<meta (?:property|name)="${cle}" content="([^"]*)"`)) || [])[1];
-  for (const cle of ['og:type', 'og:title', 'og:description', 'og:url', 'og:image', 'og:image:alt', 'twitter:card']) {
+  for (const cle of ['og:type', 'og:title', 'og:description', 'og:url', 'twitter:card']) {
     assert.ok(meta(cle), `balise ${cle} manquante`);
   }
-  assert.equal(meta('twitter:card'), 'summary_large_image');
-  // Une adresse absolue (les réseaux ne résolvent pas un chemin relatif), qui pointe sur un fichier du dépôt.
-  const image = meta('og:image');
-  assert.match(image, /^https:\/\/julesrumeau\.github\.io\/Scopus\/docs\/[\w.-]+\.(jpg|png)$/);
-  const fichier = fileURLToPath(new URL(image.replace('https://julesrumeau.github.io/Scopus/', ''), RACINE));
-  const taille = readFileSync(fichier).length;
-  assert.ok(taille > 10_000 && taille < 1_000_000, `image de ${taille} octets : trop légère ou trop lourde pour un aperçu`);
+  assert.equal(meta('twitter:card'), 'summary');
+  assert.ok(!/(og|twitter):image/.test(html), 'aucune image d’aperçu');
   assert.ok(meta('og:description').length <= 200, 'description trop longue pour un aperçu');
 });

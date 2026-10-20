@@ -556,10 +556,14 @@ infoterre.brgm.fr, dit dans l'aide). **Pas de légende ni de formation au clic, 
 
 ### Aperçu de lien
 
-`index.html` porte des balises **Open Graph et Twitter** (titre, description, image `docs/apercu.jpg` de 1200 x 630, adresse
-**absolue** : les réseaux ne résolvent pas un chemin relatif). Un test (`sources.test.js`) vérifie les balises, l'adresse de l'image et
-son poids. L'image vient de la vidéo de présentation (relief révélé à Verdun). **Les réseaux gardent l'aperçu en cache** : après un
-changement d'image, il faut parfois forcer leur rafraîchissement (outils de débogage de Facebook, LinkedIn).
+`index.html` porte des balises **Open Graph et Twitter** (titre, description, adresse **absolue**), **sans image** : l'image tirée de la
+vidéo de présentation (`docs/apercu.jpg`) a été retirée le 20 octobre 2026 à la demande de l'utilisateur (`twitter:card` = `summary`). Un test
+(`sources.test.js`, `seo.test.js`) garde l'absence de balise et de fichier. **Les réseaux gardent l'aperçu en cache** : l'ancien aperçu peut
+survivre un temps (outils de débogage de Facebook, LinkedIn).
+
+**Icône** : `favicon.svg` et `favicon-48.png` à la racine, liés par les deux pages (Google ignore une icône en `data:`, d'où l'ancien
+globe gris ; l'icône en `data:` reste en dernier pour `file://`). **Extrait Google** : le paragraphe `accueil-limites` porte `data-nosnippet`
+(Google l'affichait à la place de la description).
 
 ### Référencement
 
