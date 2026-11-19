@@ -298,6 +298,7 @@ const CONFIG = {
   // ── Rendu ─────────────────────────────────────────────────────────────────
   rendu: {
     taillePoint: 2.0,       // taille de base en pixels, à distance de référence
+    hauteurMaxRampeM: 8,    // borne haute de la rampe « Hauteur/sol » de la 3D, m (curseur de 5 à 50 : voir RAMPE_HAUTEUR)
     attenuation: true,      // taille décroissante avec la distance
     pointsRonds: false,     // découpe en disque : plus propre de près, plus coûteux
     // Plafond de points téléversés au GPU. La détection, elle, travaille à

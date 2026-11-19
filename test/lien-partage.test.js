@@ -337,3 +337,19 @@ test('onglet=3d : il se combine avec les autres réglages sans les gêner, et re
   assert.equal(relu.vue.onglet, '3d');
   assert.equal(relu.vue.couleur, 'hauteur');
 });
+
+// ── La borne de la rampe de hauteur 3D (`hmax`, mètres, 5 à 50) ──
+
+test('hmax s’écrit seulement s’il diffère du défaut, et se relit', () => {
+  assert.equal(LIEN.ecrirePartage({ vue: { couleur: 'hauteur', hmax: 35 } }), '&couleur=hauteur&hmax=35');
+  const lu = (q) => LIEN.lirePartage('#map=18/42.857536/1.061833&' + q).vue || {};
+  assert.equal(lu('hmax=35').hmax, 35);
+  assert.equal(lu('hmax=5').hmax, 5);
+  assert.equal(lu('hmax=50').hmax, 50);
+});
+
+test('hmax abîmé ou hors bornes tombe seul, les autres réglages restent', () => {
+  const lu = (q) => LIEN.lirePartage('#map=18/42.857536/1.061833&' + q).vue || {};
+  for (const abime of ['hmax=4', 'hmax=51', 'hmax=x', 'hmax=-8', 'hmax=1e1']) assert.equal(lu(abime).hmax, undefined, abime);
+  assert.equal(lu('hmax=99&couleur=hauteur').couleur, 'hauteur');
+});

@@ -150,6 +150,7 @@ function creerPanneauRelief(d) {
     lisse: reglages.lisser ? undefined : false,
     couleur: CONFIG.rendu.coloration !== 'classification' ? CONFIG.rendu.coloration : undefined,
     plafond: budget3D() !== (surMobile() ? CONFIG.rendu.budget3DMobile : CONFIG.rendu.budget3D) ? budget3D() / 1e6 : undefined,
+    hmax: CONFIG.rendu.hauteurMaxRampeM !== RAMPE_HAUTEUR.defaut ? CONFIG.rendu.hauteurMaxRampeM : undefined,
     edl: $('vue-edl').checked ? undefined : false,
     cachees: classesMasquees.size ? [...classesMasquees] : undefined,
   });
@@ -186,6 +187,7 @@ function creerPanneauRelief(d) {
     }
     if (v.couleur) $('coloration').querySelector(`[data-mode="${v.couleur}"]`)?.click();
     if (v.plafond !== undefined) regler('vue-budget3d', v.plafond, 'change');
+    if (v.hmax !== undefined) regler('vue-hmax', v.hmax, 'input');
     if (v.edl === false) {
       $('vue-edl').checked = false;
       $('vue-edl').dispatchEvent(new Event('change', { bubbles: true }));

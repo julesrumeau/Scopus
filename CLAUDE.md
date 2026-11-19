@@ -225,6 +225,13 @@ Nuage de ce que la carte affichait, sans rien télécharger de plus
   reconstruit en silence (ni voile, ni retour de la caméra : `definirNuage(…, { cadrer: false })`) au plus une
   fois par `CONFIG.rendu.affinage3dMs` (4 s), la carte restant en pause. Une seule densité : celle que la
   carte aurait chargée à ce zoom ; **la 3D ne télécharge pas plus fin en zoomant** (décision : trop lourd).
+- **Rampe « Hauteur/sol »** (novembre 2026, demande d'un forestier : « les classes de hauteur ne discriminent que moins ou plus de 5 m ») : la rampe
+  du shader (`rampeHauteur`) saturait à **8 m** en dur, donc tout peuplement de plus de 8 m était d'un seul rouge ; les hauteurs elles-mêmes
+  (altitude du point moins le sol de la surface) n'ont jamais été plafonnées. La borne est un **uniforme** (`u_hmaxRampe`,
+  `CONFIG.rendu.hauteurMaxRampeM`, 8 par défaut : rien ne change pour qui ne touche à rien), réglée par un curseur de 5 à 50 m, visible dans le
+  seul mode Hauteur/sol (`rampe-hauteur.js`, pur et testé : borne, légende dynamique). Le jaune est à 35 % de la borne, le rouge à la borne. Dans le lien :
+  `&hmax=35` (seulement si différent de 8, entier de 5 à 50, un abîmé tombe seul). Vérifié en Chromium sur Verdun : à 8 m toute la forêt est
+  rouge, à 35 m les hauteurs se distinguent. Non fait : tranches de couleurs distinctes, hauteur minimale pour masquer le sous-bois.
 - Non fait : une caméra 3D qui pilote le niveau de détail du téléchargement (TODO #4, phase 2, écartée).
 
 ## Le profil
