@@ -178,6 +178,7 @@ const LIEN = (() => {
     if (v.lisse === false) p.push('lisse=0');
     if (COULEURS.includes(v.couleur)) p.push(`couleur=${v.couleur}`);
     if (Number.isFinite(v.plafond)) p.push(`plafond=${nombre(v.plafond, 1)}`);
+    if (Number.isInteger(v.hmax) && v.hmax >= 5 && v.hmax <= 50 && v.hmax !== 8) p.push(`hmax=${v.hmax}`);
     if (v.edl === false) p.push('edl=0');
     const cachees = classesTriees(v.cachees);
     if (cachees.length) p.push(`cachees=${cachees.join('.')}`);
@@ -216,6 +217,8 @@ const LIEN = (() => {
     if (COULEURS.includes(couleur)) v.couleur = couleur;
     const plafond = decimalDans(params.get('plafond'), 0.5, 20);
     if (plafond !== undefined) v.plafond = plafond;
+    const hmax = /^\d{1,2}$/.test(params.get('hmax') ?? '') ? Number(params.get('hmax')) : undefined;
+    if (hmax >= 5 && hmax <= 50) v.hmax = hmax;
     if (params.get('edl') === '0') v.edl = false;
     const cachees = params.has('cachees') ? classesLues(params.get('cachees')) : null;
     if (cachees) v.cachees = cachees;

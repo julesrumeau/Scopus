@@ -25,6 +25,7 @@ uniform float u_hauteurViewport;
 uniform float u_exagerationZ;
 uniform float u_zmin;
 uniform float u_zref;          // amplitude d'altitude, pour la colorisation
+uniform float u_hmaxRampe;   // borne haute de la rampe de hauteur, m (réglable : RAMPE_HAUTEUR)
 uniform int u_mode;            // 0 élévation · 1 classification · 2 intensité · 3 hauteur · 4 relief
 uniform sampler2D u_palette;
 
@@ -53,7 +54,7 @@ vec3 rampeElevation(float t) {
 // Rampe de hauteur au-dessus du sol : le sol reste sombre, tout ce qui dépasse
 // s'allume. C'est la vue la plus directe pour repérer une structure.
 vec3 rampeHauteur(float h) {
-  float t = clamp(h / 8.0, 0.0, 1.0);
+  float t = clamp(h / u_hmaxRampe, 0.0, 1.0);
   vec3 bas = vec3(0.18, 0.19, 0.22);
   vec3 mid = vec3(0.90, 0.72, 0.28);
   vec3 haut = vec3(0.95, 0.35, 0.25);

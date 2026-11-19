@@ -562,8 +562,7 @@ class Vue3D {
     gl.uniform1f(p.u.u_attenuation, CONFIG.rendu.attenuation ? 1 : 0);
     gl.uniform1f(p.u.u_hauteurViewport, h);
     gl.uniform1f(p.u.u_exagerationZ, CONFIG.rendu.exagerationZ);
-    gl.uniform1f(p.u.u_zmin, this.zmin);
-    gl.uniform1f(p.u.u_zref, this.zref);
+    for (const [nom, v] of [['u_zmin', this.zmin], ['u_zref', this.zref], ['u_hmaxRampe', CONFIG.rendu.hauteurMaxRampeM]]) gl.uniform1f(p.u[nom], v);
     gl.uniform1i(p.u.u_mode, MODES[CONFIG.rendu.coloration] ?? 1);
     gl.uniform1f(p.u.u_ronds, CONFIG.rendu.pointsRonds ? 1 : 0);
 

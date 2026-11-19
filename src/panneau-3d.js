@@ -15,6 +15,7 @@ function creerPanneau3D(d) {
     if (!b) return;
     for (const autre of $('coloration').children) autre.classList.toggle('actif', autre === b);
     CONFIG.rendu.coloration = b.dataset.mode;
+    $('champ-hmax').hidden = CONFIG.rendu.coloration !== 'hauteur';   // la borne ne sert qu'à cette rampe
     majLien();   // la couleur du nuage est dans le lien
     majLegende();
     await majAttributNuage();
@@ -33,6 +34,14 @@ function creerPanneau3D(d) {
   $('taille-point').addEventListener('input', (e) => {
     CONFIG.rendu.taillePoint = Number(e.target.value);
     $('val-taille').textContent = CONFIG.rendu.taillePoint.toFixed(1);
+    vue3d?.invalider();
+  });
+
+  $('vue-hmax').addEventListener('input', (e) => {
+    CONFIG.rendu.hauteurMaxRampeM = RAMPE_HAUTEUR.borne(Number(e.target.value));
+    $('val-hmax').textContent = `${CONFIG.rendu.hauteurMaxRampeM} m`;
+    majLegende();
+    majLien();
     vue3d?.invalider();
   });
 
@@ -57,7 +66,7 @@ function creerPanneau3D(d) {
     if (!etat.nuage) { l.innerHTML = ''; majExportPoints(); return; }
 
     const echelle = {
-      hauteur: 'Sombre = sol · jaune = 1–3 m · rouge = &gt; 5 m',
+      hauteur: RAMPE_HAUTEUR.legende(CONFIG.rendu.hauteurMaxRampeM),
       relief: 'La couche de l’onglet Relief, plaquée sur les points',
       elevation: 'Bleu = point bas · blanc = point haut de la dalle',
       intensite: 'Réflectance brute du laser, normalisée sur 16 bits',
