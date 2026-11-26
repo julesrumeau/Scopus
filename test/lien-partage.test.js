@@ -338,26 +338,21 @@ test('onglet=3d : il se combine avec les autres réglages sans les gêner, et re
   assert.equal(relu.vue.couleur, 'hauteur');
 });
 
-// ── La borne de la rampe de hauteur 3D (`hmax`, mètres, 5 à 50) ──
+// ── La rampe de hauteur 3D (`rampe=`, écrite par RAMPE_HAUTEUR.ecrire ; `hmax=` des anciens liens, lu seulement) ──
 
-test('hmax s’écrit seulement s’il diffère du défaut, et se relit', () => {
-  assert.equal(LIEN.ecrirePartage({ vue: { couleur: 'hauteur', hmax: 35 } }), '&couleur=hauteur&hmax=35');
+test('rampe s’écrit telle quelle (forme validée), se relit, et tout ce qui n’a pas la forme tombe seul', () => {
+  const rampe = 'p_111111_5-222222_12.5-333333';
+  assert.equal(LIEN.ecrirePartage({ vue: { couleur: 'hauteur', rampe } }), `&couleur=hauteur&rampe=${rampe}`);
+  assert.equal(LIEN.ecrirePartage({ vue: { rampe: 'n_importe_quoi' } }), '');
+  const lu = (q) => LIEN.lirePartage('#map=18/42.857536/1.061833&' + q).vue || {};
+  assert.equal(lu(`rampe=${rampe}`).rampe, rampe);
+  for (const abime of ['rampe=seuil', 'rampe=p_111111', 'rampe=p_zzzzzz_5-222222', 'rampe=x_111111_5-222222', 'rampe=']) assert.equal(lu(abime).rampe, undefined, abime);
+  assert.equal(lu('rampe=seuil&couleur=hauteur').couleur, 'hauteur');
+});
+
+test('un ancien lien hmax=35 est encore lu, jamais réécrit ; hors bornes ou abîmé, il tombe', () => {
   const lu = (q) => LIEN.lirePartage('#map=18/42.857536/1.061833&' + q).vue || {};
   assert.equal(lu('hmax=35').hmax, 35);
-  assert.equal(lu('hmax=5').hmax, 5);
-  assert.equal(lu('hmax=50').hmax, 50);
-});
-
-test('hmax abîmé ou hors bornes tombe seul, les autres réglages restent', () => {
-  const lu = (q) => LIEN.lirePartage('#map=18/42.857536/1.061833&' + q).vue || {};
   for (const abime of ['hmax=4', 'hmax=51', 'hmax=x', 'hmax=-8', 'hmax=1e1']) assert.equal(lu(abime).hmax, undefined, abime);
-  assert.equal(lu('hmax=99&couleur=hauteur').couleur, 'hauteur');
-});
-
-test('rampe=seuil s’écrit seulement en mode seuil, se relit, et tout autre mot tombe', () => {
-  assert.equal(LIEN.ecrirePartage({ vue: { couleur: 'hauteur', hmax: 22, rampe: 'seuil' } }), '&couleur=hauteur&hmax=22&rampe=seuil');
-  assert.equal(LIEN.ecrirePartage({ vue: { rampe: 'degrade' } }), '');
-  const lu = (q) => LIEN.lirePartage('#map=18/42.857536/1.061833&' + q).vue || {};
-  assert.equal(lu('rampe=seuil').rampe, 'seuil');
-  for (const abime of ['rampe=degrade', 'rampe=x', 'rampe=']) assert.equal(lu(abime).rampe, undefined, abime);
+  assert.equal(LIEN.ecrirePartage({ vue: { hmax: 35 } }), '');
 });

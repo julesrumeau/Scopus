@@ -225,19 +225,22 @@ Nuage de ce que la carte affichait, sans rien télécharger de plus
   reconstruit en silence (ni voile, ni retour de la caméra : `definirNuage(…, { cadrer: false })`) au plus une
   fois par `CONFIG.rendu.affinage3dMs` (4 s), la carte restant en pause. Une seule densité : celle que la
   carte aurait chargée à ce zoom ; **la 3D ne télécharge pas plus fin en zoomant** (décision : trop lourd).
-- **Rampe « Hauteur/sol »** (novembre 2026, demande d'un forestier : « les classes de hauteur ne discriminent que moins ou plus de 5 m ») : la rampe
-  du shader (`rampeHauteur`) saturait à **8 m** en dur, donc tout peuplement de plus de 8 m était d'un seul rouge ; les hauteurs elles-mêmes
-  (altitude du point moins le sol de la surface) n'ont jamais été plafonnées. La borne est un **uniforme** (`u_hmaxRampe`,
-  `CONFIG.rendu.hauteurMaxRampeM`, 8 par défaut : rien ne change pour qui ne touche à rien), réglée par un curseur de 5 à 50 m, visible dans le
-  seul mode Hauteur/sol (`rampe-hauteur.js`, pur et testé : borne, légende dynamique). Le jaune est à 35 % de la borne, le rouge à la borne. Dans le lien :
-  `&hmax=35` (seulement si différent de 8, entier de 5 à 50, un abîmé tombe seul). Vérifié en Chromium sur Verdun : à 8 m toute la forêt est
-  rouge, à 35 m les hauteurs se distinguent. **Deux modes** (demande suivante du même forestier : « voir en un coup d'œil la hauteur à partir de laquelle je
-  n'ai plus que des points jaunes ») : **Dégradé** (défaut, l'ancienne rampe) et **Seuil** (sol sombre sous 50 cm, jaune sous la valeur du curseur, rouge au-delà, sans
-  transition), `CONFIG.rendu.modeRampe`, `&rampe=seuil` dans le lien. **Le shader ne connaît plus la formule** : il lit une **texture de 1024 couleurs** (0 à 50 m, 5 cm par case, NEAREST,
-  unité 2, `u_rampe`) que `RAMPE_HAUTEUR.texels(mode, borne)` remplit (`GL.textureRampe`) ; un éditeur de paliers à N poignées (idée de l'utilisateur : bouton Paramètres, curseurs
-  ajoutables, couleurs au choix, arbre d'exemple ; composant candidat : Grapick, MIT, 14 Ko, `file://` possible) n'aurait qu'à remplir la même texture. Un test impose que le dégradé par défaut
-  redonne l'ancienne formule. Piège de vérification : en SwiftShader la 3D met plusieurs secondes à se redessiner après un changement de mode, une capture à 1,5 s montre un canevas blanc. Non fait : paliers
-  multiples, hauteur minimale pour masquer le sous-bois.
+- **Rampe « Hauteur/sol » réglable** (novembre 2026, demandes d'un forestier : la rampe du shader saturait à **8 m** en dur, donc tout peuplement de plus
+  de 8 m était d'un seul rouge ; puis « voir en un coup d'œil la hauteur à partir de laquelle je n'ai plus que des points jaunes ») : les hauteurs elles-mêmes
+  (altitude du point moins le sol de la surface) n'ont jamais été plafonnées, seule la couleur l'était. **Un état** (`RAMPE_HAUTEUR`, pur et testé, `rampe-hauteur.js`) :
+  un mode, **N limites en mètres** (de 0,5 à 50 m, écartées d'au moins 0,5 m, 1 à 11) et **N+1 couleurs**, une par tranche. **Paliers** : une couleur par tranche, des marches
+  franches ; **dégradé** : la couleur de la tranche i est atteinte à la limite i (la première à 0 m), fondue avec la suivante. Défaut `CONFIG.rendu.rampe` = `classique()` : l'ancienne rampe
+  sombre, jaune (à 35 % de la borne), rouge, 8 m (un test impose qu'elle redonne l'ancienne formule). **Le shader ne connaît plus la formule** : il lit une **texture de 1024 couleurs** (0 à 50 m,
+  5 cm par case, NEAREST, unité 2, `u_rampe`) que `RAMPE_HAUTEUR.texels` remplit (`GL.textureRampe`) à chaque retouche. **L'éditeur** (`editeur-rampe.js`, bouton « Réglages de la rampe de hauteur… »
+  qui déplie un bloc dans le panneau **sans rien cacher de la scène** : une modale aurait caché le nuage qu'on règle) : mode, préréglages (classique, seuil, arc-en-ciel, lisible par les daltoniens),
+  une **jauge** de 0 à 50 m (limites glissables à la souris et au doigt, clavier : flèches ±0,5 m, Maj ±5 m, Suppr retire ; un clic dans la barre ajoute, un double-clic sur une limite la retire),
+  une couleur et une limite haute (champ numérique, précis) par tranche, « + Ajouter une limite », et un **arbre de 50 m** (`arbre-exemple.js`, points toujours les mêmes) coloré avec la rampe en cours.
+  **Composant maison, pas Grapick** (éditeur de dégradé MIT de 14 Ko envisagé) : ses poignées sont des *couleurs à une position* alors que le besoin est des *limites entre tranches* (N limites,
+  N+1 couleurs), sa barre ne montre que des dégradés (pas de paliers), et il fallait épingler la première poignée, relever le pas à 0,5 m et gérer le clavier ; le composant fait ~150 lignes, sans dépendance.
+  Dans le lien : `&rampe=p_2e3038_2.8-e6b847_22-f25940` (mode `d`/`p`, première couleur, puis limite-couleur : lettres, chiffres, `_ . -`, sûr dans le forum ; seulement si différent du défaut ;
+  un texte abîmé est ignoré en bloc, `RAMPE_HAUTEUR.lire`). **Un ancien lien `&hmax=35`** (l'ancien curseur de borne) est encore lu (`classique(35)`), jamais réécrit.
+  Piège de vérification : en SwiftShader la 3D met plusieurs secondes à se redessiner après un changement de mode, une capture à 1,5 s peut montrer un canevas blanc. Piège de code : `node test/taille-code.js --ecrire`
+  **desserre** une limite (il inscrit l'état courant) : ne l'exécuter qu'après avoir condensé, et regarder le `git diff` du fichier. Non fait : hauteur minimale pour masquer le sous-bois, rampe pour d'autres modes.
 - Non fait : une caméra 3D qui pilote le niveau de détail du téléchargement (TODO #4, phase 2, écartée).
 
 ## Le profil

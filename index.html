@@ -219,15 +219,32 @@
         <span>Taille des points <b id="val-taille">2.0</b></span>
         <input type="range" id="taille-point" min="0.5" max="24" step="0.5" value="2">
       </label>
-      <div id="champ-hmax" hidden>
-        <div class="segments" id="rampe-mode">
-          <button data-mode="degrade" class="actif" title="Les couleurs se fondent du sol au sommet">Dégradé</button>
-          <button data-mode="seuil" title="Jaune sous la hauteur choisie, rouge au-delà : sans transition">Seuil</button>
+      <div id="champ-rampe" hidden>
+        <button type="button" id="btn-rampe" class="secondaire" aria-expanded="false" aria-controls="editeur-rampe">Réglages de la rampe de hauteur…</button>
+        <div id="editeur-rampe" hidden>
+          <div class="segments" id="rampe-mode">
+            <button type="button" data-mode="degrade" class="actif" title="Les couleurs se fondent d'une limite à la suivante">Dégradé</button>
+            <button type="button" data-mode="paliers" title="Une couleur par tranche de hauteur, sans transition">Paliers</button>
+          </div>
+          <label class="champ rampe-ligne"><span>Préréglage</span>
+            <select id="rampe-preset">
+              <option value="">Choisir…</option>
+              <option value="classique">Classique (sol, jaune, rouge)</option>
+              <option value="seuil">Seuil (jaune puis rouge)</option>
+              <option value="arc-en-ciel">Arc-en-ciel</option>
+              <option value="daltonien">Lisible par les daltoniens</option>
+            </select>
+          </label>
+          <div class="rampe-jauge-c">
+            <div id="rampe-jauge" class="rampe-jauge" title="Cliquez dans la barre pour ajouter une limite, glissez une limite pour la déplacer"></div>
+            <div class="rampe-echelle" aria-hidden="true"><span>0</span><span>10</span><span>20</span><span>30</span><span>40</span><span>50 m</span></div>
+          </div>
+          <div class="rampe-corps">
+            <canvas id="rampe-arbre" class="rampe-arbre" width="132" height="240" role="img" aria-label="Un arbre de 50 m coloré avec la rampe choisie"></canvas>
+            <div id="rampe-tranches" class="rampe-tranches"></div>
+          </div>
+          <button type="button" id="rampe-ajouter" class="secondaire">+ Ajouter une limite</button>
         </div>
-        <label class="champ">
-          <span><span id="lib-hmax">Hauteur maximale de l'échelle</span> <b id="val-hmax">8 m</b></span>
-          <input type="range" id="vue-hmax" min="5" max="50" step="1" value="8">
-        </label>
       </div>
       <label class="champ">
         <span>Exagération verticale <b id="val-exag">×1.0</b></span>
@@ -726,6 +743,8 @@
 <script src="src/profil-graphique.js"></script>
 <script src="src/accueil.js"></script>
 <script src="src/rampe-hauteur.js"></script>
+<script src="src/arbre-exemple.js"></script>
+<script src="src/editeur-rampe.js"></script>
 <script src="src/panneau-3d.js"></script>
 <script src="src/html.js"></script>
 <script src="src/localisation.js"></script>

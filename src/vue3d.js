@@ -57,7 +57,7 @@ class Vue3D {
     gl.bindVertexArray(null);
     this.edl = null;   // { fb, couleur, profondeur, w, h }, à la taille du canevas
     this.palette = GL.paletteClasses(gl, CONFIG.rendu.couleursClasse, CONFIG.rendu.couleurClasseDefaut);
-    this.rampe = GL.textureRampe(gl, RAMPE_HAUTEUR.texels(CONFIG.rendu.modeRampe, CONFIG.rendu.hauteurMaxRampeM));
+    this.rampe = GL.textureRampe(gl, RAMPE_HAUTEUR.texels(CONFIG.rendu.rampe));
 
     this.nuage = null;
     this.vao = null;

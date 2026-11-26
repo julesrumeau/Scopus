@@ -150,8 +150,7 @@ function creerPanneauRelief(d) {
     lisse: reglages.lisser ? undefined : false,
     couleur: CONFIG.rendu.coloration !== 'classification' ? CONFIG.rendu.coloration : undefined,
     plafond: budget3D() !== (surMobile() ? CONFIG.rendu.budget3DMobile : CONFIG.rendu.budget3D) ? budget3D() / 1e6 : undefined,
-    hmax: CONFIG.rendu.hauteurMaxRampeM !== RAMPE_HAUTEUR.defaut ? CONFIG.rendu.hauteurMaxRampeM : undefined,
-    rampe: CONFIG.rendu.modeRampe === 'seuil' ? 'seuil' : undefined,
+    rampe: RAMPE_HAUTEUR.estDefaut(CONFIG.rendu.rampe) ? undefined : RAMPE_HAUTEUR.ecrire(CONFIG.rendu.rampe),
     edl: $('vue-edl').checked ? undefined : false,
     cachees: classesMasquees.size ? [...classesMasquees] : undefined,
   });
@@ -188,8 +187,11 @@ function creerPanneauRelief(d) {
     }
     if (v.couleur) $('coloration').querySelector(`[data-mode="${v.couleur}"]`)?.click();
     if (v.plafond !== undefined) regler('vue-budget3d', v.plafond, 'change');
-    if (v.rampe === 'seuil') $('rampe-mode').querySelector('[data-mode="seuil"]').click();
-    if (v.hmax !== undefined) regler('vue-hmax', v.hmax, 'input');
+    const rampe = v.rampe ? RAMPE_HAUTEUR.lire(v.rampe) : v.hmax !== undefined ? RAMPE_HAUTEUR.classique(v.hmax) : null;   // `hmax` : ancien lien
+    if (rampe) {
+      CONFIG.rendu.rampe = RAMPE_HAUTEUR.normaliser(rampe);
+      $('champ-rampe').dispatchEvent(new Event('rampe:externe'));   // l'éditeur redessine et refait la texture
+    }
     if (v.edl === false) {
       $('vue-edl').checked = false;
       $('vue-edl').dispatchEvent(new Event('change', { bubbles: true }));

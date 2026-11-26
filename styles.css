@@ -1577,3 +1577,33 @@ dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
 #dlg-export select, #dlg-export input[type="number"] { width: 90px; background: var(--fond); color: var(--texte); border: 1px solid var(--bord); border-radius: 6px; padding: 5px 8px; }
 #dlg-export select { width: 180px; }
 #vue-lien a { color: var(--accent); }
+
+/* ── Éditeur de la rampe « Hauteur/sol » (3D) ────────────────────────────── */
+#champ-rampe { margin: 4px 0 12px; }
+#btn-rampe { width: 100%; font-size: 13px; }
+#editeur-rampe { margin-top: 10px; padding: 12px; background: var(--fond-2); border: 1px solid var(--bord); border-radius: 8px; }
+.rampe-ligne { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 12px; }
+.rampe-ligne select { flex: 1; min-width: 0; }
+.rampe-jauge-c { margin: 4px 6px 14px; }
+.rampe-jauge { position: relative; height: 30px; border: 1px solid var(--bord); border-radius: 6px; cursor: copy; touch-action: none; }
+.rampe-poignee {
+  position: absolute; top: -5px; width: 14px; height: 38px; margin-left: -7px; padding: 0;
+  background: var(--texte); border: 2px solid var(--fond); border-radius: 4px; cursor: ew-resize; touch-action: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.rampe-poignee:hover, .rampe-poignee:focus-visible { background: var(--accent); outline: 2px solid var(--fond); }
+.rampe-echelle { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10.5px; color: var(--texte-2); }
+.rampe-corps { display: grid; grid-template-columns: auto 1fr; gap: 12px; margin-bottom: 12px; align-items: start; }
+.rampe-arbre { width: 132px; height: 240px; background: var(--fond); border: 1px solid var(--bord); border-radius: 6px; }
+.rampe-tranches { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.rampe-tranche { display: grid; grid-template-columns: 30px 3.4em 56px 1em 24px; align-items: center; gap: 6px; min-height: 30px; white-space: nowrap; }
+.rampe-tranche > span:nth-of-type(1) { text-align: right; }
+.rampe-tranche > span:only-of-type { grid-column: 2 / -1; text-align: left; }
+.rampe-tranche input[type=color] { width: 30px; height: 26px; padding: 0; border: 1px solid var(--bord); border-radius: 4px; background: none; cursor: pointer; flex: none; }
+.rampe-tranche input[type=number] { width: 58px; padding: 4px 6px; background: var(--fond); color: var(--texte); border: 1px solid var(--bord); border-radius: 4px; font: inherit; }
+.rampe-retirer { width: 24px; height: 24px; padding: 0; background: none; border: 1px solid var(--bord); border-radius: 4px; color: var(--texte-2); cursor: pointer; }
+.rampe-retirer:hover:not(:disabled) { color: var(--alerte); border-color: var(--alerte); }
+.rampe-retirer:disabled { opacity: 0.35; cursor: not-allowed; }
+#rampe-ajouter { width: 100%; font-size: 12.5px; }
+.rampe-puce { display: inline-flex; align-items: center; gap: 4px; margin: 2px 8px 2px 0; white-space: nowrap; }
+.rampe-puce i { display: inline-block; width: 11px; height: 11px; border-radius: 2px; border: 1px solid var(--bord); }
