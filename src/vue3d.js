@@ -57,6 +57,7 @@ class Vue3D {
     gl.bindVertexArray(null);
     this.edl = null;   // { fb, couleur, profondeur, w, h }, à la taille du canevas
     this.palette = GL.paletteClasses(gl, CONFIG.rendu.couleursClasse, CONFIG.rendu.couleurClasseDefaut);
+    this.rampe = GL.textureRampe(gl, RAMPE_HAUTEUR.texels(CONFIG.rendu.modeRampe, CONFIG.rendu.hauteurMaxRampeM));
 
     this.nuage = null;
     this.vao = null;
@@ -562,13 +563,12 @@ class Vue3D {
     gl.uniform1f(p.u.u_attenuation, CONFIG.rendu.attenuation ? 1 : 0);
     gl.uniform1f(p.u.u_hauteurViewport, h);
     gl.uniform1f(p.u.u_exagerationZ, CONFIG.rendu.exagerationZ);
-    for (const [nom, v] of [['u_zmin', this.zmin], ['u_zref', this.zref], ['u_hmaxRampe', CONFIG.rendu.hauteurMaxRampeM]]) gl.uniform1f(p.u[nom], v);
+    for (const [nom, v] of [['u_zmin', this.zmin], ['u_zref', this.zref]]) gl.uniform1f(p.u[nom], v);
     gl.uniform1i(p.u.u_mode, MODES[CONFIG.rendu.coloration] ?? 1);
     gl.uniform1f(p.u.u_ronds, CONFIG.rendu.pointsRonds ? 1 : 0);
 
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.palette);
-    gl.uniform1i(p.u.u_palette, 0);
+    // La rampe de hauteur sur l'unité 2, la palette des classes sur la 0 (qui reste active : l'ombrage de profondeur la reprend).
+    for (const [unite, tex, nom] of [[2, this.rampe, 'u_rampe'], [0, this.palette, 'u_palette']]) { gl.activeTexture(gl.TEXTURE0 + unite); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(p.u[nom], unite); }
 
     gl.bindVertexArray(this.vao);
     const dessines = enMouvement ? Math.max(1, Math.round(this.nbPoints * this._partMouvement)) : this.nbPoints;

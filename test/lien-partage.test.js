@@ -353,3 +353,11 @@ test('hmax abîmé ou hors bornes tombe seul, les autres réglages restent', () 
   for (const abime of ['hmax=4', 'hmax=51', 'hmax=x', 'hmax=-8', 'hmax=1e1']) assert.equal(lu(abime).hmax, undefined, abime);
   assert.equal(lu('hmax=99&couleur=hauteur').couleur, 'hauteur');
 });
+
+test('rampe=seuil s’écrit seulement en mode seuil, se relit, et tout autre mot tombe', () => {
+  assert.equal(LIEN.ecrirePartage({ vue: { couleur: 'hauteur', hmax: 22, rampe: 'seuil' } }), '&couleur=hauteur&hmax=22&rampe=seuil');
+  assert.equal(LIEN.ecrirePartage({ vue: { rampe: 'degrade' } }), '');
+  const lu = (q) => LIEN.lirePartage('#map=18/42.857536/1.061833&' + q).vue || {};
+  assert.equal(lu('rampe=seuil').rampe, 'seuil');
+  for (const abime of ['rampe=degrade', 'rampe=x', 'rampe=']) assert.equal(lu(abime).rampe, undefined, abime);
+});
