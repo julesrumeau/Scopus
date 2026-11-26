@@ -1,6 +1,6 @@
 // L'éditeur de la rampe « Hauteur/sol » de la 3D : un bouton « Réglages » qui déplie, dans le panneau (sans rien cacher de la scène), un
 // mode (dégradé ou paliers), des préréglages, une jauge de 0 à 50 m dont les limites se glissent et se retirent (on en ajoute par un bouton), une
-// couleur par tranche, et un arbre de 50 m pour voir le résultat. Tout l'état est dans `RAMPE_HAUTEUR` (pur, testé) ; ici le DOM seulement.
+// couleur par tranche. Tout l'état est dans `RAMPE_HAUTEUR` (pur, testé) ; ici le DOM seulement.
 // Chaque retouche remplit la texture lue par le shader (`GL.textureRampe`), met à jour la légende et le lien, et redessine la scène.
 
 function creerEditeurRampe({ $, CONFIG, vue3d, majLegende, majLien }) {
@@ -21,19 +21,6 @@ function creerEditeurRampe({ $, CONFIG, vue3d, majLegende, majLien }) {
     if (e.mode === 'degrade') return `linear-gradient(to right, ${arrets.join(', ')})`;
     const bandes = e.couleurs.map((c, i) => `${c} ${i === 0 ? 0 : (e.bornes[i - 1] / R.portee) * 100}% ${i === e.bornes.length ? 100 : (e.bornes[i] / R.portee) * 100}%`);
     return `linear-gradient(to right, ${bandes.join(', ')})`;
-  }
-
-  function dessinerArbre() {
-    const c = $('rampe-arbre'), g = c.getContext('2d'), e = etat();
-    g.clearRect(0, 0, c.width, c.height);
-    const x0 = 34, l = c.width - x0 - 4, haut = c.height - 16;
-    g.font = '10px system-ui, sans-serif'; g.fillStyle = '#8b95a6'; g.textBaseline = 'middle';
-    for (let h = 0; h <= 50; h += 10) { const y = 8 + haut - (h / 50) * haut; g.fillText(`${h} m`, 0, y); g.fillRect(x0 - 6, y, 4, 1); }
-    for (const p of ARBRE_EXEMPLE.points()) {
-      const [r, v, b] = R.couleur(p.h, e);
-      g.fillStyle = `rgb(${Math.round(r * 255)},${Math.round(v * 255)},${Math.round(b * 255)})`;
-      g.fillRect(Math.round(x0 + (p.x + 1) / 2 * l), Math.round(8 + haut - (p.h / 50) * haut), 2, 2);
-    }
   }
 
   /** Les tranches : une couleur par ligne, la limite haute modifiable au clavier, la limite retirable. */
@@ -66,7 +53,6 @@ function creerEditeurRampe({ $, CONFIG, vue3d, majLegende, majLien }) {
     jauge.style.background = fondJauge(e);
     jauge.querySelectorAll('.rampe-poignee').forEach((p, i) => { p.style.left = pct(e.bornes[i]); p.setAttribute('aria-valuenow', e.bornes[i]); p.setAttribute('aria-valuetext', R.formaterM(e.bornes[i])); });
     for (const b of $('rampe-mode').children) b.classList.toggle('actif', e.mode === b.dataset.mode);
-    dessinerArbre();
   }
 
   /** Ce que toute retouche entraîne : la texture du shader, la légende, le lien, la scène. */

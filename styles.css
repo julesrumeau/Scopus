@@ -1593,8 +1593,7 @@ dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
 }
 .rampe-poignee:hover, .rampe-poignee:focus-visible { background: var(--accent); outline: 2px solid var(--fond); }
 .rampe-echelle { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10.5px; color: var(--texte-2); }
-.rampe-corps { display: grid; grid-template-columns: auto 1fr; gap: 12px; margin-bottom: 12px; align-items: start; }
-.rampe-arbre { width: 132px; height: 240px; background: var(--fond); border: 1px solid var(--bord); border-radius: 6px; }
+.rampe-corps { margin-bottom: 12px; }
 .rampe-tranches { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
 .rampe-tranche { display: grid; grid-template-columns: 30px 3.4em 56px 1em 24px; align-items: center; gap: 6px; min-height: 30px; white-space: nowrap; }
 .rampe-tranche > span:nth-of-type(1) { text-align: right; }

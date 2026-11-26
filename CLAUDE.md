@@ -234,7 +234,7 @@ Nuage de ce que la carte affichait, sans rien télécharger de plus
   5 cm par case, NEAREST, unité 2, `u_rampe`) que `RAMPE_HAUTEUR.texels` remplit (`GL.textureRampe`) à chaque retouche. **L'éditeur** (`editeur-rampe.js`, bouton « Réglages de la rampe de hauteur… »
   qui déplie un bloc dans le panneau **sans rien cacher de la scène** : une modale aurait caché le nuage qu'on règle) : mode, préréglages (classique, seuil, arc-en-ciel, lisible par les daltoniens),
   une **jauge** de 0 à 50 m (limites glissables à la souris et au doigt, clavier : flèches ±0,5 m, Maj ±5 m, Suppr retire, un double-clic sur une limite la retire ; **un clic dans la barre n'ajoute rien** : il en créait par erreur, on ajoute par le bouton),
-  une couleur et une limite haute (champ numérique, précis) par tranche, « + Ajouter une limite », et un **arbre de 50 m** (`arbre-exemple.js`, points toujours les mêmes) coloré avec la rampe en cours.
+  une couleur et une limite haute (champ numérique, précis) par tranche, « + Ajouter une limite ». **Pas d'arbre d'exemple** : un arbre de 50 m coloré avec la rampe avait été fait puis retiré (décision : il ne servait à rien).
   **Composant maison, pas Grapick** (éditeur de dégradé MIT de 14 Ko envisagé) : ses poignées sont des *couleurs à une position* alors que le besoin est des *limites entre tranches* (N limites,
   N+1 couleurs), sa barre ne montre que des dégradés (pas de paliers), et il fallait épingler la première poignée, relever le pas à 0,5 m et gérer le clavier ; le composant fait ~150 lignes, sans dépendance.
   Dans le lien : `&rampe=p_2e3038_2.8-e6b847_22-f25940` (mode `d`/`p`, première couleur, puis limite-couleur : lettres, chiffres, `_ . -`, sûr dans le forum ; seulement si différent du défaut ;

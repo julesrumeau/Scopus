@@ -196,9 +196,9 @@ test('la configuration porte l’état classique, identique à celui du module',
   assert.deepEqual(A(CONFIG.rendu.rampe), A(R.classique()));
 });
 
-test('la page : un bouton de paramètres, un éditeur masqué (mode, préréglage, jauge, arbre, tranches)', () => {
+test('la page : un bouton de paramètres, un éditeur masqué (mode, préréglage, jauge, tranches)', () => {
   const html = lire('index.html');
-  for (const id of ['champ-rampe', 'btn-rampe', 'editeur-rampe', 'rampe-mode', 'rampe-preset', 'rampe-jauge', 'rampe-arbre', 'rampe-tranches', 'rampe-ajouter']) {
+  for (const id of ['champ-rampe', 'btn-rampe', 'editeur-rampe', 'rampe-mode', 'rampe-preset', 'rampe-jauge', 'rampe-tranches', 'rampe-ajouter']) {
     assert.match(html, new RegExp(`id="${id}"`), id);
   }
   assert.match(html, /id="champ-rampe"[^>]*hidden/);
@@ -206,7 +206,8 @@ test('la page : un bouton de paramètres, un éditeur masqué (mode, préréglag
   assert.match(html, /data-mode="degrade"/);
   assert.match(html, /data-mode="paliers"/);
   assert.ok(!/id="vue-hmax"/.test(html), 'l’ancien curseur est remplacé');
-  for (const f of ['rampe-hauteur', 'arbre-exemple', 'editeur-rampe']) assert.match(html, new RegExp(`src="src/${f}\\.js"`), f);
+  assert.ok(!/rampe-arbre|arbre-exemple/.test(html), 'l’arbre d’exemple est retiré (décision : il ne servait à rien)');
+  for (const f of ['rampe-hauteur', 'editeur-rampe']) assert.match(html, new RegExp(`src="src/${f}\\.js"`), f);
 });
 
 test('la jauge n’ajoute plus de limite au clic (un clic raté en créait une) : seuls le bouton, le double-clic sur une limite et les champs changent le nombre de limites', () => {
