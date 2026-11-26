@@ -5,7 +5,7 @@
 function creerPanneau3D(d) {
   const { $, vue3d, etat, CONFIG, SORTIE, classesMasquees, NOMS_CLASSES, milliers, octets, majLien, DIAGNOSTIC } = d;
   /** Posé plus tard par le bloc du relief : recharge la couleur par point (hauteur, relief drapé). */
-  const liaisons = { majAttributVue: null };
+  const liaisons = { majAttributVue: null, rafraichirNuage: null };
   /** La partie STL de la fenêtre d'export : remplie par `creerExportStlUI` quand le relief existe. */
   const exportStl = {};
 
@@ -15,7 +15,8 @@ function creerPanneau3D(d) {
     if (!b) return;
     for (const autre of $('coloration').children) autre.classList.toggle('actif', autre === b);
     CONFIG.rendu.coloration = b.dataset.mode;
-    $('champ-hmax').hidden = CONFIG.rendu.coloration !== 'hauteur';   // la borne ne sert qu'à cette rampe
+    $('champ-rampe').hidden = CONFIG.rendu.coloration !== 'hauteur';   // la rampe ne sert qu'à cette couleur
+    if (['hauteur', 'relief'].includes(CONFIG.rendu.coloration)) liaisons.rafraichirNuage?.();   // ces couleurs lisent la surface : la refaire
     majLien();   // la couleur du nuage est dans le lien
     majLegende();
     await majAttributNuage();
@@ -37,22 +38,7 @@ function creerPanneau3D(d) {
     vue3d?.invalider();
   });
 
-  /** Remplit la texture de rampe (dégradé ou seuil) et met à plat ce qui s'en lit : libellé, légende, lien, rendu. */
-  function majRampe() {
-    const { hauteurMaxRampeM: h, modeRampe: m } = CONFIG.rendu;
-    if (vue3d) GL.textureRampe(vue3d.gl, RAMPE_HAUTEUR.texels(m, h), vue3d.rampe);
-    $('val-hmax').textContent = `${h} m`;
-    $('lib-hmax').textContent = m === 'seuil' ? 'Seuil de hauteur' : 'Hauteur maximale de l\'échelle';
-    for (const b of $('rampe-mode').children) b.classList.toggle('actif', m === b.dataset.mode);
-    majLegende();
-    majLien();
-    vue3d?.invalider();
-  }
-  $('vue-hmax').addEventListener('input', (e) => { CONFIG.rendu.hauteurMaxRampeM = RAMPE_HAUTEUR.borne(Number(e.target.value)); majRampe(); });
-  $('rampe-mode').addEventListener('click', (e) => {
-    const b = e.target.closest('button');
-    if (b) { CONFIG.rendu.modeRampe = RAMPE_HAUTEUR.mode(b.dataset.mode); majRampe(); }
-  });
+  creerEditeurRampe({ $, CONFIG, vue3d: () => vue3d, majLegende, majLien });
 
   $('exag').addEventListener('input', (e) => {
     CONFIG.rendu.exagerationZ = Number(e.target.value);
@@ -75,7 +61,7 @@ function creerPanneau3D(d) {
     if (!etat.nuage) { l.innerHTML = ''; majExportPoints(); return; }
 
     const echelle = {
-      hauteur: RAMPE_HAUTEUR.legende(CONFIG.rendu.hauteurMaxRampeM, CONFIG.rendu.modeRampe),
+      hauteur: RAMPE_HAUTEUR.legendeHtml(CONFIG.rendu.rampe),
       relief: 'La couche de l’onglet Relief, plaquée sur les points',
       elevation: 'Bleu = point bas · blanc = point haut de la dalle',
       intensite: 'Réflectance brute du laser, normalisée sur 16 bits',

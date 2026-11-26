@@ -51,10 +51,13 @@ function creerCalculRelief(d) {
     // l'ombrage de l'IGN y ont été essayés, puis écartés.
     const tropLarge = vue && FLUX_CHOIX.surfaceKm2(vue) > CONFIG.flux.surfaceMaxPointsKm2;
     const aCalculer = MODE_CARTE.cotesAffiches(vueCartes.mode()).filter((c) => estRelief(cotes[c]));
+    // La 3D colore par hauteur au-dessus du sol, lue dans la surface. Avec une photo ou un plan des deux côtés aucune surface n'était
+    // jamais calculée et tous les points sortaient à la hauteur 0 : un calcul forcé en fait une, par l'ombrage, qu'on ne montre pas.
+    const surfaceSeule = forcer && !aCalculer.length;
     for (const c of ['gauche', 'droite']) {
       voletDe(c).calque.definirLibelle(c, tropLarge && estRelief(cotes[c]) ? 'Zoomez pour calculer le relief' : libelleCouche(cotes[c]));
     }
-    if (!vue || tropLarge || !aCalculer.length) {
+    if (!vue || tropLarge || (!aCalculer.length && !surfaceSeule)) {
       // Gardée seulement si c'est bien la couche du côté : après un
       // changement de couche, l'ancienne image mentirait sous le libellé.
       for (const c of aCalculer) if (etatRelief.etirements[c]?.cle !== cotes[c]) voletDe(c).calque.vider(c);
@@ -85,13 +88,14 @@ function creerCalculRelief(d) {
       const textes = [];
       // Un côté après l'autre : la surface est rangée une fois pour les deux,
       // seule la couche change (gardée par le worker d'un calcul à l'autre).
-      for (const c of aCalculer) {
-        const cle = cotes[c];
+      for (const c of aCalculer.length ? aCalculer : ['gauche']) {
+        const cle = surfaceSeule ? 'ombrage' : cotes[c];
         const volet = voletDe(c);
         const { ecran, bornes } = ecrans.get(volet);
         const r = await relief.image(geo, cle, ecran, lutCouche(cle), {
           contraste: reglages.contraste, lisser: reglages.lisser, actifs, couche: reglagesDe(cle),
         });
+        if (surfaceSeule) continue;       // la surface est gardée par le worker, rien à poser
         if (cotes[c] !== cle) continue;   // le côté a changé pendant le calcul
         if (!r) { volet.calque.vider(c); continue; }
         volet.calque.afficher(c, r, bornes);

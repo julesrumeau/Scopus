@@ -161,8 +161,8 @@ const LIEN = (() => {
 
   /** Une clé de couche (« svf », « ouverture-neg ») : lettres, chiffres et tirets, rien d'autre. */
   const COUCHE = /^[A-Za-z][A-Za-z0-9-]{0,23}$/;
-  /** Les couleurs du nuage 3D de la vue normale (l'intensité n'y est pas téléchargée). */
-  const COULEURS = ['classification', 'hauteur', 'relief', 'elevation'];
+  const COULEURS = ['classification', 'hauteur', 'relief', 'elevation'];   // couleurs du nuage 3D de la vue normale (pas d'intensité)
+  const FORME_RAMPE = /^[dp]_[0-9a-f]{6}(?:_\d{1,2}(?:\.\d)?-[0-9a-f]{6}){1,11}$/;   // forme d'une rampe de hauteur (voir RAMPE_HAUTEUR.ecrire)
 
   function ecrireVue(v) {
     const p = [];
@@ -178,8 +178,7 @@ const LIEN = (() => {
     if (v.lisse === false) p.push('lisse=0');
     if (COULEURS.includes(v.couleur)) p.push(`couleur=${v.couleur}`);
     if (Number.isFinite(v.plafond)) p.push(`plafond=${nombre(v.plafond, 1)}`);
-    if (Number.isInteger(v.hmax) && v.hmax >= 5 && v.hmax <= 50 && v.hmax !== 8) p.push(`hmax=${v.hmax}`);
-    if (v.rampe === 'seuil') p.push('rampe=seuil');
+    if (typeof v.rampe === 'string' && FORME_RAMPE.test(v.rampe)) p.push(`rampe=${v.rampe}`);   // le texte vient de RAMPE_HAUTEUR.ecrire
     if (v.edl === false) p.push('edl=0');
     const cachees = classesTriees(v.cachees);
     if (cachees.length) p.push(`cachees=${cachees.join('.')}`);
@@ -204,13 +203,9 @@ const LIEN = (() => {
     const contraste = decimalDans(params.get('contraste'), 0.1, 10);
     if (contraste !== undefined) v.contraste = contraste;
     const svf = /^(\d{1,2})\/(\d{1,3})$/.exec(params.get('svf') ?? '');
-    if (svf && Number(svf[1]) >= 1 && Number(svf[1]) <= 64 && Number(svf[2]) >= 1 && Number(svf[2]) <= 100) {
-      v.svf = { directions: Number(svf[1]), rayon: Number(svf[2]) };
-    }
+    if (svf && Number(svf[1]) >= 1 && Number(svf[1]) <= 64 && Number(svf[2]) >= 1 && Number(svf[2]) <= 100) v.svf = { directions: Number(svf[1]), rayon: Number(svf[2]) };
     const soleil = /^(\d{1,3})\/(\d{1,2})$/.exec(params.get('soleil') ?? '');
-    if (soleil && Number(soleil[1]) <= 359 && Number(soleil[2]) >= 1 && Number(soleil[2]) <= 89) {
-      v.soleil = { azimut: Number(soleil[1]), hauteur: Number(soleil[2]) };
-    }
+    if (soleil && Number(soleil[1]) <= 359 && Number(soleil[2]) >= 1 && Number(soleil[2]) <= 89) v.soleil = { azimut: Number(soleil[1]), hauteur: Number(soleil[2]) };
     if (params.get('onglet') === '3d') v.onglet = '3d';
     if (params.get('cartes') === '2') v.cartes = 2;
     if (params.get('lisse') === '0') v.lisse = false;
@@ -218,9 +213,8 @@ const LIEN = (() => {
     if (COULEURS.includes(couleur)) v.couleur = couleur;
     const plafond = decimalDans(params.get('plafond'), 0.5, 20);
     if (plafond !== undefined) v.plafond = plafond;
-    const hmax = /^\d{1,2}$/.test(params.get('hmax') ?? '') ? Number(params.get('hmax')) : undefined;
-    if (hmax >= 5 && hmax <= 50) v.hmax = hmax;
-    if (params.get('rampe') === 'seuil') v.rampe = 'seuil';
+    if (FORME_RAMPE.test(params.get('rampe') ?? '')) v.rampe = params.get('rampe');   // la forme seulement : le sens est vérifié par RAMPE_HAUTEUR.lire
+    if (/^\d{1,2}$/.test(params.get('hmax') ?? '') && params.get('hmax') >= 5 && params.get('hmax') <= 50) v.hmax = Number(params.get('hmax'));   // ancien lien : lu, jamais réécrit
     if (params.get('edl') === '0') v.edl = false;
     const cachees = params.has('cachees') ? classesLues(params.get('cachees')) : null;
     if (cachees) v.cachees = cachees;
