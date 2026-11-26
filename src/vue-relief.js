@@ -412,7 +412,7 @@ function fabriqueVueRelief() {
     }
 
     /** Le nuage de la vue pour l'onglet 3D (spec 2026-09-27-vue-3d-design). */
-    function nuage3d(emprise, budget, actifs) {
+    function nuage3d(emprise, budget, actifs, { estimerSol = true } = {}) {
       dernierNuage = null;
       if (gpu) return { raison: 'Nuage 3D indisponible quand tout le calcul est sur la carte graphique (&gpu).' };
       const e = { xmin: Math.round(emprise.xmin * 100), xmax: Math.round(emprise.xmax * 100), ymin: Math.round(emprise.ymin * 100), ymax: Math.round(emprise.ymax * 100) };
@@ -457,7 +457,7 @@ function fabriqueVueRelief() {
         }
       }
       const origine = [e.xmin / 100, e.ymin / 100, zminCm / 100];
-      const X = new Float32Array(n), Y = new Float32Array(n), Z = new Float32Array(n), H = new Float32Array(n);
+      const X = new Float32Array(n), Y = new Float32Array(n), Z = new Float32Array(n), H = new Float32Array(n).fill(SOL_ESTIME.inconnue);
       // La surface n'est lue que si elle couvre toute l'emprise : calculée pour
       // une vue précédente (relief en pause pendant la 3D, calcul en retard),
       // elle donnerait des hauteurs et un drapé faux sur une partie du nuage.
@@ -465,6 +465,13 @@ function fabriqueVueRelief() {
       const couvre = tc && tc.emprise.xmin <= emprise.xmin && tc.emprise.ymin <= emprise.ymin
         && tc.emprise.xmax >= emprise.xmax && tc.emprise.ymax >= emprise.ymax;
       const t = couvre ? tc : null;
+      // Le sol de chaque case : connu, ou prolongé jusqu'à 30 m d'un sol connu (sous les toits, les trous de la canopée) ; ailleurs NaN, et la
+      // hauteur reste « inconnue » plutôt que 0 (qui la ferait passer pour du sol).
+      let sols = null;
+      if (t) {
+        if (estimerSol && !t.solEstime) t.solEstime = SOL_ESTIME.prolonger(t, CONFIG.rendu.rayonSolEstimeM);
+        sols = estimerSol && t.solEstime ? t.solEstime : null;
+      }
       const cases = new Int32Array(n).fill(-1);
       const parCode = new Uint32Array(256);
       // Rangés par paquets du même hachage que le tirage : n'importe quel
@@ -482,7 +489,8 @@ function fabriqueVueRelief() {
           const cx = Math.floor((xs[i] / 100 - t.emprise.xmin) / t.pas), cy = Math.floor((ys[i] / 100 - t.emprise.ymin) / t.pas);
           if (cx >= 0 && cy >= 0 && cx < t.W && cy < t.H) {
             cases[k] = cy * t.W + cx;
-            if (t.valide[cases[k]]) H[k] = zs[i] / 100 - (t.mnt[cases[k]] + t.origine[2]);
+            const sol = sols ? sols[cases[k]] : t.valide[cases[k]] ? t.mnt[cases[k]] : NaN;
+            if (Number.isFinite(sol)) H[k] = zs[i] / 100 - (sol + t.origine[2]);
           }
         }
       }

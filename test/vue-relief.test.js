@@ -6,8 +6,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chargerScripts } from './charger.js';
 
-const { VUE_RELIEF, VUE_GRILLE, RASTER, RELIEF } = chargerScripts(
-  ['config.js', 'vue-grille.js', 'raster.js', 'relief.js', 'profil.js', 'vue-relief.js']);
+const { VUE_RELIEF, VUE_GRILLE, RASTER, RELIEF, SOL_ESTIME } = chargerScripts(
+  ['config.js', 'vue-grille.js', 'raster.js', 'relief.js', 'profil.js', 'sol-estime.js', 'vue-relief.js']);
 
 /** Bloc d'une dalle au coin (x0, y0) en mètres : un plan à 300 m, une bosse, des points tous les 25 cm. */
 function bloc(cle, x0, y0, { cote = 60, pasCm = 25, zBase = 30000 } = {}) {
@@ -405,7 +405,7 @@ test('nuage3d : une surface qui ne couvre pas l’emprise n’est pas lue (haute
   const c = m.calculer(VUE_GRILLE.definir({ xmin: 1000, xmax: 1010, ymin: 2000, ymax: 2010 }, 0.5, 0, 4096), 'svf');
   const r = m.nuage3d({ xmin: 1000, xmax: 1060, ymin: 2000, ymax: 2060 }, 1e9);
   assert.ok(r.n > 0);
-  assert.equal(r.hauteur.every((h) => h === 0), true);
+  assert.equal(r.hauteur.every((h) => h === SOL_ESTIME.inconnue), true, 'sans surface valable, la hauteur est inconnue, jamais 0');
   assert.equal(m.drape3d('svf', undefined, c.min, c.max), null);
 });
 
@@ -680,4 +680,64 @@ test('grilleStl : les classes présentes accompagnent la grille ; un rectangle h
   m.ajouter(bloc('a', 1000, 2000));
   assert.equal(m.grilleStl(RECT, [2], 0.5, 600).classes.map(([c]) => c).join(','), '2');
   assert.equal(m.grilleStl({ xmin: 5000, xmax: 5100, ymin: 5000, ymax: 5100 }, [2], 0.5, 600), null);
+});
+
+
+/** Un bloc de 80 m : un plan en pente, des retours sol sauf dans `trou(x, y)` (centimètres), où seul un toit (classe 6) renvoie, 10 m plus haut. */
+function blocAvecTrou(trou, cote = 80) {
+  const n = (cote * 4) ** 2;
+  const xc = new Int32Array(n), yc = new Int32Array(n), zc = new Int32Array(n), cls = new Uint8Array(n);
+  let k = 0;
+  for (let y = 0; y < cote * 100; y += 25) for (let x = 0; x < cote * 100; x += 25) {
+    const sol = 30000 + Math.round(x * 0.05);
+    xc[k] = x; yc[k] = y;
+    if (trou(x, y)) { zc[k] = sol + 1000; cls[k] = 6; } else { zc[k] = sol; cls[k] = 2; }
+    k++;
+  }
+  return { cle: 't', emprise: { xmin: 1000, ymin: 2000, xmax: 1000 + cote, ymax: 2000 + cote }, origineCm: [100000, 200000, 0],
+    points: { nbPoints: n, xc, yc, zc, cls, intensite: new Uint16Array(n) } };
+}
+
+test('nuage3d : sous un grand toit (sol inconnu), la hauteur est celle du toit sur un sol estimé, pas 0', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(blocAvecTrou((x, y) => x >= 2000 && x < 6000 && y >= 2000 && y < 6000));   // un toit de 40 m de côté
+  const e = { xmin: 1000, xmax: 1080, ymin: 2000, ymax: 2080 };
+  m.calculer(VUE_GRILLE.definir(e, 0.5, 0, 4096), 'svf');
+  const r = m.nuage3d(e, 1e9);
+  const toit = []; let sol = 0, nSol = 0;
+  for (let i = 0; i < r.n; i++) { if (r.cls[i] === 6) toit.push(r.hauteur[i]); else { sol += r.hauteur[i]; nSol++; } }
+  assert.ok(toit.length > 1000);
+  const dedans = toit.filter((h) => h > 0);
+  assert.ok(dedans.length / toit.length > 0.95, `${dedans.length} sur ${toit.length} au-dessus de 0`);
+  const moy = dedans.reduce((s, h) => s + h, 0) / dedans.length;
+  assert.ok(Math.abs(moy - 10) < 1.5, `hauteur moyenne du toit : ${moy}`);
+  assert.ok(Math.abs(sol / nSol) < 0.1, 'le sol mesuré reste à 0');
+});
+
+test('nuage3d : sans estimation, le sol inconnu donne une hauteur inconnue (jamais 0)', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(blocAvecTrou((x, y) => x >= 2000 && x < 6000 && y >= 2000 && y < 6000));
+  const e = { xmin: 1000, xmax: 1080, ymin: 2000, ymax: 2080 };
+  m.calculer(VUE_GRILLE.definir(e, 0.5, 0, 4096), 'svf');
+  const r = m.nuage3d(e, 1e9, undefined, { estimerSol: false });
+  const toit = []; for (let i = 0; i < r.n; i++) if (r.cls[i] === 6) toit.push(r.hauteur[i]);
+  assert.ok(toit.filter((h) => h === SOL_ESTIME.inconnue).length > toit.length * 0.5, 'le centre du toit est inconnu');
+  assert.equal(toit.filter((h) => h === 0).length < toit.length * 0.05, true, 'et jamais confondu avec le sol');
+});
+
+test('nuage3d : à plus de 30 m de tout sol connu, la hauteur reste inconnue même avec l’estimation', () => {
+  const m = VUE_RELIEF.creer({ moteur: 'cpu' });
+  m.ajouter(blocAvecTrou((x) => x >= 300));   // le sol n'est connu que sur les 3 premiers mètres
+  const e = { xmin: 1000, xmax: 1080, ymin: 2000, ymax: 2080 };
+  m.calculer(VUE_GRILLE.definir(e, 0.5, 0, 4096), 'svf');
+  const r = m.nuage3d(e, 1e9);
+  let loin = 0, inconnus = 0, proches = 0, prochesInconnus = 0;
+  for (let i = 0; i < r.n; i++) {
+    if (r.cls[i] !== 6) continue;
+    const x = r.origine[0] + r.x[i] - 1000;
+    if (x > 40) { loin++; if (r.hauteur[i] === SOL_ESTIME.inconnue) inconnus++; }
+    if (x > 6 && x < 25) { proches++; if (r.hauteur[i] === SOL_ESTIME.inconnue) prochesInconnus++; }
+  }
+  assert.ok(loin > 1000 && inconnus / loin > 0.95, `${inconnus} sur ${loin} inconnus au-delà de 40 m`);
+  assert.ok(proches > 500 && prochesInconnus / proches < 0.05, `${prochesInconnus} sur ${proches} inconnus à moins de 25 m`);
 });

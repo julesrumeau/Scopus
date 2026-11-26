@@ -217,3 +217,21 @@ test('la jauge n’ajoute plus de limite au clic (un clic raté en créait une) 
   assert.ok(!/Cliquez dans la barre pour ajouter/.test(lire('index.html')));
   assert.match(lire('src/editeur-rampe.js'), /rampe-ajouter/);
 });
+
+test('legendeSol : le gris « sol inconnu », et l’estimation dite quand elle est active', () => {
+  const avec = R.legendeSol(true, 30);
+  assert.match(avec, /sol inconnu/);
+  assert.match(avec, /background:#b8bcc6/);
+  assert.match(avec, /estimé/);
+  assert.match(avec, /30 m/);
+  const sans = R.legendeSol(false, 30);
+  assert.match(sans, /sol inconnu/);
+  assert.ok(!/estimé/.test(sans));
+  assert.ok(!/—/.test(avec + sans));
+});
+
+test('la page : une case pour estimer le sol manquant, cochée par défaut, dans le bloc de la rampe', () => {
+  const html = lire('index.html');
+  assert.match(html, /<input type="checkbox" id="vue-sol-estime" checked>/);
+  assert.ok(html.indexOf('id="vue-sol-estime"') > html.indexOf('id="champ-rampe"'));
+});

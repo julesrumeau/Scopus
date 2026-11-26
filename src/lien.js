@@ -179,6 +179,7 @@ const LIEN = (() => {
     if (COULEURS.includes(v.couleur)) p.push(`couleur=${v.couleur}`);
     if (Number.isFinite(v.plafond)) p.push(`plafond=${nombre(v.plafond, 1)}`);
     if (typeof v.rampe === 'string' && FORME_RAMPE.test(v.rampe)) p.push(`rampe=${v.rampe}`);   // le texte vient de RAMPE_HAUTEUR.ecrire
+    if (v.estimerSol === false) p.push('estim=0');
     if (v.edl === false) p.push('edl=0');
     const cachees = classesTriees(v.cachees);
     if (cachees.length) p.push(`cachees=${cachees.join('.')}`);
@@ -215,6 +216,7 @@ const LIEN = (() => {
     if (plafond !== undefined) v.plafond = plafond;
     if (FORME_RAMPE.test(params.get('rampe') ?? '')) v.rampe = params.get('rampe');   // la forme seulement : le sens est vérifié par RAMPE_HAUTEUR.lire
     if (/^\d{1,2}$/.test(params.get('hmax') ?? '') && params.get('hmax') >= 5 && params.get('hmax') <= 50) v.hmax = Number(params.get('hmax'));   // ancien lien : lu, jamais réécrit
+    if (params.get('estim') === '0') v.estimerSol = false;
     if (params.get('edl') === '0') v.edl = false;
     const cachees = params.has('cachees') ? classesLues(params.get('cachees')) : null;
     if (cachees) v.cachees = cachees;

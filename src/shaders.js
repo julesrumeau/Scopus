@@ -54,6 +54,7 @@ vec3 rampeElevation(float t) {
 // Rampe de hauteur au-dessus du sol : le sol reste sombre, tout ce qui dépasse
 // s'allume. C'est la vue la plus directe pour repérer une structure.
 vec3 rampeHauteur(float h) {
+  if (h < -500.0) return vec3(0.72, 0.74, 0.78);   // hauteur inconnue (sol à plus de 30 m d'un sol connu) : gris clair, jamais la couleur du sol
   return textureLod(u_rampe, vec2(clamp(h / 50.0, 0.0, 0.9999), 0.5), 0.0).rgb;
 }
 

@@ -147,9 +147,15 @@ const RAMPE_HAUTEUR = (() => {
       : `${i === 0 ? 0 : String(n.bornes[i - 1]).replace('.', ',')} à ${formaterM(n.bornes[i])}`)).join(' ');
   }
 
+  /** Le gris des points dont la hauteur est inconnue, et ce que l'estimation du sol a fait (rayon en mètres). */
+  function legendeSol(estimer, rayonM) {
+    const inconnu = '<span class="rampe-puce"><i style="background:#b8bcc6"></i>sol inconnu</span>';
+    return estimer ? `${inconnu} <span class="rampe-note">(sol estimé à moins de ${formaterM(rayonM)} d'un sol connu)</span>` : inconnu;
+  }
+
   return {
     defaut: DEFAUT, portee: PORTEE, largeur: LARGEUR, pas: PAS, maxBornes: MAX_BORNES, couleurs: { sol: SOL, jaune: JAUNE, rouge: ROUGE },
     borne, classique, preset, normaliser, couleur, texels, arcEnCiel, ajouterBorne, retirerBorne, deplacerBorne, colorerBande, changerMode,
-    egal, estDefaut, ecrire, lire, legendeHtml, formaterM,
+    egal, estDefaut, ecrire, lire, legendeHtml, legendeSol, formaterM,
   };
 })();

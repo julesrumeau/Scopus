@@ -15,7 +15,7 @@ function creerPanneau3D(d) {
     if (!b) return;
     for (const autre of $('coloration').children) autre.classList.toggle('actif', autre === b);
     CONFIG.rendu.coloration = b.dataset.mode;
-    $('champ-rampe').hidden = CONFIG.rendu.coloration !== 'hauteur';   // la rampe ne sert qu'à cette couleur
+    $('champ-rampe').hidden = CONFIG.rendu.coloration !== 'hauteur';   // (rampe et estimation du sol)   // la rampe ne sert qu'à cette couleur
     if (['hauteur', 'relief'].includes(CONFIG.rendu.coloration)) liaisons.rafraichirNuage?.();   // ces couleurs lisent la surface : la refaire
     majLien();   // la couleur du nuage est dans le lien
     majLegende();
@@ -39,6 +39,12 @@ function creerPanneau3D(d) {
   });
 
   creerEditeurRampe({ $, CONFIG, vue3d: () => vue3d, majLegende, majLien });
+  $('vue-sol-estime').addEventListener('change', (e) => {   // la hauteur dépend du sol estimé : refaire le nuage
+    CONFIG.rendu.estimerSol = e.target.checked;
+    majLegende();
+    majLien();
+    liaisons.rafraichirNuage?.();
+  });
 
   $('exag').addEventListener('input', (e) => {
     CONFIG.rendu.exagerationZ = Number(e.target.value);
@@ -61,7 +67,7 @@ function creerPanneau3D(d) {
     if (!etat.nuage) { l.innerHTML = ''; majExportPoints(); return; }
 
     const echelle = {
-      hauteur: RAMPE_HAUTEUR.legendeHtml(CONFIG.rendu.rampe),
+      hauteur: `${RAMPE_HAUTEUR.legendeHtml(CONFIG.rendu.rampe)}<br>${RAMPE_HAUTEUR.legendeSol(CONFIG.rendu.estimerSol, CONFIG.rendu.rayonSolEstimeM)}`,
       relief: 'La couche de l’onglet Relief, plaquée sur les points',
       elevation: 'Bleu = point bas · blanc = point haut de la dalle',
       intensite: 'Réflectance brute du laser, normalisée sur 16 bits',

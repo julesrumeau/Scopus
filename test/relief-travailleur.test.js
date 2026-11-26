@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { chargerScripts } from './charger.js';
 
-const FICHIERS = ['config.js', 'proj.js', 'vue-grille.js', 'vue-image.js', 'raster.js', 'relief.js', 'gl.js', 'shaders.js', 'gpu-relief.js', 'profil.js', 'vue-relief.js', 'relief-travailleur.js'];
+const FICHIERS = ['config.js', 'proj.js', 'vue-grille.js', 'vue-image.js', 'raster.js', 'relief.js', 'gl.js', 'shaders.js', 'gpu-relief.js', 'profil.js', 'sol-estime.js', 'vue-relief.js', 'relief-travailleur.js'];
 
 function bloc(cle, x0, y0) {
   const cote = 40, pasCm = 25, n = (cote * 100 / pasCm) ** 2;

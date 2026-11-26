@@ -298,6 +298,9 @@ const CONFIG = {
   // ── Rendu ─────────────────────────────────────────────────────────────────
   rendu: {
     taillePoint: 2.0,       // taille de base en pixels, à distance de référence
+    // Hauteurs de la 3D sous un toit ou un trou de la canopée : le sol connu est prolongé jusqu'à ce rayon (m), au-delà la hauteur est inconnue.
+    estimerSol: true,
+    rayonSolEstimeM: 30,
     // Rampe « Hauteur/sol » de la 3D : mode, limites (m) et une couleur par tranche. Le défaut est l'ancienne rampe (RAMPE_HAUTEUR.classique).
     rampe: { mode: 'degrade', bornes: [2.8, 8], couleurs: ['#2e3038', '#e6b847', '#f25940'] },
     attenuation: true,      // taille décroissante avec la distance
