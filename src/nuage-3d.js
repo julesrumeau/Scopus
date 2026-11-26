@@ -135,8 +135,20 @@ function creerNuage3D(d) {
     majLien();   // le plafond de points est dans le lien
   });
 
+  /**
+   * Refait le nuage même si rien n'a bougé : les hauteurs d'un nuage bâti pendant qu'on regardait les classes viennent d'une surface
+   * ancienne (peu de blocs arrivés), et les relire en passant à « Hauteur/sol » en laissait 40 à 75 % à 0. Attend la construction en cours,
+   * qui a pu commencer avec l'ancienne couleur, puis rebâtit avec la surface à jour.
+   */
+  async function rafraichir() {
+    while (construction) await construction;
+    pointsConstruits = -1;
+    return construire();
+  }
+
   return {
     construire,
+    rafraichir,
     etatChange,
     ouvrirDepuisLien,
     /** Le plafond de points, en nombre de points. */

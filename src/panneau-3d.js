@@ -5,7 +5,7 @@
 function creerPanneau3D(d) {
   const { $, vue3d, etat, CONFIG, SORTIE, classesMasquees, NOMS_CLASSES, milliers, octets, majLien, DIAGNOSTIC } = d;
   /** Posé plus tard par le bloc du relief : recharge la couleur par point (hauteur, relief drapé). */
-  const liaisons = { majAttributVue: null };
+  const liaisons = { majAttributVue: null, rafraichirNuage: null };
   /** La partie STL de la fenêtre d'export : remplie par `creerExportStlUI` quand le relief existe. */
   const exportStl = {};
 
@@ -15,7 +15,8 @@ function creerPanneau3D(d) {
     if (!b) return;
     for (const autre of $('coloration').children) autre.classList.toggle('actif', autre === b);
     CONFIG.rendu.coloration = b.dataset.mode;
-    $('champ-rampe').hidden = CONFIG.rendu.coloration !== 'hauteur';   // la borne ne sert qu'à cette rampe
+    $('champ-rampe').hidden = CONFIG.rendu.coloration !== 'hauteur';   // la rampe ne sert qu'à cette couleur
+    if (['hauteur', 'relief'].includes(CONFIG.rendu.coloration)) liaisons.rafraichirNuage?.();   // ces couleurs lisent la surface : la refaire
     majLien();   // la couleur du nuage est dans le lien
     majLegende();
     await majAttributNuage();

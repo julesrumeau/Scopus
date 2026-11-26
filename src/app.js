@@ -510,8 +510,7 @@ const { masquerAccueil } = creerAccueil({ $, carte, basculerVue, CONFIG, PROJ })
     majLegende, majHUD, majAttributNuage, majLien,
     carte, projVue, majVueFlux: (rect) => majVueFlux(rect), basculerVue, LIEN, RECTANGLE_3D, apresNuage: () => outils.republier3D(),
   });
-  etatNuage3D = nuage3D.etatChange;
-  surPassage3D = nuage3D.construire;
+  [etatNuage3D, surPassage3D, panneau3D.liaisons.rafraichirNuage] = [nuage3D.etatChange, nuage3D.construire, nuage3D.rafraichir];
   surPassageCarte = () => { vueCartes.cartes()[1]?.invalidateSize(); planifierRelief(0); };
 
   // Hauteur au-dessus du sol : venue avec le nuage. Relief : la couche du côté
