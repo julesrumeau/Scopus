@@ -1,5 +1,5 @@
 // L'éditeur de la rampe « Hauteur/sol » de la 3D : un bouton « Réglages » qui déplie, dans le panneau (sans rien cacher de la scène), un
-// mode (dégradé ou paliers), des préréglages, une jauge de 0 à 50 m dont les limites se glissent, se créent (un clic) et se retirent, une
+// mode (dégradé ou paliers), des préréglages, une jauge de 0 à 50 m dont les limites se glissent et se retirent (on en ajoute par un bouton), une
 // couleur par tranche, et un arbre de 50 m pour voir le résultat. Tout l'état est dans `RAMPE_HAUTEUR` (pur, testé) ; ici le DOM seulement.
 // Chaque retouche remplit la texture lue par le shader (`GL.textureRampe`), met à jour la légende et le lien, et redessine la scène.
 
@@ -89,7 +89,7 @@ function creerEditeurRampe({ $, CONFIG, vue3d, majLegende, majLien }) {
 
   jauge.addEventListener('pointerdown', (ev) => {
     const p = ev.target.closest('.rampe-poignee');
-    if (!p) { changer(R.ajouterBorne(etat(), pointerSurJauge(ev)), { structure: true }); return; }
+    if (!p) return;   // un clic dans la barre ne fait rien : on ajoute une limite par le bouton (un clic raté en créait une)
     p.setPointerCapture(ev.pointerId);
     p.focus();
     ev.preventDefault();

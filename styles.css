@@ -1585,7 +1585,7 @@ dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
 .rampe-ligne { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 12px; }
 .rampe-ligne select { flex: 1; min-width: 0; }
 .rampe-jauge-c { margin: 4px 6px 14px; }
-.rampe-jauge { position: relative; height: 30px; border: 1px solid var(--bord); border-radius: 6px; cursor: copy; touch-action: none; }
+.rampe-jauge { position: relative; height: 30px; border: 1px solid var(--bord); border-radius: 6px; touch-action: none; }
 .rampe-poignee {
   position: absolute; top: -5px; width: 14px; height: 38px; margin-left: -7px; padding: 0;
   background: var(--texte); border: 2px solid var(--fond); border-radius: 4px; cursor: ew-resize; touch-action: none;

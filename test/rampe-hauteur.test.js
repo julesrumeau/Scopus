@@ -208,3 +208,11 @@ test('la page : un bouton de paramètres, un éditeur masqué (mode, préréglag
   assert.ok(!/id="vue-hmax"/.test(html), 'l’ancien curseur est remplacé');
   for (const f of ['rampe-hauteur', 'arbre-exemple', 'editeur-rampe']) assert.match(html, new RegExp(`src="src/${f}\\.js"`), f);
 });
+
+test('la jauge n’ajoute plus de limite au clic (un clic raté en créait une) : seuls le bouton, le double-clic sur une limite et les champs changent le nombre de limites', () => {
+  const src = lire('src/editeur-rampe.js');
+  assert.ok(!/ajouterBorne\(etat\(\), pointerSurJauge/.test(src), 'plus d’ajout au clic dans la jauge');
+  assert.ok(!/cursor: copy/.test(lire('styles.css')), 'le curseur de la jauge ne promet plus une copie');
+  assert.ok(!/Cliquez dans la barre pour ajouter/.test(lire('index.html')));
+  assert.match(lire('src/editeur-rampe.js'), /rampe-ajouter/);
+});
