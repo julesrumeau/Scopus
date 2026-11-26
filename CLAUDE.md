@@ -231,7 +231,13 @@ Nuage de ce que la carte affichait, sans rien télécharger de plus
   `CONFIG.rendu.hauteurMaxRampeM`, 8 par défaut : rien ne change pour qui ne touche à rien), réglée par un curseur de 5 à 50 m, visible dans le
   seul mode Hauteur/sol (`rampe-hauteur.js`, pur et testé : borne, légende dynamique). Le jaune est à 35 % de la borne, le rouge à la borne. Dans le lien :
   `&hmax=35` (seulement si différent de 8, entier de 5 à 50, un abîmé tombe seul). Vérifié en Chromium sur Verdun : à 8 m toute la forêt est
-  rouge, à 35 m les hauteurs se distinguent. Non fait : tranches de couleurs distinctes, hauteur minimale pour masquer le sous-bois.
+  rouge, à 35 m les hauteurs se distinguent. **Deux modes** (demande suivante du même forestier : « voir en un coup d'œil la hauteur à partir de laquelle je
+  n'ai plus que des points jaunes ») : **Dégradé** (défaut, l'ancienne rampe) et **Seuil** (sol sombre sous 50 cm, jaune sous la valeur du curseur, rouge au-delà, sans
+  transition), `CONFIG.rendu.modeRampe`, `&rampe=seuil` dans le lien. **Le shader ne connaît plus la formule** : il lit une **texture de 1024 couleurs** (0 à 50 m, 5 cm par case, NEAREST,
+  unité 2, `u_rampe`) que `RAMPE_HAUTEUR.texels(mode, borne)` remplit (`GL.textureRampe`) ; un éditeur de paliers à N poignées (idée de l'utilisateur : bouton Paramètres, curseurs
+  ajoutables, couleurs au choix, arbre d'exemple ; composant candidat : Grapick, MIT, 14 Ko, `file://` possible) n'aurait qu'à remplir la même texture. Un test impose que le dégradé par défaut
+  redonne l'ancienne formule. Piège de vérification : en SwiftShader la 3D met plusieurs secondes à se redessiner après un changement de mode, une capture à 1,5 s montre un canevas blanc. Non fait : paliers
+  multiples, hauteur minimale pour masquer le sous-bois.
 - Non fait : une caméra 3D qui pilote le niveau de détail du téléchargement (TODO #4, phase 2, écartée).
 
 ## Le profil

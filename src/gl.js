@@ -141,4 +141,13 @@ const GL = {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     return tex;
   },
+
+  /** La rampe de hauteur (`RAMPE_HAUTEUR.texels`) en texture 1024×1, NEAREST : une marche de seuil doit rester franche. */
+  textureRampe(gl, octets, tex = null) {
+    if (!tex) tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, octets.length / 4, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, octets);
+    for (const [p, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, p, v);
+    return tex;
+  },
 };
