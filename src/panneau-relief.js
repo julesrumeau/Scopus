@@ -151,6 +151,7 @@ function creerPanneauRelief(d) {
     couleur: CONFIG.rendu.coloration !== 'classification' ? CONFIG.rendu.coloration : undefined,
     plafond: budget3D() !== (surMobile() ? CONFIG.rendu.budget3DMobile : CONFIG.rendu.budget3D) ? budget3D() / 1e6 : undefined,
     rampe: RAMPE_HAUTEUR.estDefaut(CONFIG.rendu.rampe) ? undefined : RAMPE_HAUTEUR.ecrire(CONFIG.rendu.rampe),
+    estimerSol: CONFIG.rendu.estimerSol ? undefined : false,
     edl: $('vue-edl').checked ? undefined : false,
     cachees: classesMasquees.size ? [...classesMasquees] : undefined,
   });
@@ -191,6 +192,10 @@ function creerPanneauRelief(d) {
     if (rampe) {
       CONFIG.rendu.rampe = RAMPE_HAUTEUR.normaliser(rampe);
       $('champ-rampe').dispatchEvent(new Event('rampe:externe'));   // l'éditeur redessine et refait la texture
+    }
+    if (v.estimerSol === false) {
+      $('vue-sol-estime').checked = false;
+      $('vue-sol-estime').dispatchEvent(new Event('change', { bubbles: true }));
     }
     if (v.edl === false) {
       $('vue-edl').checked = false;

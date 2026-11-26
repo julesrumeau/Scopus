@@ -220,6 +220,7 @@
         <input type="range" id="taille-point" min="0.5" max="24" step="0.5" value="2">
       </label>
       <div id="champ-rampe" hidden>
+        <label class="case"><input type="checkbox" id="vue-sol-estime" checked><span>Estimer le sol sous les toits et les trous (30 m)</span></label>
         <button type="button" id="btn-rampe" class="secondaire" aria-expanded="false" aria-controls="editeur-rampe">Réglages de la rampe de hauteur…</button>
         <div id="editeur-rampe" hidden>
           <div class="segments" id="rampe-mode">
@@ -729,6 +730,7 @@
 <script src="src/gpu-relief.js"></script>
 <script src="src/palettes.js"></script>
 <script src="src/profil.js"></script>
+<script src="src/sol-estime.js"></script>
 <script src="src/vue-relief.js"></script>
 <script src="src/relief-travailleur.js"></script>
 <script src="src/boussole.js"></script>

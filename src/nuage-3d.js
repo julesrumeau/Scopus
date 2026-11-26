@@ -42,7 +42,7 @@ function creerNuage3D(d) {
           await reliefAJour();
         }
         await etape('Nuage de la vue…', 'les points déjà chargés pour le relief');
-        const r = await relief.nuage3d(e, budget3D, [...flux.voulues()]);
+        const r = await relief.nuage3d(e, budget3D, [...flux.voulues()], { estimerSol: CONFIG.rendu.estimerSol });
         if (r && !r.vide) {
           await etape('Nuage vers la carte graphique…', `${milliers(r.n)} points`);
           r.parClasse = new Map(r.parClasse);

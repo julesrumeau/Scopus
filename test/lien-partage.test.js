@@ -356,3 +356,11 @@ test('un ancien lien hmax=35 est encore lu, jamais réécrit ; hors bornes ou ab
   for (const abime of ['hmax=4', 'hmax=51', 'hmax=x', 'hmax=-8', 'hmax=1e1']) assert.equal(lu(abime).hmax, undefined, abime);
   assert.equal(LIEN.ecrirePartage({ vue: { hmax: 35 } }), '');
 });
+
+test('estim=0 : le sol manquant n’est pas estimé ; écrit seulement quand il est désactivé, relu, tout autre mot tombe', () => {
+  assert.equal(LIEN.ecrirePartage({ vue: { couleur: 'hauteur', estimerSol: false } }), '&couleur=hauteur&estim=0');
+  assert.equal(LIEN.ecrirePartage({ vue: { estimerSol: true } }), '');
+  const lu = (q) => LIEN.lirePartage('#map=18/42.857536/1.061833&' + q).vue || {};
+  assert.equal(lu('estim=0').estimerSol, false);
+  for (const abime of ['estim=1', 'estim=non', 'estim=']) assert.equal(lu(abime).estimerSol, undefined, abime);
+});

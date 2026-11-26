@@ -89,7 +89,7 @@ function corpsTravailleurRelief() {
           pixels();
         }
       } else if (m.type === 'nuage3d') {
-        const r = moteur.nuage3d(m.emprise, m.budget, m.actifs ? new Set(m.actifs) : undefined);
+        const r = moteur.nuage3d(m.emprise, m.budget, m.actifs ? new Set(m.actifs) : undefined, m.options);
         if (!r || r.raison) { self.postMessage({ type: 'nuage3d', id: m.id, vide: true, raison: (r && r.raison) || '' }); return; }
         self.postMessage({ type: 'nuage3d', id: m.id, ...r },
           [r.x.buffer, r.y.buffer, r.z.buffer, r.cls.buffer, r.hauteur.buffer]);
@@ -159,6 +159,7 @@ const RELIEF_TRAVAILLEUR = (() => {
       'const RASTER = { CLASSE, creerGrilles, creerGrillesVue, accumuler, finaliser, rasteriser, signal, hauteurParPoint, centreCellule };',
       `${fabriqueVueGrille}\nconst VUE_GRILLE = fabriqueVueGrille();`,
       `${fabriqueVueImage}\nconst VUE_IMAGE = fabriqueVueImage();`,
+      `${fabriqueSolEstime}\nconst SOL_ESTIME = fabriqueSolEstime();`,
       `${fabriqueRelief}\nconst RELIEF = fabriqueRelief();`,
       `${fabriqueGpuRelief}\nconst GPU_RELIEF = fabriqueGpuRelief();`,
       `${fabriqueProfil}\nconst PROFIL = fabriqueProfil();`,
@@ -245,7 +246,7 @@ const RELIEF_TRAVAILLEUR = (() => {
       /** Une couche drapée sur le dernier nuage 3D, valeurs dans [0, 1] ; `null` sans nuage. */
       drape3d: (cle, reglagesCouche, min, max) => demander({ type: 'drape3d', cle, reglagesCouche, min, max }),
       /** Le nuage 3D de l'emprise, au plus `budget` points ; `{ vide, raison }` sinon. */
-      nuage3d: (emprise, budget, actifs) => demander({ type: 'nuage3d', emprise, budget, actifs }),
+      nuage3d: (emprise, budget, actifs, options) => demander({ type: 'nuage3d', emprise, budget, actifs, options }),
       /** Les points de la bande A→B ; `{ vide, raison }` sinon. */
       profil: (a, b, largeur, budget, actifs) => demander({ type: 'profil', a, b, largeur, budget, actifs }),
       /** Les altitudes des classes cochées sur `rect` (Lambert-93), pour l'export STL ; `null` sans bloc dans le rectangle. */
@@ -277,8 +278,8 @@ const RELIEF_TRAVAILLEUR = (() => {
       pointProche: async (x, y, z, rayonM) => moteur.pointProche(x, y, z, rayonM),
       grilleStl: async (rect, classes, pasMinM, maxCotes) => moteur.grilleStl(rect, classes, pasMinM, maxCotes),
       drape3d: async (cle, reglagesCouche, min, max) => moteur.drape3d(cle, reglagesCouche, min, max),
-      nuage3d: async (emprise, budget, actifs) => {
-        const r = moteur.nuage3d(emprise, budget, actifs ? new Set(actifs) : undefined);
+      nuage3d: async (emprise, budget, actifs, options) => {
+        const r = moteur.nuage3d(emprise, budget, actifs ? new Set(actifs) : undefined, options);
         return !r || r.raison ? { vide: true, raison: (r && r.raison) || '' } : r;
       },
       profil: async (a, b, largeur, budget, actifs) => {

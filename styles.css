@@ -1606,3 +1606,5 @@ dialog.fenetre-profil-grande[open] > * { flex: 0 0 auto; }
 #rampe-ajouter { width: 100%; font-size: 12.5px; }
 .rampe-puce { display: inline-flex; align-items: center; gap: 4px; margin: 2px 8px 2px 0; white-space: nowrap; }
 .rampe-puce i { display: inline-block; width: 11px; height: 11px; border-radius: 2px; border: 1px solid var(--bord); }
+.rampe-note { font-size: 11px; color: var(--texte-2); }
+#champ-rampe .case { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 8px; font-size: 12.5px; }
